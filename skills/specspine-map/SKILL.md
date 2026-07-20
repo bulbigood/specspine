@@ -5,757 +5,237 @@ description: Progressively map an existing brownfield software project into a lo
 
 # SpecSpine Map
 
-Build and progressively refine a linked Markdown architecture for an existing
-software project.
+Map an existing repository into a lightweight, long-lived network of linked
+architectural specifications. The network is the persistent artifact; a context
+handoff is a temporary projection for downstream work.
 
-The result is a SpecSpine: a lightweight network of specifications describing
-the project's purpose, major responsibilities, boundaries, significant
-behavior, decisions, and relationships.
+Map breadth before depth. Build the smallest useful architectural model rather
+than exhaustive code documentation.
 
-The persistent result is the linked specification network. A context handoff is
-only a temporary, task-oriented projection of that network for a downstream
-tool or coding agent.
+## Resources
 
-Map the project from broad understanding toward selected detail.
-
-Do not attempt to document every file, class, function, endpoint, table, or
-implementation detail.
-
-Read [references/spec-semantics.md](references/spec-semantics.md) before
-creating, changing, or reviewing specifications. Read
-[references/context-handoff.md](references/context-handoff.md) before preparing
-a context handoff.
+- Read [references/spec-semantics.md](references/spec-semantics.md) before
+  creating, changing, or reviewing specifications.
+- Read [references/mapping-method.md](references/mapping-method.md) before a
+  substantial survey, refresh, or restructuring.
+- Read [references/examples.md](references/examples.md) when choosing mapping
+  depth, distinguishing evidence from interpretation, or deciding whether an
+  area deserves a specification.
+- Read [references/context-handoff.md](references/context-handoff.md) before
+  preparing a context handoff.
+- When creating files, use
+  [assets/templates/architecture-index.md](assets/templates/architecture-index.md)
+  and [assets/templates/specification.md](assets/templates/specification.md) as
+  starting points. Omit empty sections.
 
 ## Scope
 
-Use this skill when the user wants to:
+Use this skill to:
 
 - create a SpecSpine for an existing repository;
-- understand an unfamiliar brownfield project;
-- document the high-level system architecture;
-- identify major runtime components and subsystems;
-- refine the map of a selected architectural area;
-- preserve knowledge discovered while investigating code;
-- prepare architectural context for future agents;
-- prepare an architecture context handoff for a downstream workflow or coding
-  agent;
-- compare existing code with an existing SpecSpine;
-- identify uncertain or conflicting architectural interpretations.
-
-Do not use this skill to:
-
-- modify source code;
-- implement features or bug fixes;
-- produce exhaustive code documentation;
-- generate API reference documentation;
-- create feature acceptance criteria or track implementation status;
-- treat every directory as an architectural subsystem;
-- claim intent that cannot be supported by the repository;
-- silently convert technical debt into an accepted architectural decision.
-
-This skill may read source code, configuration, tests, migrations, deployment
-files, and existing documentation. It may create or update files under
-`specs/`, but it must not modify production code.
-
-# Core mapping principle
-
-Map breadth before depth.
-
-Use this progression:
-
-```text
-Repository
-    ↓
-Project purpose and runtime shape
-    ↓
-Major components and responsibilities
-    ↓
-Relationships and boundaries
-    ↓
-Selected subsystem
-    ↓
-Significant behavior and decisions
-```
-
-Do not deeply document the first interesting module before understanding the
-overall project.
-
-The goal is the smallest useful architectural map, not complete documentation.
-
-# Specification layout
-
-Use this layout by default:
-
-```text
-specs/
-├── README.md
-└── <concept>.md
-```
-
-Keep specification files in a flat directory.
-
-Software architecture is a graph. Do not mirror the source tree or encode
-architectural hierarchy through nested specification directories.
-
-Use lowercase kebab-case filenames based on stable concepts:
-
-```text
-api-server.md
-authentication.md
-background-processing.md
-document-indexing.md
-persistence.md
-```
-
-Avoid filenames based on repository paths, temporary changes, tickets, or
-implementation classes:
-
-```text
-src-services.md
-auth-service-class.md
-feature-142.md
-legacy-fix.md
-```
-
-Read [references/mapping-method.md](references/mapping-method.md) before
-performing a substantial repository survey or restructuring an existing
-SpecSpine.
-
-Read [references/examples.md](references/examples.md) when choosing mapping
-depth, distinguishing observations from inference, or deciding whether a code
-area deserves its own specification.
-
-# README.md
-
-`specs/README.md` is required.
-
-It is the entry point into the mapped architecture, not the semantic parent of
-every specification.
-
-It should explain:
-
-- what the project appears to do;
-- the major runtime components or architectural areas;
-- where a new agent should start reading;
-- important system-wide observations or accepted decisions;
-- unresolved architectural questions;
-- the current mapping coverage.
-
-Recommended structure:
-
-```markdown
-# Project architecture
-
-## Purpose
-
-A concise description of the project and the problem it solves.
-
-## Architecture map
-
-- [API server](api-server.md) — serves the public application API.
-- [Background processing](background-processing.md) — runs asynchronous jobs.
-- [Persistence](persistence.md) — owns durable application data.
-
-## System-wide decisions
-
-Accepted decisions that affect several specifications.
-
-## System-wide constraints
-
-Accepted restrictions that affect several specifications.
-
-## Mapping status
-
-- Mapped: high-level runtime architecture
-- Deepened: authentication
-- Not yet mapped: reporting subsystem
-
-## Open questions
-
-Architectural questions that cannot be resolved confidently from the repository.
-```
-
-Do not list every specification when a smaller set of useful entry points is
-enough.
-
-# Specification structure
-
-Use the following flexible structure:
-
-```markdown
-# Specification name
-
-A short summary of the concept.
-
-## Responsibility
-
-What this concept owns in the current system.
-
-## Boundaries
-
-What belongs to this concept and what belongs elsewhere.
-
-## Behavior
-
-Significant externally observable or architecturally relevant behavior.
-
-## Relationships
-
-### Part of
-
-Optional links to broader architectural contexts.
-
-### Contains
-
-Optional links to more detailed specifications.
-
-### Depends on
-
-Specifications required by this concept.
-
-### Used by
-
-Important consumers of this concept.
-
-### Related
-
-Relevant specifications that do not fit the relationships above.
-
-## Observed
-
-Facts directly supported by repository evidence.
-
-## Inferred
-
-Architectural interpretations that are plausible but not explicitly established.
-
-## Decisions
-
-Accepted architectural decisions supported by documentation or confirmed by
-the user.
-
-## Constraints
-
-Accepted restrictions on downstream architecture or implementation.
-
-## Open questions
-
-Unresolved questions, ambiguities, or conflicts.
-```
-
-Sections are optional. Include only sections containing useful information.
-
-Do not add empty sections merely to satisfy the template.
-
-# Statement semantics and evidence levels
-
-Use these meanings consistently:
+- survey project purpose, runtime shape, and major responsibilities;
+- map or deepen a selected architectural area;
+- refresh specs after meaningful repository evolution;
+- compare observed evidence with intended architecture;
+- preserve uncertainty and intended-versus-observed disagreements;
+- prepare a minimal architecture context handoff.
+
+Do not use it to:
+
+- modify production code or implement changes;
+- produce exhaustive code or API documentation;
+- mirror every directory, class, endpoint, table, or function;
+- infer business intent solely from repository names;
+- create feature specifications, acceptance criteria, plans, or tasks;
+- claim complete coverage or prove code/spec conformance.
+
+## Semantic contract
 
 - `Decisions` and `Constraints` describe intended architecture.
-- `Observed` describes current repository evidence.
-- `Inferred` describes unconfirmed interpretation.
+- `Observed` records current repository evidence.
+- `Inferred` records unconfirmed interpretation.
 - `Open questions` preserves unresolved uncertainty.
 
 Observed facts do not override decisions or constraints. Decisions and
 constraints do not imply that code implements them. Preserve disagreements
-explicitly until the user or a downstream workflow resolves them.
+until the user or a downstream workflow resolves them.
 
-Brownfield mapping must distinguish facts from interpretation.
+When repeated evidence suggests a useful architectural decision without an
+authoritative source, propose it for confirmation. Never record it as accepted
+intent automatically.
 
-## Observed
+Keep stable responsibilities, ownership boundaries, architectural
+relationships, long-lived decisions, and constraints in SpecSpine. Leave
+feature deltas, temporary scope, acceptance criteria, implementation tasks, and
+status to downstream workflows.
 
-Use `Observed` for claims directly supported by repository evidence such as:
+## Lifecycle role
 
-- runtime entry points;
-- dependency declarations;
-- configuration;
-- route registration;
-- schemas and migrations;
-- test behavior;
-- deployment files;
-- explicit documentation;
-- data flow visible across modules.
+Discover repository evidence, record observed architecture, and propose
+interpretations or structural changes without silently altering normative
+intent. Propose new decisions or constraints for user confirmation instead of
+accepting them from evidence alone.
 
-Where helpful, mention representative code locations using repository-relative
-paths.
+Remain fully usable without any companion skill. Update the linked network and
+produce context handoffs without proving conformance or implementing changes.
 
-Example:
+## Workflow
 
-```markdown
-## Observed
+### 1. Inspect existing architecture material
 
-- `apps/api/src/main.ts` starts the HTTP server.
-- `apps/worker/src/main.ts` starts a separate background worker.
-- Both processes use the PostgreSQL connection configured in
-  `packages/database`.
-```
+Read root documentation, `specs/README.md`, relevant specifications, and ADRs or
+equivalent architecture records. Preserve accepted structure unless evidence or
+the request justifies changing it.
 
-Do not turn `Observed` into a file inventory.
+### 2. Choose mapping depth
 
-## Inferred
-
-Use `Inferred` for architectural interpretations such as:
-
-- a group of modules appears to form one subsystem;
-- a directory boundary seems to represent ownership;
-- an event stream appears to be the integration boundary;
-- a service is likely intended to be independently deployable.
-
-State inference cautiously.
-
-Example:
-
-```markdown
-## Inferred
-
-- The API and worker appear to be separate runtime components sharing one
-  application data model.
-```
-
-## Decisions
-
-Use `Decisions` only when:
-
-- the repository explicitly documents the decision;
-- an ADR or equivalent record establishes it;
-- the user confirms the interpretation;
-- the decision is unambiguous and intentionally encoded by the system.
-
-Do not classify an accidental implementation detail as an architectural
-decision.
-
-When repeated repository evidence suggests a useful architectural decision but
-no authoritative intent exists, propose the decision and ask the user to
-confirm it. Do not write it as an accepted decision automatically.
-
-## Constraints
-
-Use `Constraints` for accepted restrictions that downstream architecture or
-implementation must preserve. A constraint is normative intent, not evidence
-that the repository currently satisfies it.
-
-# Role in the project lifecycle
-
-`specspine-map` discovers repository evidence, records observed architecture,
-and proposes interpretations or structural changes. It must not silently alter
-normative decisions or constraints.
-
-`specspine-grow` owns intentional evolution of the SpecSpine. It creates and
-updates normative architecture and may preserve relevant observations without
-deeply discovering them from code.
-
-Both skills may update the linked specification network and produce the same
-architecture context handoff. Both preserve intended-versus-observed
-disagreements. Neither proves code/spec conformance, implements changes, or
-silently resolves blocking architectural questions.
-
-# Mapping passes
-
-## Pass 1: Survey
-
-Build a high-level map of the whole repository.
-
-Inspect the smallest useful set of project signals:
-
-- root documentation;
-- package or workspace manifests;
-- top-level directories;
-- runtime entry points;
-- deployment and container files;
-- configuration;
-- major dependency boundaries;
-- database schemas or migrations;
-- representative tests.
-
-Determine:
-
-- project purpose;
-- primary users or external actors when apparent;
-- deployable or executable components;
-- major subsystems;
-- persistence and external integrations;
-- broad relationships;
-- important unknowns.
-
-Create only a small number of specifications.
-
-A survey result should usually contain between three and eight architectural
-entry points, but use judgment rather than a numeric rule.
-
-Do not deeply map internal modules during the survey unless required to
-understand the system shape.
-
-## Pass 2: Map a selected area
-
-For a selected subsystem:
-
-- identify its responsibility;
-- determine its boundary;
-- find its main inputs and outputs;
-- identify important dependencies and consumers;
-- describe significant behavior;
-- distinguish observed facts from inferred architecture;
-- identify concepts that deserve separate specifications;
-- preserve unresolved ambiguity.
-
-Read representative code rather than every file.
-
-Prefer entry points, public interfaces, tests, schemas, and integration edges
-over local implementation internals.
-
-## Pass 3: Deepen only when useful
-
-Deepen a branch when:
-
-- the user asks about it;
-- an upcoming change requires it;
-- its current specification is too abstract for safe implementation;
-- several distinct responsibilities have emerged;
-- a cross-cutting dependency is unclear.
-
-Stop when a new coding agent can understand where to look, what the area owns,
-what it depends on, and which decisions must be preserved.
-
-Do not continue until the prose mirrors the code.
-
-# Operating workflow
-
-## Step 1: Inspect existing architecture material
-
-Read:
-
-- the repository root documentation;
-- any existing `specs/README.md`;
-- relevant existing specifications;
-- ADRs or architecture documentation when present.
-
-If a SpecSpine already exists, preserve its accepted structure unless evidence
-or the user request justifies a change.
-
-## Step 2: Choose mapping depth
-
-Infer the requested depth:
+Use the shallowest depth that answers the request:
 
 - `survey` — map the project broadly;
 - `map` — describe a selected subsystem;
-- `deepen` — add detail required for a specific change;
-- `refresh` — update specs after meaningful repository evolution;
-- `review` — identify weak or uncertain areas in the current map.
-- `handoff` — prepare minimal architectural context for downstream work.
+- `deepen` — add detail needed for a specific architectural question;
+- `refresh` — update specs after repository evolution;
+- `review` — identify weak or uncertain areas;
+- `handoff` — prepare minimal downstream architectural context.
 
-The user does not need to use these words explicitly.
+### 3. Gather representative evidence
 
-Default to the shallowest depth that answers the request.
+Prioritize root docs and manifests, composition roots, runtime entry points,
+public interfaces, schemas and migrations, integration edges, deployment
+configuration, and representative tests. Read implementation internals only
+where boundaries remain unclear.
 
-## Step 3: Gather representative evidence
+### 4. Form the smallest useful model
 
-Inspect enough repository evidence to support an architectural description.
+Choose stable responsibilities rather than filesystem shapes. A directory is
+not automatically a subsystem; several directories may implement one concept,
+and one directory may contain several concepts.
 
-Do not read the entire repository by default.
+Record direct evidence as `Observed`, plausible interpretation as `Inferred`,
+accepted intent as `Decisions` or `Constraints`, and unresolved ambiguity as
+`Open questions`.
 
-Prioritize:
+### 5. Propose structural impact
 
-1. entry points and composition roots;
-2. public interfaces and routing;
-3. module or package boundaries;
-4. schemas, migrations, and contracts;
-5. integration adapters;
-6. representative tests;
-7. implementation internals only when necessary.
-
-## Step 4: Form the smallest useful model
-
-Identify stable concepts rather than copying the filesystem.
-
-A directory deserves a specification only when it represents an architectural
-responsibility or useful navigation boundary.
-
-Several directories may belong to one specification.
-
-One directory may contain several architectural concepts.
-
-## Step 5: Present structural impact
-
-Before creating, renaming, deleting, splitting, merging, or modifying several
-specification files, present an impact proposal.
-
-Use this format:
+Before creating, renaming, deleting, splitting, merging, or changing several
+specifications, show:
 
 ```text
 Mapping proposal
 
 Create:
-- specs/api-server.md
-- specs/background-processing.md
-- specs/persistence.md
+- paths, or none
 
 Modify:
-- specs/README.md
+- paths, or none
 
 Evidence inspected:
-- package manifests
-- runtime entry points
-- deployment configuration
-- database migrations
+- representative sources
 
 Inferred structure:
-- API and worker are separate runtime components sharing persistence.
+- unconfirmed interpretations, or none
 
 Unresolved:
-- Ownership of scheduled reporting jobs is unclear.
-
-Proceed with these specification changes?
+- conflicts or questions, or none
 ```
 
 Wait for approval unless the user explicitly requested immediate application.
+For a clear initial mapping request, a small non-destructive survey may be
+applied directly.
 
-For an initial mapping request that clearly asks the skill to create the
-SpecSpine, the skill may apply a small, non-destructive initial survey directly
-and report what was created.
+### 6. Apply the map
 
-## Step 6: Apply the approved map
+- Modify only files under `specs/`.
+- Preserve user-authored decisions and unrelated content.
+- Keep useful relative links and reachability from `specs/README.md`.
+- Keep observations separate from inference and normative intent.
+- Do not rewrite intent to legitimize accidental implementation behavior.
+- Update `specs/README.md` only when top-level navigation, system-wide intent,
+  or mapping coverage changes.
 
-After approval:
+### 7. Report
 
-- create or update specifications;
-- use ordinary relative Markdown links;
-- update `specs/README.md` when top-level navigation changes;
-- keep observations separate from inference;
-- avoid duplicated canonical descriptions;
-- preserve existing user-authored decisions;
-- do not rewrite unrelated specifications;
-- keep broad overview files concise.
+Summarize evidence inspected, files changed, mapped and deepened areas,
+inferences awaiting confirmation, unresolved conflicts, and remaining coverage.
 
-## Step 7: Report mapping coverage
+## Mapping rules
 
-Summarize:
+### Initial survey
 
-- evidence inspected;
-- specifications created or modified;
-- areas mapped at high level;
-- areas deepened;
-- inferred architecture awaiting confirmation;
-- unresolved questions;
-- recommended next branch to map, only when useful.
+Create `specs/README.md` and a small set of architectural entry points. Capture
+project purpose, primary actors when apparent, deployable components, major
+subsystems, persistence, integrations, broad relationships, and important
+unknowns. Do not deeply map the first interesting module.
 
-# Creating the initial map
+### Selected area
 
-When no SpecSpine exists, create:
+Identify responsibility, boundary, inputs and outputs, dependencies, consumers,
+significant behavior, evidence status, and concepts that may deserve separate
+specifications. Stop when another agent can find the area and understand what
+must remain true; do not mirror the code.
 
-```text
-specs/
-├── README.md
-└── a small set of top-level specifications
-```
+### Refresh
 
-A repository containing a web application, API process, worker, and shared
-database might initially produce:
+Start from affected specifications and changed repository areas. Update the
+smallest useful set, preserve normative intent, and record unresolved drift. Do
+not remap the whole repository for a local change.
 
-```text
-specs/
-├── README.md
-├── web-application.md
-├── api-server.md
-├── background-processing.md
-└── persistence.md
-```
+### Decomposition and cross-cutting concerns
 
-Do not immediately create specifications for every domain module.
+Split only for an independent responsibility, runtime boundary, meaningful
+interface, behavior set, or independently evolving navigation point. Treat
+security, observability, configuration, transactions, audit, tenancy, and error
+handling as cross-cutting; do not force them under one parent or create a file
+without project-specific architectural value.
 
-The initial map should be useful even when incomplete.
+### Mapping status
 
-# Mapping existing architecture versus desired architecture
+Keep coverage qualitative: mapped, deepened, partial, or not mapped. Do not use
+percentages or claim formal completeness.
 
-The repository shows the implemented system, not necessarily the intended
-system.
+### Intended versus observed architecture
 
-When code and documentation disagree:
+When code and documentation disagree, preserve intended behavior under
+`Decisions` or `Constraints`, implemented evidence under `Observed`, and the
+conflict under `Open questions`. Do not resolve it silently.
 
-- describe the implemented behavior under `Observed`;
-- preserve explicit intended behavior under `Decisions` when authoritative;
-- record the mismatch under `Open questions`;
-- do not silently resolve the conflict;
-- do not rewrite the specification to legitimize accidental code behavior.
+### Context handoff
 
-Example:
+Follow `references/context-handoff.md`. Include the smallest useful context and
+separate required, potentially affected, and merely related specifications.
+Carry evidence status and blocking questions without adding downstream
+artifacts.
 
-```markdown
-## Observed
+## Readiness for context handoff
 
-- The API directly writes audit records during request handling.
-
-## Decisions
-
-- The existing ADR states that audit delivery should be asynchronous.
-
-## Open questions
-
-- Is the synchronous path temporary technical debt or has the ADR been
-  superseded?
-```
-
-# Working with an existing SpecSpine
-
-When specifications already exist:
-
-1. Treat accepted decisions as architectural intent.
-2. Use code to add observations and implementation context.
-3. Do not replace concise architecture with a source-tree description.
-4. Propose changes when the repository reveals missing responsibilities or
-   incorrect boundaries.
-5. Preserve disagreements explicitly.
-
-Do not claim that the SpecSpine and code are synchronized merely because both
-were inspected.
-
-SpecSpine does not guarantee code/spec conformance. Preserve meaningful
-disagreements between observed evidence and intended decisions or constraints
-as part of the architectural record.
-
-# Decomposition
-
-Propose a separate specification when an observed concept:
-
-- has an independent responsibility;
-- owns a distinct runtime boundary;
-- exposes a meaningful interface;
-- contains several significant behaviors or decisions;
-- is used by multiple architectural areas;
-- evolves independently;
-- is necessary as a navigation point for future agents.
-
-Do not split based on directory count or file length alone.
-
-After a split, retain a concise overview and links in the broader
-specification.
-
-# Cross-cutting concerns
-
-Security, observability, configuration, transactions, audit, tenancy, and error
-handling may cut across several subsystems.
-
-Do not force them under a single parent merely to create a hierarchy.
-
-Create a separate specification only when the concern has project-specific
-behavior, decisions, or boundaries worth preserving.
-
-Otherwise record the relevant relationship or decision in the specifications
-that own the behavior.
-
-# Mapping status
-
-Use `Mapping status` in `specs/README.md` to communicate coverage without
-formal metadata.
-
-Example:
-
-```markdown
-## Mapping status
-
-- High-level map complete
-- Deepened: authentication, document processing
-- Partially mapped: billing
-- Not mapped: internal administration tools
-```
-
-Keep this qualitative. Do not create a complex coverage system.
-
-# Preparing an architecture context handoff
-
-When asked to prepare context for downstream work, follow
-[references/context-handoff.md](references/context-handoff.md). Return:
-
-```text
-Change intent:
-- what the downstream workflow is expected to accomplish
-
-Primary specification:
-- the canonical owner of the changed responsibility
-
-Required specifications:
-- specifications that must be read to understand the change safely
-
-Potentially affected specifications:
-- specifications that may require architectural updates
-
-Architectural decisions and constraints:
-- accepted architectural intent that downstream work must preserve
-
-Relevant observations:
-- current repository facts that affect downstream execution
-
-Unconfirmed inferences:
-- interpretations that downstream tools must not treat as accepted decisions
-
-Blocking questions:
-- questions that downstream work must not answer silently
-
-Expected architectural outcome:
-- the architectural state expected after the downstream change
-```
-
-Include only the smallest useful context. Do not classify every related
-specification as potentially affected.
-
-# Readiness for context handoff
-
-An architectural area is ready for context handoff when:
+An area is ready when:
 
 - a canonical owner is identified;
-- responsibility and boundaries are understandable;
-- direct dependencies are identified;
+- responsibility, boundaries, and direct dependencies are understandable;
 - relevant decisions and constraints are collected;
-- potentially affected specifications are separated from merely related ones;
+- potentially affected specifications are separated from related context;
 - blocking architectural questions are explicit;
 - observed and inferred claims are distinguishable.
 
-Readiness for context handoff does not imply readiness for implementation.
-Downstream workflows remain responsible for product requirements, acceptance
-criteria, edge cases, migration plans, test requirements, and implementation
-readiness. A coding agent still reads relevant code; SpecSpine tells it where
-to look and which architectural intent to preserve.
+This does not imply readiness for implementation. Product requirements, edge
+cases, acceptance criteria, migrations, tests, and implementation readiness
+belong downstream. A coding agent still reads relevant code.
 
-# Restrictions
+## Restrictions
 
 Never:
 
-- modify source code;
-- generate implementation changes;
-- document every source file;
-- mirror the repository tree mechanically;
-- infer business intent solely from names;
-- present inference as observed fact;
-- present technical debt as accepted architecture;
-- describe local algorithms unless they affect architecture or behavior;
-- rewrite the entire SpecSpine when a local update is sufficient;
-- create a rigid hierarchy for naturally cross-linked concepts;
-- claim complete coverage without evidence;
-- claim synchronization between specs and code;
-- claim that a decision or constraint is implemented merely because it is in a
-  specification;
-- silently change normative decisions based on repository evidence;
-- silently resolve intended-versus-observed disagreements or blocking
-  architectural questions;
-- create plans, task files, acceptance criteria, or implementation status.
+- modify production code or generate implementation changes;
+- present inference or technical debt as accepted intent;
+- claim synchronization, conformance, complete coverage, or implementation of
+  documented intent;
+- silently change normative decisions from repository evidence;
+- silently resolve blocking questions or intended-versus-observed conflicts;
+- turn the SpecSpine into a source-tree or function-level inventory;
+- rewrite unrelated branches;
+- create plans, tasks, acceptance criteria, or implementation status.
 
-# Response style
-
-Be concise, evidence-aware, and architectural.
-
-Prefer:
-
-- major responsibilities;
-- runtime boundaries;
-- data and control relationships;
-- representative evidence;
-- uncertainty made explicit.
-
-Avoid:
-
-- exhaustive file listings;
-- speculative product requirements;
-- implementation narration;
-- generic architecture advice unrelated to the repository.
-
-The user owns architectural interpretation. The skill organizes repository
+Be concise, evidence-aware, and architectural. Prefer responsibilities,
+boundaries, runtime and data-flow shape, representative evidence, and explicit
+uncertainty. The user owns architectural interpretation; this skill organizes
 evidence into a durable, navigable SpecSpine.

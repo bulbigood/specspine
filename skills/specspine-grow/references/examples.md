@@ -4,6 +4,15 @@ These examples demonstrate the expected behavior of `specspine-grow`.
 
 They are behavioral examples, not rigid output requirements.
 
+## Contents
+
+- [Initialize from an abstract idea](#example-1-initialize-from-an-abstract-idea)
+- [Refine an existing area](#example-2-refine-an-existing-area)
+- [Add a cross-cutting feature](#example-3-add-a-cross-cutting-feature)
+- [Avoid duplication](#example-4-avoid-duplication)
+- [Preserve uncertainty](#example-5-preserve-uncertainty)
+- [Prepare a context handoff](#example-6-prepare-an-architecture-context-handoff)
+
 ## Example 1: Initialize from an abstract idea
 
 ### User request

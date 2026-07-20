@@ -128,29 +128,36 @@ handoff as `specspine-grow`.
 Install `specspine-grow` from this repository:
 
 ```bash
-npx skills add <github-user>/specspine --skill specspine-grow
+npx skills add bulbigood/specspine --skill specspine-grow
+```
+
+Install `specspine-map` independently:
+
+```bash
+npx skills add bulbigood/specspine --skill specspine-map
 ```
 
 List the available skills:
 
 ```bash
-npx skills add <github-user>/specspine --list
+npx skills add bulbigood/specspine --list
 ```
 
 Install all available SpecSpine skills:
 
 ```bash
-npx skills add <github-user>/specspine --skill '*'
+npx skills add bulbigood/specspine --skill '*'
 ```
 
 For local development:
 
 ```bash
-git clone https://github.com/<github-user>/specspine.git
+git clone https://github.com/bulbigood/specspine.git
 cd specspine
 
 npx skills add . --list
 npx skills add . --skill specspine-grow
+npx skills add . --skill specspine-map
 ```
 
 ## Usage

@@ -7,6 +7,17 @@ It is a flexible template, not a schema. Include only sections that add useful
 architectural information. Do not create empty sections merely to satisfy the
 format.
 
+## Contents
+
+- [File organization](#file-organization)
+- [Architecture index](#architecture-index)
+- [Specification node](#specification-node)
+- [Section guidance](#section-guidance)
+- [Canonical ownership](#canonical-ownership)
+- [Decomposition](#decomposition)
+- [Terminal detail](#terminal-detail)
+- [Reachability](#reachability)
+
 ## File organization
 
 Store project specifications in a flat directory:
@@ -48,100 +59,17 @@ Every SpecSpine has a `specs/README.md` entry point.
 It is a curated architecture map, not the semantic parent of every
 specification.
 
-Recommended structure:
-
-```markdown
-# Project architecture
-
-## Purpose
-
-A concise description of the project and the problem it solves.
-
-## Architecture map
-
-- [Authentication](authentication.md) — identifies users and creates sessions.
-- [User accounts](users.md) — owns user identity and profile data.
-- [Notifications](notifications.md) — delivers user-facing messages.
-
-## System-wide decisions
-
-Only decisions that affect several specifications belong here.
-
-## System-wide constraints
-
-Only constraints that affect several specifications belong here.
-
-## Open questions
-
-Unresolved project-level architectural questions.
-```
+Use the architecture-index template routed from `SKILL.md` when creating it.
+The index should contain project purpose, a curated architecture map, accepted
+system-wide decisions and constraints, and project-level open questions.
 
 Keep the architecture map small enough to be useful. It may link directly to
 top-level concepts and let those specifications link to more detailed concepts.
 
 ## Specification node
 
-Recommended structure:
-
-```markdown
-# Specification name
-
-A short summary of the concept.
-
-## Responsibility
-
-What this concept owns and why it exists.
-
-## Boundaries
-
-What belongs to this concept and what explicitly does not.
-
-## Behavior
-
-Significant externally observable or architecturally relevant behavior.
-
-## Relationships
-
-### Part of
-
-Optional links to broader architectural contexts.
-
-### Contains
-
-Optional links to more detailed specifications.
-
-### Depends on
-
-Specifications required by this concept.
-
-### Used by
-
-Important consumers of this concept.
-
-### Related
-
-Relevant specifications that do not fit the relationships above.
-
-## Decisions
-
-Architectural or behavioral decisions already accepted by the user.
-
-## Constraints
-
-Restrictions that downstream architecture or implementation must preserve.
-
-## Observed
-
-Optional current repository facts relevant to the specification.
-
-## Inferred
-
-Optional unconfirmed interpretations of repository evidence.
-
-## Open questions
-
-Unresolved questions that may affect architecture or behavior.
-```
+Use the specification template routed from `SKILL.md` when creating a node.
+Select only useful sections; the template is a menu, not a required schema.
 
 ## Section guidance
 

@@ -4,6 +4,16 @@ These examples demonstrate expected behavior for brownfield mapping.
 
 They are examples of judgment, not rigid output formats.
 
+## Contents
+
+- [Initial repository survey](#example-1-initial-repository-survey)
+- [Observed versus inferred](#example-2-observed-versus-inferred)
+- [Deepen authentication](#example-3-deepen-authentication)
+- [Do not canonize technical debt](#example-4-do-not-canonize-technical-debt)
+- [Avoid exhaustive documentation](#example-5-avoid-exhaustive-documentation)
+- [Refresh after a local change](#example-6-refresh-after-a-local-change)
+- [Mapping status](#example-7-mapping-status)
+
 ## Example 1: Initial repository survey
 
 ### Repository signals

@@ -3,6 +3,19 @@
 This reference describes how to progressively map an existing repository
 without turning the SpecSpine into a source-code catalog.
 
+## Contents
+
+- [Goal](#goal)
+- [Breadth-first discovery](#breadth-first-discovery)
+- [Signals and what they reveal](#signals-and-what-they-reveal)
+- [Choosing specification nodes](#choosing-specification-nodes)
+- [Evidence discipline](#evidence-discipline)
+- [Initial survey output](#initial-survey-output)
+- [Deepening a branch](#deepening-a-branch)
+- [Refreshing an existing map](#refreshing-an-existing-map)
+- [Stopping condition](#stopping-condition)
+- [Common failure modes](#common-failure-modes)
+
 ## Goal
 
 Create the smallest linked architecture that allows a new human or coding agent
@@ -218,44 +231,8 @@ specs/
 
 Each file can be short.
 
-A useful initial node might contain:
-
-```markdown
-# Background processing
-
-Runs asynchronous document-processing and notification jobs outside the API
-request path.
-
-## Responsibility
-
-- consume queued jobs;
-- coordinate long-running processing;
-- report job outcomes.
-
-## Relationships
-
-### Depends on
-
-- [Persistence](persistence.md)
-- [External storage](external-storage.md)
-
-### Used by
-
-- [API server](api-server.md)
-
-## Observed
-
-- `apps/worker/src/main.ts` starts a separate process.
-- Job handlers are registered from `packages/jobs`.
-
-## Inferred
-
-- Background work is intended to scale independently from the API.
-
-## Open questions
-
-- Are failed jobs retried by the queue or by application code?
-```
+Use the templates routed from `SKILL.md` for file structure and its examples
+reference for representative survey output.
 
 ## Deepening a branch
 
