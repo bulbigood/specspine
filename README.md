@@ -100,6 +100,14 @@ Software architecture is rarely a strict tree. A concept such as authentication 
 
 ## Skills
 
+### `specspine-init`
+
+Connects an existing SpecSpine to the current project's persistent agent
+instructions and optional SDD workflow. It adds a short discovery block and
+generates a thin project-local integration skill when the environment supports
+one. The generated adapter is a snapshot of local conventions, so SpecSpine
+does not maintain framework-version adapters.
+
 ### `specspine-grow`
 
 Creates and evolves a SpecSpine for a greenfield project.
@@ -132,6 +140,12 @@ handoff as `specspine-grow`.
 
 ## Installation
 
+Install `specspine-init` from this repository:
+
+```bash
+npx skills add bulbigood/specspine --skill specspine-init
+```
+
 Install `specspine-grow` from this repository:
 
 ```bash
@@ -163,13 +177,25 @@ git clone https://github.com/bulbigood/specspine.git
 cd specspine
 
 npx skills add . --list
+npx skills add . --skill specspine-init
 npx skills add . --skill specspine-grow
 npx skills add . --skill specspine-map
 ```
 
 ## Usage
 
-The skill is designed to work through natural-language requests. Users do not need to learn a command workflow.
+The skills work through natural-language requests. Users do not need to learn a
+command workflow.
+
+### Connect SpecSpine to the project agent
+
+```text
+Adapt this project's SpecSpine to the current agent and SDD workflow.
+```
+
+`specspine-init` discovers persistent project instructions and supported local
+skill conventions, then proposes a managed bootstrap and project-specific
+consumer skill. It does not rewrite installed framework skills.
 
 ### Start a project
 
@@ -481,6 +507,15 @@ specspine/
 ├── README.md
 ├── LICENSE
 ├── skills/
+│   ├── specspine-init/
+│   │   ├── SKILL.md
+│   │   ├── references/
+│   │   │   └── integration-contract.md
+│   │   └── assets/
+│   │       └── templates/
+│   │           ├── agent-bootstrap.md
+│   │           ├── project-integration-skill.md
+│   │           └── project-openai.yaml
 │   ├── specspine-grow/
 │   │   ├── SKILL.md
 │   │   ├── references/
@@ -548,9 +583,10 @@ Source code
 ```
 
 SpecSpine is conceptually compatible with OpenSpec, spec-kit, and direct
-coding-agent workflows through its neutral context handoff. This is not a
-formal integration: SpecSpine currently provides no adapters, artifact
-conversion, or compatibility guarantee.
+coding-agent workflows through its neutral context handoff. `specspine-init`
+can generate a thin project-local adapter from the currently inspected
+environment. SpecSpine does not ship maintained framework-version adapters,
+convert canonical specifications, or guarantee compatibility.
 
 It can also be used independently as architectural memory and navigation when a
 full SDD workflow would add unnecessary ceremony.
@@ -570,6 +606,7 @@ The most important success criterion is:
 ## Roadmap
 
 * [x] Define the SpecSpine principles
+* [x] Create `specspine-init` for project-local agent and SDD adaptation
 * [x] Create `specspine-grow`
 * [ ] Add example greenfield projects
 * [ ] Add repeatable evaluation scenarios
