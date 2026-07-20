@@ -17,6 +17,11 @@ concepts may be reachable through other specifications.
 Record accepted decisions that affect several specifications. Do not place
 unconfirmed architectural interpretations here.
 
+## System-wide constraints
+
+Record accepted restrictions that affect several specifications. Do not infer
+them from repository evidence alone.
+
 ## Mapping status
 
 - High-level map:

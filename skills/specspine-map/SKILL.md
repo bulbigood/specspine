@@ -1,6 +1,6 @@
 ---
 name: specspine-map
-description: Progressively map an existing brownfield software project into a linked Markdown architecture. Use when documenting an unfamiliar repository, creating a SpecSpine from existing code, surveying major runtime components, refining the architectural map of a selected subsystem, or preparing durable architectural context for future coding agents. This skill reads code and project files but modifies only specifications.
+description: Progressively map an existing brownfield software project into a long-lived network of linked Markdown architectural specifications. Use when documenting an unfamiliar repository, surveying runtime components, refining an architectural area, preserving intended-versus-observed disagreements, or preparing a minimal architecture context handoff for a downstream tool or coding agent. This skill reads repository evidence but modifies only specifications and does not prove code/spec conformance.
 ---
 
 # SpecSpine Map
@@ -12,10 +12,19 @@ The result is a SpecSpine: a lightweight network of specifications describing
 the project's purpose, major responsibilities, boundaries, significant
 behavior, decisions, and relationships.
 
+The persistent result is the linked specification network. A context handoff is
+only a temporary, task-oriented projection of that network for a downstream
+tool or coding agent.
+
 Map the project from broad understanding toward selected detail.
 
 Do not attempt to document every file, class, function, endpoint, table, or
 implementation detail.
+
+Read [references/spec-semantics.md](references/spec-semantics.md) before
+creating, changing, or reviewing specifications. Read
+[references/context-handoff.md](references/context-handoff.md) before preparing
+a context handoff.
 
 ## Scope
 
@@ -28,6 +37,8 @@ Use this skill when the user wants to:
 - refine the map of a selected architectural area;
 - preserve knowledge discovered while investigating code;
 - prepare architectural context for future agents;
+- prepare an architecture context handoff for a downstream workflow or coding
+  agent;
 - compare existing code with an existing SpecSpine;
 - identify uncertain or conflicting architectural interpretations.
 
@@ -37,6 +48,7 @@ Do not use this skill to:
 - implement features or bug fixes;
 - produce exhaustive code documentation;
 - generate API reference documentation;
+- create feature acceptance criteria or track implementation status;
 - treat every directory as an architectural subsystem;
 - claim intent that cannot be supported by the repository;
 - silently convert technical debt into an accepted architectural decision.
@@ -148,6 +160,10 @@ A concise description of the project and the problem it solves.
 
 Accepted decisions that affect several specifications.
 
+## System-wide constraints
+
+Accepted restrictions that affect several specifications.
+
 ## Mapping status
 
 - Mapped: high-level runtime architecture
@@ -218,6 +234,10 @@ Architectural interpretations that are plausible but not explicitly established.
 Accepted architectural decisions supported by documentation or confirmed by
 the user.
 
+## Constraints
+
+Accepted restrictions on downstream architecture or implementation.
+
 ## Open questions
 
 Unresolved questions, ambiguities, or conflicts.
@@ -227,7 +247,18 @@ Sections are optional. Include only sections containing useful information.
 
 Do not add empty sections merely to satisfy the template.
 
-# Evidence levels
+# Statement semantics and evidence levels
+
+Use these meanings consistently:
+
+- `Decisions` and `Constraints` describe intended architecture.
+- `Observed` describes current repository evidence.
+- `Inferred` describes unconfirmed interpretation.
+- `Open questions` preserves unresolved uncertainty.
+
+Observed facts do not override decisions or constraints. Decisions and
+constraints do not imply that code implements them. Preserve disagreements
+explicitly until the user or a downstream workflow resolves them.
 
 Brownfield mapping must distinguish facts from interpretation.
 
@@ -292,6 +323,31 @@ Use `Decisions` only when:
 
 Do not classify an accidental implementation detail as an architectural
 decision.
+
+When repeated repository evidence suggests a useful architectural decision but
+no authoritative intent exists, propose the decision and ask the user to
+confirm it. Do not write it as an accepted decision automatically.
+
+## Constraints
+
+Use `Constraints` for accepted restrictions that downstream architecture or
+implementation must preserve. A constraint is normative intent, not evidence
+that the repository currently satisfies it.
+
+# Role in the project lifecycle
+
+`specspine-map` discovers repository evidence, records observed architecture,
+and proposes interpretations or structural changes. It must not silently alter
+normative decisions or constraints.
+
+`specspine-grow` owns intentional evolution of the SpecSpine. It creates and
+updates normative architecture and may preserve relevant observations without
+deeply discovering them from code.
+
+Both skills may update the linked specification network and produce the same
+architecture context handoff. Both preserve intended-versus-observed
+disagreements. Neither proves code/spec conformance, implements changes, or
+silently resolves blocking architectural questions.
 
 # Mapping passes
 
@@ -385,6 +441,7 @@ Infer the requested depth:
 - `deepen` — add detail required for a specific change;
 - `refresh` — update specs after meaningful repository evolution;
 - `review` — identify weak or uncertain areas in the current map.
+- `handoff` — prepare minimal architectural context for downstream work.
 
 The user does not need to use these words explicitly.
 
@@ -551,6 +608,10 @@ When specifications already exist:
 Do not claim that the SpecSpine and code are synchronized merely because both
 were inspected.
 
+SpecSpine does not guarantee code/spec conformance. Preserve meaningful
+disagreements between observed evidence and intended decisions or constraints
+as part of the architectural record.
+
 # Decomposition
 
 Propose a separate specification when an observed concept:
@@ -599,21 +660,60 @@ Example:
 
 Keep this qualitative. Do not create a complex coverage system.
 
-# Readiness for future implementation
+# Preparing an architecture context handoff
 
-A mapped area is useful for a coding agent when it explains:
+When asked to prepare context for downstream work, follow
+[references/context-handoff.md](references/context-handoff.md). Return:
 
-- what the area owns;
-- where its boundary lies;
-- which other specifications matter;
-- the significant current behavior;
-- observed runtime or data-flow shape;
-- accepted decisions;
-- unresolved architectural uncertainty;
-- representative code locations when useful.
+```text
+Change intent:
+- what the downstream workflow is expected to accomplish
 
-The coding agent still reads relevant code. The SpecSpine tells it where to
-look and what should remain true.
+Primary specification:
+- the canonical owner of the changed responsibility
+
+Required specifications:
+- specifications that must be read to understand the change safely
+
+Potentially affected specifications:
+- specifications that may require architectural updates
+
+Architectural decisions and constraints:
+- accepted architectural intent that downstream work must preserve
+
+Relevant observations:
+- current repository facts that affect downstream execution
+
+Unconfirmed inferences:
+- interpretations that downstream tools must not treat as accepted decisions
+
+Blocking questions:
+- questions that downstream work must not answer silently
+
+Expected architectural outcome:
+- the architectural state expected after the downstream change
+```
+
+Include only the smallest useful context. Do not classify every related
+specification as potentially affected.
+
+# Readiness for context handoff
+
+An architectural area is ready for context handoff when:
+
+- a canonical owner is identified;
+- responsibility and boundaries are understandable;
+- direct dependencies are identified;
+- relevant decisions and constraints are collected;
+- potentially affected specifications are separated from merely related ones;
+- blocking architectural questions are explicit;
+- observed and inferred claims are distinguishable.
+
+Readiness for context handoff does not imply readiness for implementation.
+Downstream workflows remain responsible for product requirements, acceptance
+criteria, edge cases, migration plans, test requirements, and implementation
+readiness. A coding agent still reads relevant code; SpecSpine tells it where
+to look and which architectural intent to preserve.
 
 # Restrictions
 
@@ -630,7 +730,13 @@ Never:
 - rewrite the entire SpecSpine when a local update is sufficient;
 - create a rigid hierarchy for naturally cross-linked concepts;
 - claim complete coverage without evidence;
-- claim synchronization between specs and code.
+- claim synchronization between specs and code;
+- claim that a decision or constraint is implemented merely because it is in a
+  specification;
+- silently change normative decisions based on repository evidence;
+- silently resolve intended-versus-observed disagreements or blocking
+  architectural questions;
+- create plans, task files, acceptance criteria, or implementation status.
 
 # Response style
 

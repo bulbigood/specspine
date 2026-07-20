@@ -15,6 +15,10 @@ may be reachable through other specifications instead of being listed here.
 
 Record only accepted decisions that affect several specifications.
 
+## System-wide constraints
+
+Record only accepted restrictions that affect several specifications.
+
 ## Open questions
 
 - Add unresolved project-level questions here.

@@ -53,6 +53,10 @@ behavior.
 - Record accepted architectural decisions supported by documentation or
   confirmed by the user.
 
+## Constraints
+
+- Record accepted restrictions on downstream architecture or implementation.
+
 ## Open questions
 
 - Record unresolved ambiguity, conflicting evidence, or missing intent.

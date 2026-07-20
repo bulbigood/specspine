@@ -2,7 +2,8 @@
 
 **A lightweight specification backbone for AI-built software.**
 
-SpecSpine helps humans and coding agents grow abstract software ideas into a living network of linked Markdown specifications.
+SpecSpine helps humans and coding agents grow abstract software ideas into a
+long-lived network of linked Markdown architectural specifications.
 
 The specifications form an architectural spine for the project: they describe responsibilities, boundaries, important behavior, decisions, and relationships between system concepts without duplicating the source code.
 
@@ -15,7 +16,31 @@ SpecSpine is intentionally lightweight:
 * no implementation workflow
 * no vendor lock-in
 
-The human owns product and architecture decisions. AI agents organize, refine, navigate, and implement within the resulting specification structure.
+The human owns product and architecture decisions. AI agents organize, refine,
+and navigate the resulting specification network. Downstream tools or coding
+agents own feature specification and implementation workflows.
+
+## Product contract
+
+SpecSpine has two distinct outputs:
+
+```text
+Persistent artifact:
+Linked architectural specifications
+
+Task-oriented output:
+Minimal architecture context handoff
+```
+
+The specification network is the durable project spine. A context handoff is a
+temporary projection containing the smallest useful architectural context for a
+particular downstream task. Its Markdown format is SpecSpine's stable
+interoperability contract, not a programmatic API or tool-specific adapter.
+
+SpecSpine does not guarantee that specifications conform exactly to the code.
+It may explicitly preserve disagreements between intended architecture and
+observed repository evidence until the user or a downstream workflow resolves
+them.
 
 ## Why SpecSpine?
 
@@ -28,18 +53,24 @@ A typical repository contains:
 * decisions hidden in previous conversations;
 * architecture that must be rediscovered for every task.
 
-SpecSpine adds a small, persistent layer above the code:
+SpecSpine adds a small, persistent layer above feature and implementation
+workflows:
 
 ```text
-Abstract idea
-    ↓
-Linked specifications
-    ↓
-Architectural context
-    ↓
-Coding agent
-    ↓
-Implementation
+                 ┌───────────────────────────┐
+                 │  SpecSpine architecture   │
+                 │  long-lived project spine│
+                 └─────────────┬─────────────┘
+                               │
+                     minimal context handoff
+                               │
+          ┌────────────────────┼────────────────────┐
+          ▼                    ▼                    ▼
+      OpenSpec             spec-kit           coding agent
+          │                    │                    │
+          └────────────────────┴────────────────────┘
+                               │
+                    implementation workflow
 ```
 
 Instead of asking an agent to explore the entire repository blindly, SpecSpine gives it a navigable map of the system and tells it which areas matter for the current change.
@@ -80,15 +111,17 @@ It can:
 * merge overlapping specifications;
 * maintain cross-links;
 * preserve unresolved questions;
-* prepare architectural context for implementation.
+* prepare minimal architecture context handoffs for downstream work.
 
 It works only with specifications and does not modify source code.
 
-### Planned skills
-
-#### `specspine-map`
+### `specspine-map`
 
 Builds a SpecSpine for an existing brownfield project by progressively mapping the codebase from a high-level overview toward selected implementation details.
+
+It records observed repository evidence separately from intended architectural
+decisions, preserves disagreements, and can prepare the same neutral context
+handoff as `specspine-grow`.
 
 ## Installation
 
@@ -205,15 +238,18 @@ Proceed with these specification changes?
 
 The human approves the architectural change before it is applied.
 
-### Prepare implementation context
+### Prepare an architecture context handoff
 
 ```text
-Prepare the SpecSpine context required to implement Google Sign-In.
+Prepare an architecture context handoff for adding Google Sign-In.
 ```
 
 The skill identifies the smallest useful context set:
 
 ```text
+Change intent:
+- add external authentication without changing application-session semantics
+
 Primary specification:
 - external-identity.md
 
@@ -221,19 +257,27 @@ Required specifications:
 - authentication.md
 - account-linking.md
 - session-management.md
+
+Potentially affected specifications:
 - users.md
 - configuration.md
 
-Relevant decisions:
+Architectural decisions and constraints:
 - application sessions remain provider-independent;
 - external provider tokens are not stored;
 - account linking requires an explicit policy.
 
 Blocking questions:
 - automatic versus explicit account linking.
+
+Expected architectural outcome:
+- a verified external identity establishes a local identity and then creates a
+  normal application session.
 ```
 
-A coding agent can then read these specifications and inspect only the relevant source code.
+A downstream workflow can use this handoff while remaining responsible for
+feature requirements, acceptance criteria, planning, tasks, tests, and
+implementation.
 
 ## Specification philosophy
 
@@ -275,6 +319,40 @@ A long document is not automatically a bad document, and a short concept does no
 Missing information must not be silently replaced with assumptions.
 
 Unresolved decisions remain visible under `Open questions` until the human accepts a direction.
+
+### Distinguish statement semantics
+
+SpecSpine uses a small semantic model without requiring a schema:
+
+* `Decisions` are accepted architectural choices.
+* `Constraints` restrict acceptable architecture or implementation.
+* `Observed` records facts supported by current repository evidence.
+* `Inferred` records unconfirmed interpretations of evidence.
+* `Open questions` preserves unresolved uncertainty.
+
+Decisions and constraints describe intended architecture, but do not imply that
+the code implements it. Observations do not override intended architecture. A
+disagreement remains explicit until resolved by the user or a downstream
+workflow.
+
+### Keep feature artifacts downstream
+
+SpecSpine owns stable responsibilities, ownership boundaries, architectural
+relationships, long-lived decisions, and constraints expected to remain useful
+across multiple changes.
+
+Feature-specific deltas, temporary scope, acceptance criteria, implementation
+tasks, implementation status, release scope, and pull-request-specific details
+belong to downstream workflows.
+
+```text
+SpecSpine:
+Webhook processing must be idempotent.
+
+Downstream workflow:
+Given the same webhook event twice, the second request returns 200 without
+creating another transaction.
+```
 
 ### Do not reproduce source code
 
@@ -364,10 +442,23 @@ specspine/
 ├── README.md
 ├── LICENSE
 ├── skills/
-│   └── specspine-grow/
+│   ├── specspine-grow/
+│   │   ├── SKILL.md
+│   │   ├── references/
+│   │   │   ├── spec-format.md
+│   │   │   ├── spec-semantics.md
+│   │   │   ├── context-handoff.md
+│   │   │   └── examples.md
+│   │   └── assets/
+│   │       └── templates/
+│   │           ├── architecture-index.md
+│   │           └── specification.md
+│   └── specspine-map/
 │       ├── SKILL.md
 │       ├── references/
-│       │   ├── spec-format.md
+│       │   ├── mapping-method.md
+│       │   ├── spec-semantics.md
+│       │   ├── context-handoff.md
 │       │   └── examples.md
 │       └── assets/
 │           └── templates/
@@ -388,8 +479,10 @@ SpecSpine is not:
 * a formal architecture-description language;
 * a code generator;
 * a replacement for source-code exploration;
-* a task-management framework;
+* a feature-change or task-management framework;
 * a full software-delivery methodology;
+* an acceptance-testing or regression-testing system;
+* an implementation or release-status tracker;
 * a guarantee that documentation and code are synchronized;
 * a replacement for human architectural judgment.
 
@@ -397,7 +490,8 @@ It is a lightweight architectural memory and navigation layer for humans and cod
 
 ## Relationship to other SDD tools
 
-SpecSpine does not attempt to replace tools such as OpenSpec, Spec Kit, BMAD, or execution-oriented agent frameworks.
+SpecSpine does not attempt to replace tools such as OpenSpec, spec-kit, BMAD,
+or execution-oriented agent frameworks.
 
 Those tools generally organize work around a feature, change, plan, or implementation workflow.
 
@@ -413,7 +507,13 @@ Coding agent
 Source code
 ```
 
-It can also be used independently when a full SDD workflow would add unnecessary ceremony.
+SpecSpine is conceptually compatible with OpenSpec, spec-kit, and direct
+coding-agent workflows through its neutral context handoff. This is not a
+formal integration: SpecSpine currently provides no adapters, artifact
+conversion, or compatibility guarantee.
+
+It can also be used independently as architectural memory and navigation when a
+full SDD workflow would add unnecessary ceremony.
 
 ## Project status
 
@@ -423,7 +523,9 @@ The current goal is to test whether a small agent skill can maintain a useful li
 
 The most important success criterion is:
 
-> Can a new coding agent with no conversation history use the SpecSpine to locate the correct area of a project and make an architecturally consistent change?
+> Can a new agent with no conversation history use the SpecSpine to locate the
+> correct architectural area and obtain sufficient context for downstream work
+> without importing unrelated or feature-level detail?
 
 ## Roadmap
 
@@ -433,7 +535,7 @@ The most important success criterion is:
 * [ ] Add repeatable evaluation scenarios
 * [ ] Test across multiple coding agents
 * [ ] Improve impact proposals and decomposition behavior
-* [ ] Create `specspine-map` for brownfield projects
+* [x] Create `specspine-map` for brownfield projects
 * [ ] Add optional broken-link and graph-visualization tools
 
 The core workflow will remain Markdown-first and lightweight.

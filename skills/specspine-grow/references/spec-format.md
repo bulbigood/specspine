@@ -67,6 +67,10 @@ A concise description of the project and the problem it solves.
 
 Only decisions that affect several specifications belong here.
 
+## System-wide constraints
+
+Only constraints that affect several specifications belong here.
+
 ## Open questions
 
 Unresolved project-level architectural questions.
@@ -121,6 +125,18 @@ Relevant specifications that do not fit the relationships above.
 ## Decisions
 
 Architectural or behavioral decisions already accepted by the user.
+
+## Constraints
+
+Restrictions that downstream architecture or implementation must preserve.
+
+## Observed
+
+Optional current repository facts relevant to the specification.
+
+## Inferred
+
+Optional unconfirmed interpretations of repository evidence.
 
 ## Open questions
 
@@ -196,6 +212,18 @@ Examples:
 - background jobs use at-least-once delivery semantics.
 
 Do not store unresolved assumptions here.
+
+### Constraints
+
+Record accepted restrictions on acceptable architecture or implementation.
+Constraints describe intended architecture but do not imply that the current
+code satisfies them.
+
+### Observed and inferred
+
+Use these sections only when repository evidence matters. Record direct
+evidence under `Observed` and unconfirmed interpretation under `Inferred`.
+Neither overrides accepted decisions or constraints.
 
 ### Open questions
 

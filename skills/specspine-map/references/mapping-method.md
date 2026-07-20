@@ -151,7 +151,19 @@ If most answers are no, keep it inside a broader specification.
 
 ## Evidence discipline
 
-Use three categories.
+Use five statement kinds. Keep normative intent separate from repository
+evidence and interpretation.
+
+### Decision
+
+An accepted architectural choice supported by explicit documentation or
+confirmed by the user. Repository repetition alone does not establish a
+decision.
+
+### Constraint
+
+An accepted restriction on downstream architecture or implementation. A
+constraint does not imply that the current repository satisfies it.
 
 ### Observed
 
@@ -187,6 +199,10 @@ Examples:
 
 Do not overuse path citations. Mention representative locations when they help
 future navigation or support a non-obvious claim.
+
+Observed facts do not override decisions or constraints. Decisions and
+constraints do not imply code conformance. Preserve any disagreement explicitly
+until the user or a downstream workflow resolves it.
 
 ## Initial survey output
 

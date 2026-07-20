@@ -1,7 +1,7 @@
 ---
 
 name: specspine-grow
-description: Grow and maintain a linked Markdown architecture for a software project. Use this skill to create a SpecSpine from an abstract idea, refine existing specifications, split broad concepts into separate specifications, update relationships, assess the architectural impact of requested changes, and prepare specifications for implementation. This skill works only with specifications and must not modify source code.
+description: Grow and maintain a long-lived network of linked Markdown architectural specifications. Use this skill to create a SpecSpine from an abstract idea, evolve intended architecture, split or merge architectural concepts, assess architectural impact, preserve intended-versus-observed disagreements, and prepare minimal architecture context handoffs for downstream tools or coding agents. This skill modifies only specifications and does not implement changes or prove code/spec conformance.
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # SpecSpine Grow
@@ -11,6 +11,15 @@ Maintain a lightweight network of linked Markdown specifications that forms the 
 The specifications describe the project's purpose, responsibilities, boundaries, significant behavior, architectural decisions, and relationships between concepts.
 
 They do not reproduce source code or describe local implementation details.
+
+The persistent result is the linked specification network. A context handoff is
+only a temporary, task-oriented projection of that network for a downstream
+tool or coding agent.
+
+Read [references/spec-semantics.md](references/spec-semantics.md) before
+creating, changing, or reviewing specifications. Read
+[references/context-handoff.md](references/context-handoff.md) before preparing
+a context handoff.
 
 ## Scope
 
@@ -25,7 +34,8 @@ Use this skill when the user wants to:
 * merge overlapping specifications;
 * improve links between specifications;
 * review the current specification structure;
-* prepare architectural context for implementation.
+* prepare an architecture context handoff for a downstream workflow or coding
+  agent.
 
 Do not use this skill to:
 
@@ -34,6 +44,7 @@ Do not use this skill to:
 * create task lists by default;
 * reverse-engineer undocumented code;
 * verify that code matches the specifications;
+* create feature acceptance criteria or track implementation status;
 * invent product or architectural decisions without informing the user.
 
 If the specifications do not contain enough information, preserve the uncertainty as an open question.
@@ -113,6 +124,10 @@ A concise description of the project and the problem it solves.
 
 Only decisions that affect several specifications belong here.
 
+## System-wide constraints
+
+Only constraints that affect several specifications belong here.
+
 ## Open questions
 
 Unresolved project-level architectural questions.
@@ -167,6 +182,18 @@ Relevant specifications that do not fit the relationships above.
 
 Architectural or behavioral decisions already accepted by the user.
 
+## Constraints
+
+Restrictions that downstream architecture or implementation must preserve.
+
+## Observed
+
+Optional current repository facts relevant to an existing specification.
+
+## Inferred
+
+Optional unconfirmed interpretations of repository evidence.
+
 ## Open questions
 
 Unresolved questions that may affect architecture or behavior.
@@ -177,6 +204,19 @@ Sections are optional. Include only sections that contain useful information.
 Do not create empty sections merely to satisfy the template.
 
 # Core principles
+
+## Statement semantics
+
+Use these meanings consistently:
+
+* `Decisions` and `Constraints` describe intended architecture.
+* `Observed` describes current repository evidence.
+* `Inferred` describes unconfirmed interpretation.
+* `Open questions` preserves unresolved uncertainty.
+
+Observed facts do not override decisions or constraints. Decisions and
+constraints do not imply that code implements them. Preserve disagreements
+explicitly until the user or a downstream workflow resolves them.
 
 ## 1. One canonical home per concept
 
@@ -250,7 +290,17 @@ Stop when further detail would mainly describe:
 
 Specifications should constrain implementation without becoming a second programming language.
 
-## 6. Show structural impact before applying it
+## 6. Keep feature workflows downstream
+
+Keep a concern in SpecSpine when it defines a stable responsibility, ownership
+boundary, architectural relationship, long-lived decision, or constraint that
+is expected to remain useful across multiple changes.
+
+Leave a concern to a downstream feature workflow when it describes a specific
+delta, temporary scope, acceptance criteria, implementation tasks,
+implementation status, release scope, or one pull request.
+
+## 7. Show structural impact before applying it
 
 Before creating, renaming, deleting, splitting, merging, or modifying several specification files, present an impact proposal.
 
@@ -287,6 +337,21 @@ Wait for approval unless the user explicitly requested immediate application.
 
 A small refinement confined to one existing specification may be applied directly when the user's request is unambiguous.
 
+# Role in the project lifecycle
+
+`specspine-grow` owns intentional evolution of the SpecSpine. It creates and
+updates normative architecture. It may preserve relevant observations already
+known to the user, but it does not deeply discover them from code.
+
+`specspine-map` discovers repository evidence, records observed architecture,
+and proposes interpretations or structural changes. It must not silently alter
+normative decisions or constraints.
+
+Both skills may update the linked specification network and produce the same
+architecture context handoff. Both preserve intended-versus-observed
+disagreements. Neither proves code/spec conformance, implements changes, or
+silently resolves blocking architectural questions.
+
 # Operating workflow
 
 ## Step 1: Read the existing spine
@@ -314,7 +379,7 @@ Determine whether the user wants to:
 * merge;
 * link;
 * review;
-* prepare implementation context.
+* prepare an architecture context handoff.
 
 The user does not need to use these operation names explicitly.
 
@@ -375,7 +440,7 @@ Summarize:
 * files modified;
 * structural decisions made;
 * unresolved questions;
-* whether the affected area is ready for implementation.
+* whether the affected area is ready for context handoff.
 
 # Initializing a new SpecSpine
 
@@ -503,48 +568,65 @@ When asked to review the SpecSpine, look for:
 
 Present recommendations before restructuring the files.
 
-# Preparing implementation context
+# Preparing an architecture context handoff
 
-When asked to prepare context for implementation, do not write code.
+When asked to prepare context for downstream work, do not write code or create
+a feature specification. Follow
+[references/context-handoff.md](references/context-handoff.md).
 
 Return:
 
 ```text
+Change intent:
+- what the downstream workflow is expected to accomplish
+
 Primary specification:
 - the specification that owns the requested behavior
 
 Required specifications:
-- direct dependencies
-- affected consumers
-- relevant broader context
+- specifications that must be read to understand the change safely
 
-Accepted decisions:
-- decisions the implementation must preserve
+Potentially affected specifications:
+- specifications that may require architectural updates
 
-Open questions:
-- unresolved decisions that block or influence implementation
+Architectural decisions and constraints:
+- accepted architectural intent that downstream work must preserve
 
-Expected implementation outcome:
-- a concise behavioral and architectural goal
+Relevant observations:
+- current repository facts that affect downstream execution
+
+Unconfirmed inferences:
+- interpretations that downstream tools must not treat as accepted decisions
+
+Blocking questions:
+- questions that downstream work must not answer silently
+
+Expected architectural outcome:
+- the architectural state expected after the downstream change
 ```
 
 Include only the smallest useful specification set.
 
-Do not include unrelated branches of the SpecSpine.
+Do not include unrelated branches of the SpecSpine or treat every related
+specification as potentially affected.
 
-# Readiness for implementation
+# Readiness for context handoff
 
-An area is ready for implementation when:
+An architectural area is ready for context handoff when:
 
-* its responsibility is clear;
-* its important boundaries are clear;
-* significant behavior is described;
-* directly affected specifications are identified;
-* accepted architectural decisions are recorded;
-* blocking questions are resolved;
-* further refinement would mostly duplicate implementation details.
+* a canonical owner is identified;
+* responsibility and boundaries are understandable;
+* direct dependencies are identified;
+* relevant decisions and constraints are collected;
+* potentially affected specifications are separated from merely related ones;
+* blocking architectural questions are explicit;
+* observed and inferred claims are distinguishable where repository evidence is
+  involved.
 
-Do not require every open question to be resolved. Only blocking questions prevent readiness.
+Readiness for context handoff does not imply readiness for implementation.
+Downstream workflows remain responsible for product requirements, acceptance
+criteria, edge cases, migration plans, test requirements, and implementation
+readiness.
 
 # Restrictions
 
@@ -554,12 +636,16 @@ Never:
 * create code files;
 * invent repository structure;
 * claim that specifications are synchronized with code;
+* claim that a decision or constraint is implemented merely because it is in a
+  specification;
 * treat inferred assumptions as accepted decisions;
+* silently resolve a disagreement between intended and observed architecture;
+* silently resolve a blocking architectural question;
 * create a rigid hierarchy when the architecture is naturally cross-linked;
 * split specifications only to reduce line count;
 * turn local implementation details into architectural requirements;
 * rewrite the entire SpecSpine when a local update is sufficient;
-* create plans and task files unless explicitly requested.
+* create plans, task files, acceptance criteria, or implementation status.
 
 # Response style
 

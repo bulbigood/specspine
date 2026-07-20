@@ -180,17 +180,20 @@ must exist before first login.
 Do not silently choose just-in-time provisioning and record it as an accepted
 decision.
 
-## Example 6: Prepare implementation context
+## Example 6: Prepare an architecture context handoff
 
 ### User request
 
 ```text
-Prepare the context needed to implement Google Sign-In.
+Prepare an architecture context handoff for adding Google Sign-In.
 ```
 
 ### Expected response
 
 ```text
+Change intent:
+- add external authentication without changing application-session semantics
+
 Primary specification:
 - external-identity.md
 
@@ -198,10 +201,12 @@ Required specifications:
 - authentication.md
 - account-linking.md
 - session-management.md
+
+Potentially affected specifications:
 - users.md
 - configuration.md
 
-Accepted decisions:
+Architectural decisions and constraints:
 - application sessions are provider-independent;
 - external provider access tokens are not stored;
 - account-linking rules belong to account-linking.md.
@@ -209,10 +214,10 @@ Accepted decisions:
 Blocking questions:
 - Should verified email matches trigger automatic account linking?
 
-Expected implementation outcome:
+Expected architectural outcome:
 - A verified Google identity establishes a local user identity and then
   creates a normal application session without changing session semantics.
 ```
 
-The context set should be minimal. Do not include unrelated specification
-branches.
+The handoff should be minimal. Do not include unrelated specification branches,
+acceptance criteria, implementation tasks, or implementation status.
