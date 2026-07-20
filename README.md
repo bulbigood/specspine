@@ -1,0 +1,456 @@
+# SpecSpine
+
+**A lightweight specification backbone for AI-built software.**
+
+SpecSpine helps humans and coding agents grow abstract software ideas into a living network of linked Markdown specifications.
+
+The specifications form an architectural spine for the project: they describe responsibilities, boundaries, important behavior, decisions, and relationships between system concepts without duplicating the source code.
+
+SpecSpine is intentionally lightweight:
+
+* Markdown only
+* no schema or DSL
+* no formal validation
+* no required CLI
+* no implementation workflow
+* no vendor lock-in
+
+The human owns product and architecture decisions. AI agents organize, refine, navigate, and implement within the resulting specification structure.
+
+## Why SpecSpine?
+
+Coding agents are good at implementing isolated tasks, but they often lack durable architectural context.
+
+A typical repository contains:
+
+* source code that explains local implementation;
+* scattered documentation;
+* decisions hidden in previous conversations;
+* architecture that must be rediscovered for every task.
+
+SpecSpine adds a small, persistent layer above the code:
+
+```text
+Abstract idea
+    ↓
+Linked specifications
+    ↓
+Architectural context
+    ↓
+Coding agent
+    ↓
+Implementation
+```
+
+Instead of asking an agent to explore the entire repository blindly, SpecSpine gives it a navigable map of the system and tells it which areas matter for the current change.
+
+## Core idea
+
+Specifications are stored as ordinary Markdown files:
+
+```text
+specs/
+├── README.md
+├── authentication.md
+├── account-linking.md
+├── session-management.md
+├── users.md
+└── notifications.md
+```
+
+The directory is intentionally flat.
+
+Software architecture is rarely a strict tree. A concept such as authentication may depend on users, sessions, configuration, security, and audit at the same time. Specifications therefore form a graph through relative Markdown links.
+
+`specs/README.md` is the entry point into the architecture. It is a curated map, not the semantic parent of every specification.
+
+## Skills
+
+### `specspine-grow`
+
+Creates and evolves a SpecSpine for a greenfield project.
+
+It can:
+
+* initialize specifications from an abstract project idea;
+* refine an existing specification;
+* identify specifications affected by a requested change;
+* propose new specification files;
+* split broad concepts into focused specifications;
+* merge overlapping specifications;
+* maintain cross-links;
+* preserve unresolved questions;
+* prepare architectural context for implementation.
+
+It works only with specifications and does not modify source code.
+
+### Planned skills
+
+#### `specspine-map`
+
+Builds a SpecSpine for an existing brownfield project by progressively mapping the codebase from a high-level overview toward selected implementation details.
+
+## Installation
+
+Install `specspine-grow` from this repository:
+
+```bash
+npx skills add <github-user>/specspine --skill specspine-grow
+```
+
+List the available skills:
+
+```bash
+npx skills add <github-user>/specspine --list
+```
+
+Install all available SpecSpine skills:
+
+```bash
+npx skills add <github-user>/specspine --skill '*'
+```
+
+For local development:
+
+```bash
+git clone https://github.com/<github-user>/specspine.git
+cd specspine
+
+npx skills add . --list
+npx skills add . --skill specspine-grow
+```
+
+## Usage
+
+The skill is designed to work through natural-language requests. Users do not need to learn a command workflow.
+
+### Start a project
+
+```text
+Create a SpecSpine for a small SaaS application that lets teams manage
+customers, subscriptions, and invoices.
+```
+
+The skill creates the smallest useful architecture instead of attempting to design the entire system immediately.
+
+A possible initial result:
+
+```text
+specs/
+├── README.md
+├── application.md
+├── identity.md
+├── billing.md
+└── operations.md
+```
+
+Early specifications may be intentionally short and contain open questions.
+
+### Refine an area
+
+```text
+Refine the authentication architecture.
+```
+
+The skill follows the existing links, expands the relevant specification, and proposes a split only when separate responsibilities have emerged.
+
+For example:
+
+```text
+authentication.md
+```
+
+may eventually evolve into:
+
+```text
+authentication.md
+password-authentication.md
+external-identity.md
+account-linking.md
+session-management.md
+```
+
+The original `authentication.md` remains a concise overview and navigation point.
+
+### Add a cross-cutting capability
+
+```text
+Add Google Sign-In.
+```
+
+Before changing the specification structure, the skill presents an impact proposal:
+
+```text
+Affected specifications
+
+Create:
+- specs/account-linking.md
+
+Modify:
+- specs/authentication.md
+- specs/external-identity.md
+- specs/session-management.md
+- specs/users.md
+- specs/configuration.md
+
+Reason:
+Account linking has independent behavior shared by external identity
+providers and user-account management.
+
+Open decisions:
+- Should an existing account be linked automatically by verified email?
+
+Proceed with these specification changes?
+```
+
+The human approves the architectural change before it is applied.
+
+### Prepare implementation context
+
+```text
+Prepare the SpecSpine context required to implement Google Sign-In.
+```
+
+The skill identifies the smallest useful context set:
+
+```text
+Primary specification:
+- external-identity.md
+
+Required specifications:
+- authentication.md
+- account-linking.md
+- session-management.md
+- users.md
+- configuration.md
+
+Relevant decisions:
+- application sessions remain provider-independent;
+- external provider tokens are not stored;
+- account linking requires an explicit policy.
+
+Blocking questions:
+- automatic versus explicit account linking.
+```
+
+A coding agent can then read these specifications and inspect only the relevant source code.
+
+## Specification philosophy
+
+### One canonical home per concept
+
+An important responsibility, rule, or decision should be defined primarily in one specification.
+
+Other specifications link to it rather than maintaining competing copies.
+
+### Specifications form a graph
+
+Hierarchy is useful, but it is not mandatory.
+
+Specifications can represent:
+
+* subsystems;
+* capabilities;
+* policies;
+* shared infrastructure;
+* cross-cutting concerns;
+* architectural decisions.
+
+Relationships are expressed through ordinary Markdown links.
+
+### Split by responsibility, not file size
+
+A separate specification is useful when a concept:
+
+* has an independent responsibility;
+* contains meaningful decisions;
+* has its own boundaries or behavior;
+* is referenced by several other specifications;
+* can evolve independently.
+
+A long document is not automatically a bad document, and a short concept does not automatically deserve a separate file.
+
+### Preserve uncertainty
+
+Missing information must not be silently replaced with assumptions.
+
+Unresolved decisions remain visible under `Open questions` until the human accepts a direction.
+
+### Do not reproduce source code
+
+Specifications should describe:
+
+* responsibilities;
+* boundaries;
+* significant behavior;
+* dependencies;
+* accepted decisions;
+* architectural constraints.
+
+They should not describe:
+
+* local function calls;
+* obvious control flow;
+* framework boilerplate;
+* variable-level implementation;
+* algorithms that are already clear from the code.
+
+The specification should stop where implementation becomes the cheaper and clearer representation.
+
+## Example specification
+
+```markdown
+# Session management
+
+Creates and maintains application sessions independently of the
+authentication method used to establish identity.
+
+## Responsibility
+
+- create authenticated application sessions;
+- rotate refresh credentials;
+- revoke individual or all user sessions;
+- expose the authenticated identity context to the application.
+
+## Boundaries
+
+Session management does not validate passwords or external identity
+provider tokens.
+
+Those responsibilities belong to:
+
+- [Password authentication](password-authentication.md)
+- [External identity](external-identity.md)
+
+## Behavior
+
+After an authentication method establishes a valid user identity,
+session management creates a provider-independent application session.
+
+Revoked refresh credentials cannot be reused.
+
+## Relationships
+
+### Part of
+
+- [Authentication](authentication.md)
+
+### Depends on
+
+- [User accounts](users.md)
+- [Security](security.md)
+
+### Used by
+
+- [API server](api-server.md)
+
+## Decisions
+
+- Application sessions are independent of identity providers.
+- Refresh credentials are rotated after successful use.
+- External provider access tokens are not stored as session credentials.
+
+## Open questions
+
+- Should users be able to view and revoke individual active sessions?
+```
+
+Sections are optional. Empty sections should not be added merely to satisfy a template.
+
+## Repository structure
+
+```text
+specspine/
+├── README.md
+├── LICENSE
+├── skills/
+│   └── specspine-grow/
+│       ├── SKILL.md
+│       ├── references/
+│       │   ├── spec-format.md
+│       │   └── examples.md
+│       └── assets/
+│           └── templates/
+│               ├── architecture-index.md
+│               └── specification.md
+├── examples/
+│   └── minimal-saas/
+└── tests/
+    └── scenarios/
+```
+
+Each skill is self-contained and can be installed independently.
+
+## What SpecSpine is not
+
+SpecSpine is not:
+
+* a formal architecture-description language;
+* a code generator;
+* a replacement for source-code exploration;
+* a task-management framework;
+* a full software-delivery methodology;
+* a guarantee that documentation and code are synchronized;
+* a replacement for human architectural judgment.
+
+It is a lightweight architectural memory and navigation layer for humans and coding agents.
+
+## Relationship to other SDD tools
+
+SpecSpine does not attempt to replace tools such as OpenSpec, Spec Kit, BMAD, or execution-oriented agent frameworks.
+
+Those tools generally organize work around a feature, change, plan, or implementation workflow.
+
+SpecSpine focuses on the long-lived architectural context from which those changes can be understood:
+
+```text
+SpecSpine architecture
+        ↓
+Feature or change workflow
+        ↓
+Coding agent
+        ↓
+Source code
+```
+
+It can also be used independently when a full SDD workflow would add unnecessary ceremony.
+
+## Project status
+
+SpecSpine is experimental.
+
+The current goal is to test whether a small agent skill can maintain a useful linked architecture across repeated project changes without introducing a formal schema or custom runtime.
+
+The most important success criterion is:
+
+> Can a new coding agent with no conversation history use the SpecSpine to locate the correct area of a project and make an architecturally consistent change?
+
+## Roadmap
+
+* [x] Define the SpecSpine principles
+* [x] Create `specspine-grow`
+* [ ] Add example greenfield projects
+* [ ] Add repeatable evaluation scenarios
+* [ ] Test across multiple coding agents
+* [ ] Improve impact proposals and decomposition behavior
+* [ ] Create `specspine-map` for brownfield projects
+* [ ] Add optional broken-link and graph-visualization tools
+
+The core workflow will remain Markdown-first and lightweight.
+
+## Contributing
+
+Contributions are welcome, especially:
+
+* realistic example projects;
+* difficult decomposition scenarios;
+* cross-cutting architecture changes;
+* regression cases where an agent duplicated or misplaced a concept;
+* evaluations across different coding agents;
+* improvements that preserve the minimal nature of the project.
+
+Avoid adding formal schemas, mandatory runtimes, or complex workflows unless they solve a demonstrated problem that cannot be addressed by the skill itself.
+
+## License
+
+MIT
