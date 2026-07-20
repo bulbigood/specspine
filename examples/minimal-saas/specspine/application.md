@@ -27,6 +27,11 @@ Subscription state and payment-provider communication belong to
 
 - [Operations](operations.md)
 
+## Constraints
+
+- Billing workflows must preserve
+  [DEC-idempotent-provider-events](billing.md).
+
 ## Open questions
 
 - Which workflows remain available when a subscription is past due?

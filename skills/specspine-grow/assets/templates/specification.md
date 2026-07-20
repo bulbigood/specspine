@@ -41,12 +41,14 @@ behavior.
 ## Decisions
 
 - Record accepted architectural or behavioral decisions here. Add a stable
-  semantic ID only when the statement is referenced elsewhere.
+  semantic ID only when the statement is referenced elsewhere. Definitions use
+  `**DEC-kebab-name** — statement`.
 
 ## Constraints
 
 - Record accepted restrictions that downstream architecture or implementation
-  must preserve. Add a stable semantic ID only when needed for reference.
+  must preserve. Add a stable semantic ID only when needed for reference;
+  definitions use `**CON-kebab-name** — statement`.
 
 ## Observed
 

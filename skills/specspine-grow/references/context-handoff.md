@@ -56,6 +56,10 @@ When a source specification already gives a relevant statement a semantic ID,
 reference the specification and that ID. Do not invent new source IDs inside a
 handoff.
 
+```markdown
+- Preserve [CON-retry-limit](job-processing.md).
+```
+
 Do not include:
 
 - acceptance criteria;

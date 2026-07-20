@@ -226,6 +226,9 @@ Use a short semantic identifier only when another specification, context
 handoff, or downstream artifact needs to reference a particular statement.
 Do not identify every paragraph or bullet.
 
+An addressable definition is an unordered-list item whose first element is a
+bold identifier, followed by an em dash and the statement:
+
 ```markdown
 ## Decisions
 
@@ -233,18 +236,33 @@ Do not identify every paragraph or bullet.
   of authentication providers.
 ```
 
-Prefer readable prefixes such as `DEC`, `CON`, `OBS`, `INF`, and `OQ`, followed
-by a stable kebab-case name. Identifiers are local to their canonical
-specification; external references include both the specification link and the
-identifier. An identifier adds addressability, not authority or proof.
+Use this identifier grammar:
 
-```markdown
-- [Job processing](job-processing.md) — `CON-retry-limit`
+```text
+^(DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$
 ```
 
-A bold identifier inside a list item is not a Markdown anchor. Do not invent a
-URL fragment such as `job-processing.md#CON-retry-limit`; pass the file link and
-identifier separately.
+Match the prefix to the owning section: `DEC` for `Decisions`, `CON` for
+`Constraints`, `OBS` for `Observed`, `INF` for `Inferred`, and `OQ` for
+`Open questions`. Define an ID only once within a specification. IDs are local
+to their canonical specification, so an address is the resolved specification
+path plus the ID. An identifier adds addressability, not authority or proof.
+
+A reference is an ordinary Markdown link whose complete visible label is the
+target ID and whose destination is the target specification:
+
+```markdown
+- Job processing must preserve
+  [CON-retry-limit](job-processing.md).
+```
+
+This binds the path and ID in one Markdown AST node. A checker can recognize a
+reference by the ID-shaped link label and resolve it without interpreting
+adjacent prose. Keep human context outside the link when useful.
+
+Definitions use bold IDs; references use linked IDs. Do not define addressable
+statements in tables or diagrams. Do not invent a URL fragment such as
+`job-processing.md#CON-retry-limit`; the ID does not create a Markdown anchor.
 
 Once referenced externally, keep the identifier stable across wording changes.
 If its meaning is replaced, retain a short tombstone that points to the
@@ -252,8 +270,11 @@ replacement instead of silently reusing or deleting the identifier:
 
 ```markdown
 - **DEC-legacy-session-model** — Superseded by
-  `DEC-provider-independent-sessions`.
+  [DEC-provider-independent-sessions](session-management.md).
 ```
+
+When ownership moves to another specification, leave the same kind of
+tombstone in the old canonical location and link its replacement by ID.
 
 ## Visual representations
 

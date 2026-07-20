@@ -32,7 +32,8 @@ state transition twice.
 
 - The local subscription record is the application's current view of billing
   state.
-- Payment-provider event handling must be idempotent.
+- **DEC-idempotent-provider-events** — Payment-provider event handling must be
+  idempotent.
 
 ## Open questions
 

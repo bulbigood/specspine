@@ -318,6 +318,15 @@ Decisions, constraints, observations, and other claims may use a short semantic
 ID when another specification or downstream workflow must reference that exact
 statement. IDs remain optional and do not turn Markdown into a formal schema.
 
+```markdown
+- **CON-retry-limit** — Retries stop after the configured limit.
+- Job processing must preserve [CON-retry-limit](job-processing.md).
+```
+
+Bold IDs define statements; linked IDs reference them. The link combines the
+target file and ID in one machine-readable Markdown node without adding custom
+syntax.
+
 Repository observations may cite representative evidence paths. Such citations
 support provenance and navigation but do not prove code/spec conformance.
 
