@@ -52,6 +52,10 @@ Include only sections containing useful information. Preserve the distinction
 between required and potentially affected specifications. Do not mark every
 related specification as potentially affected.
 
+When a source specification already gives a relevant statement a semantic ID,
+reference the specification and that ID. Do not invent new source IDs inside a
+handoff.
+
 Do not include:
 
 - acceptance criteria;

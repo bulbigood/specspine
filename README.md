@@ -312,6 +312,22 @@ Specifications can represent:
 
 Relationships are expressed through ordinary Markdown links.
 
+### Keep important statements addressable
+
+Decisions, constraints, observations, and other claims may use a short semantic
+ID when another specification or downstream workflow must reference that exact
+statement. IDs remain optional and do not turn Markdown into a formal schema.
+
+Repository observations may cite representative evidence paths. Such citations
+support provenance and navigation but do not prove code/spec conformance.
+
+### Use readable visual representations
+
+Specifications may use lists, Markdown tables, and focused Mermaid flowcharts,
+sequence diagrams, state diagrams, ER diagrams, class diagrams, or mind maps.
+The important meaning must also remain clear in nearby prose. ASCII diagrams
+are not allowed because wrapping and automated edits make them unreliable.
+
 ### Split by responsibility, not file size
 
 A separate specification is useful when a concept:

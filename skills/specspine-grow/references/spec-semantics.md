@@ -5,6 +5,13 @@ network may contain intended architecture, repository observations, unconfirmed
 interpretations, and unresolved uncertainty without claiming exact conformance
 between specifications and code.
 
+## Contents
+
+- [Statement kinds](#statement-kinds)
+- [Conflict semantics](#conflict-semantics)
+- [Statement identity](#statement-identity)
+- [Architecture versus feature artifacts](#architecture-versus-feature-artifacts)
+
 ## Statement kinds
 
 ### Decision
@@ -33,7 +40,9 @@ External provider credentials must not be used as application session tokens.
 ### Observed
 
 A fact directly supported by current repository evidence. Observations describe
-what is present, not necessarily what is intended or required.
+what is present, not necessarily what is intended or required. Evidence paths
+support provenance and navigation; they do not prove complete code/spec
+conformance.
 
 ### Inferred
 
@@ -57,6 +66,13 @@ silently.
   until the user or a downstream workflow resolves them.
 - SpecSpine does not prove or guarantee conformance between specifications and
   code.
+
+## Statement identity
+
+A semantic identifier makes a statement addressable but does not change its
+kind, authority, or confidence. Use identifiers selectively, keep externally
+referenced identifiers stable, and resolve their meaning through the canonical
+specification that owns them.
 
 ## Architecture versus feature artifacts
 

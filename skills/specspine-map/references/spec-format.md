@@ -20,6 +20,9 @@ their format.
 - [Architecture index](#architecture-index)
 - [Specification node](#specification-node)
 - [Section guidance](#section-guidance)
+- [Extension sections](#extension-sections)
+- [Addressable statements](#addressable-statements)
+- [Visual representations](#visual-representations)
 - [Canonical ownership](#canonical-ownership)
 - [Decomposition](#decomposition)
 - [Terminal detail](#terminal-detail)
@@ -172,6 +175,14 @@ Use these sections only when repository evidence matters. Record direct
 evidence under `Observed` and unconfirmed interpretation under `Inferred`.
 Neither overrides accepted decisions or constraints.
 
+When an observation needs traceability, add representative repository-relative
+evidence without claiming exhaustive coverage:
+
+```markdown
+- **OBS-worker-retries** — Failed jobs are retried by the worker.
+  Evidence: `src/worker.ts`, `tests/job-retry.test.ts`.
+```
+
 ### Open questions
 
 Use this section for uncertainty that remains relevant.
@@ -184,6 +195,89 @@ A useful question explains what decision is missing and why it matters:
 ```
 
 Remove or convert questions when the user accepts a decision.
+
+## Extension sections
+
+The standard sections are a common vocabulary, not a closed schema. Add a
+project-specific section only when it describes a durable architectural aspect,
+is understandable without a special parser, and does not duplicate a canonical
+specification or downstream feature artifact.
+
+Useful optional sections include:
+
+- `Interfaces` — architectural inputs, outputs, commands, events, and external
+  contracts;
+- `Data ownership` — owned data and mutation authority;
+- `Lifecycle` — significant states and transitions;
+- `Failure behavior` — retries, degradation, recovery, and failure boundaries;
+- `Quality attributes` — security, privacy, consistency, availability, latency,
+  and similar architectural properties;
+- `Terminology` — local domain language when a project-wide glossary is
+  unnecessary;
+- `Rationale and trade-offs` — reasoning that remains useful after a decision;
+- `Evidence` — shared sources supporting several observations.
+
+Do not add an `Assumptions` section. Put unconfirmed interpretation under
+`Inferred` and unresolved choices under `Open questions`.
+
+## Addressable statements
+
+Use a short semantic identifier only when another specification, context
+handoff, or downstream artifact needs to reference a particular statement.
+Do not identify every paragraph or bullet.
+
+```markdown
+## Decisions
+
+- **DEC-provider-independent-sessions** — Application sessions are independent
+  of authentication providers.
+```
+
+Prefer readable prefixes such as `DEC`, `CON`, `OBS`, `INF`, and `OQ`, followed
+by a stable kebab-case name. Identifiers are local to their canonical
+specification; external references include both the specification link and the
+identifier. An identifier adds addressability, not authority or proof.
+
+```markdown
+- [Job processing](job-processing.md) — `CON-retry-limit`
+```
+
+A bold identifier inside a list item is not a Markdown anchor. Do not invent a
+URL fragment such as `job-processing.md#CON-retry-limit`; pass the file link and
+identifier separately.
+
+Once referenced externally, keep the identifier stable across wording changes.
+If its meaning is replaced, retain a short tombstone that points to the
+replacement instead of silently reusing or deleting the identifier:
+
+```markdown
+- **DEC-legacy-session-model** — Superseded by
+  `DEC-provider-independent-sessions`.
+```
+
+## Visual representations
+
+Choose the smallest representation that makes the relationship easier to read:
+
+- unordered lists for responsibilities, boundaries, rules, and dependencies;
+- ordered lists for protocols and ordered lifecycles;
+- Markdown tables for comparisons, ownership matrices, interface mappings, and
+  repeated fields;
+- Mermaid `flowchart` for components, dependencies, and data flow;
+- Mermaid `sequenceDiagram` for multi-party interactions;
+- Mermaid `stateDiagram-v2` for states and transitions;
+- Mermaid `erDiagram` for conceptual data relationships;
+- Mermaid `classDiagram` for architectural types and contracts;
+- Mermaid `mindmap` for a compact area overview when the target renderer
+  supports it reliably.
+
+Never use ASCII diagrams. They render inconsistently and break under wrapping
+or automated editing.
+
+A diagram must not be the only source of meaning. State its important
+conclusion in nearby prose, a list, or a table. Keep one diagram focused on one
+question, avoid file- or function-level detail, and do not maintain duplicate
+copies of the same topology in several specifications.
 
 ## Canonical ownership
 

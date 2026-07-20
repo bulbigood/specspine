@@ -40,17 +40,19 @@ behavior.
 
 ## Decisions
 
-- Record accepted architectural or behavioral decisions here.
+- Record accepted architectural or behavioral decisions here. Add a stable
+  semantic ID only when the statement is referenced elsewhere.
 
 ## Constraints
 
 - Record accepted restrictions that downstream architecture or implementation
-  must preserve.
+  must preserve. Add a stable semantic ID only when needed for reference.
 
 ## Observed
 
 - When relevant, record current repository facts without presenting them as
-  intended architecture.
+  intended architecture. Add representative `Evidence:` paths when a claim
+  needs traceability.
 
 ## Inferred
 
