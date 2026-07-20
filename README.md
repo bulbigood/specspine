@@ -116,7 +116,11 @@ It can:
 * preserve unresolved questions;
 * prepare minimal architecture context handoffs for downstream work.
 
-It works only with specifications and does not modify source code.
+By default it treats the user request and files under `<spine-root>` as the only
+authoritative project evidence. It may use skills, MCP servers, internet search,
+and external documentation for general reference, but does not inspect
+project-specific material outside the spine unless explicitly requested and
+never modifies source code.
 
 ### `specspine-map`
 

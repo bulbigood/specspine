@@ -1,6 +1,6 @@
 ---
 name: specspine-grow
-description: Grow and maintain a long-lived network of linked Markdown architectural specifications. Use this skill to create a SpecSpine from an abstract idea, evolve intended architecture, split or merge architectural concepts, assess architectural impact, preserve intended-versus-observed disagreements, and prepare minimal architecture context handoffs for downstream tools or coding agents. This skill modifies only specifications and does not implement changes or prove code/spec conformance.
+description: Grow and maintain a long-lived network of linked Markdown architectural specifications using the user request and SpecSpine itself as authoritative project evidence by default. Use this skill to create a SpecSpine from an abstract idea, evolve intended architecture, split or merge architectural concepts, assess architectural impact, preserve already-recorded intended-versus-observed disagreements, and prepare minimal architecture context handoffs for downstream tools or coding agents. This skill modifies only specifications; it does not inspect project-specific material outside the spine unless explicitly requested, implement changes, or prove code/spec conformance.
 ---
 
 # SpecSpine Grow
@@ -46,12 +46,44 @@ Do not use it to:
 
 Preserve missing information according to `references/spec-semantics.md`.
 
+## Source-of-truth boundary
+
+By default, treat only these as authoritative sources of project architecture:
+
+- the current user request;
+- files inside the resolved `<spine-root>`.
+
+Bundled files under this skill's `references/` and `assets/` define procedure
+and format only; they are not project evidence.
+
+This boundary governs project evidence, not tool use. Skills, MCP servers,
+internet search, and external documentation may provide procedural guidance,
+terminology, or general technical facts. Do not treat them as evidence of this
+project's intended or observed architecture or let them override the SpecSpine.
+
+Do not inspect or derive architecture from project-specific material outside
+`<spine-root>` unless the user explicitly requests that source or authorizes
+external project inspection. This includes source code, configuration, tests,
+generated artifacts, repository documentation, issues, tickets, wikis, and
+project data exposed through tools or MCP servers. Treat such material as
+regenerable downstream artifacts, never as architectural authority.
+
+When the user explicitly authorizes external project evidence:
+
+- classify it only as `Observed` or `Inferred` unless the user separately
+  accepts architectural intent;
+- never let it silently override a `Decision` or `Constraint`;
+- preserve conflicts as `Open questions`.
+
+For an uninitialized project, use only the user request and bundled procedural
+resources. Do not inspect the repository to fill missing architecture.
+
 ## Lifecycle role
 
-Own intentional evolution of normative architecture. Preserve relevant
-observations already known to the user, but do not deeply discover them from
-code. When a request primarily requires repository discovery, leave that work
-to a separate mapping workflow.
+Own intentional evolution of normative architecture. Preserve observations
+already stored in SpecSpine or explicitly supplied by the user. When a request
+primarily requires repository discovery, leave that work to a separate mapping
+workflow.
 
 Remain fully usable without any companion skill. Update the linked network and
 produce context handoffs without proving conformance or implementing changes.
@@ -62,7 +94,8 @@ produce context handoffs without proving conformance or implementing changes.
 
 Resolve `<spine-root>` using `references/spec-format.md`. Start with
 `<spine-root>/README.md`, then follow only links relevant to the request. If the
-index does not exist, treat the project as uninitialized.
+index does not exist, treat the project as uninitialized. Do not inspect other
+project files to supplement the spine unless explicitly authorized.
 
 ### 2. Classify the request
 
@@ -135,7 +168,7 @@ whether the area is ready for context handoff.
 
 Create `<spine-root>/README.md` and the smallest useful set of top-level concept
 specifications using `references/spec-format.md`. Do not anticipate the full
-project.
+project or inspect other project files for missing context.
 
 ### Refine
 
@@ -160,7 +193,9 @@ changes before restructuring.
 
 Follow `references/context-handoff.md`. Include the smallest useful set and
 separate required, potentially affected, and merely related specifications.
-Preserve claim semantics without adding downstream artifacts.
+Preserve claim semantics without adding downstream artifacts. Include only
+observations already stored in the spine or explicitly supplied or authorized
+by the user.
 
 ## Readiness for context handoff
 
@@ -181,6 +216,8 @@ belong downstream.
 
 Never:
 
+- inspect or use project-specific material outside `<spine-root>` as
+  architectural evidence without explicit user authorization;
 - modify or create source-code files;
 - invent repository structure;
 - claim synchronization or conformance between specifications and code;
