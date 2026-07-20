@@ -1,0 +1,8 @@
+{
+  "id": "grow-existing-spec",
+  "scenario": "tests/scenarios/grow-existing-spec.md",
+  "skill": "skills/specspine-grow",
+  "status": "planned",
+  "initial_files": {},
+  "assertions": []
+}

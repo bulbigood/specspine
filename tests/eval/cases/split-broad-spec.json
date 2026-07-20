@@ -1,0 +1,8 @@
+{
+  "id": "split-broad-spec",
+  "scenario": "tests/scenarios/split-broad-spec.md",
+  "skill": "skills/specspine-grow",
+  "status": "planned",
+  "initial_files": {},
+  "assertions": []
+}

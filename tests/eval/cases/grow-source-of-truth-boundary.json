@@ -1,0 +1,8 @@
+{
+  "id": "grow-source-of-truth-boundary",
+  "scenario": "tests/scenarios/grow-source-of-truth-boundary.md",
+  "skill": "skills/specspine-grow",
+  "status": "planned",
+  "initial_files": {},
+  "assertions": []
+}

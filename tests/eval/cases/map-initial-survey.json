@@ -1,0 +1,8 @@
+{
+  "id": "map-initial-survey",
+  "scenario": "tests/scenarios/map-initial-survey.md",
+  "skill": "skills/specspine-map",
+  "status": "planned",
+  "initial_files": {},
+  "assertions": []
+}

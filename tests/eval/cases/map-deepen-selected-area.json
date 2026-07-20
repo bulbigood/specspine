@@ -1,0 +1,8 @@
+{
+  "id": "map-deepen-selected-area",
+  "scenario": "tests/scenarios/map-deepen-selected-area.md",
+  "skill": "skills/specspine-map",
+  "status": "planned",
+  "initial_files": {},
+  "assertions": []
+}

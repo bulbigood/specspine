@@ -1,0 +1,21 @@
+{
+  "id": "map-observed-vs-inferred",
+  "scenario": "tests/scenarios/map-observed-vs-inferred.md",
+  "skill": "skills/specspine-map",
+  "status": "executable",
+  "initial_files": {
+    "README.md": "# Runtime sample\n\nThe repository contains an API and a background worker.\n",
+    "apps/api/main.js": "export function startApi(database) { return database; }\n",
+    "apps/worker/main.js": "export function startWorker(database) { return database; }\n",
+    "packages/database/index.js": "export const database = {};\n",
+    "docker-compose.yml": "services:\n  api:\n    command: node apps/api/main.js\n  worker:\n    command: node apps/worker/main.js\n"
+  },
+  "assertions": [
+    {"type": "path_exists", "path": "specspine/README.md"},
+    {"type": "glob_count", "glob": "specspine/*.md", "min": 2, "max": 7},
+    {"type": "changed_only", "paths": ["specspine/**"]},
+    {"type": "unchanged", "paths": ["README.md", "apps/**", "packages/**", "docker-compose.yml"]},
+    {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+    {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+  ]
+}
