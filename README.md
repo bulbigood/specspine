@@ -138,6 +138,14 @@ It records observed repository evidence separately from intended architectural
 decisions, preserves disagreements, and can prepare the same neutral context
 handoff as `specspine-grow`.
 
+### `specspine-doctor`
+
+Performs read-only mechanical and semantic health checks on an existing
+SpecSpine. It reuses the current format and semantics from an installed
+`specspine-grow` or `specspine-map` companion instead of maintaining another
+copy, and includes a deterministic checker for links, reachability, and
+semantic IDs.
+
 ## Installation
 
 Install `specspine-init` from this repository:
@@ -156,6 +164,13 @@ Install `specspine-map` independently:
 
 ```bash
 npx skills add bulbigood/specspine --skill specspine-map
+```
+
+Install `specspine-doctor` together with at least one maintenance companion:
+
+```bash
+npx skills add bulbigood/specspine --skill specspine-grow
+npx skills add bulbigood/specspine --skill specspine-doctor
 ```
 
 List the available skills:
@@ -180,6 +195,7 @@ npx skills add . --list
 npx skills add . --skill specspine-init
 npx skills add . --skill specspine-grow
 npx skills add . --skill specspine-map
+npx skills add . --skill specspine-doctor
 ```
 
 ## Usage
@@ -318,6 +334,17 @@ Expected architectural outcome:
 A downstream workflow can use this handoff while remaining responsible for
 feature requirements, acceptance criteria, planning, tasks, tests, and
 implementation.
+
+### Diagnose the specification network
+
+```text
+Check this SpecSpine for mechanical and semantic problems.
+```
+
+`specspine-doctor` runs deterministic integrity checks, reviews canonical
+ownership and claim semantics, and reports findings without modifying the
+Spine. Repository drift inspection is opt-in and uses `specspine-map` evidence
+rules.
 
 ## Specification philosophy
 
@@ -527,25 +554,33 @@ specspine/
 │   │       └── templates/
 │   │           ├── architecture-index.md
 │   │           └── specification.md
-│   └── specspine-map/
+│   ├── specspine-map/
+│   │   ├── SKILL.md
+│   │   ├── references/
+│   │   │   ├── mapping-method.md
+│   │   │   ├── spec-format.md
+│   │   │   ├── spec-semantics.md
+│   │   │   ├── context-handoff.md
+│   │   │   └── examples.md
+│   │   └── assets/
+│   │       └── templates/
+│   │           ├── architecture-index.md
+│   │           └── specification.md
+│   └── specspine-doctor/
 │       ├── SKILL.md
 │       ├── references/
-│       │   ├── mapping-method.md
-│       │   ├── spec-format.md
-│       │   ├── spec-semantics.md
-│       │   ├── context-handoff.md
-│       │   └── examples.md
-│       └── assets/
-│           └── templates/
-│               ├── architecture-index.md
-│               └── specification.md
+│       │   └── review-method.md
+│       └── scripts/
+│           └── check_spine.py
 ├── examples/
 │   └── minimal-saas/
 └── tests/
     └── scenarios/
 ```
 
-Each skill is self-contained and can be installed independently.
+The maintenance skills are self-contained. `specspine-doctor` intentionally
+requires `specspine-grow` or `specspine-map` so it can consume the current
+format and semantics without duplicating them.
 
 ## What SpecSpine is not
 
@@ -613,6 +648,7 @@ The most important success criterion is:
 * [ ] Test across multiple coding agents
 * [ ] Improve impact proposals and decomposition behavior
 * [x] Create `specspine-map` for brownfield projects
+* [x] Create `specspine-doctor` for read-only integrity and semantic diagnosis
 * [ ] Add optional broken-link and graph-visualization tools
 
 The core workflow will remain Markdown-first and lightweight.

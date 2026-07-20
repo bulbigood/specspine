@@ -34,6 +34,7 @@ An adapter that can audit file reads should write `.eval/trace.json`:
 Each `cases/*.json` manifest connects one prose scenario to:
 
 - the skill under evaluation;
+- optional installed `companion_skills` copied into the isolated environment;
 - an inline clean-room fixture;
 - deterministic assertions;
 - its migration status (`executable` or `planned`).

@@ -65,6 +65,9 @@ def validate_case(case: dict[str, Any]) -> list[str]:
         errors.append(f"skill does not exist: {case['skill']}")
     if case["status"] == "executable" and not case["assertions"]:
         errors.append("executable case has no assertions")
+    for companion in case.get("companion_skills", []):
+        if not (ROOT / companion / "SKILL.md").is_file():
+            errors.append(f"companion skill does not exist: {companion}")
     for rel in case["initial_files"]:
         path = Path(rel)
         if path.is_absolute() or ".." in path.parts:
@@ -96,6 +99,9 @@ def write_fixture(case: dict[str, Any], workspace: Path) -> None:
         path.write_text(content, encoding="utf-8")
     skill_source = ROOT / case["skill"]
     shutil.copytree(skill_source, workspace / ".eval" / "skill")
+    for companion in case.get("companion_skills", []):
+        companion_source = ROOT / companion
+        shutil.copytree(companion_source, workspace / ".eval" / "companions" / companion_source.name)
     scenario_source = ROOT / case["scenario"]
     (workspace / ".eval").mkdir(exist_ok=True)
     shutil.copy2(scenario_source, workspace / ".eval" / "scenario.md")
@@ -256,6 +262,7 @@ def build_prompt(case: dict[str, Any]) -> str:
     return (
         "You are running a repeatable SpecSpine evaluation.\n"
         "Read .eval/skill/SKILL.md and all references it requires.\n"
+        "Installed companion skills, when configured, are under .eval/companions/.\n"
         "Treat the current directory as the project root.\n"
         "Perform the user request described by the scenario.\n\n"
         f"{scenario}\n"

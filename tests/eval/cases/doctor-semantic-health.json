@@ -1,0 +1,17 @@
+{
+  "id": "doctor-semantic-health",
+  "scenario": "tests/scenarios/doctor-semantic-health.md",
+  "skill": "skills/specspine-doctor",
+  "companion_skills": ["skills/specspine-grow"],
+  "status": "executable",
+  "initial_files": {
+    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Application](application.md)\n- [Billing](billing.md)\n- [Payments](payments.md)\n",
+    "specspine/application.md": "# Application\n\nOwns user workflows, authentication, billing orchestration, notification delivery, deployment configuration, and operational monitoring.\n",
+    "specspine/billing.md": "# Billing\n\nCanonically owns payment state and provider synchronization.\n",
+    "specspine/payments.md": "# Payments\n\nCanonically owns payment state and provider synchronization.\n\n## Decisions\n\n- The separate payment process proves that payments are intended to scale independently.\n"
+  },
+  "assertions": [
+    {"type": "max_changed_files", "max": 0},
+    {"type": "response_contains", "values": ["billing.md", "payments.md", "specspine-grow"]}
+  ]
+}

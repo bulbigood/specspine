@@ -1,0 +1,17 @@
+{
+  "id": "doctor-mechanical-health",
+  "scenario": "tests/scenarios/doctor-mechanical-health.md",
+  "skill": "skills/specspine-doctor",
+  "companion_skills": ["skills/specspine-grow"],
+  "status": "executable",
+  "initial_files": {
+    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Application](application.md)\n",
+    "specspine/application.md": "# Application\n\nOwns application behavior.\n\n## Relationships\n\n- [Missing](missing.md)\n\n## Constraints\n\nPreserve [CON-missing](policy.md).\n",
+    "specspine/policy.md": "# Policy\n\n## Constraints\n",
+    "specspine/orphan.md": "# Orphan\n\nThis specification is unreachable.\n"
+  },
+  "assertions": [
+    {"type": "max_changed_files", "max": 0},
+    {"type": "response_contains", "values": ["BROKEN_LINK", "UNRESOLVED_ID", "UNREACHABLE_SPEC", "EMPTY_SECTION"]}
+  ]
+}

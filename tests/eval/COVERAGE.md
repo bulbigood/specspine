@@ -2,7 +2,7 @@
 
 ## Current inventory
 
-The repository has thirteen prose behavioral scenarios. Every scenario is
+The repository has fifteen prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
@@ -11,7 +11,8 @@ classified.
 | `specspine-grow` | 5 | 1 |
 | `specspine-map` | 5 | 2 |
 | `specspine-init` | 3 | 1 |
-| Total | 13 | 4 |
+| `specspine-doctor` | 2 | 2 |
+| Total | 15 | 6 |
 
 `traceable-visual-spec` is assigned to `specspine-map` because its expected
 result includes repository-backed observations.
