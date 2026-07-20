@@ -1,0 +1,13 @@
+{
+  "files": {
+    "SKILL.md": "e0c83a797521520bece4dd0b0f45834a93a1847ba37bc18629521cef5cead057",
+    "agents/openai.yaml": "0d961d20ed13de06a8ba9951e48680abe87189fa6a956aad0bb457c6e18b816e",
+    "references/context-handoff.md": "a65e4d6f610d1b8b85a53c7de4aa640c71ac9e963a009800055849794b6ff337",
+    "references/review-method.md": "ee6ac4de6829ff132a1a6c5be61e0e33736f7eb5012122a6165b7772ada6eaad",
+    "references/spec-format.md": "b175b30805de5d04cdfad939b24396ec6c995f8e8ad30a84ca3dfe71e92eda5b",
+    "references/spec-semantics.md": "921eb77d053f9ad1606a285b1fbe674cb0e490aac725bc2125ee4c1f707717ce",
+    "scripts/check_spine.py": "420d04f4abf03f4ca4358f4d85df1e8a83d0e310265256d9cf0e482c569bee9c"
+  },
+  "generator": "specspine-adapter-generator",
+  "source": "assets/skill-sources/specspine-doctor"
+}

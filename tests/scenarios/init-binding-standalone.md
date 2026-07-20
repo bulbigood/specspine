@@ -1,17 +1,17 @@
-# Scenario: generated integration works without the initializer
+# Scenario: generated binding works without the initializer
 
 ## Initial project
 
 The initializer has produced:
 
 - a persistent project-instruction bootstrap;
-- a project-local integration skill and supported metadata;
+- a compact `.specspine-integration.md` binding;
 - an existing `<spine-root>/README.md` and linked specifications.
 
-The generated skill records a concrete native workflow entry, downstream
-stage, artifact paths, work-item naming rule, format source, context insertion
-point, traceability rule, and conflict destination. `specspine-init` is
-unavailable to the new agent.
+The binding records a concrete native workflow entry, downstream stage,
+artifact paths, work-item naming rule, format source, context insertion point,
+traceability rule, and conflict destination. `specspine-init` is unavailable to
+the new agent.
 
 ## User request
 
@@ -21,10 +21,9 @@ Prepare the native SDD change proposal for adding external authentication.
 
 ## Expected behavior
 
-Using only persistent project instructions, the generated skill, and
-SpecSpine, a fresh agent should:
+Using only persistent project instructions, the compact binding, native SDD
+instructions, and SpecSpine, a fresh agent should:
 
-- discover and invoke the generated integration skill;
 - read the SpecSpine index and smallest relevant linked context;
 - identify the exact native workflow entry, work-item identifier, and artifact
   destination without inventing a naming convention;
@@ -32,7 +31,7 @@ SpecSpine, a fresh agent should:
   configured format source;
 - preserve path-plus-semantic-ID traceability when available;
 - route conflicts and blocking questions to the configured destination;
-- avoid requiring `specspine-init` or conversation history.
+- avoid requiring `specspine-init`, a generated skill, or conversation history.
 
 ## Failure indicators
 
@@ -40,4 +39,4 @@ SpecSpine, a fresh agent should:
 - a runtime binding is missing, vague, or unresolved;
 - the agent reads all specifications instead of selecting relevant context;
 - downstream artifacts silently override Decisions or Constraints;
-- the initializer is required at runtime.
+- the initializer or another generated skill is required at runtime.

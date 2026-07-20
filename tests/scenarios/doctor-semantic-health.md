@@ -17,7 +17,7 @@ Review the semantic health of this SpecSpine.
 
 The skill should:
 
-- use current semantics and stopping rules from an installed companion;
+- use current bundled semantics and stopping rules;
 - distinguish confirmed defects from risks requiring architectural judgment;
 - identify competing ownership and the misclassified inference;
 - describe the broad specification as a decomposition candidate rather than

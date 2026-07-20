@@ -15,15 +15,25 @@ SPEC.loader.exec_module(CHECKER)
 
 
 class DoctorCheckerTests(unittest.TestCase):
-    def test_companion_rules_are_interchangeable(self):
+    def test_generated_rules_are_identical_in_all_consumers(self):
         project_root = Path(__file__).parents[2]
         for name in ("spec-format.md", "spec-semantics.md", "context-handoff.md"):
             grow = project_root / "skills" / "specspine-grow" / "references" / name
-            mapping = project_root / "skills" / "specspine-map" / "references" / name
-            self.assertEqual(grow.read_text(encoding="utf-8"), mapping.read_text(encoding="utf-8"), name)
+            for consumer in ("specspine-map", "specspine-doctor"):
+                generated = project_root / "skills" / consumer / "references" / name
+                self.assertEqual(grow.read_text(encoding="utf-8"), generated.read_text(encoding="utf-8"), name)
 
     def test_checker_id_grammar_matches_canonical_format(self):
-        format_path = Path(__file__).parents[2] / "skills" / "specspine-grow" / "references" / "spec-format.md"
+        format_path = (
+            Path(__file__).parents[2]
+            / "skills"
+            / "specspine-adapter-generator"
+            / "assets"
+            / "skill-sources"
+            / "specspine-grow"
+            / "references"
+            / "spec-format.md"
+        )
         text = format_path.read_text(encoding="utf-8")
         match = re.search(r"Use this identifier grammar:\n\n```text\n([^\n]+)\n```", text)
         self.assertIsNotNone(match)

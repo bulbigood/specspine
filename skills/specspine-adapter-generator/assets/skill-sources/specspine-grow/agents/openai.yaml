@@ -1,0 +1,4 @@
+interface:
+  display_name: "SpecSpine Grow"
+  short_description: "Grow a linked architectural specification spine"
+  default_prompt: "Use $specspine-grow to create or evolve the architectural specification network for this project."

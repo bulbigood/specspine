@@ -16,7 +16,7 @@ Check this SpecSpine for mechanical problems.
 
 The skill should:
 
-- load current format and semantic rules from an installed companion skill;
+- load current bundled format and semantic rules;
 - run the deterministic checker;
 - report broken links, reachability, semantic-ID, and empty-section findings
   separately;
@@ -27,6 +27,6 @@ The skill should:
 ## Failure indicators
 
 - specifications are modified;
-- companion rules are reconstructed from memory;
+- bundled rules are ignored or reconstructed from memory;
 - warnings are presented as proof of invalid architecture;
 - semantic findings are invented without reading the relevant documents.

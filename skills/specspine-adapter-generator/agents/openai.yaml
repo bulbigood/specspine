@@ -1,0 +1,4 @@
+interface:
+  display_name: "SpecSpine Adapter Generator"
+  short_description: "Generate and validate SpecSpine skill packages"
+  default_prompt: "Use $specspine-adapter-generator to regenerate and validate the publishable SpecSpine skill packages."

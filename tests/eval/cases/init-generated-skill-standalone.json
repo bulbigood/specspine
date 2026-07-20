@@ -1,8 +1,0 @@
-{
-  "id": "init-generated-skill-standalone",
-  "scenario": "tests/scenarios/init-generated-skill-standalone.md",
-  "skill": "skills/specspine-init",
-  "status": "planned",
-  "initial_files": {},
-  "assertions": []
-}

@@ -2,7 +2,7 @@
 
 ## Current inventory
 
-The repository has fifteen prose behavioral scenarios. Every scenario is
+The repository has sixteen prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
@@ -12,7 +12,8 @@ classified.
 | `specspine-map` | 5 | 2 |
 | `specspine-init` | 3 | 1 |
 | `specspine-doctor` | 2 | 2 |
-| Total | 15 | 6 |
+| `specspine-adapter-generator` | 1 | 1 |
+| Total | 16 | 7 |
 
 `traceable-visual-spec` is assigned to `specspine-map` because its expected
 result includes repository-backed observations.
@@ -23,6 +24,8 @@ Executable cases currently cover:
 - creation of a brownfield map from runtime evidence;
 - generic project-agent bootstrap boundaries;
 - semantic-ID references, evidence, and a Mermaid lifecycle view.
+- mechanical and semantic Doctor diagnosis without runtime companions;
+- deterministic runtime-skill generation and drift detection.
 
 The remaining nine manifests are marked `planned`. Their prose remains useful
 as a rubric, but they are not counted as automated tests.
@@ -36,8 +39,8 @@ as a rubric, but they are not counted as automated tests.
 - initial brownfield survey breadth versus depth;
 - selective deep mapping and file-read budget;
 - local refresh without remapping unrelated areas;
-- concrete SDD adapter generation;
-- standalone use of a generated adapter.
+- concrete SDD binding generation;
+- standalone use of a generated binding.
 
 These need multi-turn support or an adapter-provided file-read trace before
 their important invariants can be tested honestly.
@@ -59,10 +62,9 @@ High priority:
 
 Integration edge cases:
 
-- no supported project-local skill surface;
 - ambiguous agent instruction or SDD framework selection;
 - refresh after framework conventions change;
-- generated adapter with user edits or a missing ownership marker;
+- generated binding with user edits or a missing ownership marker;
 - explicit integration removal without deleting user-owned files;
 - external project evidence supplied through MCP with and without
   authorization.

@@ -1,0 +1,15 @@
+{
+  "files": {
+    "SKILL.md": "3610ffedff2baa5527d1d23f1b72d6d417ecbef6039c4ffb314f2c7813bdee96",
+    "agents/openai.yaml": "a4902b35e8bd90ce5b93f0fa005a54d0f8c3465cd45aadc82082a43bbec02530",
+    "assets/templates/architecture-index.md": "bb00f834d805b386a34fae18920f207c2d26b2a695b2b6c6a1206254a0c8bbb5",
+    "assets/templates/specification.md": "24f7243f583fb9f8bb214b67e0d2885d3b62ff507eecdc70f31de600f81bfeac",
+    "references/context-handoff.md": "a65e4d6f610d1b8b85a53c7de4aa640c71ac9e963a009800055849794b6ff337",
+    "references/examples.md": "30ff9b5b7ac062c6d30af072d3bd2aa631a7144bf4f9746254c022f861008882",
+    "references/mapping-method.md": "4127e4f64bf70af6c8e85b06c3dd9c6cce806efaf57f57939d9c0cba4bc493c2",
+    "references/spec-format.md": "b175b30805de5d04cdfad939b24396ec6c995f8e8ad30a84ca3dfe71e92eda5b",
+    "references/spec-semantics.md": "921eb77d053f9ad1606a285b1fbe674cb0e490aac725bc2125ee4c1f707717ce"
+  },
+  "generator": "specspine-adapter-generator",
+  "source": "assets/skill-sources/specspine-map"
+}

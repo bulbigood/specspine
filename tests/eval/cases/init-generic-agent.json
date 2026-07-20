@@ -4,8 +4,7 @@
   "skill": "skills/specspine-init",
   "status": "executable",
   "initial_files": {
-    "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n\nProject-local skills are stored under `.agents/skills/<skill-name>/SKILL.md`.\n",
-    ".agents/skills/example/SKILL.md": "---\nname: example\ndescription: Demonstrates the supported project-local skill layout.\n---\n\n# Example\n",
+    "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n",
     "specspine/README.md": "# Project architecture\n\n## Architecture map\n\n- [Application](application.md)\n",
     "specspine/application.md": "# Application\n\nOwns application behavior.\n",
     "src/main.txt": "Existing implementation placeholder.\n"
@@ -13,9 +12,9 @@
   "assertions": [
     {"type": "file_contains", "path": "AGENTS.md", "value": "Preserve this user-authored sentence."},
     {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1},
-    {"type": "glob_count", "glob": ".agents/skills/*/SKILL.md", "min": 2, "max": 2},
-    {"type": "no_template_placeholders", "glob": ".agents/skills/*/SKILL.md"},
-    {"type": "unchanged", "paths": ["specspine/**", "src/**", ".agents/skills/example/**"]},
-    {"type": "changed_only", "paths": ["AGENTS.md", ".agents/skills/*/**"]}
+    {"type": "path_absent", "path": ".specspine-integration.md"},
+    {"type": "file_not_contains", "path": "AGENTS.md", "value": "{{"},
+    {"type": "unchanged", "paths": ["specspine/**", "src/**"]},
+    {"type": "changed_only", "paths": ["AGENTS.md"]}
   ]
 }

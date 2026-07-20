@@ -103,10 +103,9 @@ Software architecture is rarely a strict tree. A concept such as authentication 
 ### `specspine-init`
 
 Connects an existing SpecSpine to the current project's persistent agent
-instructions and optional SDD workflow. It adds a short discovery block and
-generates a thin project-local integration skill when the environment supports
-one. The generated adapter is a snapshot of local conventions, so SpecSpine
-does not maintain framework-version adapters.
+instructions and optional SDD workflow. It adds a short discovery block and,
+only for SDD projects, a compact lazily read binding. It never generates another
+skill or maintains framework-version adapters.
 
 ### `specspine-grow`
 
@@ -141,10 +140,15 @@ handoff as `specspine-grow`.
 ### `specspine-doctor`
 
 Performs read-only mechanical and semantic health checks on an existing
-SpecSpine. It reuses the current format and semantics from an installed
-`specspine-grow` or `specspine-map` companion instead of maintaining another
-copy, and includes a deterministic checker for links, reachability, and
+SpecSpine. It is independently installable and includes build-generated current
+format and semantics plus a deterministic checker for links, reachability, and
 semantic IDs.
+
+### `specspine-adapter-generator`
+
+Maintainer-only build skill that generates the four publishable runtime skills
+from canonical sources, verifies drift, runs release gates, and prepares an
+explicitly authorized publication. Project users do not install it.
 
 ## Installation
 
@@ -166,10 +170,9 @@ Install `specspine-map` independently:
 npx skills add bulbigood/specspine --skill specspine-map
 ```
 
-Install `specspine-doctor` together with at least one maintenance companion:
+Install `specspine-doctor` independently:
 
 ```bash
-npx skills add bulbigood/specspine --skill specspine-grow
 npx skills add bulbigood/specspine --skill specspine-doctor
 ```
 
@@ -179,10 +182,13 @@ List the available skills:
 npx skills add bulbigood/specspine --list
 ```
 
-Install all available SpecSpine skills:
+Install all runtime SpecSpine skills without the maintainer-only generator:
 
 ```bash
-npx skills add bulbigood/specspine --skill '*'
+npx skills add bulbigood/specspine --skill specspine-init
+npx skills add bulbigood/specspine --skill specspine-grow
+npx skills add bulbigood/specspine --skill specspine-map
+npx skills add bulbigood/specspine --skill specspine-doctor
 ```
 
 For local development:
@@ -198,6 +204,13 @@ npx skills add . --skill specspine-map
 npx skills add . --skill specspine-doctor
 ```
 
+Maintainers regenerate and verify the runtime packages from canonical sources:
+
+```bash
+skills/specspine-adapter-generator/scripts/generate_skills.py
+skills/specspine-adapter-generator/scripts/generate_skills.py --check
+```
+
 ## Usage
 
 The skills work through natural-language requests. Users do not need to learn a
@@ -209,9 +222,9 @@ command workflow.
 Adapt this project's SpecSpine to the current agent and SDD workflow.
 ```
 
-`specspine-init` discovers persistent project instructions and supported local
-skill conventions, then proposes a managed bootstrap and project-specific
-consumer skill. It does not rewrite installed framework skills.
+`specspine-init` proposes a managed bootstrap and, when an SDD framework is
+present, a compact project binding. Generic coding-agent integration creates no
+additional artifact or project-local skill.
 
 ### Start a project
 
@@ -541,8 +554,7 @@ specspine/
 │   │   └── assets/
 │   │       └── templates/
 │   │           ├── agent-bootstrap.md
-│   │           ├── project-integration-skill.md
-│   │           └── project-openai.yaml
+│   │           └── project-binding.md
 │   ├── specspine-grow/
 │   │   ├── SKILL.md
 │   │   ├── references/
@@ -566,21 +578,33 @@ specspine/
 │   │       └── templates/
 │   │           ├── architecture-index.md
 │   │           └── specification.md
-│   └── specspine-doctor/
+│   ├── specspine-doctor/
+│   │   ├── SKILL.md
+│   │   ├── references/
+│   │   │   ├── spec-format.md
+│   │   │   ├── spec-semantics.md
+│   │   │   ├── context-handoff.md
+│   │   │   └── review-method.md
+│   │   └── scripts/
+│   │       └── check_spine.py
+│   └── specspine-adapter-generator/
 │       ├── SKILL.md
 │       ├── references/
-│       │   └── review-method.md
-│       └── scripts/
-│           └── check_spine.py
+│       │   └── generation-contract.md
+│       ├── scripts/
+│       │   └── generate_skills.py
+│       └── assets/
+│           └── skill-sources/
 ├── examples/
 │   └── minimal-saas/
 └── tests/
     └── scenarios/
 ```
 
-The maintenance skills are self-contained. `specspine-doctor` intentionally
-requires `specspine-grow` or `specspine-map` so it can consume the current
-format and semantics without duplicating them.
+The four runtime skills are generated, self-contained, and independently
+installable. `specspine-adapter-generator` is a maintainer-only build skill; it
+keeps shared authoring rules canonical and copies them into publishable packages
+without runtime dependencies.
 
 ## What SpecSpine is not
 
@@ -619,9 +643,9 @@ Source code
 
 SpecSpine is conceptually compatible with OpenSpec, spec-kit, and direct
 coding-agent workflows through its neutral context handoff. `specspine-init`
-can generate a thin project-local adapter from the currently inspected
-environment. SpecSpine does not ship maintained framework-version adapters,
-convert canonical specifications, or guarantee compatibility.
+can capture inspected project conventions in a compact binding read only during
+downstream SDD work. SpecSpine does not ship maintained framework-version
+adapters, convert canonical specifications, or guarantee compatibility.
 
 It can also be used independently as architectural memory and navigation when a
 full SDD workflow would add unnecessary ceremony.
@@ -644,12 +668,15 @@ The most important success criterion is:
 * [x] Create `specspine-init` for project-local agent and SDD adaptation
 * [x] Create `specspine-grow`
 * [ ] Add example greenfield projects
-* [ ] Add repeatable evaluation scenarios
+* [x] Add a repeatable evaluation harness
+* [ ] Convert remaining prose scenarios into executable fixtures
 * [ ] Test across multiple coding agents
 * [ ] Improve impact proposals and decomposition behavior
 * [x] Create `specspine-map` for brownfield projects
 * [x] Create `specspine-doctor` for read-only integrity and semantic diagnosis
-* [ ] Add optional broken-link and graph-visualization tools
+* [x] Generate autonomous runtime skills from canonical build-time sources
+* [x] Add optional mechanical integrity checks
+* [ ] Add optional graph visualization
 
 The core workflow will remain Markdown-first and lightweight.
 

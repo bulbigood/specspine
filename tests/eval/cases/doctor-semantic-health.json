@@ -2,7 +2,6 @@
   "id": "doctor-semantic-health",
   "scenario": "tests/scenarios/doctor-semantic-health.md",
   "skill": "skills/specspine-doctor",
-  "companion_skills": ["skills/specspine-grow"],
   "status": "executable",
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Application](application.md)\n- [Billing](billing.md)\n- [Payments](payments.md)\n",

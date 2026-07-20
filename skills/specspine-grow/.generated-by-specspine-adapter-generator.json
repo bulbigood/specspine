@@ -1,0 +1,14 @@
+{
+  "files": {
+    "SKILL.md": "4d45147ce9ddd4624a5d7b0e67a2320ef7f73bf2052357216ed24f6c88052891",
+    "agents/openai.yaml": "1733b164428bd5629157c8ef3eca8964f580e28d244c9343399ffe89f7a682d8",
+    "assets/templates/architecture-index.md": "42dac97e05785db1adc96d2c291f5551ec27fe98fa13771aec011dd834542d05",
+    "assets/templates/specification.md": "24f7243f583fb9f8bb214b67e0d2885d3b62ff507eecdc70f31de600f81bfeac",
+    "references/context-handoff.md": "a65e4d6f610d1b8b85a53c7de4aa640c71ac9e963a009800055849794b6ff337",
+    "references/examples.md": "a8bb2abafdda87e979d258e60f57d20df7260979181b5b5c4507b0c4245f7e33",
+    "references/spec-format.md": "b175b30805de5d04cdfad939b24396ec6c995f8e8ad30a84ca3dfe71e92eda5b",
+    "references/spec-semantics.md": "921eb77d053f9ad1606a285b1fbe674cb0e490aac725bc2125ee4c1f707717ce"
+  },
+  "generator": "specspine-adapter-generator",
+  "source": "assets/skill-sources/specspine-grow"
+}

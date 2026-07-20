@@ -1,0 +1,15 @@
+{
+  "id": "adapter-generator-regenerate",
+  "scenario": "tests/scenarios/adapter-generator-regenerate.md",
+  "skill": "skills/specspine-adapter-generator",
+  "status": "executable",
+  "initial_files": {},
+  "assertions": [
+    {"type": "path_exists", "path": "skills/specspine-init/SKILL.md"},
+    {"type": "path_exists", "path": "skills/specspine-grow/SKILL.md"},
+    {"type": "path_exists", "path": "skills/specspine-map/SKILL.md"},
+    {"type": "path_exists", "path": "skills/specspine-doctor/SKILL.md"},
+    {"type": "glob_count", "glob": "skills/specspine-*/.generated-by-specspine-adapter-generator.json", "min": 4, "max": 4},
+    {"type": "changed_only", "paths": ["skills/**"]}
+  ]
+}
