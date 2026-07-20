@@ -3,7 +3,7 @@
 ## Existing SpecSpine
 
 ```text
-specs/
+<spine-root>/
 ├── README.md
 ├── api-server.md
 ├── background-processing.md

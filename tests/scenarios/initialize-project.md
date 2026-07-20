@@ -2,7 +2,7 @@
 
 ## Initial state
 
-No `specs/` directory exists.
+No `<spine-root>/` directory exists.
 
 ## User request
 
@@ -15,7 +15,7 @@ process them asynchronously, and search the extracted content.
 
 The skill should:
 
-- create `specs/README.md`;
+- create `<spine-root>/README.md`;
 - create a small set of top-level concept specifications;
 - keep initial specifications concise;
 - record important unknowns as open questions;

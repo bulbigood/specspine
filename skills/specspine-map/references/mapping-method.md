@@ -164,65 +164,20 @@ If most answers are no, keep it inside a broader specification.
 
 ## Evidence discipline
 
-Use five statement kinds. Keep normative intent separate from repository
-evidence and interpretation.
-
-### Decision
-
-An accepted architectural choice supported by explicit documentation or
-confirmed by the user. Repository repetition alone does not establish a
-decision.
-
-### Constraint
-
-An accepted restriction on downstream architecture or implementation. A
-constraint does not imply that the current repository satisfies it.
-
-### Observed
-
-Directly supported by repository evidence.
-
-Examples:
-
-- an executable starts an HTTP server;
-- a migration creates a durable table;
-- a consumer subscribes to an event;
-- a test confirms idempotent behavior.
-
-### Inferred
-
-Architectural interpretation assembled from evidence.
-
-Examples:
-
-- several modules appear to form one billing subsystem;
-- an event appears to be an ownership boundary;
-- two packages appear intended as independently deployable services.
-
-### Open question
-
-A meaningful ambiguity or conflict.
-
-Examples:
-
-- documentation and code disagree;
-- ownership is split across several modules;
-- a dormant component may be obsolete;
-- the repository does not reveal product intent.
+Classify claims using the semantics reference routed from `SKILL.md`; it is the
+sole definition of normative intent, direct evidence, interpretation, and
+unresolved uncertainty. Repository repetition alone does not establish
+accepted intent.
 
 Do not overuse path citations. Mention representative locations when they help
 future navigation or support a non-obvious claim.
-
-Observed facts do not override decisions or constraints. Decisions and
-constraints do not imply code conformance. Preserve any disagreement explicitly
-until the user or a downstream workflow resolves it.
 
 ## Initial survey output
 
 The first pass should usually produce:
 
 ```text
-specs/
+<spine-root>/
 ├── README.md
 ├── <major-component>.md
 ├── <major-capability>.md
@@ -297,9 +252,9 @@ Stop mapping when:
 Problem:
 
 ```text
-specs/controllers.md
-specs/services.md
-specs/repositories.md
+<spine-root>/controllers.md
+<spine-root>/services.md
+<spine-root>/repositories.md
 ```
 
 This often describes framework layering rather than project architecture.

@@ -13,7 +13,7 @@ packages/documents/
 docker-compose.yml
 ```
 
-No `specs/` directory exists.
+No `<spine-root>/` directory exists.
 
 ## User request
 
@@ -27,7 +27,7 @@ The skill should:
 
 - inspect high-value repository signals before deep internals;
 - identify major runtime components and responsibilities;
-- create `specs/README.md`;
+- create `<spine-root>/README.md`;
 - create a small set of top-level specification nodes;
 - distinguish observed facts from inferred architecture;
 - record incomplete coverage and open questions;

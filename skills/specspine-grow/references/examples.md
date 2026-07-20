@@ -25,7 +25,7 @@ manage customers, subscriptions, and invoices.
 ### Reasonable initial structure
 
 ```text
-specs/
+<spine-root>/
 ├── README.md
 ├── application.md
 ├── identity.md
@@ -44,7 +44,7 @@ screen.
 ### Existing structure
 
 ```text
-specs/
+<spine-root>/
 ├── README.md
 ├── authentication.md
 └── users.md
@@ -63,15 +63,15 @@ refreshable sessions, and account linking.
 Affected specifications
 
 Create:
-- specs/password-authentication.md
-- specs/external-identity.md
-- specs/session-management.md
-- specs/account-linking.md
+- <spine-root>/password-authentication.md
+- <spine-root>/external-identity.md
+- <spine-root>/session-management.md
+- <spine-root>/account-linking.md
 
 Modify:
-- specs/authentication.md
-- specs/users.md
-- specs/README.md
+- <spine-root>/authentication.md
+- <spine-root>/users.md
+- <spine-root>/README.md
 
 Reason:
 Authentication now contains several independently evolving

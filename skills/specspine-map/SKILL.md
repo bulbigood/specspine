@@ -15,7 +15,10 @@ than exhaustive code documentation.
 ## Resources
 
 - Read [references/spec-semantics.md](references/spec-semantics.md) before
-  creating, changing, or reviewing specifications.
+  classifying or changing architectural claims.
+- Read [references/spec-format.md](references/spec-format.md) before creating or
+  editing specification documents. It owns their organization, content, and
+  stopping rules; do not reconstruct those rules from this workflow.
 - Read [references/mapping-method.md](references/mapping-method.md) before a
   substantial survey, refresh, or restructuring.
 - Read [references/examples.md](references/examples.md) when choosing mapping
@@ -49,26 +52,6 @@ Do not use it to:
 - create feature specifications, acceptance criteria, plans, or tasks;
 - claim complete coverage or prove code/spec conformance.
 
-## Semantic contract
-
-- `Decisions` and `Constraints` describe intended architecture.
-- `Observed` records current repository evidence.
-- `Inferred` records unconfirmed interpretation.
-- `Open questions` preserves unresolved uncertainty.
-
-Observed facts do not override decisions or constraints. Decisions and
-constraints do not imply that code implements them. Preserve disagreements
-until the user or a downstream workflow resolves them.
-
-When repeated evidence suggests a useful architectural decision without an
-authoritative source, propose it for confirmation. Never record it as accepted
-intent automatically.
-
-Keep stable responsibilities, ownership boundaries, architectural
-relationships, long-lived decisions, and constraints in SpecSpine. Leave
-feature deltas, temporary scope, acceptance criteria, implementation tasks, and
-status to downstream workflows.
-
 ## Lifecycle role
 
 Discover repository evidence, record observed architecture, and propose
@@ -83,9 +66,10 @@ produce context handoffs without proving conformance or implementing changes.
 
 ### 1. Inspect existing architecture material
 
-Read root documentation, `specs/README.md`, relevant specifications, and ADRs or
-equivalent architecture records. Preserve accepted structure unless evidence or
-the request justifies changing it.
+Resolve `<spine-root>` using `references/spec-format.md`. Read root
+documentation, `<spine-root>/README.md`, relevant specifications, and ADRs or
+equivalent architecture records. Preserve accepted structure unless evidence
+or the request justifies changing it.
 
 ### 2. Choose mapping depth
 
@@ -111,9 +95,8 @@ Choose stable responsibilities rather than filesystem shapes. A directory is
 not automatically a subsystem; several directories may implement one concept,
 and one directory may contain several concepts.
 
-Record direct evidence as `Observed`, plausible interpretation as `Inferred`,
-accepted intent as `Decisions` or `Constraints`, and unresolved ambiguity as
-`Open questions`.
+Classify every architectural claim according to
+`references/spec-semantics.md`.
 
 ### 5. Propose structural impact
 
@@ -145,13 +128,13 @@ applied directly.
 
 ### 6. Apply the map
 
-- Modify only files under `specs/`.
+- Modify only files under `<spine-root>/`.
 - Preserve user-authored decisions and unrelated content.
-- Keep useful relative links and reachability from `specs/README.md`.
+- Keep useful relative links and reachability from `<spine-root>/README.md`.
 - Keep observations separate from inference and normative intent.
 - Do not rewrite intent to legitimize accidental implementation behavior.
-- Update `specs/README.md` only when top-level navigation, system-wide intent,
-  or mapping coverage changes.
+- Update `<spine-root>/README.md` only when top-level navigation, system-wide
+  intent, or mapping coverage changes.
 
 ### 7. Report
 
@@ -162,17 +145,14 @@ inferences awaiting confirmation, unresolved conflicts, and remaining coverage.
 
 ### Initial survey
 
-Create `specs/README.md` and a small set of architectural entry points. Capture
-project purpose, primary actors when apparent, deployable components, major
-subsystems, persistence, integrations, broad relationships, and important
-unknowns. Do not deeply map the first interesting module.
+Create `<spine-root>/README.md` and a small set of architectural entry points
+using `references/spec-format.md`. Survey broadly; do not deeply map the first
+interesting module.
 
 ### Selected area
 
-Identify responsibility, boundary, inputs and outputs, dependencies, consumers,
-significant behavior, evidence status, and concepts that may deserve separate
-specifications. Stop when another agent can find the area and understand what
-must remain true; do not mirror the code.
+Populate the smallest affected document set from representative evidence using
+`references/spec-format.md`. Do not mirror the code.
 
 ### Refresh
 
@@ -195,9 +175,8 @@ percentages or claim formal completeness.
 
 ### Intended versus observed architecture
 
-When code and documentation disagree, preserve intended behavior under
-`Decisions` or `Constraints`, implemented evidence under `Observed`, and the
-conflict under `Open questions`. Do not resolve it silently.
+Apply the disagreement rules in `references/spec-semantics.md`. Do not resolve
+conflicts silently.
 
 ### Context handoff
 
@@ -211,11 +190,11 @@ artifacts.
 An area is ready when:
 
 - a canonical owner is identified;
-- responsibility, boundaries, and direct dependencies are understandable;
-- relevant decisions and constraints are collected;
+- its documents satisfy the applicable stopping rules in
+  `references/spec-format.md`;
 - potentially affected specifications are separated from related context;
 - blocking architectural questions are explicit;
-- observed and inferred claims are distinguishable.
+- claims follow `references/spec-semantics.md`.
 
 This does not imply readiness for implementation. Product requirements, edge
 cases, acceptance criteria, migrations, tests, and implementation readiness

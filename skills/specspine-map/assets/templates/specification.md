@@ -4,12 +4,12 @@ Summarize the concept in one or two sentences.
 
 ## Responsibility
 
-Describe what this concept owns in the current system.
+Describe what this concept owns and why it exists.
 
 ## Boundaries
 
-Describe what belongs to this concept and what belongs elsewhere. Link to
-canonical neighboring specifications.
+Describe what belongs to this concept and what belongs elsewhere. Link to the
+canonical specifications for neighboring responsibilities.
 
 ## Behavior
 
@@ -38,25 +38,25 @@ behavior.
 
 - [Related concept](related-concept.md)
 
-## Observed
-
-- Record facts directly supported by repository evidence.
-- Mention representative repository-relative paths only when useful.
-
-## Inferred
-
-- Record plausible architectural interpretations that are not explicitly
-  established.
-
 ## Decisions
 
-- Record accepted architectural decisions supported by documentation or
-  confirmed by the user.
+- Record accepted architectural or behavioral decisions here.
 
 ## Constraints
 
-- Record accepted restrictions on downstream architecture or implementation.
+- Record accepted restrictions that downstream architecture or implementation
+  must preserve.
+
+## Observed
+
+- When relevant, record current repository facts without presenting them as
+  intended architecture.
+
+## Inferred
+
+- When relevant, record unconfirmed interpretations without presenting them as
+  decisions.
 
 ## Open questions
 
-- Record unresolved ambiguity, conflicting evidence, or missing intent.
+- Record unresolved questions here.

@@ -6,4 +6,4 @@ The project lets organizations manage users and subscriptions. The example is
 deliberately incomplete: it shows how a useful architectural skeleton can
 remain small while preserving open questions.
 
-Start with [`specs/README.md`](specs/README.md).
+Start with the [architecture index](specspine/README.md).

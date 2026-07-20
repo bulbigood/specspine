@@ -3,7 +3,7 @@
 ## Initial state
 
 ```text
-specs/
+<spine-root>/
 ├── README.md
 ├── authentication.md
 ├── external-identity.md

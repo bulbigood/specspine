@@ -12,9 +12,10 @@ temporary projection for downstream work.
 ## Resources
 
 - Read [references/spec-semantics.md](references/spec-semantics.md) before
-  creating, changing, or reviewing specifications.
-- Read [references/spec-format.md](references/spec-format.md) when initializing
-  a SpecSpine, choosing sections, or changing specification structure.
+  classifying or changing architectural claims.
+- Read [references/spec-format.md](references/spec-format.md) before creating or
+  editing specification documents. It owns their organization, content, and
+  stopping rules; do not reconstruct those rules from this workflow.
 - Read [references/examples.md](references/examples.md) when deciding whether to
   split, merge, create, or reuse a specification.
 - Read [references/context-handoff.md](references/context-handoff.md) before
@@ -43,24 +44,7 @@ Do not use it to:
 - track implementation, release, or review status;
 - silently invent or resolve product and architectural decisions.
 
-Preserve missing information as an open question. Mark it blocking when a
-downstream workflow must not answer it silently.
-
-## Semantic contract
-
-- `Decisions` and `Constraints` describe intended architecture.
-- `Observed` records current repository evidence.
-- `Inferred` records unconfirmed interpretation.
-- `Open questions` preserves unresolved uncertainty.
-
-Observed facts do not override decisions or constraints. Decisions and
-constraints do not imply that code implements them. Preserve disagreements
-until the user or a downstream workflow resolves them.
-
-Keep stable responsibilities, ownership boundaries, architectural
-relationships, long-lived decisions, and constraints in SpecSpine. Leave
-feature deltas, temporary scope, acceptance criteria, implementation tasks, and
-status to downstream workflows.
+Preserve missing information according to `references/spec-semantics.md`.
 
 ## Lifecycle role
 
@@ -76,8 +60,9 @@ produce context handoffs without proving conformance or implementing changes.
 
 ### 1. Read the spine
 
-Start with `specs/README.md`, then follow only links relevant to the request. If
-the index does not exist, treat the project as uninitialized.
+Resolve `<spine-root>` using `references/spec-format.md`. Start with
+`<spine-root>/README.md`, then follow only links relevant to the request. If the
+index does not exist, treat the project as uninitialized.
 
 ### 2. Classify the request
 
@@ -132,12 +117,12 @@ directly.
 - Modify only specifications.
 - Preserve unrelated and user-authored content.
 - Maintain useful relative Markdown links and reachability from
-  `specs/README.md`.
+  `<spine-root>/README.md`.
 - Keep one canonical home per concept; replace duplicates with summaries and
   links.
 - Keep overview specifications concise after decomposition.
-- Update `specs/README.md` only when top-level navigation or system-wide intent
-  changes.
+- Update `<spine-root>/README.md` only when top-level navigation or system-wide
+  intent changes.
 
 ### 7. Report
 
@@ -148,9 +133,9 @@ whether the area is ready for context handoff.
 
 ### Initialize
 
-Create `specs/README.md` and the smallest useful set of top-level concept
-specifications. Do not anticipate the full project. Short specifications with
-explicit open questions are acceptable.
+Create `<spine-root>/README.md` and the smallest useful set of top-level concept
+specifications using `references/spec-format.md`. Do not anticipate the full
+project.
 
 ### Refine
 
@@ -175,19 +160,18 @@ changes before restructuring.
 
 Follow `references/context-handoff.md`. Include the smallest useful set and
 separate required, potentially affected, and merely related specifications.
-Preserve decisions, constraints, observations, inferences, and blocking
-questions without adding downstream artifacts.
+Preserve claim semantics without adding downstream artifacts.
 
 ## Readiness for context handoff
 
 An area is ready when:
 
 - a canonical owner is identified;
-- responsibility, boundaries, and direct dependencies are understandable;
-- relevant decisions and constraints are collected;
+- its documents satisfy the applicable stopping rules in
+  `references/spec-format.md`;
 - potentially affected specifications are separated from related context;
 - blocking architectural questions are explicit;
-- observed and inferred claims are distinguishable when evidence is involved.
+- claims follow `references/spec-semantics.md`.
 
 This does not imply readiness for implementation. Product requirements, edge
 cases, acceptance criteria, migrations, tests, and implementation readiness

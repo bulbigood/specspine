@@ -40,12 +40,12 @@ Create a SpecSpine for this existing project.
 Mapping proposal
 
 Create:
-- specs/README.md
-- specs/web-application.md
-- specs/api-server.md
-- specs/background-processing.md
-- specs/document-processing.md
-- specs/persistence.md
+- <spine-root>/README.md
+- <spine-root>/web-application.md
+- <spine-root>/api-server.md
+- <spine-root>/background-processing.md
+- <spine-root>/document-processing.md
+- <spine-root>/persistence.md
 
 Evidence inspected:
 - root README
@@ -68,11 +68,11 @@ Proceed with these specification changes?
 ### Bad mapping
 
 ```text
-specs/apps.md
-specs/packages.md
-specs/controllers.md
-specs/repositories.md
-specs/utils.md
+<spine-root>/apps.md
+<spine-root>/packages.md
+<spine-root>/controllers.md
+<spine-root>/repositories.md
+<spine-root>/utils.md
 ```
 
 This mirrors source layout without identifying useful responsibilities.
@@ -236,7 +236,7 @@ Those details remain in code.
 ### Existing SpecSpine
 
 ```text
-specs/
+<spine-root>/
 ├── README.md
 ├── api-server.md
 ├── background-processing.md
@@ -261,19 +261,19 @@ It may propose:
 
 ```text
 Create:
-- specs/notification-delivery.md
+- <spine-root>/notification-delivery.md
 
 Modify:
-- specs/background-processing.md
-- specs/operations.md
-- specs/README.md
+- <spine-root>/background-processing.md
+- <spine-root>/operations.md
+- <spine-root>/README.md
 ```
 
 It should not remap the entire repository.
 
 ## Example 7: Mapping status
 
-A useful `specs/README.md` section:
+A useful `<spine-root>/README.md` section:
 
 ```markdown
 ## Mapping status

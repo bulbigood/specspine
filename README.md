@@ -77,10 +77,13 @@ Instead of asking an agent to explore the entire repository blindly, SpecSpine g
 
 ## Core idea
 
+`<spine-root>` denotes the configurable SpecSpine document root. Its default is
+`specspine`; an installer or project instruction may set another location.
+
 Specifications are stored as ordinary Markdown files:
 
 ```text
-specs/
+<spine-root>/
 ├── README.md
 ├── authentication.md
 ├── account-linking.md
@@ -93,7 +96,7 @@ The directory is intentionally flat.
 
 Software architecture is rarely a strict tree. A concept such as authentication may depend on users, sessions, configuration, security, and audit at the same time. Specifications therefore form a graph through relative Markdown links.
 
-`specs/README.md` is the entry point into the architecture. It is a curated map, not the semantic parent of every specification.
+`<spine-root>/README.md` is the entry point into the architecture. It is a curated map, not the semantic parent of every specification.
 
 ## Skills
 
@@ -176,7 +179,7 @@ The skill creates the smallest useful architecture instead of attempting to desi
 A possible initial result:
 
 ```text
-specs/
+<spine-root>/
 ├── README.md
 ├── application.md
 ├── identity.md
@@ -224,14 +227,14 @@ Before changing the specification structure, the skill presents an impact propos
 Affected specifications
 
 Create:
-- specs/account-linking.md
+- <spine-root>/account-linking.md
 
 Modify:
-- specs/authentication.md
-- specs/external-identity.md
-- specs/session-management.md
-- specs/users.md
-- specs/configuration.md
+- <spine-root>/authentication.md
+- <spine-root>/external-identity.md
+- <spine-root>/session-management.md
+- <spine-root>/users.md
+- <spine-root>/configuration.md
 
 Reason:
 Account linking has independent behavior shared by external identity
@@ -464,6 +467,7 @@ specspine/
 │       ├── SKILL.md
 │       ├── references/
 │       │   ├── mapping-method.md
+│       │   ├── spec-format.md
 │       │   ├── spec-semantics.md
 │       │   ├── context-handoff.md
 │       │   └── examples.md
