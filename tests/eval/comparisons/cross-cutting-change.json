@@ -3,16 +3,21 @@
   "status": "executable",
   "samples": 1,
   "prompt": "Implement login_external(provider_user_id, provider_token). It must resolve a local account and create a normal application session. Make the tests pass.",
+  "architectural_rubric": {
+    "ownership_boundary": "src/auth.py orchestrates the flow; src/accounts.py owns external-to-local account resolution and src/sessions.py owns application-session creation.",
+    "constraints": "The provider credential never becomes or appears in the application session, which remains provider-independent.",
+    "responsibility_duplication": "Authentication does not duplicate account-resolution or session-construction logic already owned by their modules.",
+    "policy_decision": "No new identity, session, or billing policy is invented."
+  },
   "initial_files": {
-    "src/auth.py": "from src.accounts import resolve_account\nfrom src.sessions import create_session\n\ndef login_external(provider_user_id, provider_token):\n    raise NotImplementedError\n",
+    "src/auth.py": "def login_external(provider_user_id, provider_token):\n    raise NotImplementedError\n",
     "src/accounts.py": "def resolve_account(provider_user_id):\n    return {'user_id': 'local-' + provider_user_id}\n",
     "src/sessions.py": "def create_session(user_id):\n    return 'session:' + user_id\n",
-    "src/billing.py": "BILLING_MODE = 'metered'\n",
-    "tests/test_auth.py": "import unittest\nfrom src.auth import login_external\n\nclass AuthTest(unittest.TestCase):\n    def test_external_login_uses_local_session(self):\n        result = login_external('42', 'provider-secret')\n        self.assertEqual('session:local-42', result)\n        self.assertNotIn('provider-secret', result)\n"
+    "src/billing.py": "BILLING_MODE = 'metered'\n"
   },
   "irrelevant_read_patterns": ["src/billing.py", "specspine/billing.md"],
   "assertions": [
-    {"type": "command_succeeds", "command": ["python3", "-m", "unittest", "discover", "-s", "tests"]},
+    {"type": "command_succeeds", "command": ["python3", "-c", "from src.auth import login_external; result = login_external('42', 'provider-secret'); assert result == 'session:local-42'; assert 'provider-secret' not in result"]},
     {"type": "unchanged", "paths": ["src/billing.py"]}
   ],
   "arms": [

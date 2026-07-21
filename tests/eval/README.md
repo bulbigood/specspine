@@ -83,7 +83,7 @@ To select another model while keeping the same reasoning default, omit
 ```bash
 python3 tests/eval/run.py \
   --case initialize-project \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra"
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py"
 ```
 
 The runner also sets `SPECSPINE_EVAL_CASE` and `SPECSPINE_EVAL_WORKSPACE`.
@@ -127,17 +127,29 @@ Run all four isolated arms for a named comparison with the same coding agent:
 ```bash
 python3 tests/eval/compare.py \
   --comparison cross-cutting-change \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py" \
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --reasoning-effort medium" \
   --samples 5 \
-  --model-label gpt-5.6-terra \
-  --reasoning-label medium \
   --json-output comparison-results.json
 ```
 
 Each arm receives the same frozen repository and user request but a different
-architectural context. Outcome assertion failures are recorded as benchmark
-data and do not make the harness itself fail. Agent execution failures return a
-non-zero status. Use repeated samples before drawing product conclusions.
+architectural context. The downstream prompt is byte-identical across arms and
+does not name the arm or context format. Outcome assertion failures are
+recorded as benchmark data and do not make the harness itself fail. Agent
+execution failures return a non-zero status. Use repeated samples before
+drawing product conclusions.
+
+When `--json-output` is set, every run is archived next to the report under
+`<report-stem>-artifacts/<comparison>/<arm>/sample-<n>/`. Each archive contains
+the exact prompt, final response, unified diff, optional stderr and trace, plus
+`judge-input.json`. The judge input contains only the request, diff, and frozen
+scenario rubric; it does not contain the arm name or supplied context. Pass
+`--artifacts-dir` to choose a different archive root.
+
+The JSON report embeds the prompt, response, diff, fixture/context hashes, and
+actual adapter model/reasoning metadata from the trace. Its top-level `model`
+and `reasoning` values are derived from those traces, or set to `unknown` when
+any trace is missing. A run with conflicting observed settings is rejected.
 
 Supported assertions:
 

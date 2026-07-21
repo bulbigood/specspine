@@ -25,6 +25,8 @@ Run every downstream benchmark against the same frozen repository and request.
 
 Do not let one arm see files assigned to another arm. Use the same model,
 reasoning level, request, timeout, repository snapshot, and sample count.
+Use one byte-identical downstream prompt that does not name the arm or context
+format. Do not expose the arm identifier through the agent environment.
 
 ## Two evaluation layers
 
@@ -60,6 +62,11 @@ Measure:
 Deterministic checks own build and observable behavior. A blind judge may score
 architectural outcomes, but must be calibrated against human review and must
 not know which comparison arm produced the result.
+
+Archive the exact prompt, response, diff, trace, fixture/context hashes, and
+actual model settings for every run. Construct judge inputs separately from
+only the request, diff, and frozen scenario rubric. Keep arm metadata outside
+that bundle.
 
 ## Initial scenarios
 

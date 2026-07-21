@@ -1,5 +1,7 @@
 import importlib.util
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -23,16 +25,14 @@ class ComparisonTests(unittest.TestCase):
             self.assertEqual(COMPARE.REQUIRED_ARMS, set(arms))
             self.assertEqual({}, arms["repository-only"]["context_files"])
 
-    def test_prompts_disclose_only_the_selected_context_mode(self):
+    def test_all_arms_receive_the_same_prompt_without_arm_labels(self):
         comparison = COMPARE.load_comparisons()[0]
-        prompts = {
-            arm["id"]: COMPARE.build_prompt(comparison, arm)
-            for arm in comparison["arms"]
-        }
-        self.assertIn("No architectural context", prompts["repository-only"])
-        self.assertIn("ARCHITECTURE.md", prompts["architecture-document"])
-        self.assertIn("linked specifications", prompts["full-spine"])
-        self.assertIn("HANDOFF.md", prompts["minimal-handoff"])
+        prompts = [COMPARE.build_prompt(comparison) for _arm in comparison["arms"]]
+        self.assertEqual(1, len(set(prompts)))
+        for arm in COMPARE.REQUIRED_ARMS:
+            self.assertNotIn(arm, prompts[0])
+        self.assertNotIn("ARCHITECTURE.md", prompts[0])
+        self.assertNotIn("HANDOFF.md", prompts[0])
 
     def test_summary_keeps_outcome_and_cost_separate(self):
         results = [
@@ -54,6 +54,30 @@ class ComparisonTests(unittest.TestCase):
         self.assertIn("outcome_pass_rate", summary["example"]["repository-only"])
         self.assertIn("median_input_tokens", summary["example"]["minimal-handoff"])
 
+    def test_report_settings_come_from_complete_actual_traces(self):
+        results = [
+            {"actual_model": "fixed-model", "actual_reasoning": "medium"},
+            {"actual_model": "fixed-model", "actual_reasoning": "medium"},
+        ]
+        self.assertEqual(
+            {"model": "fixed-model", "reasoning": "medium"},
+            COMPARE.actual_settings(results),
+        )
+        results[1].pop("actual_model")
+        self.assertEqual(
+            {"model": "unknown", "reasoning": "unknown"},
+            COMPARE.actual_settings(results),
+        )
+
+    def test_report_rejects_conflicting_actual_settings(self):
+        with self.assertRaisesRegex(ValueError, "inconsistent actual models"):
+            COMPARE.actual_settings(
+                [
+                    {"actual_model": "model-a", "actual_reasoning": "medium"},
+                    {"actual_model": "model-b", "actual_reasoning": "medium"},
+                ]
+            )
+
     def test_run_arm_executes_downstream_assertions_in_isolation(self):
         comparison = next(
             item for item in COMPARE.load_comparisons() if item["id"] == "local-change"
@@ -62,7 +86,8 @@ class ComparisonTests(unittest.TestCase):
         command = [
             sys.executable,
             "-c",
-            "from pathlib import Path; import sys; sys.stdin.read(); "
+            "from pathlib import Path; import os, sys; sys.stdin.read(); "
+            "assert 'SPECSPINE_COMPARISON_ARM' not in os.environ; "
             "Path('src/profile.py').write_text(\"def profile_title():\\n    return 'Account profile'\\n\", encoding='utf-8'); "
             "Path('.eval/trace.json').write_text(\"{\\\"files_read\\\": [\\\"src/profile.py\\\"], \\\"token_usage\\\": {\\\"input_tokens\\\": 12}}\", encoding='utf-8')",
         ]
@@ -91,6 +116,33 @@ class ComparisonTests(unittest.TestCase):
         self.assertTrue(
             any("supplied context changed" in check["message"] for check in result["checks"])
         )
+
+    def test_run_arm_archives_reproducible_and_blind_judge_artifacts(self):
+        comparison = next(
+            item for item in COMPARE.load_comparisons() if item["id"] == "local-change"
+        )
+        arm = next(item for item in comparison["arms"] if item["id"] == "minimal-handoff")
+        command = [
+            sys.executable,
+            "-c",
+            "from pathlib import Path; import os, sys; sys.stdin.read(); "
+            "assert 'minimal-handoff' not in str(Path.cwd()); "
+            "assert 'SPECSPINE_COMPARISON_ARM' not in os.environ; "
+            "Path('src/profile.py').write_text(\"def profile_title():\\n    return 'Account profile'\\n\", encoding='utf-8')",
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            result = COMPARE.run_arm(comparison, arm, 1, command, False, Path(directory))
+            artifact_path = Path(result["artifacts"])
+            self.assertTrue((artifact_path / "prompt.md").is_file())
+            self.assertTrue((artifact_path / "response.md").is_file())
+            self.assertTrue((artifact_path / "diff.patch").is_file())
+            bundle = json.loads((artifact_path / "judge-input.json").read_text(encoding="utf-8"))
+            self.assertEqual({"request", "diff", "rubric"}, set(bundle))
+            self.assertNotIn("minimal-handoff", json.dumps(bundle))
+            self.assertIn("src/profile.py", bundle["diff"])
+            self.assertEqual(result["diff"], bundle["diff"])
+            self.assertEqual(64, len(result["fixture_sha256"]))
+            self.assertEqual(64, len(result["context_sha256"]))
 
 
 if __name__ == "__main__":
