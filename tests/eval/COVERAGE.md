@@ -8,43 +8,58 @@ classified.
 
 | Area | Documented scenarios | Executable fixtures |
 |---|---:|---:|
-| `specspine-grow` | 9 | 9 |
-| `specspine-map` | 7 | 7 |
+| `specspine-grow` | 9 | 6 |
+| `specspine-map` | 7 | 3 |
 | `specspine-connect` | 3 | 2 |
-| `specspine-doctor` | 3 | 3 |
-| cross-skill lifecycle | 1 | 1 |
-| package generator tooling | 1 | 1 |
-| Total | 24 | 23 |
+| `specspine-doctor` | 3 | 2 |
+| cross-skill lifecycle | 1 | 0 |
+| package generator tooling | 1 | 0 |
+| Total | 24 | 13 |
 
 `traceable-visual-spec` is assigned to `specspine-map` because its expected
 result includes repository-backed observations.
 
-Executable cases currently cover:
+The executable set is divided by resource cost and necessity:
+
+| Category | Manifests | Agent calls | Purpose |
+|---|---:|---:|---|
+| `core` | 10 | 12 | Minimum behavioral regression set |
+| `extended` | 3 | 4 | Rare merge, supersession, removal, and visualization behavior |
+| `planned` | 11 | 0 | Documentation and future redesign only |
+
+Core and extended cases currently cover:
 
 - greenfield initialization and source-file protection;
 - creation of a brownfield map from runtime evidence;
 - generic project-agent bootstrap boundaries;
 - semantic-ID references, evidence, and a Mermaid lifecycle view.
-- mechanical and semantic Doctor diagnosis without runtime companions;
+- semantic Doctor diagnosis and bounded mechanical repair without runtime companions;
 - recursive Doctor link and marker-bounded semantic-ID validation across
   nested specification directories;
-- deterministic runtime-skill generation and drift detection.
 - staged lifecycle transitions covering survey, deepening, intentional split,
-  temporary handoff, downstream repository evolution, drift refresh,
-  supersession, removal, and bounded Doctor repair.
+  downstream repository evolution, drift refresh, supersession, removal, and
+  bounded Doctor repair.
 
-Only the downstream binding-without-connector scenario remains `planned`; it
-requires a separate native SDD executor rather than a SpecSpine skill.
+Deterministic runtime-skill generation and drift detection remain covered by
+unit tests and do not consume an agent invocation.
 
-## Missing fixtures for documented scenarios
+Planned cases include unsupported native-SDD execution, deterministic tooling
+already covered by unit tests, redundant focused cases superseded by lifecycle
+coverage, and cases whose assertions over-constrained architectural choices.
+
+## Planned fixture gap
 
 - standalone use of a generated binding.
 
 This needs a native downstream SDD fixture and executor.
 
-## Missing behavioral scenarios
+## Behavioral backlog
 
-High priority:
+Items below are not automatic candidates for executable evals. Add one only
+when it protects a distinct contract that cannot be covered by a deterministic
+test or an existing behavioral case.
+
+Potential gaps:
 
 - minimal handoff selection on a larger graph, including read and context-size
   budgets;

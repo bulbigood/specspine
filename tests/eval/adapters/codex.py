@@ -178,6 +178,38 @@ def parse_events(stdout: str, candidates: list[str]) -> tuple[set[str], list[str
     return reads, commands, messages
 
 
+def parse_token_usage(stdout: str) -> dict[str, int]:
+    """Return the latest cumulative token counters emitted by Codex."""
+    known = {
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens",
+        "reasoning_output_tokens",
+        "total_tokens",
+    }
+    usage: dict[str, int] = {}
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        stack = [event]
+        while stack:
+            value = stack.pop()
+            if isinstance(value, dict):
+                counters = {
+                    key: count
+                    for key, count in value.items()
+                    if key in known and isinstance(count, int) and not isinstance(count, bool)
+                }
+                if counters:
+                    usage.update(counters)
+                stack.extend(value.values())
+            elif isinstance(value, list):
+                stack.extend(value)
+    return usage
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="gpt-5.6-luna")
@@ -209,6 +241,7 @@ def main() -> int:
     completed = subprocess.run(command, input=prompt, text=True, capture_output=True, check=False)
     duration_seconds = round(time.monotonic() - started, 3)
     reads, commands, messages = parse_events(completed.stdout, candidates)
+    token_usage = parse_token_usage(completed.stdout)
     final_response = messages[-1] if messages else ""
     trace_path = root / ".eval" / "trace.json"
     trace_path.write_text(
@@ -221,6 +254,7 @@ def main() -> int:
                 "files_read": sorted(reads),
                 "model": args.model,
                 "reasoning_effort": args.reasoning_effort,
+                "token_usage": token_usage,
             },
             indent=2,
         )

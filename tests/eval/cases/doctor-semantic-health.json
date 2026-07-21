@@ -3,6 +3,7 @@
   "scenario": "tests/scenarios/doctor-semantic-health.md",
   "skill": "skills/specspine-doctor",
   "status": "executable",
+  "category": "core",
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Application](application.md)\n- [Billing](billing.md)\n- [Payments](payments.md)\n",
     "specspine/application.md": "# Application\n\nOwns user workflows, authentication, billing orchestration, notification delivery, deployment configuration, and operational monitoring.\n",
@@ -11,6 +12,9 @@
   },
   "assertions": [
     {"type": "max_changed_files", "max": 0},
-    {"type": "response_contains", "values": ["billing.md", "payments.md", "application.md"]}
+    {"type": "read_only", "paths": ["specspine/**"]},
+    {"type": "command_includes", "value": "check_spine.py"},
+    {"type": "response_contains", "values": ["billing.md", "payments.md", "application.md", "canonical ownership", "inference", "decomposition", "user decision"]},
+    {"type": "response_not_contains", "values": ["formally valid", "complete coverage", "code conforms", "implementation conforms", "conformance proven"]}
   ]
 }

@@ -3,6 +3,7 @@
   "scenario": "tests/scenarios/merge-rename-links.md",
   "skill": "skills/specspine-grow",
   "status": "executable",
+  "category": "extended",
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n- [Billing](billing.md)\n- [Payments](payment-processing.md)\n- [Users](users.md)\n- [Authentication](authentication.md)\n",
     "specspine/billing.md": "# Billing\n\nOwns billing state.\n",

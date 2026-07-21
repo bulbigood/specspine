@@ -2,7 +2,8 @@
   "id": "map-deepen-selected-area",
   "scenario": "tests/scenarios/map-deepen-selected-area.md",
   "skill": "skills/specspine-map",
-  "status": "executable",
+  "status": "planned",
+  "category": "planned",
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n- [Authentication](authentication.md)\n- [Persistence](persistence.md)\n",
     "specspine/authentication.md": "# Authentication\n\nHigh-level authentication map.\n",

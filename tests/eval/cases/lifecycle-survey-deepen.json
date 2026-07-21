@@ -2,6 +2,7 @@
   "id": "lifecycle-survey-deepen",
   "scenario": "tests/scenarios/lifecycle-survey-deepen.md",
   "status": "executable",
+  "category": "core",
   "initial_files": {
     "README.md": "# Acme storefront\n\nThe API accepts checkout requests. A separate worker consumes payment-provider webhooks. PostgreSQL stores orders and payment state.\n",
     "package.json": "{\"scripts\":{\"api\":\"node src/api/server.js\",\"payment-webhooks\":\"node src/workers/payment-webhooks.js\"}}\n",

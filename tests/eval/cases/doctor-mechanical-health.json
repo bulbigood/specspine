@@ -2,7 +2,8 @@
   "id": "doctor-mechanical-health",
   "scenario": "tests/scenarios/doctor-mechanical-health.md",
   "skill": "skills/specspine-doctor",
-  "status": "executable",
+  "status": "planned",
+  "category": "planned",
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Application](application.md)\n",
     "specspine/application.md": "# Application\n\nOwns application behavior.\n\n## Relationships\n\n- [Missing](missing.md)\n\n## Constraints\n\nPreserve [CON-missing](policy.md).\n",

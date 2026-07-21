@@ -2,7 +2,8 @@
   "id": "split-broad-spec",
   "scenario": "tests/scenarios/split-broad-spec.md",
   "skill": "skills/specspine-grow",
-  "status": "executable",
+  "status": "planned",
+  "category": "planned",
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n- [Authentication](authentication.md)\n",
     "specspine/authentication.md": "# Authentication\n\nOwns password authentication, external providers, session lifecycle, and account linking.\n\n## Behavior\n\nPasswords establish identity. External providers also establish identity. Sessions can be refreshed and revoked. Accounts may link several identities.\n"

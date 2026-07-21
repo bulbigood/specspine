@@ -2,6 +2,7 @@
   "id": "lifecycle-doctor-check-repair",
   "scenario": "tests/scenarios/lifecycle-doctor-check-repair.md",
   "status": "executable",
+  "category": "core",
   "eval_language": "English",
   "initial_files": {
     "specspine/README.md": "# Payment architecture\n\nThe payment architecture separates checkout, authorization, settlement, and provider result handling.\n\n## Architecture map\n\n- [Checkout](checkout.md)\n- [Payment processing](payment-processing.md)\n",
@@ -17,20 +18,6 @@
     "config/payment.yml": "retry_owner: webhook\n"
   },
   "stages": [
-    {
-      "id": "doctor-final-check",
-      "skill": "skills/specspine-doctor",
-      "prompt": "Run the final whole-Spine health check in spine-only check mode for `specspine/`. Load the bundled rules, run the bundled `check_spine.py` checker, and traverse the complete reachable specification graph from `specspine/README.md`. Do not inspect or modify anything outside `specspine/`; repository README, source, tests, and configuration are out of scope. Remain read-only. If no defects are found, report only that no defects were found within the inspected scope. Do not claim formal conformance, completeness, complete coverage, or code/spec agreement.",
-      "assertions": [
-        {"type": "max_changed_files", "max": 0},
-        {"type": "read_only", "paths": ["specspine/**"]},
-        {"type": "read_includes", "paths": ["specspine/README.md", "specspine/checkout.md", "specspine/payment-processing.md", "specspine/payment-authorization.md", "specspine/payment-settlement.md", "specspine/payment-webhooks.md"]},
-        {"type": "command_includes", "value": "check_spine.py"},
-        {"type": "spine_mechanical_valid"},
-        {"type": "response_contains", "values": ["no defects", "inspected scope"]},
-        {"type": "response_not_contains", "values": ["formally valid", "complete coverage", "code conforms", "implementation conforms", "conformance proven"]}
-      ]
-    },
     {
       "id": "controlled-corruption",
       "fixture": {

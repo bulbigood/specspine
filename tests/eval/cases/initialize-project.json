@@ -3,6 +3,7 @@
   "scenario": "tests/scenarios/initialize-project.md",
   "skill": "skills/specspine-grow",
   "status": "executable",
+  "category": "core",
   "initial_files": {
     "README.md": "# Document service\n\nPlaceholder project documentation.\n",
     "src/service.txt": "Existing implementation placeholder.\n"

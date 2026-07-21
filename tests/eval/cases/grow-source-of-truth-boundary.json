@@ -3,6 +3,7 @@
   "scenario": "tests/scenarios/grow-source-of-truth-boundary.md",
   "skill": "skills/specspine-grow",
   "status": "executable",
+  "category": "core",
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Billing](billing.md)\n",
     "specspine/billing.md": "# Billing\n\nIntegrates with an external billing provider.\n\n## Constraints\n\n- Provider events must be processed idempotently.\n",

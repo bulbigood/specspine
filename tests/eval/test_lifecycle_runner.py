@@ -20,6 +20,7 @@ class LifecycleRunnerTests(unittest.TestCase):
             "id": "lifecycle-self-test",
             "scenario": "tests/scenarios/initialize-project.md",
             "status": "executable",
+            "category": "core",
             "initial_files": {"seed.txt": "seed\n"},
             "stages": [
                 {

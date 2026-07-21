@@ -1,7 +1,8 @@
 {
   "id": "lifecycle-handoff-external-change",
   "scenario": "tests/scenarios/lifecycle-handoff-external-change.md",
-  "status": "executable",
+  "status": "planned",
+  "category": "planned",
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Checkout](checkout.md)\n- [Payment processing](payment-processing.md)\n",
     "specspine/payment-processing.md": "# Payment processing\n\nCoordinates the payment lifecycle while delegating independently evolving responsibilities.\n\n## Architecture map\n\n- [Payment authorization](payment-authorization.md)\n- [Payment settlement](payment-settlement.md)\n- [Payment webhooks](payment-webhooks.md)\n",

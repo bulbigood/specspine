@@ -3,7 +3,8 @@
   "scenario": "tests/scenarios/adapter-generator-regenerate.md",
   "skill": "tools/specspine-adapter-generator",
   "entrypoint": "MAINTAINER.md",
-  "status": "executable",
+  "status": "planned",
+  "category": "planned",
   "initial_files": {},
   "assertions": [
     {"type": "path_exists", "path": "skills/specspine-connect/SKILL.md"},

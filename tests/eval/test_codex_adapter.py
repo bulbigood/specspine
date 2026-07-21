@@ -88,6 +88,18 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertEqual(["sed -n 1,80p src/users/model.js"], commands)
         self.assertEqual(["Finished"], messages)
 
+    def test_parses_latest_cumulative_token_usage(self):
+        stdout = "\n".join(
+            [
+                '{"type":"turn.completed","usage":{"input_tokens":120,"output_tokens":30}}',
+                '{"type":"turn.completed","usage":{"input_tokens":200,"cached_input_tokens":80,"output_tokens":50}}',
+            ]
+        )
+        self.assertEqual(
+            {"input_tokens": 200, "cached_input_tokens": 80, "output_tokens": 50},
+            ADAPTER.parse_token_usage(stdout),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

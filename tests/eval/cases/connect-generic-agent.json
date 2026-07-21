@@ -3,6 +3,7 @@
   "scenario": "tests/scenarios/connect-generic-agent.md",
   "skill": "skills/specspine-connect",
   "status": "executable",
+  "category": "core",
   "runs": 2,
   "initial_files": {
     "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n",

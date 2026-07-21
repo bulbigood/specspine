@@ -3,6 +3,7 @@
   "scenario": "tests/scenarios/connect-binding-standalone.md",
   "skill": "skills/specspine-connect",
   "status": "planned",
+  "category": "planned",
   "initial_files": {},
   "assertions": []
 }

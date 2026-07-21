@@ -2,7 +2,8 @@
   "id": "grow-existing-spec",
   "scenario": "tests/scenarios/grow-existing-spec.md",
   "skill": "skills/specspine-grow",
-  "status": "executable",
+  "status": "planned",
+  "category": "planned",
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Authentication](authentication.md)\n- [Users](users.md)\n",
     "specspine/authentication.md": "# Authentication\n\nAuthenticates users with passwords and creates application sessions.\n",

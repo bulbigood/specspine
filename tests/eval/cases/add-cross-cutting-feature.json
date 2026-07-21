@@ -3,6 +3,7 @@
   "scenario": "tests/scenarios/add-cross-cutting-feature.md",
   "skill": "skills/specspine-grow",
   "status": "executable",
+  "category": "core",
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Authentication](authentication.md)\n- [Users](users.md)\n- [Configuration](configuration.md)\n",
     "specspine/authentication.md": "# Authentication\n\nCoordinates authentication methods.\n\n- [External identity](external-identity.md)\n- [Sessions](session-management.md)\n",
@@ -13,8 +14,10 @@
   },
   "assertions": [
     {"type": "path_absent", "path": "specspine/google-sign-in.md"},
+    {"type": "path_absent", "path": "specspine/account-linking.md"},
     {"type": "file_contains", "path": "specspine/external-identity.md", "value": "Google"},
-    {"type": "unchanged", "paths": ["specspine/session-management.md"]},
+    {"type": "file_contains", "path": "specspine/users.md", "value": "Should verified external email addresses link automatically?"},
+    {"type": "unchanged", "paths": ["specspine/session-management.md", "specspine/users.md", "specspine/configuration.md"]},
     {"type": "changed_only", "paths": ["specspine/**"]},
     {"type": "response_not_contains", "value": "Proceed with these specification changes?"},
     {"type": "markdown_links_valid", "glob": "specspine/*.md"}

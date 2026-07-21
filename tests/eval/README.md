@@ -12,7 +12,7 @@ python3 -m unittest discover -s tests/eval -p 'test_*.py'
 SPECSPINE_RUN_NPX=1 python3 -m unittest discover -s tests/eval -p 'test_npx_install.py' -v
 ```
 
-Run one or all executable cases with an agent adapter. The command receives the
+Run an explicitly selected case with an agent adapter. The command receives the
 evaluation prompt on standard input, runs with the isolated workspace as its
 current directory, and must return zero on success:
 
@@ -25,30 +25,45 @@ python3 tests/eval/run.py \
 The adapter path must be absolute because each case runs with its temporary
 workspace as the current directory.
 
-Run the main behavioral set concurrently:
+## Categories
+
+Every case belongs to exactly one resource category:
+
+- `core` — the minimum PR behavioral set: 10 manifests and 12 agent calls;
+- `extended` — rare restructuring and visualization behavior: 3 manifests and
+  4 agent calls;
+- `planned` — documented but intentionally non-executable coverage.
+
+Run only the category needed for the change:
 
 ```bash
 python3 tests/eval/run.py \
-  --case map-deepen-selected-area \
-  --case add-cross-cutting-feature \
-  --case grow-existing-spec \
-  --case map-initial-survey \
-  --case map-refresh-local-change \
-  --case split-broad-spec \
-  --case merge-rename-links \
+  --category core \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py" \
   --keep-workspace
 ```
 
-Omit `--case` to run every executable eval. This is a long, resource-intensive,
-and potentially expensive operation; run it as infrequently as possible. Planned
-cases are not executed. The runner executes up to eight cases concurrently by
-default. `--jobs` changes that limit while the remaining cases wait in the
-executor queue; use `--jobs 1` for sequential execution:
+`--case` and `--category` are repeatable and may be combined. Planned cases are
+never executed. Agent execution without at least one explicit `--case` or
+`--category` is rejected; there is deliberately no implicit "run everything"
+mode.
+
+Eval agents are slow and consume tokens. Prefer the smallest relevant set:
+
+- run deterministic unit tests first;
+- run named cases while developing a focused change;
+- run `core` only when the change can affect several primary contracts;
+- run `extended` only for its rare operations;
+- do not run both a category and names already included in it.
+
+The runner executes selected cases concurrently, up to eight by default.
+`--jobs` changes that limit; use `--jobs 1` for sequential execution:
 
 ```bash
 python3 tests/eval/run.py \
+  --category extended \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py" \
+  --jobs 1 \
   --keep-workspace
 ```
 
@@ -61,6 +76,7 @@ To select another model while keeping the same reasoning default, omit
 
 ```bash
 python3 tests/eval/run.py \
+  --case initialize-project \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra"
 ```
 
@@ -69,18 +85,29 @@ Failed workspaces are deleted by default; use `--keep-workspace` to inspect one.
 An adapter that can audit file reads should write `.eval/trace.json`:
 
 ```json
-{"files_read": ["specspine/README.md", "specspine/billing.md"]}
+{
+  "files_read": ["specspine/README.md", "specspine/billing.md"],
+  "token_usage": {"input_tokens": 12000, "output_tokens": 900}
+}
 ```
+
+The bundled Codex adapter records token counters when the Codex event stream
+provides them. Use the archived trace to compare category and case cost.
 
 ## Case manifests
 
 Each `cases/*.json` manifest connects one prose scenario to:
 
 - the skill under evaluation;
+- its resource category (`core`, `extended`, or `planned`);
 - optional installed `companion_skills` copied into the isolated environment;
 - an inline clean-room fixture;
 - deterministic assertions;
 - its migration status (`executable` or `planned`).
+
+For non-staged cases, the runner sends only the scenario's `User request`
+section (or an explicit manifest `prompt`) to the agent. Expected behavior and
+failure indicators remain a hidden maintainer rubric.
 
 Assertions intentionally cover only objective invariants. Architectural
 quality, minimality of context, and whether an inference is reasonable still
@@ -119,6 +146,7 @@ agent:
   "id": "example-lifecycle",
   "scenario": "tests/scenarios/example-lifecycle.md",
   "status": "executable",
+  "category": "core",
   "initial_files": {},
   "stages": [
     {

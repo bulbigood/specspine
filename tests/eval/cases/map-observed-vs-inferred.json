@@ -2,7 +2,8 @@
   "id": "map-observed-vs-inferred",
   "scenario": "tests/scenarios/map-observed-vs-inferred.md",
   "skill": "skills/specspine-map",
-  "status": "executable",
+  "status": "planned",
+  "category": "planned",
   "initial_files": {
     "README.md": "# Runtime sample\n\nThe repository contains an API and a background worker.\n",
     "apps/api/main.js": "export function startApi(database) { return database; }\n",

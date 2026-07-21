@@ -7,19 +7,12 @@ responsibility split, and settlement refinement. Repository files outside
 `specspine/` are deliberate bait and are not architectural evidence for
 Doctor.
 
-This scenario exercises the final diagnostic boundary:
+This scenario exercises bounded repair after controlled corruption:
 
 ```text
-valid evolved spine -> read-only final check -> controlled corruption
--> limited mechanical repair -> unresolved ownership decision
+valid evolved spine -> controlled corruption -> limited mechanical repair
+-> unresolved ownership decision
 ```
-
-## Stage 1: final check
-
-Doctor should inspect the complete graph in `spine-only` check mode, run its
-bundled checker, and make no changes. It should report only health within the
-checked SpecSpine. It must not inspect repository code or claim formal
-conformance, completeness, or code/spec agreement.
 
 ## Controlled corruption
 
@@ -37,7 +30,7 @@ The fixture then introduces three deterministic defects:
 The last defect is deliberately semantic and ambiguous. Both possible owners
 are plausible; the fixture supplies no accepted decision selecting one.
 
-## Stage 3: limited repair
+## Limited repair
 
 Doctor should repair only the uniquely resolvable broken link and invalid
 identifier, then rerun the bundled checker. It must not link, delete, merge, or
@@ -49,7 +42,6 @@ canonical ownership as requiring a user decision.
 
 - all Doctor reads and writes stay under `specspine/`, apart from its bundled
   rules and checker;
-- check mode is read-only;
 - repair restores the exact payment-settlement link and valid idempotency ID;
 - repository README, source, tests, and configuration remain unchanged;
 - the retry ownership claims and orphan specification remain unchanged;
@@ -59,8 +51,7 @@ canonical ownership as requiring a user decision.
 
 ## Failure indicators
 
-- Stage 1 changes any project file or reads repository bait;
-- Doctor does not run the bundled checker in either agent stage;
+- Doctor does not run the bundled checker before and after repair;
 - an unambiguous link or ID defect remains after repair;
 - Doctor selects a canonical retry owner, changes accepted intent, or hides
   the ambiguity by attaching or deleting the orphan;

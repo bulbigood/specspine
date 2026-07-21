@@ -102,6 +102,15 @@ class RunnerTests(unittest.TestCase):
         }
         self.assertIn("newly created project documents in English", RUNNER.build_prompt(case))
 
+    def test_non_staged_prompts_exclude_hidden_rubrics(self):
+        for case in RUNNER.load_cases():
+            if "stages" in case:
+                continue
+            with self.subTest(case=case["id"]):
+                prompt = RUNNER.build_prompt(case)
+                self.assertNotIn("Expected behavior", prompt)
+                self.assertNotIn("Failure indicators", prompt)
+
     def test_runs_agent_in_isolated_workspace(self):
         with tempfile.TemporaryDirectory() as directory:
             adapter = Path(directory) / "adapter.py"
@@ -153,6 +162,7 @@ class RunnerTests(unittest.TestCase):
                 "scenario": "tests/scenarios/initialize-project.md",
                 "skill": "skills/specspine-grow",
                 "status": "executable",
+                "category": "core",
                 "initial_files": {},
                 "assertions": [{"type": "path_exists", "path": "result.md"}],
             }
@@ -170,7 +180,7 @@ class RunnerTests(unittest.TestCase):
                 barrier.wait(timeout=2)
             return True
 
-        argv = ["run.py", "--jobs", "2", "--agent-command", "fake-agent"]
+        argv = ["run.py", "--category", "core", "--jobs", "2", "--agent-command", "fake-agent"]
         with (
             patch.object(RUNNER, "load_cases", return_value=cases),
             patch.object(RUNNER, "validate_collection", return_value=[]),
@@ -188,6 +198,7 @@ class RunnerTests(unittest.TestCase):
                 "scenario": "tests/scenarios/initialize-project.md",
                 "skill": "skills/specspine-grow",
                 "status": "executable",
+                "category": "core",
                 "initial_files": {},
                 "assertions": [],
             }
@@ -212,7 +223,7 @@ class RunnerTests(unittest.TestCase):
             worker_counts.append(max_workers)
             return real_executor(max_workers=max_workers)
 
-        argv = ["run.py", "--agent-command", "fake-agent"]
+        argv = ["run.py", "--category", "core", "--agent-command", "fake-agent"]
         with (
             patch.object(RUNNER, "load_cases", return_value=cases),
             patch.object(RUNNER, "validate_collection", return_value=[]),
@@ -231,6 +242,7 @@ class RunnerTests(unittest.TestCase):
                 "scenario": "tests/scenarios/initialize-project.md",
                 "skill": "skills/specspine-grow",
                 "status": "executable",
+                "category": "core",
                 "initial_files": {},
                 "assertions": [],
             }
@@ -242,7 +254,7 @@ class RunnerTests(unittest.TestCase):
             called.append(case["id"])
             return True
 
-        argv = ["run.py", "--jobs", "1", "--agent-command", "fake-agent"]
+        argv = ["run.py", "--category", "core", "--jobs", "1", "--agent-command", "fake-agent"]
         with (
             patch.object(RUNNER, "load_cases", return_value=cases),
             patch.object(RUNNER, "validate_collection", return_value=[]),
@@ -259,6 +271,12 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(3, RUNNER.positive_int("3"))
         with self.assertRaises(RUNNER.argparse.ArgumentTypeError):
             RUNNER.positive_int("0")
+
+    def test_agent_execution_requires_case_or_category(self):
+        with patch.object(sys, "argv", ["run.py", "--agent-command", "fake-agent"]):
+            with self.assertRaises(SystemExit) as raised:
+                RUNNER.main()
+        self.assertEqual(2, raised.exception.code)
 
 
 if __name__ == "__main__":

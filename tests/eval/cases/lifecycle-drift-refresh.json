@@ -2,6 +2,7 @@
   "id": "lifecycle-drift-refresh",
   "scenario": "tests/scenarios/lifecycle-drift-refresh.md",
   "status": "executable",
+  "category": "core",
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Checkout](checkout.md)\n- [Payment processing](payment-processing.md)\n- [Reporting](reporting.md)\n",
     "specspine/payment-processing.md": "# Payment processing\n\nCoordinates payment authorization, settlement, and provider result handling.\n\n## Architecture map\n\n- [Payment authorization](payment-authorization.md)\n- [Payment settlement](payment-settlement.md)\n- [Payment webhooks](payment-webhooks.md)\n",

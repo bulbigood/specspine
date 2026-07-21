@@ -3,6 +3,7 @@
   "scenario": "tests/scenarios/traceable-visual-spec.md",
   "skill": "skills/specspine-map",
   "status": "executable",
+  "category": "extended",
   "initial_files": {
     "specspine/README.md": "# Project architecture\n\n## Architecture map\n\n- [Job processing](job-processing.md)\n- [Operations](operations.md)\n",
     "specspine/job-processing.md": "# Job processing\n\nProcesses asynchronous jobs.\n\n## Behavior\n\nA queued job becomes active. Failed jobs retry up to three times and then become permanently failed. Successful jobs complete.\n\n## Constraints\n\nRetries stop after three failed attempts.\n",

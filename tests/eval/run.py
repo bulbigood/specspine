@@ -32,6 +32,7 @@ SECTION_PREFIXES = {
     "Inferred": "INF",
     "Open questions": "OQ",
 }
+CASE_CATEGORIES = {"core", "extended", "planned"}
 
 
 @dataclass(frozen=True)
@@ -51,13 +52,19 @@ def load_cases() -> list[dict[str, Any]]:
 
 def validate_case(case: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    required = {"id", "scenario", "status", "initial_files"}
+    required = {"id", "scenario", "status", "category", "initial_files"}
     missing = sorted(required - case.keys())
     if missing:
         errors.append(f"missing fields: {', '.join(missing)}")
         return errors
     if case["status"] not in {"executable", "planned"}:
         errors.append("status must be executable or planned")
+    if case.get("category") not in CASE_CATEGORIES:
+        errors.append(f"category must be one of: {', '.join(sorted(CASE_CATEGORIES))}")
+    if case.get("status") == "planned" and case.get("category") != "planned":
+        errors.append("planned cases must use category planned")
+    if case.get("status") == "executable" and case.get("category") == "planned":
+        errors.append("executable cases cannot use category planned")
     if not isinstance(case.get("runs", 1), int) or case.get("runs", 1) < 1:
         errors.append("runs must be a positive integer")
     scenario = ROOT / case["scenario"]
@@ -86,6 +93,11 @@ def validate_case(case: dict[str, Any]) -> list[str]:
             errors.extend(validate_skill(case["skill"], case.get("entrypoint", "SKILL.md"), case.get("companion_skills", [])))
             if case["status"] == "executable" and not case["assertions"]:
                 errors.append("executable case has no assertions")
+        if "prompt" not in case and scenario.is_file():
+            try:
+                scenario_user_request(case)
+            except ValueError as error:
+                errors.append(str(error))
     for rel in case["initial_files"]:
         if not safe_relative_path(rel):
             errors.append(f"unsafe initial file path: {rel}")
@@ -402,7 +414,9 @@ def evaluate_assertion(
 
 
 def build_prompt(case: dict[str, Any], stage: dict[str, Any] | None = None) -> str:
-    scenario = stage["prompt"] if stage is not None else (ROOT / case["scenario"]).read_text(encoding="utf-8")
+    scenario = stage["prompt"] if stage is not None else (
+        case["prompt"] if "prompt" in case else scenario_user_request(case)
+    )
     config = stage or case
     eval_language = config.get("eval_language", case.get("eval_language", "English"))
     return (
@@ -415,6 +429,16 @@ def build_prompt(case: dict[str, Any], stage: dict[str, Any] | None = None) -> s
         "Perform the user request described by the scenario.\n\n"
         f"{scenario}\n"
     )
+
+
+def scenario_user_request(case: dict[str, Any]) -> str:
+    text = (ROOT / case["scenario"]).read_text(encoding="utf-8")
+    match = re.search(r"^## User request\s*$\n(.*?)(?=^##\s|\Z)", text, re.MULTILINE | re.DOTALL)
+    if not match:
+        raise ValueError(f"scenario has no User request section: {case['scenario']}")
+    request = match.group(1).strip()
+    fenced = re.fullmatch(r"```(?:text)?\s*\n(.*?)\n```", request, re.DOTALL)
+    return fenced.group(1).strip() if fenced else request
 
 
 def read_trace(workspace: Path) -> dict[str, Any] | None:
@@ -579,6 +603,13 @@ def main() -> int:
     parser.add_argument("--audit", action="store_true", help="report scenario registration and executable coverage")
     parser.add_argument("--validate", action="store_true", help="validate manifests without running an agent")
     parser.add_argument("--case", action="append", default=[], help="case ID to run; repeatable")
+    parser.add_argument(
+        "--category",
+        action="append",
+        default=[],
+        choices=sorted(CASE_CATEGORIES - {"planned"}),
+        help="run an executable category; repeatable",
+    )
     parser.add_argument("--agent-command", help="command that accepts the prompt on stdin and edits its cwd")
     parser.add_argument(
         "--jobs",
@@ -589,12 +620,24 @@ def main() -> int:
     parser.add_argument("--keep-workspace", action="store_true", help="keep failed workspaces")
     args = parser.parse_args()
     cases = load_cases()
-    selected = [case for case in cases if not args.case or case["id"] in args.case]
+    if not any((args.list, args.audit, args.validate, args.agent_command)):
+        parser.error("specify --case NAME or --category CATEGORY with --agent-command; use --list to inspect choices")
+    if args.agent_command and not (args.case or args.category):
+        parser.error("agent eval execution requires at least one --case NAME or --category CATEGORY")
+    known_ids = {case["id"] for case in cases}
+    unknown_ids = sorted(set(args.case) - known_ids)
+    if unknown_ids:
+        parser.error(f"unknown case(s): {', '.join(unknown_ids)}; use --list to inspect choices")
+    selected = [
+        case
+        for case in cases
+        if case["id"] in args.case or case["category"] in args.category
+    ]
 
     if args.list:
         for case in cases:
             owner = case.get("skill", f"{len(case.get('stages', []))} stages")
-            print(f"{case['id']}: {case['status']} ({owner})")
+            print(f"{case['id']}: {case['status']}/{case['category']} ({owner})")
 
     failed_validation = False
     if args.validate or args.audit or args.agent_command:
@@ -613,6 +656,16 @@ def main() -> int:
         print(f"documented scenarios: {len(documented)}")
         print(f"registered scenarios: {len(registered)}")
         print(f"executable scenarios: {len(executable)}")
+        for category in sorted(CASE_CATEGORIES):
+            category_cases = [case for case in cases if case["category"] == category]
+            agent_calls = sum(
+                len([stage for stage in case.get("stages", []) if "skill" in stage])
+                if "stages" in case
+                else case.get("runs", 1)
+                for case in category_cases
+                if case["status"] == "executable"
+            )
+            print(f"category {category}: {len(category_cases)} cases, {agent_calls} agent calls")
         for scenario in sorted(documented - registered):
             print(f"UNREGISTERED {scenario}")
         for scenario in sorted(registered - documented):

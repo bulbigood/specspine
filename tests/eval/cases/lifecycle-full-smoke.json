@@ -1,7 +1,8 @@
 {
   "id": "lifecycle-full-smoke",
   "scenario": "tests/scenarios/lifecycle-full-smoke.md",
-  "status": "executable",
+  "status": "planned",
+  "category": "planned",
   "eval_language": "English",
   "initial_files": {
     "README.md": "# Payment service\n\nCheckout authorizes a payment, settlement captures it, and provider webhooks report results.\n",

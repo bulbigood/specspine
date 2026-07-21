@@ -2,6 +2,7 @@
   "id": "lifecycle-supersede-remove",
   "scenario": "tests/scenarios/lifecycle-supersede-remove.md",
   "status": "executable",
+  "category": "extended",
   "eval_language": "English",
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Payment processing](payment-processing.md)\n- [Payment settlement](payment-settlement.md)\n- [Webhook retry coordination](payment-webhook-retry.md)\n",
