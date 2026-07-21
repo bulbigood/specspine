@@ -157,6 +157,10 @@ same mapping information in the final report instead of pausing.
 - When adding or changing a semantic ID, follow `Addressable statements` in
   `references/spec-format.md`. Preserve the document's language and local
   heading style when the statement kind remains unambiguous.
+- When another specification refers to that ID, make the complete ID the
+  Markdown link label and the canonical specification the destination, exactly
+  as required by `Addressable statements`. References are linked IDs; never
+  format them as bold definitions or plain text.
 - Do not rewrite intent to legitimize accidental implementation behavior.
 - Update `<spine-root>/README.md` only when top-level navigation, system-wide
   intent, or mapping coverage changes.
