@@ -58,7 +58,7 @@ def parse_events(stdout: str, candidates: list[str]) -> tuple[set[str], list[str
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", default="gpt-5.6-terra")
+    parser.add_argument("--model", default="gpt-5.6-luna")
     parser.add_argument("--reasoning-effort", default="medium")
     args = parser.parse_args()
 
