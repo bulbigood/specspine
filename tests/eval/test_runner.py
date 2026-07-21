@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import sys
 import tempfile
 import threading
@@ -317,6 +318,32 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual(0, RUNNER.main())
         executor.assert_not_called()
         self.assertEqual(["sequential-a", "sequential-b"], called)
+
+    def test_prints_test_summary_after_execution(self):
+        cases = [
+            {
+                "id": case_id,
+                "scenario": "tests/scenarios/initialize-project.md",
+                "skill": "skills/specspine-grow",
+                "status": "executable",
+                "category": "core",
+                "initial_files": {},
+                "assertions": [],
+            }
+            for case_id in ("passing", "failing")
+        ]
+        output = io.StringIO()
+        argv = ["run.py", "--category", "core", "--jobs", "1", "--agent-command", "fake-agent"]
+        with (
+            patch.object(RUNNER, "load_cases", return_value=cases),
+            patch.object(RUNNER, "validate_collection", return_value=[]),
+            patch.object(RUNNER, "validate_case", return_value=[]),
+            patch.object(RUNNER, "run_case", side_effect=[True, False]),
+            patch.object(sys, "argv", argv),
+            patch("sys.stdout", output),
+        ):
+            self.assertEqual(1, RUNNER.main())
+        self.assertEqual("SUMMARY: 1/2 tests passed", output.getvalue().strip())
 
     def test_jobs_must_be_positive(self):
         self.assertEqual(3, RUNNER.positive_int("3"))

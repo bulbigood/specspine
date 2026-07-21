@@ -669,6 +669,8 @@ def main() -> int:
                 )
         else:
             results = [run_case(case, command, args.keep_workspace) for case in executable]
+        passed_count = sum(results)
+        print(f"SUMMARY: {passed_count}/{len(results)} tests passed")
         return 0 if all(results) else 1
 
     if not any((args.list, args.audit, args.validate)):
