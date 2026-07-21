@@ -1,5 +1,6 @@
 {
   "id": "cross-cutting-change",
+  "description": "Tests a change spanning external identity, account resolution, and session creation while preserving ownership boundaries and leaving unrelated billing code untouched.",
   "status": "executable",
   "samples": 1,
   "prompt": "Implement login_external(provider_user_id, provider_token). It must resolve a local account and create a normal application session. Make the tests pass.",
@@ -13,11 +14,13 @@
     "src/auth.py": "def login_external(provider_user_id, provider_token):\n    raise NotImplementedError\n",
     "src/accounts.py": "def resolve_account(provider_user_id):\n    return {'user_id': 'local-' + provider_user_id}\n",
     "src/sessions.py": "def create_session(user_id):\n    return 'session:' + user_id\n",
-    "src/billing.py": "BILLING_MODE = 'metered'\n"
+    "src/billing.py": "BILLING_MODE = 'metered'\n",
+    "tests/__init__.py": "",
+    "tests/test_auth.py": "import unittest\n\nfrom src.auth import login_external\n\n\nclass LoginExternalTests(unittest.TestCase):\n    def test_creates_provider_independent_local_session(self):\n        result = login_external('42', 'provider-secret')\n        self.assertEqual('session:local-42', result)\n        self.assertNotIn('provider-secret', result)\n\n\nif __name__ == '__main__':\n    unittest.main()\n"
   },
   "irrelevant_read_patterns": ["src/billing.py", "specspine/billing.md"],
   "assertions": [
-    {"type": "command_succeeds", "command": ["python3", "-c", "from src.auth import login_external; result = login_external('42', 'provider-secret'); assert result == 'session:local-42'; assert 'provider-secret' not in result"]},
+    {"type": "command_succeeds", "command": ["python3", "-m", "unittest", "-q", "tests/test_auth.py"]},
     {"type": "unchanged", "paths": ["src/billing.py"]}
   ],
   "arms": [

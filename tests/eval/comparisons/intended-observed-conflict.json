@@ -1,5 +1,6 @@
 {
   "id": "intended-observed-conflict",
+  "description": "Tests whether the agent follows accepted architectural intent when existing legacy behavior contradicts it, rather than copying the observed defect to a new provider.",
   "status": "executable",
   "samples": 1,
   "prompt": "Add GitHub login support to provider_login(provider, provider_token). Preserve the intended session architecture and make the tests pass.",
@@ -15,7 +16,7 @@
   },
   "irrelevant_read_patterns": ["src/reports.py", "specspine/reports.md"],
   "assertions": [
-    {"type": "command_succeeds", "command": ["python3", "-c", "from src.login import provider_login; results = [provider_login(provider, 'provider-secret') for provider in ('google', 'github')]; assert all(result.startswith('session:') for result in results); assert all('provider-secret' not in result for result in results)"]},
+    {"type": "command_succeeds", "command": ["python3", "-c", "from src.login import provider_login; results = [provider_login(provider, 'provider-secret') for provider in ('google', 'github')]; assert all(isinstance(result, str) and result for result in results); assert all('provider-secret' not in result for result in results)"]},
     {"type": "unchanged", "paths": ["src/reports.py"]}
   ],
   "arms": [

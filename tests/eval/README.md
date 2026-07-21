@@ -128,9 +128,36 @@ Run all four isolated arms for a named comparison with the same coding agent:
 python3 tests/eval/compare.py \
   --comparison cross-cutting-change \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --reasoning-effort medium" \
-  --samples 5 \
-  --json-output comparison-results.json
+  --samples 5
 ```
+
+Run every executable comparison with all downstream agents in parallel, then
+score every result with parallel blind judges using a different model:
+
+```bash
+python3 tests/eval/compare.py \
+  --all \
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
+  --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-sol --reasoning-effort high" \
+  --samples 5 \
+  --jobs 16 \
+  --judge-jobs 16
+```
+
+The two phases are ordered: all downstream changes are produced first, then all
+available results are judged concurrently. Each judge receives only one
+`request`/`diff`/`response`/`rubric` bundle and cannot see its arm name or
+supplied context. The judge returns a strict JSON score from 0 to 2 for every rubric
+criterion. The harness derives `architectural_pass_rate`, median architectural
+score, and median architectural violation count per arm. A missing, malformed,
+or non-zero judge response makes the harness fail rather than silently dropping
+that judgment. Byte-identical `request`/`diff`/`response`/`rubric` bundles share
+one judge call and one judgment, preventing random arm differences when the
+judge evidence is identical. The report records distinct judge `calls` and
+total judged `results`.
+
+Agent and judge concurrency both default to 8. Use `--jobs` and
+`--judge-jobs` only when a lower or higher concurrency limit is needed.
 
 Each arm receives the same frozen repository and user request but a different
 architectural context. The downstream prompt is byte-identical across arms and
@@ -139,12 +166,37 @@ recorded as benchmark data and do not make the harness itself fail. Agent
 execution failures return a non-zero status. Use repeated samples before
 drawing product conclusions.
 
-When `--json-output` is set, every run is archived next to the report under
-`<report-stem>-artifacts/<comparison>/<arm>/sample-<n>/`. Each archive contains
+Each execution allocates the next numeric directory under `comparison-runs/`
+(`001/`, `002/`, and so on). Its `comparison-results.md` contains aggregate
+outcomes, a summary averaged by arm across every comparison and sample, judge
+scores, outcome/judge mismatch markers, cost metrics, failure details, and the
+run number. Per-result lines are not printed to
+the terminal. Use `--runs-dir` to select another parent directory,
+`--markdown-output` to change the Markdown filename, and `--json-output` to
+change the JSON filename. Every run writes `comparison-results.json`
+automatically beside `comparison-results.md`.
+
+Every Markdown report begins with an English legend describing the included
+comparison scenarios and all executed arms, followed by a short explanation of
+fixture isolation, deterministic outcome checks, blind judging, and aggregation.
+Comparison descriptions are maintained in their manifests and validated as
+required metadata.
+
+Every run's artifacts are stored under
+`comparison-runs/<run>/artifacts/<comparison>/<arm>/sample-<n>/`. Each archive contains
 the exact prompt, final response, unified diff, optional stderr and trace, plus
-`judge-input.json`. The judge input contains only the request, diff, and frozen
-scenario rubric; it does not contain the arm name or supplied context. Pass
+`judge-input.json`. The judge input contains only the request, diff, final
+response, and frozen scenario rubric; it does not contain the arm name or
+supplied context. Pass
 `--artifacts-dir` to choose a different archive root.
+
+The `agent/` and `judge/` subdirectories preserve the complete information made
+available by each Codex CLI invocation: the unfiltered `--json` JSONL event
+stream, CLI stderr, exact prompt, invocation arguments and exit metadata, parsed
+trace, and final response. The event stream may contain exported reasoning
+summaries, command output, file changes, tool calls, and intermediate agent
+messages. Private model chain-of-thought and event types omitted by Codex itself
+cannot be archived by the harness.
 
 The JSON report embeds the prompt, response, diff, fixture/context hashes, and
 actual adapter model/reasoning metadata from the trace. Its top-level `model`

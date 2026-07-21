@@ -43,3 +43,9 @@ htmlcov/
 *.temp
 .tmp/
 tmp/
+
+# Local comparative evaluation reports
+/comparison-runs/**
+!/comparison-runs/*/
+!/comparison-runs/*/comparison-results.md
+!/comparison-runs/*/comparison-results.json

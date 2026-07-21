@@ -1,5 +1,7 @@
 import importlib.util
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -88,6 +90,28 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertEqual(["sed -n 1,80p src/users/model.js"], commands)
         self.assertEqual(["Finished"], messages)
 
+    def test_records_only_completed_items_once_by_id(self):
+        stdout = "\n".join(
+            [
+                '{"type":"item.started","item":{"id":"cmd-1","type":"command_execution","command":"sed -n 1,80p src/users/model.js"}}',
+                '{"type":"item.completed","item":{"id":"cmd-1","type":"command_execution","command":"sed -n 1,80p src/users/model.js"}}',
+                '{"type":"item.completed","item":{"id":"cmd-1","type":"command_execution","command":"sed -n 1,80p src/users/model.js"}}',
+                '{"type":"item.completed","item":{"id":"cmd-2","type":"command_execution","command":"sed -n 1,80p src/users/model.js"}}',
+            ]
+        )
+        reads, commands, messages = ADAPTER.parse_events(
+            stdout, ["src/users/model.js"]
+        )
+        self.assertEqual({"src/users/model.js"}, reads)
+        self.assertEqual(
+            [
+                "sed -n 1,80p src/users/model.js",
+                "sed -n 1,80p src/users/model.js",
+            ],
+            commands,
+        )
+        self.assertEqual([], messages)
+
     def test_parses_latest_cumulative_token_usage(self):
         stdout = "\n".join(
             [
@@ -99,6 +123,26 @@ class CodexAdapterTests(unittest.TestCase):
             {"input_tokens": 200, "cached_input_tokens": 80, "output_tokens": 50},
             ADAPTER.parse_token_usage(stdout),
         )
+
+    def test_archives_unfiltered_codex_streams_and_invocation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+            events = '{"type":"item.completed","item":{"type":"reasoning","text":"summary"}}\n'
+            ADAPTER.write_codex_artifacts(
+                target,
+                prompt="Do the work.\n",
+                command=["codex", "exec", "--json", "-"],
+                stdout=events,
+                stderr="diagnostic\n",
+                returncode=7,
+                duration_seconds=1.25,
+            )
+            self.assertEqual(events, (target / "codex-events.jsonl").read_text())
+            self.assertEqual("diagnostic\n", (target / "codex-stderr.txt").read_text())
+            self.assertEqual("Do the work.\n", (target / "codex-prompt.md").read_text())
+            invocation = json.loads((target / "codex-invocation.json").read_text())
+            self.assertEqual(7, invocation["returncode"])
+            self.assertEqual(["codex", "exec", "--json", "-"], invocation["command"])
 
 
 if __name__ == "__main__":

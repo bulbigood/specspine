@@ -65,8 +65,8 @@ not know which comparison arm produced the result.
 
 Archive the exact prompt, response, diff, trace, fixture/context hashes, and
 actual model settings for every run. Construct judge inputs separately from
-only the request, diff, and frozen scenario rubric. Keep arm metadata outside
-that bundle.
+only the request, diff, final response, and frozen scenario rubric. Keep arm
+metadata outside that bundle.
 
 ## Initial scenarios
 

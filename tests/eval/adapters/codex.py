@@ -163,12 +163,22 @@ def parse_events(stdout: str, candidates: list[str]) -> tuple[set[str], list[str
     reads: set[str] = set()
     commands: list[str] = []
     messages: list[str] = []
+    completed_item_ids: set[str] = set()
     for line in stdout.splitlines():
         try:
             event = json.loads(line)
         except json.JSONDecodeError:
             continue
+        event_type = event.get("type")
+        if event_type not in {None, "item.completed"}:
+            continue
         item = event.get("item", {})
+        item_id = item.get("id")
+        if item_id is not None:
+            item_id = str(item_id)
+            if item_id in completed_item_ids:
+                continue
+            completed_item_ids.add(item_id)
         if item.get("type") == "command_execution":
             command = str(item.get("command", ""))
             commands.append(command)
@@ -210,6 +220,36 @@ def parse_token_usage(stdout: str) -> dict[str, int]:
     return usage
 
 
+def write_codex_artifacts(
+    eval_dir: Path,
+    *,
+    prompt: str,
+    command: list[str],
+    stdout: str,
+    stderr: str,
+    returncode: int,
+    duration_seconds: float,
+) -> None:
+    """Persist every unfiltered stream exposed by `codex exec --json`."""
+    eval_dir.mkdir(parents=True, exist_ok=True)
+    (eval_dir / "codex-prompt.md").write_text(prompt, encoding="utf-8")
+    (eval_dir / "codex-events.jsonl").write_text(stdout, encoding="utf-8")
+    (eval_dir / "codex-stderr.txt").write_text(stderr, encoding="utf-8")
+    (eval_dir / "codex-invocation.json").write_text(
+        json.dumps(
+            {
+                "command": command,
+                "duration_seconds": duration_seconds,
+                "returncode": returncode,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="gpt-5.6-luna")
@@ -240,10 +280,20 @@ def main() -> int:
     started = time.monotonic()
     completed = subprocess.run(command, input=prompt, text=True, capture_output=True, check=False)
     duration_seconds = round(time.monotonic() - started, 3)
+    eval_dir = root / ".eval"
+    write_codex_artifacts(
+        eval_dir,
+        prompt=prompt,
+        command=command,
+        stdout=completed.stdout,
+        stderr=completed.stderr,
+        returncode=completed.returncode,
+        duration_seconds=duration_seconds,
+    )
     reads, commands, messages = parse_events(completed.stdout, candidates)
     token_usage = parse_token_usage(completed.stdout)
     final_response = messages[-1] if messages else ""
-    trace_path = root / ".eval" / "trace.json"
+    trace_path = eval_dir / "trace.json"
     trace_path.write_text(
         json.dumps(
             {
@@ -261,7 +311,7 @@ def main() -> int:
         + "\n",
         encoding="utf-8",
     )
-    (root / ".eval" / "response.md").write_text(final_response + ("\n" if final_response else ""), encoding="utf-8")
+    (eval_dir / "response.md").write_text(final_response + ("\n" if final_response else ""), encoding="utf-8")
     if final_response:
         print(final_response)
     if completed.returncode and completed.stderr:

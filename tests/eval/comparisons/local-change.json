@@ -1,5 +1,6 @@
 {
   "id": "local-change",
+  "description": "A control scenario testing whether a simple local presentation change stays local without unnecessary architectural expansion.",
   "status": "executable",
   "samples": 1,
   "prompt": "Change profile_title() to return 'Account profile'. Keep the change local and make the tests pass.",
