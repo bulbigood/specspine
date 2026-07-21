@@ -199,6 +199,9 @@ def evaluate_assertion(
     path = workspace / assertion.get("path", "")
     if kind == "path_exists":
         return CheckResult(path.exists(), f"exists: {assertion['path']}")
+    if kind == "path_exists_any":
+        existing = [item for item in assertion["paths"] if (workspace / item).exists()]
+        return CheckResult(bool(existing), f"existing alternatives: {existing}" if existing else f"none exist: {assertion['paths']}")
     if kind == "path_absent":
         return CheckResult(not path.exists(), f"absent: {assertion['path']}")
     if kind == "glob_count":
@@ -247,6 +250,13 @@ def evaluate_assertion(
             return CheckResult(not missing, f"required reads missing: {missing}" if missing else "required files were read")
         maximum = assertion["max"]
         return CheckResult(len(set(files_read)) <= maximum, f"files read: {len(set(files_read))}, maximum: {maximum}")
+    if kind == "command_includes":
+        if trace is None or not isinstance(trace.get("commands"), list):
+            return CheckResult(False, "agent did not produce .eval/trace.json with commands")
+        commands = [str(item) for item in trace["commands"]]
+        needles = assertion.get("values", [assertion.get("value", "")])
+        missing = [needle for needle in needles if not any(needle in command for command in commands)]
+        return CheckResult(not missing, f"command text missing: {missing}" if missing else "required command text found")
     if kind == "balanced_markers":
         content = path.read_text(encoding="utf-8") if path.is_file() else ""
         begin, end = assertion["begin"], assertion["end"]
@@ -267,11 +277,14 @@ def evaluate_assertion(
 
 def build_prompt(case: dict[str, Any]) -> str:
     scenario = (ROOT / case["scenario"]).read_text(encoding="utf-8")
+    eval_language = case.get("eval_language", "English")
     return (
         "You are running a repeatable SpecSpine evaluation.\n"
         f"Read .eval/skill/{case.get('entrypoint', 'SKILL.md')} and all references it requires.\n"
         "Installed companion skills, when configured, are under .eval/companions/.\n"
         "Treat the current directory as the project root.\n"
+        f"For reproducibility, write the final response and newly created project documents in {eval_language}. "
+        "Preserve existing user-authored language, identifiers, and quoted text.\n"
         "Perform the user request described by the scenario.\n\n"
         f"{scenario}\n"
     )

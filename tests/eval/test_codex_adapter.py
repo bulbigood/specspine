@@ -28,6 +28,23 @@ class CodexAdapterTests(unittest.TestCase):
         candidates = ["src/users/model.js", "src/billing/private.js"]
         self.assertEqual(set(), ADAPTER.traced_files("find . -type f", candidates))
 
+    def test_does_not_treat_rg_file_listing_glob_as_content_read(self):
+        candidates = ["README.md", "specspine/README.md"]
+        command = "sed -n '1,20p' .eval/skill/SKILL.md && rg --files -g 'README.md'"
+        self.assertEqual(set(), ADAPTER.traced_files(command, candidates))
+
+    def test_parses_commands_reads_and_agent_messages(self):
+        stdout = "\n".join(
+            [
+                '{"item":{"type":"command_execution","command":"sed -n 1,80p src/users/model.js"}}',
+                '{"item":{"type":"agent_message","text":"Finished"}}',
+            ]
+        )
+        reads, commands, messages = ADAPTER.parse_events(stdout, ["src/users/model.js", "src/billing.js"])
+        self.assertEqual({"src/users/model.js"}, reads)
+        self.assertEqual(["sed -n 1,80p src/users/model.js"], commands)
+        self.assertEqual(["Finished"], messages)
+
 
 if __name__ == "__main__":
     unittest.main()

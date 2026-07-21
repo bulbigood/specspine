@@ -11,6 +11,7 @@
   },
   "assertions": [
     {"type": "max_changed_files", "max": 0},
-    {"type": "response_contains", "values": ["BROKEN_LINK", "UNRESOLVED_ID", "UNREACHABLE_SPEC", "EMPTY_SECTION"]}
+    {"type": "command_includes", "value": "check_spine.py"},
+    {"type": "response_contains", "values": ["missing.md", "orphan.md", "policy.md"]}
   ]
 }

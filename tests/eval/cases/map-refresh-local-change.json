@@ -15,9 +15,10 @@
     "src/billing/private.js": "UNRELATED_BILLING\n"
   },
   "assertions": [
-    {"type": "path_exists", "path": "specspine/notification-delivery.md"},
+    {"type": "path_exists_any", "paths": ["specspine/notification-delivery.md", "specspine/email-delivery.md"]},
+    {"type": "glob_count", "glob": "specspine/*.md", "min": 6, "max": 6},
     {"type": "unchanged", "paths": ["specspine/api-server.md", "specspine/persistence.md", "src/**", "config/**", "tests/**"]},
-    {"type": "changed_only", "paths": ["specspine/README.md", "specspine/background-processing.md", "specspine/operations.md", "specspine/notification-delivery.md"]},
+    {"type": "changed_only", "paths": ["specspine/README.md", "specspine/background-processing.md", "specspine/operations.md", "specspine/notification-delivery.md", "specspine/email-delivery.md"]},
     {"type": "read_only", "paths": ["specspine/**", "src/workers/email.js", "config/queues.yml", "tests/email-worker.test.js"]},
     {"type": "max_files_read", "max": 8},
     {"type": "markdown_links_valid", "glob": "specspine/*.md"}

@@ -94,7 +94,11 @@ For a selected-area or refresh request, begin from the named specification and
 known relevant paths. Use targeted path and symbol searches; do not start with a
 repository-wide content search or read unrelated branches merely to inventory
 them. A filename listing is discovery metadata, not authorization to read every
-listed file.
+listed file. Before reading file contents, establish a boundary of relevant
+specifications, paths, and symbols from the request and filename metadata, then
+scope content searches to that boundary. Expand it only when inspected evidence
+reveals a cross-boundary dependency relevant to the requested map, and report
+the expansion.
 
 ### 4. Form the smallest useful model
 

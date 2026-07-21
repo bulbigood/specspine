@@ -11,6 +11,6 @@
   },
   "assertions": [
     {"type": "max_changed_files", "max": 0},
-    {"type": "response_contains", "values": ["billing.md", "payments.md", "user"]}
+    {"type": "response_contains", "values": ["billing.md", "payments.md", "application.md"]}
   ]
 }

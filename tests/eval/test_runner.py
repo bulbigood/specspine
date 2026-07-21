@@ -69,6 +69,39 @@ class RunnerTests(unittest.TestCase):
             result = RUNNER.check_semantic_ids(workspace, "**/*.md")
             self.assertFalse(result.passed)
 
+    def test_accepts_any_existing_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            (workspace / "email-delivery.md").write_text("# Email delivery\n", encoding="utf-8")
+            result = RUNNER.evaluate_assertion(
+                {"type": "path_exists_any", "paths": ["notification-delivery.md", "email-delivery.md"]},
+                workspace,
+                {},
+                {},
+                "",
+                None,
+            )
+            self.assertTrue(result.passed, result.message)
+
+    def test_checks_recorded_command_text(self):
+        result = RUNNER.evaluate_assertion(
+            {"type": "command_includes", "value": "check_spine.py"},
+            Path("."),
+            {},
+            {},
+            "",
+            {"commands": ["python3 .eval/skill/scripts/check_spine.py specspine"]},
+        )
+        self.assertTrue(result.passed, result.message)
+
+    def test_prompt_declares_eval_language(self):
+        case = {
+            "scenario": "tests/scenarios/initialize-project.md",
+            "skill": "skills/specspine-grow",
+            "eval_language": "English",
+        }
+        self.assertIn("newly created project documents in English", RUNNER.build_prompt(case))
+
     def test_runs_agent_in_isolated_workspace(self):
         with tempfile.TemporaryDirectory() as directory:
             adapter = Path(directory) / "adapter.py"

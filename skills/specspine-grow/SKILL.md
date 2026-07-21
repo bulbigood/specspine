@@ -185,7 +185,9 @@ whether the area is ready for context handoff.
 
 Create `<spine-root>/README.md` and the smallest useful set of top-level concept
 specifications using `references/spec-format.md`. Do not anticipate the full
-project or inspect other project files for missing context.
+project or inspect other project files for missing context. Once the missing
+index establishes that the project is uninitialized, do not read root
+documentation, source, configuration, tests, or other project material.
 
 ### Refine
 
@@ -210,7 +212,9 @@ Follow `references/context-handoff.md`. Include the smallest useful set and
 separate required, potentially affected, and merely related specifications.
 Preserve claim semantics without adding downstream artifacts. Include only
 observations already stored in the spine or explicitly supplied or authorized
-by the user.
+by the user. By default, deliver the temporary handoff in the final response;
+do not store it inside the persistent SpecSpine or another project file unless
+the user explicitly requests a file and location.
 
 ## Readiness for context handoff
 

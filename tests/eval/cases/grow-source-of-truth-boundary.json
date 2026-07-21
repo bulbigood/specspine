@@ -13,7 +13,8 @@
   "assertions": [
     {"type": "unchanged", "paths": ["README.md", "src/**", "config/**"]},
     {"type": "changed_only", "paths": ["specspine/**"]},
-    {"type": "response_contains", "value": "idempotent"},
+    {"type": "glob_count", "glob": "specspine/*handoff*.md", "max": 0},
+    {"type": "response_contains", "value": "idempoten"},
     {"type": "read_only", "paths": ["specspine/**"]},
     {"type": "max_files_read", "max": 2}
   ]
