@@ -90,6 +90,12 @@ public interfaces, schemas and migrations, integration edges, deployment
 configuration, and representative tests. Read implementation internals only
 where boundaries remain unclear.
 
+For a selected-area or refresh request, begin from the named specification and
+known relevant paths. Use targeted path and symbol searches; do not start with a
+repository-wide content search or read unrelated branches merely to inventory
+them. A filename listing is discovery metadata, not authorization to read every
+listed file.
+
 ### 4. Form the smallest useful model
 
 Choose stable responsibilities rather than filesystem shapes. A directory is

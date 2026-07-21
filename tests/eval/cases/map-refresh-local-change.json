@@ -2,7 +2,24 @@
   "id": "map-refresh-local-change",
   "scenario": "tests/scenarios/map-refresh-local-change.md",
   "skill": "skills/specspine-map",
-  "status": "planned",
-  "initial_files": {},
-  "assertions": []
+  "status": "executable",
+  "initial_files": {
+    "specspine/README.md": "# Architecture\n\n- [API](api-server.md)\n- [Background processing](background-processing.md)\n- [Persistence](persistence.md)\n- [Operations](operations.md)\n",
+    "specspine/api-server.md": "# API server\n\nServes requests.\n",
+    "specspine/background-processing.md": "# Background processing\n\nOwns asynchronous workers.\n",
+    "specspine/persistence.md": "# Persistence\n\nOwns storage.\n",
+    "specspine/operations.md": "# Operations\n\nOwns deployment concerns.\n",
+    "src/workers/email.js": "export function deliverEmail(queue) { return queue.consume(); }\n",
+    "config/queues.yml": "email-delivery: true\n",
+    "tests/email-worker.test.js": "// retries email delivery\n",
+    "src/billing/private.js": "UNRELATED_BILLING\n"
+  },
+  "assertions": [
+    {"type": "path_exists", "path": "specspine/notification-delivery.md"},
+    {"type": "unchanged", "paths": ["specspine/api-server.md", "specspine/persistence.md", "src/**", "config/**", "tests/**"]},
+    {"type": "changed_only", "paths": ["specspine/README.md", "specspine/background-processing.md", "specspine/operations.md", "specspine/notification-delivery.md"]},
+    {"type": "read_only", "paths": ["specspine/**", "src/workers/email.js", "config/queues.yml", "tests/email-worker.test.js"]},
+    {"type": "max_files_read", "max": 8},
+    {"type": "markdown_links_valid", "glob": "specspine/*.md"}
+  ]
 }

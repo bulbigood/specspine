@@ -2,7 +2,20 @@
   "id": "split-broad-spec",
   "scenario": "tests/scenarios/split-broad-spec.md",
   "skill": "skills/specspine-grow",
-  "status": "planned",
-  "initial_files": {},
-  "assertions": []
+  "status": "executable",
+  "initial_files": {
+    "specspine/README.md": "# Architecture\n\n- [Authentication](authentication.md)\n",
+    "specspine/authentication.md": "# Authentication\n\nOwns password authentication, external providers, session lifecycle, and account linking.\n\n## Behavior\n\nPasswords establish identity. External providers also establish identity. Sessions can be refreshed and revoked. Accounts may link several identities.\n"
+  },
+  "assertions": [
+    {"type": "path_exists", "path": "specspine/authentication.md"},
+    {"type": "path_exists", "path": "specspine/password-authentication.md"},
+    {"type": "path_exists", "path": "specspine/external-identity.md"},
+    {"type": "path_exists", "path": "specspine/session-management.md"},
+    {"type": "path_exists", "path": "specspine/account-linking.md"},
+    {"type": "file_contains", "path": "specspine/authentication.md", "values": ["password-authentication.md", "external-identity.md", "session-management.md", "account-linking.md"]},
+    {"type": "changed_only", "paths": ["specspine/**"]},
+    {"type": "response_not_contains", "value": "Proceed with these specification changes?"},
+    {"type": "markdown_links_valid", "glob": "specspine/*.md"}
+  ]
 }

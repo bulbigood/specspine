@@ -21,8 +21,8 @@ The skill should:
 - inspect the agent and SDD integration metadata but not source code or feature
   contents;
 - identify native downstream terms and paths only when supported by evidence;
-- show the bootstrap, binding path, resolved fields, omitted capabilities, and
-  open decisions before writing;
+- report the bootstrap, binding path, resolved fields, omitted capabilities,
+  and open decisions;
 - bind the native workflow entry exactly and include context insertion and
   other conventions only when discovered;
 - generate a compact binding that carries minimal relevant SpecSpine context
@@ -42,4 +42,4 @@ The skill should:
 - feature specifications become the architectural source of truth;
 - SpecSpine documents are converted into the framework's format;
 - the skill claims a maintained compatibility guarantee;
-- changes are applied before approval.
+- the explicit connection request is followed by redundant approval.

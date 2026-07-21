@@ -2,7 +2,20 @@
   "id": "grow-existing-spec",
   "scenario": "tests/scenarios/grow-existing-spec.md",
   "skill": "skills/specspine-grow",
-  "status": "planned",
-  "initial_files": {},
-  "assertions": []
+  "status": "executable",
+  "initial_files": {
+    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Authentication](authentication.md)\n- [Users](users.md)\n",
+    "specspine/authentication.md": "# Authentication\n\nAuthenticates users with passwords and creates application sessions.\n",
+    "specspine/users.md": "# Users\n\nOwns user accounts.\n",
+    "src/auth.js": "export function login() {}\n"
+  },
+  "assertions": [
+    {"type": "path_exists", "path": "specspine/session-management.md"},
+    {"type": "file_contains", "path": "specspine/authentication.md", "value": "session-management.md"},
+    {"type": "file_contains", "path": "specspine/session-management.md", "values": ["refresh", "revoke"]},
+    {"type": "unchanged", "paths": ["src/**"]},
+    {"type": "changed_only", "paths": ["specspine/**"]},
+    {"type": "response_not_contains", "value": "Proceed with these specification changes?"},
+    {"type": "markdown_links_valid", "glob": "specspine/*.md"}
+  ]
 }

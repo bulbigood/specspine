@@ -1,0 +1,25 @@
+{
+  "id": "merge-rename-links",
+  "scenario": "tests/scenarios/merge-rename-links.md",
+  "skill": "skills/specspine-grow",
+  "status": "executable",
+  "initial_files": {
+    "specspine/README.md": "# Architecture\n\n- [Billing](billing.md)\n- [Payments](payment-processing.md)\n- [Users](users.md)\n- [Authentication](authentication.md)\n",
+    "specspine/billing.md": "# Billing\n\nOwns billing state.\n",
+    "specspine/payment-processing.md": "# Payment processing\n\nOwns provider charge execution and idempotent webhook handling.\n",
+    "specspine/users.md": "# Users\n\nOwns user accounts.\n",
+    "specspine/authentication.md": "# Authentication\n\nDepends on [Users](users.md).\n",
+    "specspine/operations.md": "# Operations\n\nUnrelated operational architecture.\n"
+  },
+  "assertions": [
+    {"type": "path_absent", "path": "specspine/payment-processing.md"},
+    {"type": "path_absent", "path": "specspine/users.md"},
+    {"type": "path_exists", "path": "specspine/user-accounts.md"},
+    {"type": "file_contains", "path": "specspine/billing.md", "values": ["charge", "idempotent"]},
+    {"type": "file_contains", "path": "specspine/authentication.md", "value": "user-accounts.md"},
+    {"type": "unchanged", "paths": ["specspine/operations.md"]},
+    {"type": "changed_only", "paths": ["specspine/**"]},
+    {"type": "response_not_contains", "value": "Proceed with these specification changes?"},
+    {"type": "markdown_links_valid", "glob": "specspine/*.md"}
+  ]
+}

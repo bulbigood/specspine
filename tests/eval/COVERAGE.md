@@ -2,18 +2,18 @@
 
 ## Current inventory
 
-The repository has sixteen prose behavioral scenarios. Every scenario is
+The repository has seventeen prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
 | Area | Documented scenarios | Executable fixtures |
 |---|---:|---:|
-| `specspine-grow` | 5 | 1 |
-| `specspine-map` | 5 | 2 |
-| `specspine-connect` | 3 | 1 |
+| `specspine-grow` | 6 | 6 |
+| `specspine-map` | 5 | 5 |
+| `specspine-connect` | 3 | 2 |
 | `specspine-doctor` | 2 | 2 |
 | package generator tooling | 1 | 1 |
-| Total | 16 | 7 |
+| Total | 17 | 16 |
 
 `traceable-visual-spec` is assigned to `specspine-map` because its expected
 result includes repository-backed observations.
@@ -27,23 +27,14 @@ Executable cases currently cover:
 - mechanical and semantic Doctor diagnosis without runtime companions;
 - deterministic runtime-skill generation and drift detection.
 
-The remaining nine manifests are marked `planned`. Their prose remains useful
-as a rubric, but they are not counted as automated tests.
+Only the downstream binding-without-connector scenario remains `planned`; it
+requires a separate native SDD executor rather than a SpecSpine skill.
 
 ## Missing fixtures for documented scenarios
 
-- cross-cutting impact without redundant approval;
-- explicitly requested split without redundant approval;
-- refinement of an existing specification without invented technology;
-- strict source-of-truth read boundary and context handoff;
-- initial brownfield survey breadth versus depth;
-- selective deep mapping and file-read budget;
-- local refresh without remapping unrelated areas;
-- concrete SDD binding generation;
 - standalone use of a generated binding.
 
-These need multi-turn support or an adapter-provided file-read trace before
-their important invariants can be tested honestly.
+This needs a native downstream SDD fixture and executor.
 
 ## Missing behavioral scenarios
 
@@ -51,8 +42,7 @@ High priority:
 
 - longitudinal evolution: map, refine, split, handoff, drift, refresh, and
   supersede a decision in the same project;
-- repeated invocation and idempotency, especially `specspine-connect`;
-- merge, rename, removal, incoming-link updates, and semantic-ID tombstones;
+- removal and semantic-ID tombstones;
 - intended-versus-observed conflict resolution after explicit user approval;
 - minimal handoff selection on a larger graph, including read and context-size
   budgets;

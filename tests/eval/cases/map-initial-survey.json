@@ -2,7 +2,23 @@
   "id": "map-initial-survey",
   "scenario": "tests/scenarios/map-initial-survey.md",
   "skill": "skills/specspine-map",
-  "status": "planned",
-  "initial_files": {},
-  "assertions": []
+  "status": "executable",
+  "initial_files": {
+    "README.md": "# Documents platform\n\nWeb, API, and worker process documents.\n",
+    "package.json": "{\"workspaces\":[\"apps/*\",\"packages/*\"]}\n",
+    "apps/web/main.js": "export function startWeb() {}\n",
+    "apps/api/main.js": "export function startApi(db) { return db; }\n",
+    "apps/worker/main.js": "export function startWorker(db) { return db; }\n",
+    "packages/database/index.js": "export const db = {};\n",
+    "packages/documents/index.js": "export function processDocument() {}\n",
+    "docker-compose.yml": "services:\n  web: {}\n  api: {}\n  worker: {}\n"
+  },
+  "assertions": [
+    {"type": "path_exists", "path": "specspine/README.md"},
+    {"type": "glob_count", "glob": "specspine/*.md", "min": 3, "max": 7},
+    {"type": "file_contains", "path": "specspine/README.md", "value": "## Mapping status"},
+    {"type": "unchanged", "paths": ["README.md", "package.json", "apps/**", "packages/**", "docker-compose.yml"]},
+    {"type": "changed_only", "paths": ["specspine/**"]},
+    {"type": "markdown_links_valid", "glob": "specspine/*.md"}
+  ]
 }

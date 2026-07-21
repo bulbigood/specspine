@@ -2,7 +2,19 @@
   "id": "grow-source-of-truth-boundary",
   "scenario": "tests/scenarios/grow-source-of-truth-boundary.md",
   "skill": "skills/specspine-grow",
-  "status": "planned",
-  "initial_files": {},
-  "assertions": []
+  "status": "executable",
+  "initial_files": {
+    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Billing](billing.md)\n",
+    "specspine/billing.md": "# Billing\n\nIntegrates with an external billing provider.\n\n## Constraints\n\n- Provider events must be processed idempotently.\n",
+    "README.md": "# Bait\n\nBilling is implemented without a provider.\n",
+    "src/billing.js": "export const flow = 'different';\n",
+    "config/generated.yml": "billing: local\n"
+  },
+  "assertions": [
+    {"type": "unchanged", "paths": ["README.md", "src/**", "config/**"]},
+    {"type": "changed_only", "paths": ["specspine/**"]},
+    {"type": "response_contains", "value": "idempotent"},
+    {"type": "read_only", "paths": ["specspine/**"]},
+    {"type": "max_files_read", "max": 2}
+  ]
 }

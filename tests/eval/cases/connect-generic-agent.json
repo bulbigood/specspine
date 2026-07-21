@@ -3,6 +3,7 @@
   "scenario": "tests/scenarios/connect-generic-agent.md",
   "skill": "skills/specspine-connect",
   "status": "executable",
+  "runs": 2,
   "initial_files": {
     "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n",
     "specspine/README.md": "# Project architecture\n\n## Architecture map\n\n- [Application](application.md)\n",

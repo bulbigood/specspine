@@ -2,7 +2,25 @@
   "id": "map-deepen-selected-area",
   "scenario": "tests/scenarios/map-deepen-selected-area.md",
   "skill": "skills/specspine-map",
-  "status": "planned",
-  "initial_files": {},
-  "assertions": []
+  "status": "executable",
+  "initial_files": {
+    "specspine/README.md": "# Architecture\n\n- [Authentication](authentication.md)\n- [Persistence](persistence.md)\n",
+    "specspine/authentication.md": "# Authentication\n\nHigh-level authentication map.\n",
+    "specspine/persistence.md": "# Persistence\n\nOwns durable storage.\n",
+    "src/auth/login.js": "export function login(user) { return createSession(user); }\n",
+    "src/auth/session.js": "export function createSession(user) { return user; }\n",
+    "src/users/model.js": "export const userFields = ['id', 'email'];\n",
+    "config/auth.yml": "providers: [password]\n",
+    "tests/auth.test.js": "// login creates a session\n",
+    "src/billing/private.js": "SECRET_UNRELATED_BILLING_DETAIL\n",
+    "tests/billing.test.js": "// unrelated\n"
+  },
+  "assertions": [
+    {"type": "file_contains", "path": "specspine/authentication.md", "values": ["Observed", "Open questions"]},
+    {"type": "unchanged", "paths": ["src/**", "config/**", "tests/**"]},
+    {"type": "changed_only", "paths": ["specspine/**"]},
+    {"type": "read_only", "paths": ["specspine/**", "src/auth/**", "src/users/**", "config/auth.yml", "tests/auth.test.js"]},
+    {"type": "max_files_read", "max": 8},
+    {"type": "markdown_links_valid", "glob": "specspine/*.md"}
+  ]
 }

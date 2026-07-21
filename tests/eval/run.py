@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -57,6 +58,8 @@ def validate_case(case: dict[str, Any]) -> list[str]:
         return errors
     if case["status"] not in {"executable", "planned"}:
         errors.append("status must be executable or planned")
+    if not isinstance(case.get("runs", 1), int) or case.get("runs", 1) < 1:
+        errors.append("runs must be a positive integer")
     scenario = ROOT / case["scenario"]
     skill = ROOT / case["skill"]
     if not scenario.is_file():
@@ -217,6 +220,10 @@ def evaluate_assertion(
         needles = assertion.get("values", [assertion.get("value", "")])
         missing = [needle for needle in needles if needle.lower() not in response.lower()]
         return CheckResult(not missing, f"response missing: {missing}" if missing else "response contains required text")
+    if kind == "response_not_contains":
+        needles = assertion.get("values", [assertion.get("value", "")])
+        found = [needle for needle in needles if needle.lower() in response.lower()]
+        return CheckResult(not found, f"response contains forbidden text: {found}" if found else "forbidden response text absent")
     if kind == "unchanged":
         patterns = assertion["paths"]
         violations = sorted(item for item in changed if matches_any(item, patterns))
@@ -270,6 +277,13 @@ def build_prompt(case: dict[str, Any]) -> str:
     )
 
 
+def positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
 def run_case(case: dict[str, Any], command: list[str], keep_workspace: bool) -> bool:
     temp = Path(tempfile.mkdtemp(prefix=f"specspine-eval-{case['id']}-"))
     try:
@@ -278,28 +292,39 @@ def run_case(case: dict[str, Any], command: list[str], keep_workspace: bool) -> 
         env = os.environ.copy()
         env["SPECSPINE_EVAL_CASE"] = case["id"]
         env["SPECSPINE_EVAL_WORKSPACE"] = str(temp)
-        completed = subprocess.run(
-            command,
-            cwd=temp,
-            input=build_prompt(case),
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=env,
-            timeout=case.get("timeout_seconds", 600),
-            check=False,
-        )
+        responses: list[str] = []
+        errors: list[str] = []
+        returncode = 0
+        for run_number in range(1, case.get("runs", 1) + 1):
+            completed = subprocess.run(
+                command,
+                cwd=temp,
+                input=build_prompt(case),
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env={**env, "SPECSPINE_EVAL_RUN": str(run_number)},
+                timeout=case.get("timeout_seconds", 600),
+                check=False,
+            )
+            responses.append(completed.stdout)
+            errors.append(completed.stderr)
+            if completed.returncode:
+                returncode = completed.returncode
+                break
+        response = "\n".join(responses)
+        stderr = "\n".join(item for item in errors if item)
         after = snapshot(temp)
         trace_path = temp / ".eval" / "trace.json"
         trace = json.loads(trace_path.read_text(encoding="utf-8")) if trace_path.is_file() else None
-        results = [evaluate_assertion(item, temp, before, after, completed.stdout, trace) for item in case["assertions"]]
-        passed = completed.returncode == 0 and all(result.passed for result in results)
-        print(f"{'PASS' if passed else 'FAIL'} {case['id']} (agent exit {completed.returncode})")
+        results = [evaluate_assertion(item, temp, before, after, response, trace) for item in case["assertions"]]
+        passed = returncode == 0 and all(result.passed for result in results)
+        print(f"{'PASS' if passed else 'FAIL'} {case['id']} ({case.get('runs', 1)} run(s), agent exit {returncode})")
         for result in results:
             print(f"  {'ok' if result.passed else 'not ok'} - {result.message}")
-        if completed.stderr:
+        if stderr:
             print("  agent stderr:")
-            print("    " + completed.stderr.strip().replace("\n", "\n    "))
+            print("    " + stderr.strip().replace("\n", "\n    "))
         if not passed and keep_workspace:
             print(f"  workspace: {temp}")
             temp = None  # type: ignore[assignment]
@@ -316,6 +341,8 @@ def main() -> int:
     parser.add_argument("--validate", action="store_true", help="validate manifests without running an agent")
     parser.add_argument("--case", action="append", default=[], help="case ID to run; repeatable")
     parser.add_argument("--agent-command", help="command that accepts the prompt on stdin and edits its cwd")
+    parser.add_argument("--parallel", action="store_true", help="run all selected evaluation cases concurrently")
+    parser.add_argument("--jobs", type=positive_int, default=4, help="maximum parallel cases (default: 4)")
     parser.add_argument("--keep-workspace", action="store_true", help="keep failed workspaces")
     args = parser.parse_args()
     cases = load_cases()
@@ -357,7 +384,16 @@ def main() -> int:
             print("No selected executable cases", file=sys.stderr)
             return 2
         command = shlex.split(args.agent_command)
-        results = [run_case(case, command, args.keep_workspace) for case in executable]
+        if args.parallel and len(executable) > 1:
+            with ThreadPoolExecutor(max_workers=min(args.jobs, len(executable))) as executor:
+                results = list(
+                    executor.map(
+                        lambda case: run_case(case, command, args.keep_workspace),
+                        executable,
+                    )
+                )
+        else:
+            results = [run_case(case, command, args.keep_workspace) for case in executable]
         return 0 if all(results) else 1
 
     if not any((args.list, args.audit, args.validate)):
