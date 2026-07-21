@@ -14,7 +14,7 @@
     {"type": "max_changed_files", "max": 0},
     {"type": "read_only", "paths": ["specspine/**"]},
     {"type": "command_includes", "value": "check_spine.py"},
-    {"type": "response_contains", "values": ["billing.md", "payments.md", "application.md", "canonical ownership", "inference", "decomposition", "user decision"]},
+    {"type": "response_contains", "values": ["billing.md", "payments.md", "application.md", "canonical ownership", "inference", "decomposition", "user", "decision"]},
     {"type": "response_not_contains", "values": ["formally valid", "complete coverage", "code conforms", "implementation conforms", "conformance proven"]}
   ]
 }

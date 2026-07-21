@@ -72,6 +72,13 @@ generated artifacts, repository documentation, issues, tickets, wikis, and
 project data exposed through tools or MCP servers. Treat such material as
 regenerable downstream artifacts, never as architectural authority.
 
+Enforce the boundary while discovering files, not only while interpreting
+their contents. When `<spine-root>` is explicit or defaults to `specspine`, use
+direct paths and searches scoped to that directory. Do not run project-wide
+file listings, searches, status commands, or root-document probes merely to
+discover additional context; those operations expose unauthorized project
+material even if it is later ignored.
+
 When the user explicitly authorizes external project evidence:
 
 - classify it only as `Observed` or `Inferred` unless the user separately
@@ -202,6 +209,11 @@ When the user explicitly adds a capability to an existing canonical owner,
 record the smallest accepted statement of that capability. Keep unspecified
 policies or implementation details as open questions; do not leave the explicit
 change unapplied merely because those non-blocking details remain unresolved.
+Modify only canonical owners whose architectural behavior or boundaries must
+change to express the accepted capability. Do not edit a related specification
+solely to add a question inferred from likely implementation needs (for example,
+runtime credentials or configuration); report that uncertainty in the final
+response unless it blocks the requested architectural change.
 
 ### Split or merge
 
