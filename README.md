@@ -1,9 +1,10 @@
 # SpecSpine
 
-**A lightweight specification backbone for AI-built software.**
+**An architectural context and memory layer for AI-assisted software development.**
 
-SpecSpine helps humans and coding agents grow abstract software ideas into a
-long-lived network of linked Markdown architectural specifications.
+SpecSpine helps humans and coding agents maintain long-lived architectural
+memory as a network of linked Markdown specifications and project the smallest
+useful architectural context into downstream work.
 
 The specifications form an architectural spine for the project: they describe responsibilities, boundaries, important behavior, decisions, and relationships between system concepts without duplicating the source code.
 
@@ -42,6 +43,35 @@ process; an external ADR or SDD workflow may own approval and provenance.
 SpecSpine does not guarantee code conformance. It preserves disagreements
 until the user decides or an explicitly authorized workflow records the
 resolution.
+
+SpecSpine is a supporting layer for SDD and direct coding-agent workflows, not
+an implementation-oriented SDD framework. It does not own feature requirements,
+acceptance criteria, planning, implementation, testing, or delivery.
+
+## Core hypothesis
+
+Given the same repository, change request, and coding agent, relevant SpecSpine
+context should reduce architectural violations and irrelevant repository
+exploration without reducing functional correctness. A minimal context handoff
+should provide at least as much downstream value as navigating the full Spine
+at lower context cost.
+
+This is an experimental, falsifiable product claim. Link validity, document
+shape, and skill behavior are regression properties; they are not evidence that
+the hypothesis is true. Comparative downstream evaluations must measure
+functional outcomes, architectural constraint preservation, irrelevant file
+reads, token use, and unsupported decisions.
+
+## Guarantees and limits
+
+SpecSpine can preserve accepted architectural claims, repository observations,
+explicit uncertainty, navigable links, and stable handoff fields. Its optional
+checker can reproduce mechanical integrity findings.
+
+SpecSpine does not guarantee semantic completeness, correct decomposition,
+complete impact analysis, code conformance, implementation readiness, or a
+better downstream result. Those are review findings or evaluation outcomes,
+not framework invariants.
 
 ## Why SpecSpine?
 
@@ -143,10 +173,12 @@ handoff as `specspine-grow`.
 
 ### `specspine-doctor`
 
-Diagnoses mechanical and semantic health and, when requested, repairs findings
-without guessing architectural intent. It is independently installable and
-includes current format and semantics plus a deterministic checker for links,
-reachability, semantic IDs, and evidence baselines.
+Checks reproducible mechanical integrity and performs a separate advisory
+semantic review without guessing architectural intent. Mechanical findings can
+produce PASS/FAIL; semantic findings describe evidence-backed risks and never
+certify architecture validity or completeness. It is independently installable
+and includes a deterministic checker for links, reachability, semantic IDs, and
+evidence baselines.
 
 ### Package generator
 
@@ -628,7 +660,7 @@ SpecSpine is not:
 * a guarantee that documentation and code are synchronized;
 * a replacement for human architectural judgment.
 
-It is a lightweight architectural memory and navigation layer for humans and coding agents.
+It is an architectural context and memory layer for humans and coding agents.
 
 ## Relationship to other SDD tools
 
@@ -662,7 +694,9 @@ full SDD workflow would add unnecessary ceremony.
 
 SpecSpine is experimental.
 
-The current goal is to test whether a small agent skill can maintain a useful linked architecture across repeated project changes without introducing a formal schema or custom runtime.
+The current goal is to test whether linked architectural memory and minimal
+context handoffs improve downstream coding-agent outcomes across repeated
+project changes without introducing a formal schema or custom runtime.
 
 The most important success criterion is:
 

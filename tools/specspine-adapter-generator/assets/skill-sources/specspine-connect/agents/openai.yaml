@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Connect"
-  short_description: "Connect an existing SpecSpine to project workflows"
+  short_description: "Connect architectural context to project workflows"
   default_prompt: "Use $specspine-connect to connect this project's SpecSpine to the current agent and SDD workflow."

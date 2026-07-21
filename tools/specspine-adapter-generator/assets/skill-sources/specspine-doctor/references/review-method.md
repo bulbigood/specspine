@@ -3,17 +3,28 @@
 Use this method with the bundled semantic rules. Load the full format rules only
 when a finding or repair depends on them.
 
-## Severity
+## Mechanical severity
 
-- `error` — a preflight failure, direct contradiction, or mechanical defect
-  that prevents deterministic navigation or resolution of an explicitly used
-  interoperable address;
+- `error` — a reproducible preflight or mechanical defect that prevents
+  deterministic navigation or resolution of an explicitly used interoperable
+  address;
 - `warning` — provenance, readability, or structural defect that does not make
   navigation or address resolution unsafe;
 - `note` — maintainability risk, optional-format preference, out-of-scope
   reference, or incomplete diagnostic coverage.
 
-Confidence is separate from severity: `high`, `medium`, or `low`.
+Mechanical findings do not use confidence. The checker reproduces them from the
+same files and rules.
+
+## Advisory semantic impact
+
+- `critical` — a likely contradiction or ownership conflict that can misdirect
+  downstream work;
+- `warning` — a likely semantic, structural, or provenance risk;
+- `note` — a maintainability concern or review limitation.
+
+Every advisory finding uses confidence `high`, `medium`, or `low`. Impact and
+confidence never produce a semantic PASS/FAIL result.
 
 ## Mechanical pass
 
@@ -45,7 +56,11 @@ repair is not an accepted architecture decision: stop for user judgment when a
 repair would choose canonical ownership, change a decision or constraint,
 resolve a conflict or open question, or infer intent from repository evidence.
 
-## Semantic pass
+## Advisory semantic review
+
+This review is evidence-backed but necessarily incomplete. It does not prove
+architecture consistency, completeness, correct decomposition, complete impact
+analysis, or code conformance. Absence of findings is not semantic validation.
 
 Look for:
 
@@ -84,7 +99,8 @@ Check that the handoff:
 
 ## Report shape
 
-List mechanical findings compactly with their checker code, severity, location,
-and message. For semantic findings, add report-local labels, confidence,
-evidence, impact, and repair disposition when useful. Omit empty severity
-groups. End with checked and unchecked scope. Finding labels are ephemeral.
+Report `Mechanical integrity: PASS|FAIL` from checker errors only and list its
+findings compactly with code, severity, location, and message. Then report
+`Advisory semantic findings` with report-local labels, impact, confidence,
+evidence, and repair disposition when useful. End with checked scope, unchecked
+scope, and review limitations. Finding labels are ephemeral.

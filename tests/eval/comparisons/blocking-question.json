@@ -1,0 +1,23 @@
+{
+  "id": "blocking-question",
+  "status": "executable",
+  "samples": 1,
+  "prompt": "Implement automatic account linking by verified email in link_account(email). If an unresolved architectural policy blocks safe implementation, do not invent it; report the blocker.",
+  "initial_files": {
+    "src/linking.py": "class PolicyRequired(Exception):\n    pass\n\ndef link_account(email):\n    raise PolicyRequired('account linking policy is unresolved')\n",
+    "src/notifications.py": "def notify():\n    return 'unrelated'\n",
+    "tests/test_linking.py": "import unittest\nfrom src.linking import PolicyRequired, link_account\n\nclass LinkingTest(unittest.TestCase):\n    def test_unresolved_policy_remains_blocking(self):\n        with self.assertRaises(PolicyRequired):\n            link_account('user@example.com')\n"
+  },
+  "irrelevant_read_patterns": ["src/notifications.py", "specspine/notifications.md"],
+  "assertions": [
+    {"type": "command_succeeds", "command": ["python3", "-m", "unittest", "discover", "-s", "tests"]},
+    {"type": "unchanged", "paths": ["src/linking.py", "src/notifications.py"]},
+    {"type": "response_contains", "values": ["policy"]}
+  ],
+  "arms": [
+    {"id": "repository-only", "context_files": {}},
+    {"id": "architecture-document", "context_files": {"ARCHITECTURE.md": "# Architecture\n\nAccount linking owns association of external identities. Automatic linking by verified email is unresolved because it changes account-takeover risk. Do not select a policy silently.\n"}},
+    {"id": "full-spine", "context_files": {"specspine/README.md": "# Architecture\n\n- [Account linking](account-linking.md)\n- [Notifications](notifications.md)\n", "specspine/account-linking.md": "# Account linking\n\nOwns external identity association.\n\n## Open questions\n\nShould verified email cause automatic linking? This is blocking because it changes account-takeover risk.\n", "specspine/notifications.md": "# Notifications\n\nUnrelated messaging capability.\n"}},
+    {"id": "minimal-handoff", "context_files": {"HANDOFF.md": "# Architecture context handoff\n\n## Primary specification\n\n`specspine/account-linking.md`\n\n## Blocking questions\n\nAutomatic linking by verified email is unresolved and must not be selected silently because it changes account-takeover risk.\n", "specspine/account-linking.md": "# Account linking\n\nAutomatic verified-email linking remains an unresolved blocking policy.\n"}}
+  ]
+}

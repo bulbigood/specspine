@@ -7,9 +7,10 @@ description: Create and evolve intended architecture in a linked Markdown SpecSp
 
 Runtime contract: SpecSpine v1.
 
-Maintain a lightweight, long-lived network of linked architectural
+Maintain architectural memory as a long-lived network of linked
 specifications. The network is the persistent artifact; a context handoff is a
-temporary projection for downstream work.
+temporary projection for downstream work. SpecSpine supports SDD and coding
+agents but does not own their feature or implementation workflows.
 
 ## Resources
 

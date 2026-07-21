@@ -41,6 +41,28 @@ class RunnerTests(unittest.TestCase):
             )
             self.assertFalse(result.passed)
 
+    def test_command_succeeds_checks_downstream_behavior(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            passed = RUNNER.evaluate_assertion(
+                {"type": "command_succeeds", "command": [sys.executable, "-c", "raise SystemExit(0)"]},
+                workspace,
+                {},
+                {},
+                "",
+                None,
+            )
+            failed = RUNNER.evaluate_assertion(
+                {"type": "command_succeeds", "command": [sys.executable, "-c", "raise SystemExit(3)"]},
+                workspace,
+                {},
+                {},
+                "",
+                None,
+            )
+            self.assertTrue(passed.passed)
+            self.assertFalse(failed.passed)
+
     def test_semantic_id_assertion_uses_doctor_commonmark_rules(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)

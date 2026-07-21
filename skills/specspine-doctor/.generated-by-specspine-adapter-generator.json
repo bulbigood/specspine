@@ -1,12 +1,12 @@
 {
   "contract_version": 1,
   "files": {
-    "SKILL.md": "280eeb83d158b77cf530696db7952f63ee41614fd2eab12acdd593993cd3952b",
-    "agents/openai.yaml": "0d961d20ed13de06a8ba9951e48680abe87189fa6a956aad0bb457c6e18b816e",
+    "SKILL.md": "e0cc948dd2f2f7fd0faf2a39cb92100af1406e61d8dbd7ce060e73c36f72635b",
+    "agents/openai.yaml": "b1f3aba94d561b8b03f8895d8e3448a04c456f2d7287e89940ddd6f6403b4c51",
     "references/context-handoff.md": "dacb3bf9cf89c08c36af3e6adc6ccbaf2625d4a1c5de52ca56d2cc9615ec281f",
-    "references/review-method.md": "b8b428b79944d9bdfc422a26fb250e4ef12dd268f4a7bc837aa4fc16660d0f41",
+    "references/review-method.md": "936d0d0420bf825b43dcac37bacd6eab10b64d21eae83e28be43f23b08821c22",
     "references/spec-format.md": "5e5f1fdefc20a5403deadddc9d7d64c59fc075e80a4d2c565b3a86d2f47feb58",
-    "references/spec-semantics.md": "91f80ae2065123bcfd1048545ea350293b7000470b80c055bb5b07a9761341f2",
+    "references/spec-semantics.md": "aa4ea2afa2b9e6a21abc164bf9ed56360c1370233d4c5a76e2fb13ec5eec5851",
     "scripts/check_spine.py": "99412320d34ff6d589715ae541b605d3e46e6fb0abff48aa2ee433edc6b08240"
   },
   "generator": "specspine-adapter-generator",

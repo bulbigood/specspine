@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Map"
-  short_description: "Map a repository into linked architecture specs"
+  short_description: "Map a repository into architectural memory"
   default_prompt: "Use $specspine-map to survey this repository and build the smallest useful architectural map."

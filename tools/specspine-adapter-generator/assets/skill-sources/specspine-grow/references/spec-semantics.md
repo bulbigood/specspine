@@ -1,9 +1,11 @@
 # SpecSpine semantics
 
-SpecSpine maintains a long-lived network of architectural specifications. The
-network may contain intended architecture, repository observations, unconfirmed
-interpretations, and unresolved uncertainty without claiming exact conformance
-between specifications and code.
+SpecSpine is an architectural context and memory layer. It maintains a
+long-lived network of architectural specifications and projects task-scoped
+context handoffs for downstream work. The network may contain intended
+architecture, repository observations, unconfirmed interpretations, and
+unresolved uncertainty without claiming exact conformance between
+specifications and code.
 
 ## Contents
 

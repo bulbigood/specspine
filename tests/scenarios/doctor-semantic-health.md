@@ -1,4 +1,4 @@
-# Scenario: diagnose semantic architecture problems
+# Scenario: advisory review of semantic architecture risks
 
 ## Existing SpecSpine
 
@@ -10,7 +10,7 @@ Markdown links are mechanically valid.
 ## User request
 
 ```text
-Review the semantic health of this SpecSpine.
+Check mechanical integrity and perform an advisory semantic review of this SpecSpine.
 ```
 
 ## Expected behavior
@@ -18,11 +18,14 @@ Review the semantic health of this SpecSpine.
 The skill should:
 
 - use current bundled semantics and stopping rules;
-- distinguish confirmed defects from risks requiring architectural judgment;
+- distinguish reproducible mechanical findings from advisory risks requiring
+  architectural judgment;
 - identify competing ownership and the misclassified inference;
 - describe the broad specification as a decomposition candidate rather than
   automatically splitting it;
 - distinguish repairs Doctor can apply from choices requiring the user;
+- report mechanical PASS/FAIL independently from advisory findings;
+- avoid claiming semantic validity or completeness;
 - remain read-only.
 
 ## Failure indicators
@@ -31,3 +34,4 @@ The skill should:
 - specifications are edited;
 - every stylistic preference becomes an error;
 - repository conformance is claimed even though Doctor does not inspect the repository.
+- advisory findings change the mechanical PASS/FAIL result.

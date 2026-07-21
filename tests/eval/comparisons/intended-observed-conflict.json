@@ -1,0 +1,22 @@
+{
+  "id": "intended-observed-conflict",
+  "status": "executable",
+  "samples": 1,
+  "prompt": "Add GitHub login support to provider_login(provider, provider_token). Preserve the intended session architecture and make the tests pass.",
+  "initial_files": {
+    "src/login.py": "def provider_login(provider, provider_token):\n    if provider == 'google':\n        return provider_token\n    raise ValueError('unsupported provider')\n",
+    "src/reports.py": "def render_report():\n    return 'unrelated'\n",
+    "tests/test_login.py": "import unittest\nfrom src.login import provider_login\n\nclass LoginTest(unittest.TestCase):\n    def test_google_and_github_create_local_sessions(self):\n        for provider in ('google', 'github'):\n            result = provider_login(provider, 'provider-secret')\n            self.assertTrue(result.startswith('session:'))\n            self.assertNotIn('provider-secret', result)\n"
+  },
+  "irrelevant_read_patterns": ["src/reports.py", "specspine/reports.md"],
+  "assertions": [
+    {"type": "command_succeeds", "command": ["python3", "-m", "unittest", "discover", "-s", "tests"]},
+    {"type": "unchanged", "paths": ["src/reports.py"]}
+  ],
+  "arms": [
+    {"id": "repository-only", "context_files": {}},
+    {"id": "architecture-document", "context_files": {"ARCHITECTURE.md": "# Architecture\n\nAccepted intent: application sessions are provider-independent and provider credentials must never be returned as sessions. Observed legacy Google login currently returns the provider token and conflicts with this intent.\n"}},
+    {"id": "full-spine", "context_files": {"specspine/README.md": "# Architecture\n\n- [External identity](external-identity.md)\n- [Sessions](sessions.md)\n- [Reports](reports.md)\n", "specspine/external-identity.md": "# External identity\n\n## Observed\n\nLegacy Google login returns a provider token directly.\n", "specspine/sessions.md": "# Sessions\n\n## Decisions\n\nApplication sessions are provider-independent.\n\n## Constraints\n\nProvider credentials must not be used as application sessions.\n", "specspine/reports.md": "# Reports\n\nUnrelated reporting capability.\n"}},
+    {"id": "minimal-handoff", "context_files": {"HANDOFF.md": "# Architecture context handoff\n\n## Primary specification\n\n`specspine/external-identity.md`\n\n## Required specifications\n\n`specspine/sessions.md`\n\n## Architectural decisions and constraints\n\nApplication sessions remain provider-independent. Provider credentials must not be returned as sessions.\n\n## Relevant observations\n\nLegacy Google behavior conflicts with the accepted constraint.\n", "specspine/external-identity.md": "# External identity\n\nOwns provider login.\n", "specspine/sessions.md": "# Sessions\n\nProvider-independent local sessions are required.\n"}}
+  ]
+}

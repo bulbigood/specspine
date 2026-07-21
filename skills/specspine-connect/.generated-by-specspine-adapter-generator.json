@@ -1,8 +1,8 @@
 {
   "contract_version": 1,
   "files": {
-    "SKILL.md": "f77b955efff1dede4e7b66a72ae61456853da3f0cc89df51234d5b5e4c6ddb2e",
-    "agents/openai.yaml": "81c323135274fa400ee08ddcd83740afd713b3fcacf67744ad0a78bb0e69ec62",
+    "SKILL.md": "340d43c6ac0fdaa7105b100c5854b417f1eb18db66257e68235ef470060dd3a1",
+    "agents/openai.yaml": "30b0001180607ad9cba0003f617833d99fd48b08b2a858c2ced6cf73b0c2bad1",
     "assets/templates/agent-bootstrap.md": "3f910aef06646655241735fce44ae00412846d7f4140d07b7b3c5f0156f3baed",
     "assets/templates/project-binding.md": "c15b3033efbb5d2c5aeb69545662bf9eafba1c3e963326981a54529e378db6e1",
     "references/integration-contract.md": "c3effb8f08f3dfddd19990db903feb3bec197e8ab440d2ad3d397dcf033f1dc7"

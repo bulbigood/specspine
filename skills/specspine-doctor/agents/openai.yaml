@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Doctor"
-  short_description: "Diagnose SpecSpine integrity and architecture health"
-  default_prompt: "Use $specspine-doctor to diagnose mechanical and semantic problems in this project’s SpecSpine."
+  short_description: "Check integrity and review architectural risks"
+  default_prompt: "Use $specspine-doctor to check mechanical integrity and perform an advisory semantic review of this project’s SpecSpine."

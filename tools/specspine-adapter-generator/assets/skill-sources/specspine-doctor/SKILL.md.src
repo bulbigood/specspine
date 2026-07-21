@@ -1,6 +1,6 @@
 ---
 name: specspine-doctor
-description: Diagnose and, when requested, repair internal mechanical integrity and semantic health in an existing SpecSpine. Use for broken links, reachability, semantic IDs, evidence baselines, duplicate ownership, conflicting claims, poor decomposition, hidden uncertainty, implementation-detail leakage, or handoff quality. Use specspine-map for repository drift analysis. This skill is self-contained and never guesses architectural intent.
+description: Check reproducible mechanical integrity and perform advisory semantic review of an existing SpecSpine. Use for broken links, reachability, semantic IDs, evidence baselines, duplicate ownership risks, conflicting claims, poor decomposition, hidden uncertainty, implementation-detail leakage, or handoff quality. Use specspine-map for repository drift analysis. Doctor never proves semantic validity or guesses architectural intent.
 ---
 
 # SpecSpine Doctor
@@ -10,8 +10,8 @@ different contract version, report version skew before suggesting repairs.
 
 ## Resources
 
-- Read [references/spec-semantics.md](references/spec-semantics.md) before
-  semantic diagnosis.
+- Read [references/spec-semantics.md](references/spec-semantics.md) before an
+  advisory semantic review.
 - Read [references/spec-format.md](references/spec-format.md) only when a
   finding or repair depends on document organization, addressable-statement
   syntax, or stopping rules.
@@ -22,16 +22,16 @@ different contract version, report version skew before suggesting repairs.
 - Read [references/review-method.md](references/review-method.md) before the
   semantic review or when classifying severity.
 
-The script is an implementation aid, not the semantic authority. If its result
-conflicts with the bundled rules, report the mismatch as a Doctor defect and
-follow the references.
+The script owns only reproducible mechanical findings. The semantic references
+guide an advisory, necessarily incomplete review; they do not define a solver
+or validation algorithm.
 
 ## Scope
 
 Use one evidence mode:
 
-- `spine-only` — default; inspect the full specification graph for internal
-  integrity and semantic health;
+- `spine-only` — default; inspect the full specification graph for mechanical
+  integrity and advisory architectural risks;
 - `handoff` — review a supplied architecture context handoff against its source
   specifications.
 
@@ -59,16 +59,17 @@ Run the bundled checker. Independently verify any finding that may cause a
 structural recommendation. Do not call a warning an error merely because a
 project uses an optional section differently.
 
-### 4. Review semantic health
+### 4. Perform advisory semantic review
 
 Read `<spine-root>/README.md`, then traverse the complete reachable graph for a
 whole-spine review. For a user-selected area, follow its direct neighborhood
 and expand only when ownership or conflicts cross that boundary.
 
-Apply `references/review-method.md`. Distinguish confirmed defects,
-architecture risks, and questions requiring human judgment. Never convert
-absence of information into a defect unless the bundled stopping rules require
-that information.
+Apply `references/review-method.md`. Report evidence-backed architectural risks
+with confidence, not semantic pass/fail results. Never claim that the review is
+complete or that absence of a finding establishes validity. Never convert
+absence of information into a finding unless the bundled stopping rules make
+it relevant to the document's stated purpose.
 
 ### 5. Repair when requested
 
@@ -84,18 +85,20 @@ anything left open.
 
 ### 6. Report
 
-Report mechanical findings compactly using the checker code, severity, path,
-line, and message. Do not expand advisory findings unless they affect the
-requested repair.
+Report two independent channels. Start with `Mechanical integrity: PASS` or
+`Mechanical integrity: FAIL`, then list checker findings using code, severity,
+path, line, and message. Mechanical status must depend only on reproducible
+checker errors.
 
-Give semantic findings stable report-local labels such as `DOC-001`. Include
-confidence, affected paths and IDs, evidence or reasoning, impact, and repair
-disposition only when those fields add information beyond the mechanical
-result. Never write report labels into SpecSpine documents.
+Under `Advisory semantic findings`, give review findings stable report-local
+labels such as `DOC-001`. Include confidence, affected paths and IDs, evidence
+or reasoning, impact, and repair disposition when useful. Advisory findings do
+not change mechanical PASS/FAIL. Never write report labels into SpecSpine
+documents.
 
-End with checked scope, unchecked scope, and a concise health summary. If no
-defects are found, say only that no defects were found within the inspected
-scope; do not certify conformance or completeness.
+End with checked scope, unchecked scope, mechanical status, and review
+limitations. If no findings remain, say only that none were found within the
+inspected scope; do not certify semantic validity, conformance, or completeness.
 
 ## Restrictions
 
@@ -107,5 +110,6 @@ Never:
 - infer accepted intent from code or repetition;
 - silently resolve ownership conflicts, accepted intent, or open questions;
 - treat stylistic preference as a correctness error;
-- claim formal validation, complete coverage, or code/spec conformance;
+- claim semantic validity, formal validation, complete review coverage, or
+  code/spec conformance;
 - require `specspine-connect`, which is unrelated to specification semantics.

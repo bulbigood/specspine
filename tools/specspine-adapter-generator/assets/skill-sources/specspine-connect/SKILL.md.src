@@ -9,6 +9,8 @@ Runtime contract: SpecSpine v1.
 
 Install one small always-visible discovery block and, only when an SDD workflow
 exists, one lazily read project binding. Generate no project-local skill.
+SpecSpine remains an architectural context and memory layer; the connected
+workflow continues to own feature and implementation work.
 
 ## Resources
 

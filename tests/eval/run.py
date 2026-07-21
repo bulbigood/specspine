@@ -348,6 +348,22 @@ def evaluate_assertion(
     if kind == "max_changed_files":
         maximum = assertion["max"]
         return CheckResult(len(changed) <= maximum, f"changed files: {len(changed)}, maximum: {maximum}")
+    if kind == "command_succeeds":
+        command = assertion["command"]
+        completed = subprocess.run(
+            command,
+            cwd=workspace,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=assertion.get("timeout_seconds", 60),
+            check=False,
+        )
+        output = completed.stdout.strip()
+        message = f"command exit {completed.returncode}: {' '.join(command)}"
+        if output and completed.returncode:
+            message += f"\n{output}"
+        return CheckResult(completed.returncode == 0, message)
     if kind in {"read_only", "read_includes", "max_files_read"}:
         if trace is None or not isinstance(trace.get("files_read"), list):
             return CheckResult(False, "agent did not produce .eval/trace.json with files_read")

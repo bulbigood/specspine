@@ -3,11 +3,17 @@
 The harness runs an agent in a fresh temporary workspace and checks the result
 with deterministic assertions. It has no third-party dependencies.
 
+These skill and format regressions are distinct from the SpecSpine product
+hypothesis. [HYPOTHESIS.md](HYPOTHESIS.md) defines the comparative downstream
+evaluation contract; `compare.py` runs its repository-only, conventional
+architecture document, full-Spine, and minimal-handoff arms.
+
 ## Commands
 
 ```bash
 python3 tests/eval/run.py --list
 python3 tests/eval/run.py --validate --audit
+python3 tests/eval/compare.py --validate --list
 python3 -m unittest discover -s tests/eval -p 'test_*.py'
 SPECSPINE_RUN_NPX=1 python3 -m unittest discover -s tests/eval -p 'test_npx_install.py' -v
 ```
@@ -114,9 +120,29 @@ quality, minimality of context, and whether an inference is reasonable still
 need a model judge or human rubric. The audit makes that missing coverage
 visible rather than treating prose scenarios as passing tests.
 
+## Comparative downstream benchmarks
+
+Run all four isolated arms for a named comparison with the same coding agent:
+
+```bash
+python3 tests/eval/compare.py \
+  --comparison cross-cutting-change \
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py" \
+  --samples 5 \
+  --model-label gpt-5.6-terra \
+  --reasoning-label medium \
+  --json-output comparison-results.json
+```
+
+Each arm receives the same frozen repository and user request but a different
+architectural context. Outcome assertion failures are recorded as benchmark
+data and do not make the harness itself fail. Agent execution failures return a
+non-zero status. Use repeated samples before drawing product conclusions.
+
 Supported assertions:
 
 - `path_exists`, `path_absent`, `glob_count`, `glob_contains`;
+- `command_succeeds` for build, test, and observable-behavior checks;
 - `file_contains`, `file_not_contains`, `response_contains`, `response_not_contains`;
 - `unchanged`, `changed_only`, `max_changed_files`;
 - `read_only`, `read_includes`, `max_files_read` when an adapter emits a trace;

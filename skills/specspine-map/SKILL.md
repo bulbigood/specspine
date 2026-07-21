@@ -7,9 +7,10 @@ description: Map observed brownfield repository architecture into a linked Markd
 
 Runtime contract: SpecSpine v1.
 
-Map an existing repository into a lightweight, long-lived network of linked
-architectural specifications. The network is the persistent artifact; a context
-handoff is a temporary projection for downstream work.
+Map an existing repository into architectural memory: a long-lived network of
+linked specifications. The network is the persistent artifact; a context
+handoff is a temporary projection for downstream work. SpecSpine supports SDD
+and coding agents but does not own their feature or implementation workflows.
 
 Map breadth before depth. Build the smallest useful architectural model rather
 than exhaustive code documentation.

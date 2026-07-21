@@ -1,14 +1,14 @@
 {
   "contract_version": 1,
   "files": {
-    "SKILL.md": "8a30d7991cba574d50698a9b9f4d4714804d7b6a94ea8b368105302f18c8baa1",
-    "agents/openai.yaml": "1733b164428bd5629157c8ef3eca8964f580e28d244c9343399ffe89f7a682d8",
+    "SKILL.md": "1bfa29b6f88196969ded3b09a3d1ad31e434f9db50aca8c024e9baf3f57c1666",
+    "agents/openai.yaml": "28197b171d22169b37e6ba75160316b4fad4662dca263c866bb4acdd7bdd5ace",
     "assets/templates/architecture-index.md": "8c4f2c6ce007989295a8e69bb0396f6ec1bae8480f01a9e665a0dfd5ccf994ff",
     "assets/templates/specification.md": "fcf362f82cd5b8e0200950eb6a8d5d6c45cd3b3e04550afa01e9fd10acf58b86",
     "references/context-handoff.md": "dacb3bf9cf89c08c36af3e6adc6ccbaf2625d4a1c5de52ca56d2cc9615ec281f",
     "references/examples.md": "8803e840ae4c4be4a3c1d45839dd2d5e21a4dd083ba57f2d5d5db7d0df85302a",
     "references/spec-format.md": "5e5f1fdefc20a5403deadddc9d7d64c59fc075e80a4d2c565b3a86d2f47feb58",
-    "references/spec-semantics.md": "91f80ae2065123bcfd1048545ea350293b7000470b80c055bb5b07a9761341f2"
+    "references/spec-semantics.md": "aa4ea2afa2b9e6a21abc164bf9ed56360c1370233d4c5a76e2fb13ec5eec5851"
   },
   "generator": "specspine-adapter-generator",
   "source": "assets/skill-sources/specspine-grow"

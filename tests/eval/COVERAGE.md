@@ -99,3 +99,10 @@ model-judge layer should score:
 Judge output should be advisory and stored separately from deterministic
 pass/fail assertions. Model name, version, prompt, sample count, duration, and
 token usage should be recorded for reproducibility.
+
+Comparative downstream coverage now begins under `comparisons/` with local,
+cross-cutting, intended-versus-observed conflict, and blocking-question tasks.
+These benchmarks exercise coding outcomes rather than runtime-skill behavior.
+Their initial one-sample setting validates the harness only; product claims
+require repeated samples and blind architectural review under
+`HYPOTHESIS.md`.
