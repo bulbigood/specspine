@@ -28,7 +28,8 @@ The skill should:
 - generate a compact binding that carries minimal relevant SpecSpine context
   into the native SDD stage without generating another skill;
 - keep canonical SpecSpine filenames and format unchanged;
-- preserve exact claims through ordinary paths and semantic IDs when present;
+- preserve exact claims through repository-root-relative paths and semantic IDs
+  when present;
 - leave installed third-party skills untouched.
 
 ## Failure indicators

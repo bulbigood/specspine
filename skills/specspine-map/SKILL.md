@@ -98,10 +98,17 @@ and one directory may contain several concepts.
 Classify every architectural claim according to
 `references/spec-semantics.md`.
 
-### 5. Propose structural impact
+### 5. Apply authority-aware approval
 
-Before creating, renaming, deleting, splitting, merging, or changing several
-specifications, show:
+Treat an explicit mapping, refresh, or restructuring request as approval; do
+not ask twice. Apply observations, inferences, evidence baselines, navigation,
+and clearly meaning-preserving structure directly. Never treat repository
+evidence as approval of normative intent.
+
+Stop and request a decision only when the change would alter accepted intent,
+resolve a conflict or blocking question, choose among plausible canonical
+owners, or introduce an agent-initiated structure whose meaning is unclear.
+When approval is still required, show:
 
 ```text
 Mapping proposal
@@ -122,9 +129,8 @@ Unresolved:
 - conflicts or questions, or none
 ```
 
-Wait for approval unless the user explicitly requested immediate application.
-For a clear initial mapping request, a small non-destructive survey may be
-applied directly.
+For an explicitly requested or otherwise safe change, apply it and include the
+same mapping information in the final report instead of pausing.
 
 ### 6. Apply the map
 

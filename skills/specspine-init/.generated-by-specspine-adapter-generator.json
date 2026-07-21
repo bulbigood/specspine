@@ -4,7 +4,7 @@
     "agents/openai.yaml": "bb82d18e659f96c584d50cba492a5cbf576a599e82c2660495b2800d9d81fcf0",
     "assets/templates/agent-bootstrap.md": "b68e5713b4b7187ede4ed7a10eb04740e906065050b0df6156b77b352d8072c6",
     "assets/templates/project-binding.md": "80d5270441cac3c16cec45634345dac2ef3c8f0940b54b846afc7fbedb6de244",
-    "references/integration-contract.md": "4562b4bbf681c5c3ae4308144c6d113288e5f9adc3268ca08316ca98937606b2"
+    "references/integration-contract.md": "011cc5807973df1d58b4629d597dbd396311bc707953d948d77fc52c49ca3555"
   },
   "generator": "specspine-adapter-generator",
   "source": "assets/skill-sources/specspine-init"

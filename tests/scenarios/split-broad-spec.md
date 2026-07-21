@@ -13,7 +13,9 @@ The authentication specification is becoming hard to navigate. Restructure it.
 
 ## Expected behavior
 
-The skill should propose a focused decomposition such as:
+Because the user explicitly requested restructuring, the skill should apply a
+focused, meaning-preserving decomposition without asking for the same approval
+again, such as:
 
 ```text
 authentication.md
@@ -23,15 +25,15 @@ session-management.md
 account-linking.md
 ```
 
-The proposal should explain:
+The final report should explain:
 
 - the independent responsibility of each extracted concept;
 - which content will move;
 - which links will change;
 - why `authentication.md` remains useful as an overview.
 
-After approval, the skill should remove duplicated definitions and maintain
-relative Markdown links.
+The skill should remove duplicated definitions and maintain relative Markdown
+links. It should stop only if canonical ownership or meaning is ambiguous.
 
 ## Failure indicators
 
@@ -39,3 +41,5 @@ relative Markdown links.
 - `authentication.md` is deleted even though it remains a useful entry point;
 - the same rule remains canonical in several files;
 - unrelated architecture areas are restructured.
+- the skill asks for redundant approval despite the explicit restructuring
+  request and no unresolved authority choice.

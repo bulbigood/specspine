@@ -1,13 +1,13 @@
 {
   "files": {
-    "SKILL.md": "4f0aafdcfd357371e4f42663a579af8f533ed51a4cb7485e19875ca109e259fa",
+    "SKILL.md": "7305573e293625f79997d8c46d978915c47c1fc95f2f288c3abc9d35a63b58ef",
     "agents/openai.yaml": "1733b164428bd5629157c8ef3eca8964f580e28d244c9343399ffe89f7a682d8",
     "assets/templates/architecture-index.md": "42dac97e05785db1adc96d2c291f5551ec27fe98fa13771aec011dd834542d05",
     "assets/templates/specification.md": "f173f80d2b3353ae60d51c821048b2e2d60ed6553ac6993182a61a6d2529024c",
-    "references/context-handoff.md": "1a654b1ad1d841956d1c526e4862dfd2465dbe15096d10d6ff94b5c3957b1932",
-    "references/examples.md": "a8bb2abafdda87e979d258e60f57d20df7260979181b5b5c4507b0c4245f7e33",
-    "references/spec-format.md": "a612ab20c18197946ef0e62ffe1ca8cbf950224e0bfa42b8d1fa5ff0131a91b3",
-    "references/spec-semantics.md": "6f36d94ae6705f0f92a849e4b249de63df76c6cfe1c68b739e023e3038771dda"
+    "references/context-handoff.md": "dacb3bf9cf89c08c36af3e6adc6ccbaf2625d4a1c5de52ca56d2cc9615ec281f",
+    "references/examples.md": "9ceff700d45030ab81c545fa1c82e1c1eada33ab3128988027311c98184b8c99",
+    "references/spec-format.md": "1f8394893d80eaa00cdc651a96f6cd6167aaa193f63b8a8c00e14a60baa9f5a7",
+    "references/spec-semantics.md": "91f80ae2065123bcfd1048545ea350293b7000470b80c055bb5b07a9761341f2"
   },
   "generator": "specspine-adapter-generator",
   "source": "assets/skill-sources/specspine-grow"

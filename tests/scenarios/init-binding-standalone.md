@@ -30,7 +30,8 @@ instructions, and SpecSpine, a fresh agent should:
 - use work-item and artifact conventions only when present;
 - place architectural context at the configured insertion point using the
   configured format source;
-- preserve path-plus-semantic-ID traceability when available;
+- preserve repository-root-relative path-plus-semantic-ID traceability when
+  available;
 - route conflicts to the configured destination when one was discovered,
   otherwise block and report them explicitly;
 - avoid requiring `specspine-init`, a generated skill, or conversation history.

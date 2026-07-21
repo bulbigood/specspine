@@ -31,6 +31,11 @@ change yet.
 
 Accepted architectural intent that downstream work must preserve.
 
+## Decision sources
+
+External ADR or approval references relevant to the transferred decisions.
+Omit when none were supplied; SpecSpine does not own their lifecycle.
+
 ## Relevant observations
 
 Current repository facts that affect downstream execution.
@@ -53,12 +58,18 @@ Include only sections containing useful information. Preserve the distinction
 between required and potentially affected specifications. Do not mark every
 related specification as potentially affected.
 
+Write every specification address as a repository-root-relative path including
+the resolved spine root. Do not use absolute filesystem paths, a leading `/`,
+or a path relative to the handoff location. These addresses remain stable when
+the handoff is inserted into another directory. Links inside SpecSpine itself
+remain ordinary relative Markdown links.
+
 When a source specification already gives a relevant statement a semantic ID,
-reference the specification and that ID. Do not invent new source IDs inside a
-handoff.
+name the ID and repository-root-relative specification path. Do not invent new
+source IDs inside a handoff.
 
 ```markdown
-- Preserve [CON-retry-limit](job-processing.md).
+- Preserve `CON-retry-limit` from `specspine/job-processing.md`.
 ```
 
 Do not include:

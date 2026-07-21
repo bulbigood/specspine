@@ -37,10 +37,11 @@ temporary projection containing the smallest useful architectural context for a
 particular downstream task. Its Markdown format is SpecSpine's stable
 interoperability contract, not a programmatic API or tool-specific adapter.
 
-SpecSpine does not guarantee that specifications conform exactly to the code.
-It may explicitly preserve disagreements between intended architecture and
-observed repository evidence until the user or a downstream workflow resolves
-them.
+SpecSpine consumes accepted architectural intent but does not own its approval
+process; an external ADR or SDD workflow may own approval and provenance.
+SpecSpine does not guarantee code conformance. It preserves disagreements
+until the user decides or an explicitly authorized workflow records the
+resolution.
 
 ## Why SpecSpine?
 
@@ -322,16 +323,16 @@ Change intent:
 - add external authentication without changing application-session semantics
 
 Primary specification:
-- external-identity.md
+- specspine/external-identity.md
 
 Required specifications:
-- authentication.md
-- account-linking.md
-- session-management.md
+- specspine/authentication.md
+- specspine/account-linking.md
+- specspine/session-management.md
 
 Potentially affected specifications:
-- users.md
-- configuration.md
+- specspine/users.md
+- specspine/configuration.md
 
 Architectural decisions and constraints:
 - application sessions remain provider-independent;

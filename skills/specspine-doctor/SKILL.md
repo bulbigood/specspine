@@ -12,12 +12,11 @@ intent. Separate mechanical facts, semantic findings, and unconfirmed drift.
 
 - Read [references/spec-semantics.md](references/spec-semantics.md) and
   [references/spec-format.md](references/spec-format.md) before semantic
-  diagnosis. These build-generated copies are the current rules.
+  diagnosis.
 - Read [references/context-handoff.md](references/context-handoff.md) only when
   reviewing a handoff.
-- Run `scripts/check_spine.py <spine-root>` for deterministic checks. It emits
-  human-readable findings and exits nonzero when errors exist. Use `--json`
-  when structured results help.
+- Run `scripts/check_spine.py <spine-root>` for deterministic checks; use
+  `--json` when structured results help.
 - Read [references/review-method.md](references/review-method.md) before the
   semantic review or when classifying severity.
 
@@ -84,10 +83,12 @@ conformance.
 Fix unambiguous mechanical defects directly, including balanced metadata
 markers and uniquely resolvable links. Make broader structural or semantic
 repairs only when meaning and canonical ownership are already clear. Ask for a
-user decision before changing accepted intent, resolving a conflict or blocking
-question, choosing among plausible owners, or deriving intent from repository
-evidence. Modify only files under `<spine-root>`, preserve unrelated content,
-then rerun mechanical and affected semantic checks. Report anything left open.
+user decision before changing accepted intent not explicitly decided in the
+current request, resolving a conflict or blocking question, choosing among
+plausible owners, or deriving intent from repository evidence. Do not ask twice
+when the current request already gives the decision. Modify only files under
+`<spine-root>`, preserve unrelated content, then rerun affected checks. Report
+anything left open.
 
 ### 7. Report
 

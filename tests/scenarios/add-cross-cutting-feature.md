@@ -38,4 +38,5 @@ rules or several consumers.
 - every discovered related specification is modified;
 - token-validation details are split into several tiny files;
 - account linking is silently decided;
-- the skill proceeds with a structural change without approval.
+- the skill resolves ambiguous ownership or account-linking policy without a
+  user decision.

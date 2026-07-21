@@ -284,6 +284,10 @@ This binds the path and ID in one Markdown AST node. A checker can recognize a
 reference by the ID-shaped link label and resolve it without interpreting
 adjacent prose. Keep human context outside the link when useful.
 
+This relative-link form is for documents inside SpecSpine. Portable context
+handoffs use repository-root-relative path fields as defined by the handoff
+contract.
+
 Definitions use bold IDs; references use linked IDs. Do not define addressable
 statements in tables or diagrams. Do not invent a URL fragment such as
 `job-processing.md#CON-retry-limit`; the ID does not create a Markdown anchor.

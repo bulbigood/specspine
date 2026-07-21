@@ -114,10 +114,22 @@ Create or extract a specification only for an independent responsibility,
 boundary, behavior, decision set, or independently evolving concept. Do not
 create one file per feature or split by length alone.
 
-### 5. Propose structural impact
+### 5. Apply authority-aware approval
 
-Before creating, renaming, deleting, splitting, merging, or changing several
-specifications, show:
+Treat an explicit operation or architectural decision in the current user
+request as approval; do not ask for the same approval twice. Apply mechanical,
+navigation, evidence-only, and clearly meaning-preserving changes directly.
+
+Stop and request a decision only when the change would:
+
+- create, change, or remove normative intent not explicitly decided by the
+  user;
+- resolve a conflict or blocking question;
+- choose canonical ownership among plausible alternatives; or
+- perform an agent-initiated restructuring whose meaning or ownership is not
+  already clear.
+
+When approval is still required, show:
 
 ```text
 Affected specifications
@@ -141,9 +153,8 @@ Open decisions:
 - unresolved choices, or none
 ```
 
-Wait for approval unless the user explicitly requested immediate application.
-A clear, local refinement of one existing specification may be applied
-directly.
+For an explicitly requested or otherwise safe change, apply it and include the
+same impact information in the final report instead of pausing.
 
 ### 6. Apply the change
 

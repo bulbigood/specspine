@@ -58,7 +58,7 @@ user or applicable project instructions choose another path. Record:
 | Artifact paths | Framework-native destination pattern; optional |
 | Work-item naming | Native identifier rule; optional |
 | Format source | Existing template, schema, or instruction; optional |
-| Traceability | Specification path and semantic ID rule; optional |
+| Traceability | Repository-root-relative specification path and semantic ID rule; optional |
 | Conflict destination | Artifact section or blocking response; optional |
 
 Use native terminology and evidence-backed values. Omit unknown optional fields
@@ -82,7 +82,8 @@ For downstream work:
 3. preserve accepted decisions, constraints, conflicts, and blocking questions;
 4. enter the bound native stage and place minimal context at the configured
    insertion point;
-5. use existing path-plus-semantic-ID traceability when available.
+5. use repository-root-relative specification paths plus existing semantic IDs
+   when available.
 
 Do not edit SpecSpine unless the user explicitly requests maintenance through
 an appropriate workflow.

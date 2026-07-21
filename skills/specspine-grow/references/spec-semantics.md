@@ -14,6 +14,12 @@ between specifications and code.
 
 ## Statement kinds
 
+SpecSpine consumes accepted architectural intent but does not implement its
+approval process. An explicit user decision or an already accepted Spine claim
+may establish intent; an external ADR or SDD workflow may own approval and
+carry its provenance. Putting text under `Decisions` or `Constraints` records
+that acceptance but must not be used by an agent to manufacture it.
+
 ### Decision
 
 An accepted architectural choice. A decision describes intended architecture

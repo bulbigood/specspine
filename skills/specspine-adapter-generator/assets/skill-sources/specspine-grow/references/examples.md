@@ -204,16 +204,16 @@ Change intent:
 - add external authentication without changing application-session semantics
 
 Primary specification:
-- external-identity.md
+- specspine/external-identity.md
 
 Required specifications:
-- authentication.md
-- account-linking.md
-- session-management.md
+- specspine/authentication.md
+- specspine/account-linking.md
+- specspine/session-management.md
 
 Potentially affected specifications:
-- users.md
-- configuration.md
+- specspine/users.md
+- specspine/configuration.md
 
 Architectural decisions and constraints:
 - application sessions are provider-independent;

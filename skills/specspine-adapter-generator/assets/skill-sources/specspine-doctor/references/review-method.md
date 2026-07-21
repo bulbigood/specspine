@@ -73,8 +73,11 @@ not completeness.
 Check that the handoff:
 
 - names one canonical primary owner when one exists;
+- uses repository-root-relative specification addresses that include the
+  resolved spine root;
 - separates required, potentially affected, and merely related context;
 - preserves claim kinds and existing semantic IDs;
+- treats external decision sources as provenance rather than new authority;
 - includes blocking questions without answering them;
 - excludes acceptance criteria, plans, tasks, estimates, and implementation
   status;
