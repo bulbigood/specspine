@@ -1,11 +1,12 @@
 {
+  "contract_version": 1,
   "files": {
-    "SKILL.md": "865f8830b7883ebd77e6381c2743f718fcd1578cbe47c144d373b1fba5603d51",
+    "SKILL.md": "5cf4aefd419657d5e497d956cfe510c89040d71a3212e6cebc0ce022a403f782",
     "agents/openai.yaml": "a4902b35e8bd90ce5b93f0fa005a54d0f8c3465cd45aadc82082a43bbec02530",
-    "assets/templates/architecture-index.md": "bb00f834d805b386a34fae18920f207c2d26b2a695b2b6c6a1206254a0c8bbb5",
-    "assets/templates/specification.md": "f173f80d2b3353ae60d51c821048b2e2d60ed6553ac6993182a61a6d2529024c",
+    "assets/templates/architecture-index.md": "f4739cf1d91d2da03cd9b47437f6ab2efd40ca9055de2be2961b41bb00b71ea2",
+    "assets/templates/specification.md": "fcf362f82cd5b8e0200950eb6a8d5d6c45cd3b3e04550afa01e9fd10acf58b86",
     "references/context-handoff.md": "dacb3bf9cf89c08c36af3e6adc6ccbaf2625d4a1c5de52ca56d2cc9615ec281f",
-    "references/examples.md": "30ff9b5b7ac062c6d30af072d3bd2aa631a7144bf4f9746254c022f861008882",
+    "references/examples.md": "e20013439a464a6248d64128d167f3de72f6c8d64ebc45962297e463ff280d8f",
     "references/mapping-method.md": "f9cf019fc58e042ba692d6e9b131c506a7ffb6dc252597876347b0bb5d10ee0d",
     "references/spec-format.md": "1f8394893d80eaa00cdc651a96f6cd6167aaa193f63b8a8c00e14a60baa9f5a7",
     "references/spec-semantics.md": "91f80ae2065123bcfd1048545ea350293b7000470b80c055bb5b07a9761341f2"

@@ -18,57 +18,10 @@ behavior.
 
 ## Relationships
 
-### Part of
+Add only useful links. Omit this section when the concept has no meaningful
+neighbors yet.
 
-- [Broader concept](broader-concept.md)
-
-### Contains
-
-- [More detailed concept](detailed-concept.md)
-
-### Depends on
-
-- [Dependency](dependency.md)
-
-### Used by
-
-- [Consumer](consumer.md)
-
-### Related
-
-- [Related concept](related-concept.md)
-
-<!-- Include this region only when the specification defines semantic IDs. -->
-<!-- specspine:semantic-ids:begin -->
-
-## Decisions
-
-- Record accepted architectural or behavioral decisions here. Add a stable
-  semantic ID only when the statement is referenced elsewhere. Definitions use
-  `**DEC-kebab-name** — statement`.
-
-## Constraints
-
-- Record accepted restrictions that downstream architecture or implementation
-  must preserve. Add a stable semantic ID only when needed for reference;
-  definitions use `**CON-kebab-name** — statement`.
-
-## Observed
-
-- Add `<!-- specspine:evidence-baseline source=...; inspected=YYYY-MM-DD -->`
-  before repository-backed observations and refresh it when evidence is
-  rechecked.
-- When relevant, record current repository facts without presenting them as
-  intended architecture. Add representative `Evidence:` paths when a claim
-  needs traceability.
-
-## Inferred
-
-- When relevant, record unconfirmed interpretations without presenting them as
-  decisions.
-
-## Open questions
-
-- Record unresolved questions here.
-
-<!-- specspine:semantic-ids:end -->
+Add `Decisions`, `Constraints`, `Observed`, `Inferred`, or `Open questions` only
+when they contain real claims. Add a semantic-ID marker region only when a claim
+actually needs an ID; follow `references/spec-format.md` rather than copying
+placeholder sections.

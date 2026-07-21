@@ -12,7 +12,7 @@ classified.
 | `specspine-map` | 5 | 2 |
 | `specspine-init` | 3 | 1 |
 | `specspine-doctor` | 2 | 2 |
-| `specspine-adapter-generator` | 1 | 1 |
+| package generator tooling | 1 | 1 |
 | Total | 16 | 7 |
 
 `traceable-visual-spec` is assigned to `specspine-map` because its expected
@@ -32,8 +32,8 @@ as a rubric, but they are not counted as automated tests.
 
 ## Missing fixtures for documented scenarios
 
-- approval-gated cross-cutting impact proposal;
-- approval-gated split of an existing specification;
+- cross-cutting impact without redundant approval;
+- explicitly requested split without redundant approval;
 - refinement of an existing specification without invented technology;
 - strict source-of-truth read boundary and context handoff;
 - initial brownfield survey breadth versus depth;

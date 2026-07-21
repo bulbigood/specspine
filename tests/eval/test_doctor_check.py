@@ -26,7 +26,7 @@ class DoctorCheckerTests(unittest.TestCase):
     def test_checker_id_grammar_matches_canonical_format(self):
         format_path = (
             Path(__file__).parents[2]
-            / "skills"
+            / "tools"
             / "specspine-adapter-generator"
             / "assets"
             / "skill-sources"
@@ -82,6 +82,24 @@ class DoctorCheckerTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual([], CHECKER.check(root))
+
+    def test_ignores_links_in_inline_code(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "README.md").write_text(
+                "# Architecture\n\nUse `[label](not-a-link.md)` as an example.\n",
+                encoding="utf-8",
+            )
+            self.assertEqual([], CHECKER.check(root))
+
+    def test_reports_unresolved_template_guidance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "README.md").write_text(
+                "# Architecture\n\nSummarize the concept in one or two sentences.\n",
+                encoding="utf-8",
+            )
+            self.assertIn("TEMPLATE_TEXT", {finding.code for finding in CHECKER.check(root)})
 
     def test_accepts_kebab_case_directories_and_checks_baseline(self):
         with tempfile.TemporaryDirectory() as directory:

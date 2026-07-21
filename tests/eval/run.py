@@ -61,8 +61,9 @@ def validate_case(case: dict[str, Any]) -> list[str]:
     skill = ROOT / case["skill"]
     if not scenario.is_file():
         errors.append(f"scenario does not exist: {case['scenario']}")
-    if not (skill / "SKILL.md").is_file():
-        errors.append(f"skill does not exist: {case['skill']}")
+    entrypoint = case.get("entrypoint", "SKILL.md")
+    if not (skill / entrypoint).is_file():
+        errors.append(f"evaluation entrypoint does not exist: {case['skill']}/{entrypoint}")
     if case["status"] == "executable" and not case["assertions"]:
         errors.append("executable case has no assertions")
     for companion in case.get("companion_skills", []):
@@ -261,7 +262,7 @@ def build_prompt(case: dict[str, Any]) -> str:
     scenario = (ROOT / case["scenario"]).read_text(encoding="utf-8")
     return (
         "You are running a repeatable SpecSpine evaluation.\n"
-        "Read .eval/skill/SKILL.md and all references it requires.\n"
+        f"Read .eval/skill/{case.get('entrypoint', 'SKILL.md')} and all references it requires.\n"
         "Installed companion skills, when configured, are under .eval/companions/.\n"
         "Treat the current directory as the project root.\n"
         "Perform the user request described by the scenario.\n\n"

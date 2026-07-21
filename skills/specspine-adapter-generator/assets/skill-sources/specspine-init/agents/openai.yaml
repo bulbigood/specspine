@@ -1,4 +1,0 @@
-interface:
-  display_name: "SpecSpine Init"
-  short_description: "Adapt SpecSpine to a project agent and SDD workflow"
-  default_prompt: "Use $specspine-init to connect this project's SpecSpine to the current agent and SDD workflow."

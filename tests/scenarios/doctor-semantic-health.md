@@ -30,4 +30,4 @@ The skill should:
 - the skill silently chooses a canonical owner;
 - specifications are edited;
 - every stylistic preference becomes an error;
-- repository conformance is claimed without repository-aware authorization.
+- repository conformance is claimed even though Doctor does not inspect the repository.

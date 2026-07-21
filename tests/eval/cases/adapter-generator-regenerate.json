@@ -1,7 +1,8 @@
 {
   "id": "adapter-generator-regenerate",
   "scenario": "tests/scenarios/adapter-generator-regenerate.md",
-  "skill": "skills/specspine-adapter-generator",
+  "skill": "tools/specspine-adapter-generator",
+  "entrypoint": "MAINTAINER.md",
   "status": "executable",
   "initial_files": {},
   "assertions": [

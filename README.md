@@ -103,9 +103,10 @@ Software architecture is rarely a strict tree. A concept such as authentication 
 
 ## Skills
 
-### `specspine-init`
+### `specspine-init` (Connect)
 
-Connects an existing SpecSpine to the current project's persistent agent
+Despite the compatibility-preserved package name, this does not create a
+SpecSpine. It connects an existing SpecSpine to the project's persistent agent
 instructions and optional SDD workflow. It adds a short discovery block and,
 only for SDD projects, a compact lazily read binding. It never generates another
 skill or maintains framework-version adapters.
@@ -147,11 +148,11 @@ without guessing architectural intent. It is independently installable and
 includes current format and semantics plus a deterministic checker for links,
 reachability, semantic IDs, and evidence baselines.
 
-### `specspine-adapter-generator`
+### Package generator
 
-Maintainer-only build skill that generates the four publishable runtime skills
-from canonical sources, verifies drift, runs release gates, and prepares an
-explicitly authorized publication. Project users do not install it.
+Repository-only tooling under `tools/specspine-adapter-generator/` generates the
+four publishable runtime skills. It is intentionally not discoverable or
+installable through `npx skills`.
 
 ## Installation
 
@@ -210,8 +211,8 @@ npx skills add . --skill specspine-doctor
 Maintainers regenerate and verify the runtime packages from canonical sources:
 
 ```bash
-skills/specspine-adapter-generator/scripts/generate_skills.py
-skills/specspine-adapter-generator/scripts/generate_skills.py --check
+tools/specspine-adapter-generator/scripts/generate_skills.py
+tools/specspine-adapter-generator/scripts/generate_skills.py --check
 ```
 
 ## Usage
@@ -283,7 +284,9 @@ The original `authentication.md` remains a concise overview and navigation point
 Add Google Sign-In.
 ```
 
-Before changing the specification structure, the skill presents an impact proposal:
+The skill determines and applies the smallest justified impact because the
+explicit change request already authorizes meaning-preserving specification
+maintenance:
 
 ```text
 Affected specifications
@@ -305,10 +308,11 @@ providers and user-account management.
 Open decisions:
 - Should an existing account be linked automatically by verified email?
 
-Proceed with these specification changes?
+Applied from the explicit request; no redundant confirmation is required.
 ```
 
-The human approves the architectural change before it is applied.
+The agent asks only when the request does not decide a normative choice,
+canonical ownership is genuinely ambiguous, or a conflict must be resolved.
 
 ### Prepare an architecture context handoff
 
@@ -359,8 +363,7 @@ Check this SpecSpine for mechanical and semantic problems.
 
 `specspine-doctor` runs deterministic integrity checks, reviews canonical
 ownership and claim semantics, and reports findings without modifying the
-Spine. Repository drift inspection is opt-in and uses `specspine-map` evidence
-rules.
+Spine. Repository drift analysis belongs to `specspine-map`.
 
 ## Specification philosophy
 
