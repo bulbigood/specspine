@@ -5,10 +5,13 @@ rules.
 
 ## Severity
 
-- `error` — mechanically invalid reference or a direct contradiction that can
-  mislead downstream work;
-- `warning` — likely structural or semantic defect requiring judgment;
-- `note` — maintainability risk or incomplete diagnostic coverage.
+- `error` — a preflight failure, direct contradiction, or mechanical defect
+  that prevents deterministic navigation or resolution of an explicitly used
+  interoperable address;
+- `warning` — provenance, readability, or structural defect that does not make
+  navigation or address resolution unsafe;
+- `note` — maintainability risk, optional-format preference, out-of-scope
+  reference, or incomplete diagnostic coverage.
 
 Confidence is separate from severity: `high`, `medium`, or `low`.
 
@@ -19,9 +22,14 @@ Use the bundled checker for reproducible findings. Verify:
 - index presence and specification reachability;
 - relative Markdown link targets;
 - semantic-ID definitions, sections, uniqueness, and references;
-- filenames, headings, empty sections, and unresolved placeholders.
-- optional directory names, semantic-ID marker regions, and evidence-baseline
-  syntax.
+- headings and empty sections;
+- optional filename and directory conventions;
+- semantic-ID marker regions and evidence-baseline syntax.
+
+Only internal SpecSpine targets participate in link validity and reachability.
+Report a relative link that resolves outside `<spine-root>` as unchecked scope;
+do not inspect its target. General Markdown, HTML, template-origin, and style
+validation are outside this mechanical pass.
 
 Do not promote optional-format preferences into errors.
 

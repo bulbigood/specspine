@@ -4,10 +4,10 @@
     "SKILL.md": "debb28d434959ffd4bd215374a681462c23913410d73760c068498777097a183",
     "agents/openai.yaml": "0d961d20ed13de06a8ba9951e48680abe87189fa6a956aad0bb457c6e18b816e",
     "references/context-handoff.md": "dacb3bf9cf89c08c36af3e6adc6ccbaf2625d4a1c5de52ca56d2cc9615ec281f",
-    "references/review-method.md": "e4138e5d204426c0f90680409a3627158d28a617ff98c45d2914047ea42d8776",
-    "references/spec-format.md": "1f8394893d80eaa00cdc651a96f6cd6167aaa193f63b8a8c00e14a60baa9f5a7",
+    "references/review-method.md": "7b443eee3ac9952aa19221d7526c628b7c7de354bda805ed9b83d72ea044eb21",
+    "references/spec-format.md": "35f7c9ecc67feb017842f335317e716cca318e1357cb00e9dd9388b2e1979f28",
     "references/spec-semantics.md": "91f80ae2065123bcfd1048545ea350293b7000470b80c055bb5b07a9761341f2",
-    "scripts/check_spine.py": "b230457ffc646183b0cd9949aa18ac3ed6bcd636a687baedc292bef2c7066ee1"
+    "scripts/check_spine.py": "99412320d34ff6d589715ae541b605d3e46e6fb0abff48aa2ee433edc6b08240"
   },
   "generator": "specspine-adapter-generator",
   "source": "assets/skill-sources/specspine-doctor"

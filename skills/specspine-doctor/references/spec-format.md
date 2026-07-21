@@ -272,6 +272,13 @@ Match the prefix to the owning section: `DEC` for `Decisions`, `CON` for
 to their canonical specification, so an address is the resolved specification
 path plus the ID. An identifier adds addressability, not authority or proof.
 
+In the architecture index, `System-wide decisions` and `System-wide
+constraints` are the corresponding owners of `DEC` and `CON` identifiers.
+When documentation headings are translated, a dependency-free checker may
+report section compatibility as unverified rather than treating the translated
+heading as an error. Semantic review remains responsible for confirming the
+translated statement kind.
+
 A reference is an ordinary Markdown link whose complete visible label is the
 target ID and whose destination is the target specification:
 

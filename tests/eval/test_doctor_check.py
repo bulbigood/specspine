@@ -92,14 +92,15 @@ class DoctorCheckerTests(unittest.TestCase):
             )
             self.assertEqual([], CHECKER.check(root))
 
-    def test_reports_unresolved_template_guidance(self):
+    def test_does_not_treat_template_syntax_or_guidance_as_a_defect(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "README.md").write_text(
-                "# Architecture\n\nSummarize the concept in one or two sentences.\n",
+                "# Architecture\n\nSummarize the concept in one or two sentences.\n\n"
+                "An external template uses `{{variable}}`.\n",
                 encoding="utf-8",
             )
-            self.assertIn("TEMPLATE_TEXT", {finding.code for finding in CHECKER.check(root)})
+            self.assertEqual([], CHECKER.check(root))
 
     def test_accepts_kebab_case_directories_and_checks_baseline(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -161,6 +162,205 @@ class DoctorCheckerTests(unittest.TestCase):
             )
             codes = {finding.code for finding in CHECKER.check(root)}
             self.assertTrue({"ID_OUTSIDE_REGION", "UNRESOLVED_ID"} <= codes)
+
+    def test_supports_reference_links_and_ignores_images_and_long_code_spans(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "README.md").write_text(
+                "# Architecture\n\n[Jobs][jobs]\n\n"
+                "![CON-image](missing-image.md)\n\n"
+                "Use ``[Missing](missing.md)`` as an example.\n\n"
+                "[jobs]: jobs.md \"Job architecture\"\n",
+                encoding="utf-8",
+            )
+            (root / "jobs.md").write_text("# Jobs\n", encoding="utf-8")
+            self.assertEqual([], CHECKER.check(root))
+
+    def test_supports_commonmark_headings_and_unordered_list_markers(self):
+        for bullet in ("-", "*", "+"):
+            with self.subTest(bullet=bullet), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "README.md").write_text("# Architecture\n\n[Policy](policy.md)\n", encoding="utf-8")
+                (root / "policy.md").write_text(
+                    "# Policy #\n\n<!-- specspine:semantic-ids:begin -->\n"
+                    "## Constraints ##\n\n"
+                    f"  {bullet} **CON-retry-limit** — Retries are bounded.\n"
+                    "<!-- specspine:semantic-ids:end -->\n",
+                    encoding="utf-8",
+                )
+                self.assertEqual([], CHECKER.check(root))
+
+    def test_accepts_system_wide_sections_and_defers_translated_sections(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "README.md").write_text(
+                "# Architecture\n\n<!-- specspine:semantic-ids:begin -->\n"
+                "## System-wide decisions\n\n- **DEC-api-style** — APIs use JSON.\n"
+                "## Решения\n\n- **DEC-session-style** — Сессии независимы.\n"
+                "<!-- specspine:semantic-ids:end -->\n",
+                encoding="utf-8",
+            )
+            findings = CHECKER.check(root)
+            self.assertNotIn("ID_SECTION", {finding.code for finding in findings})
+            self.assertEqual(
+                ["ID_SECTION_UNVERIFIED"],
+                [finding.code for finding in findings],
+            )
+
+    def test_reports_out_of_scope_link_without_checking_it_as_broken(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "specspine"
+            root.mkdir()
+            (root / "README.md").write_text(
+                "# Architecture\n\n[Outside](../does-not-exist.md)\n",
+                encoding="utf-8",
+            )
+            findings = CHECKER.check(root)
+            self.assertIn("OUT_OF_SCOPE_LINK", {finding.code for finding in findings})
+            self.assertNotIn("BROKEN_LINK", {finding.code for finding in findings})
+
+    def test_skips_markdown_symlink_that_resolves_outside_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "specspine"
+            root.mkdir()
+            outside = base / "outside.md"
+            outside.write_text("# Outside\n", encoding="utf-8")
+            (root / "README.md").write_text("# Architecture\n", encoding="utf-8")
+            (root / "linked.md").symlink_to(outside)
+            findings = CHECKER.check(root)
+            self.assertIn("OUT_OF_SCOPE_ENTRY", {finding.code for finding in findings})
+            self.assertNotIn("UNREACHABLE_SPEC", {finding.code for finding in findings})
+
+    def test_external_index_symlink_does_not_satisfy_required_index(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "specspine"
+            root.mkdir()
+            outside = base / "README.md"
+            outside.write_text("# Outside\n", encoding="utf-8")
+            (root / "README.md").symlink_to(outside)
+            codes = {finding.code for finding in CHECKER.check(root)}
+            self.assertTrue({"INDEX_MISSING", "OUT_OF_SCOPE_ENTRY"} <= codes)
+
+    def test_unclosed_fence_and_html_comment_are_not_general_markdown_defects(self):
+        cases = (
+            "# Architecture\n\n```markdown\n[Missing](missing.md)\n",
+            "# Architecture\n\n<!-- [Missing](missing.md)\n",
+        )
+        for content in cases:
+            with self.subTest(content=content), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "README.md").write_text(content, encoding="utf-8")
+                self.assertEqual([], CHECKER.check(root))
+
+    def test_provenance_and_naming_findings_do_not_fail_preflight(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            area = root / "Server Area"
+            area.mkdir()
+            (root / "README.md").write_text("# Architecture\n\n[API](Server%20Area/API.md)\n", encoding="utf-8")
+            (area / "API.md").write_text(
+                "# API\n\n## Observed\n\n"
+                "<!-- specspine:evidence-baseline source=x; inspected=2026-02-30 -->\n"
+                "Observed behavior.\n",
+                encoding="utf-8",
+            )
+            findings = CHECKER.check(root)
+            by_code = {finding.code: finding.severity for finding in findings}
+            self.assertEqual("note", by_code["INVALID_DIRECTORY"])
+            self.assertEqual("warning", by_code["INVALID_FILENAME"])
+            self.assertEqual("warning", by_code["INVALID_BASELINE_DATE"])
+            self.assertFalse(any(finding.severity == "error" for finding in findings))
+
+    def test_reports_invalid_utf8_as_read_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "README.md").write_text("# Architecture\n\n[Bad](bad.md)\n", encoding="utf-8")
+            (root / "bad.md").write_bytes(b"# Bad\n\xff")
+            findings = CHECKER.check(root)
+            self.assertIn("READ_ERROR", {finding.code for finding in findings})
+
+    def test_reports_root_and_index_preflight_failures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            missing = CHECKER.check(root / "missing")
+            self.assertEqual(["ROOT_MISSING"], [finding.code for finding in missing])
+            self.assertIn("INDEX_MISSING", {finding.code for finding in CHECKER.check(root)})
+
+    def test_structural_and_provenance_finding_codes(self):
+        cases = {
+            "missing-h1": ("No heading.\n", "MISSING_H1"),
+            "invalid-baseline": (
+                "# A\n\n## Observed\n\n<!-- specspine:evidence-baseline bad -->\nFact.\n",
+                "INVALID_BASELINE",
+            ),
+            "empty-section": ("# A\n\n## Responsibility\n", "EMPTY_SECTION"),
+            "nested-region": (
+                "# A\n\n<!-- specspine:semantic-ids:begin -->\n"
+                "<!-- specspine:semantic-ids:begin -->\n"
+                "<!-- specspine:semantic-ids:end -->\n<!-- specspine:semantic-ids:end -->\n",
+                "ID_REGION_NESTED",
+            ),
+            "extra-region-end": ("# A\n\n<!-- specspine:semantic-ids:end -->\n", "ID_REGION_END"),
+            "invalid-id": (
+                "# A\n\n<!-- specspine:semantic-ids:begin -->\n## Constraints\n\n"
+                "- **CON-bad_ID** — Invalid.\n<!-- specspine:semantic-ids:end -->\n",
+                "INVALID_ID",
+            ),
+            "wrong-id-section": (
+                "# A\n\n<!-- specspine:semantic-ids:begin -->\n## Decisions\n\n"
+                "- **OBS-current** — Invalid.\n<!-- specspine:semantic-ids:end -->\n",
+                "ID_SECTION",
+            ),
+            "unclosed-region": (
+                "# A\n\n<!-- specspine:semantic-ids:begin -->\n## Decisions\n\n"
+                "- **DEC-one** — One.\n",
+                "ID_REGION_UNCLOSED",
+            ),
+            "multiple-regions": (
+                "# A\n\n<!-- specspine:semantic-ids:begin -->\n## Decisions\n\n"
+                "- **DEC-one** — One.\n<!-- specspine:semantic-ids:end -->\n"
+                "<!-- specspine:semantic-ids:begin -->\n## Constraints\n\n"
+                "- **CON-two** — Two.\n<!-- specspine:semantic-ids:end -->\n",
+                "MULTIPLE_ID_REGIONS",
+            ),
+            "empty-region": (
+                "# A\n\n<!-- specspine:semantic-ids:begin -->\n"
+                "<!-- specspine:semantic-ids:end -->\n",
+                "EMPTY_ID_REGION",
+            ),
+            "multiple-baselines": (
+                "# A\n\n## Observed\n\n"
+                "<!-- specspine:evidence-baseline source=a; inspected=2026-07-20 -->\n"
+                "<!-- specspine:evidence-baseline source=b; inspected=2026-07-21 -->\nFact.\n",
+                "MULTIPLE_BASELINES",
+            ),
+            "missing-baseline": ("# A\n\n## Observed\n\nFact.\n", "MISSING_BASELINE"),
+            "duplicate-id": (
+                "# A\n\n<!-- specspine:semantic-ids:begin -->\n## Decisions\n\n"
+                "- **DEC-one** — One.\n- **DEC-one** — Again.\n"
+                "<!-- specspine:semantic-ids:end -->\n",
+                "DUPLICATE_ID",
+            ),
+        }
+        for name, (content, expected) in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "README.md").write_text(content, encoding="utf-8")
+                self.assertIn(expected, {finding.code for finding in CHECKER.check(root)})
+
+    def test_semantic_reference_finding_codes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "README.md").write_text(
+                "# Architecture\n\n[Owner](owner.md)\n\n"
+                "[CON-bad_ID](owner.md)\n\n[CON-missing](owner.md#fragment)\n",
+                encoding="utf-8",
+            )
+            (root / "owner.md").write_text("# Owner\n", encoding="utf-8")
+            codes = {finding.code for finding in CHECKER.check(root)}
+            self.assertTrue({"INVALID_ID_REFERENCE", "ID_FRAGMENT", "UNRESOLVED_ID"} <= codes)
 
 
 if __name__ == "__main__":
