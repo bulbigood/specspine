@@ -49,6 +49,9 @@ adapter on stdin, and evaluates the resulting files. The adapter path must be
 absolute because its current directory is the temporary workspace. Cases run
 with concurrency 8 by default; use `--jobs N` to change it.
 
+Workspaces are created under `~/.cache/specspine-eval/workspaces`, outside the
+system temp directory. Override this with `SPECSPINE_EVAL_WORKSPACES_DIR`.
+
 Failed workspaces are deleted unless `--keep-workspace` is set. Successful
 workspaces are always deleted. The final terminal line reports how many selected
 cases passed.
@@ -109,10 +112,19 @@ diff, final response and frozen rubric; it cannot see the arm or supplied
 context. Each rubric criterion is scored `0` (violated), `1` (partial/unclear),
 or `2` (fully satisfied). Identical judge inputs reuse one judgment.
 
+The bundled Codex adapter uses an isolated named permission profile: only the
+current workspace is writable/readable beyond minimal operating-system files,
+network access is disabled, user config and exec rules are ignored, and secret
+environment variables are filtered. Every prompt also forbids leaving the
+workspace. Commands containing external-path markers invalidate the sample;
+invalid samples are excluded from aggregates and are not judged.
+The profile was verified with Codex CLI 0.144.4; strict config validation makes
+older incompatible CLIs fail instead of silently weakening isolation.
+
 Deterministic failures are benchmark results and do not cause a non-zero process
-exit. Agent execution errors, missing/invalid judge responses, and inconsistent
-observed model settings do. Agent and judge concurrency default to 8; override
-them with `--jobs` and `--judge-jobs`.
+exit. Workspace-boundary violations, agent execution errors, missing/invalid
+judge responses, and inconsistent observed model settings do. Agent and judge
+concurrency default to 8; override them with `--jobs` and `--judge-jobs`.
 
 ### Run output
 

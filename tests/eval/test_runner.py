@@ -174,7 +174,10 @@ class RunnerTests(unittest.TestCase):
             "skill": "skills/specspine-grow",
             "eval_language": "English",
         }
-        self.assertIn("newly created project documents in English", RUNNER.build_prompt(case))
+        prompt = RUNNER.build_prompt(case)
+        self.assertIn("newly created project documents in English", prompt)
+        self.assertIn("complete and only authorized project", prompt)
+        self.assertIn("Never use `..`, `$HOME`, `~`", prompt)
 
     def test_non_staged_prompts_exclude_hidden_rubrics(self):
         for case in RUNNER.load_cases():

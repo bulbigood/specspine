@@ -23,6 +23,14 @@ ROOT = Path(__file__).resolve().parents[2]
 CASES_DIR = Path(__file__).resolve().parent / "cases"
 SCENARIOS_DIR = ROOT / "tests" / "scenarios"
 CASE_CATEGORIES = {"core", "extended", "planned"}
+WORKSPACE_BOUNDARY_INSTRUCTIONS = (
+    "SECURITY BOUNDARY: the current working directory is the complete and only "
+    "authorized project. Never read, list, search, inspect, or infer from any path "
+    "outside it, including parent/sibling directories, system temporary directories, "
+    "the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an "
+    "absolute path outside the current project to discover context. If required "
+    "information is absent, report that it is unavailable.\n"
+)
 SEMANTIC_ID_ERROR_CODES = {
     "DUPLICATE_ID",
     "ID_FRAGMENT",
@@ -214,7 +222,9 @@ def apply_fixture_mutation(fixture: dict[str, Any], workspace: Path) -> None:
 def snapshot(workspace: Path) -> dict[str, bytes]:
     result: dict[str, bytes] = {}
     for path in workspace.rglob("*"):
-        if path.is_file() and ".eval" not in path.relative_to(workspace).parts:
+        if path.is_file() and not {".eval", ".git"}.intersection(
+            path.relative_to(workspace).parts
+        ):
             result[str(path.relative_to(workspace))] = path.read_bytes()
     return result
 
@@ -415,7 +425,8 @@ def build_prompt(case: dict[str, Any], stage: dict[str, Any] | None = None) -> s
     eval_language = config.get("eval_language", case.get("eval_language", "English"))
     return (
         "You are running a repeatable SpecSpine evaluation.\n"
-        f"Read .eval/skill/{config.get('entrypoint', 'SKILL.md')} and all references it requires.\n"
+        + WORKSPACE_BOUNDARY_INSTRUCTIONS
+        + f"Read .eval/skill/{config.get('entrypoint', 'SKILL.md')} and all references it requires.\n"
         "Installed companion skills, when configured, are under .eval/companions/.\n"
         "Treat the current directory as the project root.\n"
         f"For reproducibility, write the final response and newly created project documents in {eval_language}. "
@@ -423,6 +434,35 @@ def build_prompt(case: dict[str, Any], stage: dict[str, Any] | None = None) -> s
         "Perform the user request described by the scenario.\n\n"
         f"{scenario}\n"
     )
+
+
+def secure_workspace_parent() -> Path:
+    configured = os.environ.get("SPECSPINE_EVAL_WORKSPACES_DIR")
+    root = Path(configured).expanduser() if configured else (
+        Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+        / "specspine-eval"
+        / "workspaces"
+    )
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    return root.resolve()
+
+
+def create_workspace(prefix: str) -> Path:
+    return Path(tempfile.mkdtemp(prefix=prefix, dir=secure_workspace_parent()))
+
+
+def initialize_git_workspace(workspace: Path) -> None:
+    commands = (
+        ["git", "init", "-q"],
+        ["git", "add", "-A"],
+        [
+            "git", "-c", "user.name=SpecSpine Eval",
+            "-c", "user.email=eval@invalid.local",
+            "commit", "-qm", "fixture baseline",
+        ],
+    )
+    for command in commands:
+        subprocess.run(command, cwd=workspace, check=True, capture_output=True, text=True)
 
 
 def scenario_user_request(case: dict[str, Any]) -> str:
@@ -460,6 +500,16 @@ def archive_stage(
 def print_results(results: list[CheckResult], indent: str = "  ") -> None:
     for result in results:
         print(f"{indent}{'ok' if result.passed else 'not ok'} - {result.message}")
+
+
+def workspace_boundary_check(trace: dict[str, Any] | None) -> CheckResult:
+    violations = [] if trace is None else trace.get("scope_violations", [])
+    return CheckResult(
+        not violations,
+        "workspace boundary respected"
+        if not violations
+        else f"workspace boundary violations: {violations}",
+    )
 
 
 def run_staged_case(case: dict[str, Any], command: list[str], workspace: Path, env: dict[str, str]) -> bool:
@@ -507,6 +557,8 @@ def run_staged_case(case: dict[str, Any], command: list[str], workspace: Path, e
             evaluate_assertion(item, workspace, before, after, response, trace)
             for item in stage.get("assertions", [])
         ]
+        if "fixture" not in stage:
+            results.append(workspace_boundary_check(trace))
         stage_passed = returncode == 0 and all(result.passed for result in results)
         print(f"  {'PASS' if stage_passed else 'FAIL'} stage {stage_number}: {stage_id} (agent exit {returncode})")
         print_results(results, "    ")
@@ -536,9 +588,10 @@ def positive_int(value: str) -> int:
 
 
 def run_case(case: dict[str, Any], command: list[str], keep_workspace: bool) -> bool:
-    temp = Path(tempfile.mkdtemp(prefix=f"specspine-eval-{case['id']}-"))
+    temp = create_workspace(prefix=f"specspine-eval-{case['id']}-")
     try:
         write_fixture(case, temp)
+        initialize_git_workspace(temp)
         before = snapshot(temp)
         env = os.environ.copy()
         env["SPECSPINE_EVAL_CASE"] = case["id"]
@@ -553,6 +606,7 @@ def run_case(case: dict[str, Any], command: list[str], keep_workspace: bool) -> 
             return passed
         responses: list[str] = []
         errors: list[str] = []
+        scope_checks: list[CheckResult] = []
         returncode = 0
         for run_number in range(1, case.get("runs", 1) + 1):
             completed = subprocess.run(
@@ -568,6 +622,7 @@ def run_case(case: dict[str, Any], command: list[str], keep_workspace: bool) -> 
             )
             responses.append(completed.stdout)
             errors.append(completed.stderr)
+            scope_checks.append(workspace_boundary_check(read_trace(temp)))
             if completed.returncode:
                 returncode = completed.returncode
                 break
@@ -576,6 +631,7 @@ def run_case(case: dict[str, Any], command: list[str], keep_workspace: bool) -> 
         after = snapshot(temp)
         trace = read_trace(temp)
         results = [evaluate_assertion(item, temp, before, after, response, trace) for item in case["assertions"]]
+        results.extend(scope_checks)
         passed = returncode == 0 and all(result.passed for result in results)
         print(f"{'PASS' if passed else 'FAIL'} {case['id']} ({case.get('runs', 1)} run(s), agent exit {returncode})")
         print_results(results)

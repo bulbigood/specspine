@@ -14,11 +14,24 @@ import time
 from pathlib import Path
 
 
+FORBIDDEN_SCOPE_MARKERS = (
+    "$HOME",
+    "${HOME}",
+    "~/",
+    "/tmp/",
+    "/private/tmp/",
+    "/private/var/",
+    "/Users/",
+    "/Volumes/",
+)
+
+
 def relative_files(root: Path) -> list[str]:
     return sorted(
         str(path.relative_to(root))
         for path in root.rglob("*")
-        if path.is_file() and ".eval" not in path.relative_to(root).parts
+        if path.is_file()
+        and not {".eval", ".git"}.intersection(path.relative_to(root).parts)
     )
 
 
@@ -220,6 +233,27 @@ def parse_token_usage(stdout: str) -> dict[str, int]:
     return usage
 
 
+def scope_violations(commands: list[str], root: Path) -> list[str]:
+    root_text = str(root.resolve()).rstrip("/")
+    violations: list[str] = []
+    for command in commands:
+        inspected = command.replace(root_text, "<WORKSPACE>")
+        markers = [marker for marker in FORBIDDEN_SCOPE_MARKERS if marker in inspected]
+        if re.search(r"(?<![.\w])\.\.(?:/|\b)", inspected):
+            markers.append("parent traversal (`..`)")
+        if re.search(
+            r"(?:^|[;&|]\s*|\s)(?:cd|find|ls|tree|du)\s+(?:-[^\s]+\s+)*/(?:\s|$)",
+            inspected,
+        ):
+            markers.append("filesystem-root traversal (`/`)")
+        if markers:
+            violations.append(
+                f"external path marker(s) {', '.join(sorted(set(markers)))} in command: "
+                + inspected[:500].replace("\n", "\\n")
+            )
+    return violations
+
+
 def write_codex_artifacts(
     eval_dir: Path,
     *,
@@ -250,6 +284,42 @@ def write_codex_artifacts(
     )
 
 
+def build_codex_command(model: str, reasoning_effort: str, root: Path, private_tmp: Path) -> list[str]:
+    return [
+        "codex",
+        "-a",
+        "never",
+        "--model",
+        model,
+        "--config",
+        f'model_reasoning_effort="{reasoning_effort}"',
+        "--config",
+        'default_permissions="specspine_eval"',
+        "--config",
+        'permissions.specspine_eval.workspace_roots={"."=true}',
+        "--config",
+        'permissions.specspine_eval.filesystem={":minimal"="read",":workspace_roots"={"."="write",".git"="read",".agents"="read",".codex"="read"}}',
+        "--config",
+        "permissions.specspine_eval.network.enabled=false",
+        "--config",
+        'shell_environment_policy.inherit="core"',
+        "--config",
+        "shell_environment_policy.ignore_default_excludes=false",
+        "--config",
+        f"shell_environment_policy.set={{TMPDIR={json.dumps(str(private_tmp))}}}",
+        "exec",
+        "--strict-config",
+        "--json",
+        "--ephemeral",
+        "--ignore-user-config",
+        "--ignore-rules",
+        "--skip-git-repo-check",
+        "-C",
+        str(root),
+        "-",
+    ]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="gpt-5.6-luna")
@@ -259,24 +329,9 @@ def main() -> int:
     root = Path.cwd()
     prompt = sys.stdin.read()
     candidates = relative_files(root)
-    command = [
-        "codex",
-        "-a",
-        "never",
-        "--model",
-        args.model,
-        "--config",
-        f'model_reasoning_effort="{args.reasoning_effort}"',
-        "exec",
-        "--json",
-        "--ephemeral",
-        "--skip-git-repo-check",
-        "-s",
-        "workspace-write",
-        "-C",
-        str(root),
-        "-",
-    ]
+    private_tmp = root / ".eval" / "tmp"
+    private_tmp.mkdir(parents=True, exist_ok=True)
+    command = build_codex_command(args.model, args.reasoning_effort, root, private_tmp)
     started = time.monotonic()
     completed = subprocess.run(command, input=prompt, text=True, capture_output=True, check=False)
     duration_seconds = round(time.monotonic() - started, 3)
@@ -292,6 +347,7 @@ def main() -> int:
     )
     reads, commands, messages = parse_events(completed.stdout, candidates)
     token_usage = parse_token_usage(completed.stdout)
+    boundary_violations = scope_violations(commands, root)
     final_response = messages[-1] if messages else ""
     trace_path = eval_dir / "trace.json"
     trace_path.write_text(
@@ -302,6 +358,7 @@ def main() -> int:
                 "eval_case": os.environ.get("SPECSPINE_EVAL_CASE", ""),
                 "eval_run": os.environ.get("SPECSPINE_EVAL_RUN", ""),
                 "files_read": sorted(reads),
+                "scope_violations": boundary_violations,
                 "model": args.model,
                 "reasoning_effort": args.reasoning_effort,
                 "token_usage": token_usage,

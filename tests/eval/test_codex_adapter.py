@@ -15,6 +15,18 @@ SPEC.loader.exec_module(ADAPTER)
 
 
 class CodexAdapterTests(unittest.TestCase):
+    def test_relative_files_excludes_eval_and_git_internals(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "src").mkdir()
+            (root / "src" / "app.py").write_text("pass\n", encoding="utf-8")
+            (root / ".eval").mkdir()
+            (root / ".eval" / "trace.json").write_text("{}\n", encoding="utf-8")
+            (root / ".git" / "objects").mkdir(parents=True)
+            (root / ".git" / "objects" / "fixture").write_bytes(b"fixture")
+
+            self.assertEqual(["src/app.py"], ADAPTER.relative_files(root))
+
     def test_traces_explicit_file_reads(self):
         candidates = ["src/users/model.js", "src/billing/private.js"]
         self.assertEqual(
@@ -143,6 +155,32 @@ class CodexAdapterTests(unittest.TestCase):
             invocation = json.loads((target / "codex-invocation.json").read_text())
             self.assertEqual(7, invocation["returncode"])
             self.assertEqual(["codex", "exec", "--json", "-"], invocation["command"])
+
+    def test_scope_audit_allows_workspace_and_rejects_external_paths(self):
+        root = Path("/Users/example/.cache/specspine-eval/workspaces/run-1")
+        commands = [
+            f"sed -n '1,80p' {root}/src/app.py",
+            "rg secret /private/var/folders/shared",
+            "cat ../sibling/HANDOFF.md",
+            "find / -name ARCHITECTURE.md",
+        ]
+        violations = ADAPTER.scope_violations(commands, root)
+        self.assertEqual(3, len(violations))
+        self.assertIn("/private/var/", violations[0])
+        self.assertIn("parent traversal", violations[1])
+        self.assertIn("filesystem-root traversal", violations[2])
+
+    def test_codex_command_uses_restricted_permission_profile(self):
+        command = ADAPTER.build_codex_command(
+            "agent-model", "medium", Path("/workspace"), Path("/workspace/.eval/tmp")
+        )
+        rendered = " ".join(command)
+        self.assertIn('default_permissions="specspine_eval"', command)
+        self.assertIn('permissions.specspine_eval.network.enabled=false', command)
+        self.assertIn('shell_environment_policy.inherit="core"', command)
+        self.assertIn("--ignore-user-config", command)
+        self.assertIn("--ignore-rules", command)
+        self.assertNotIn("workspace-write", rendered)
 
 
 if __name__ == "__main__":

@@ -33,6 +33,7 @@ class ComparisonTests(unittest.TestCase):
             self.assertNotIn(arm, prompts[0])
         self.assertNotIn("ARCHITECTURE.md", prompts[0])
         self.assertNotIn("HANDOFF.md", prompts[0])
+        self.assertIn("complete and only authorized project", prompts[0])
 
     def test_comparison_snapshot_excludes_python_cache_noise(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -43,6 +44,14 @@ class ComparisonTests(unittest.TestCase):
             self.assertEqual(
                 {"src/module.py"}, set(COMPARE.comparison_snapshot(root))
             )
+
+    def test_git_baseline_is_excluded_from_snapshot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "app.py").write_text("value = 1\n", encoding="utf-8")
+            COMPARE.RUNNER.initialize_git_workspace(root)
+            self.assertTrue((root / ".git").is_dir())
+            self.assertEqual({"app.py"}, set(COMPARE.comparison_snapshot(root)))
 
     def test_identical_blind_judge_inputs_share_a_cache_key(self):
         comparison = next(
@@ -177,12 +186,13 @@ class ComparisonTests(unittest.TestCase):
         self.assertIn("### Testing process", markdown)
         self.assertIn("same clean fixture", markdown)
         self.assertIn("blind model judge", markdown)
-        self.assertIn("Outcome: **0/1 passed**", markdown)
+        self.assertIn("Valid samples: **1/1**", markdown)
+        self.assertIn("Outcome: **0/1 valid samples passed**", markdown)
         self.assertIn("Architecture: **0/1 passed**", markdown)
         self.assertIn("### Summary by arm", markdown)
-        self.assertIn("| repository-only | 1 | 0/1 (0%) | 0/1 (0%) | 0 | 3.0/4.0 |", markdown)
+        self.assertIn("| repository-only | 1/1 | 0/1 (0%) | 0/1 (0%) | 0 | 3.0/4.0 |", markdown)
         self.assertIn("### Individual results", markdown)
-        self.assertIn("| example | repository-only | 1 | FAIL | 3/4 | — |", markdown)
+        self.assertIn("| example | repository-only | 1 | VALID | FAIL | 3/4 | — |", markdown)
         self.assertIn("command failed \\| exit 1", markdown)
         self.assertIn("ownership (1/2): Boundary is unclear.", markdown)
 
@@ -224,8 +234,27 @@ class ComparisonTests(unittest.TestCase):
             },
         }
         markdown = COMPARE.markdown_report({"results": [result]})
-        self.assertIn("| full-spine | 1 | 0/1 (0%) | 1/1 (100%) | 1 |", markdown)
-        self.assertIn("| example | full-spine | 1 | FAIL | 2/2 | YES |", markdown)
+        self.assertIn("| full-spine | 1/1 | 0/1 (0%) | 1/1 (100%) | 1 |", markdown)
+        self.assertIn("| example | full-spine | 1 | VALID | FAIL | 2/2 | YES |", markdown)
+
+    def test_markdown_report_excludes_invalid_samples(self):
+        result = {
+            "comparison": "example",
+            "arm": "repository-only",
+            "sample": 1,
+            "valid": False,
+            "invalid_reasons": ["workspace boundary violation"],
+            "passed": True,
+            "files_read": 1,
+            "input_tokens": 10,
+            "duration_seconds": 1.0,
+            "checks": [],
+        }
+        markdown = COMPARE.markdown_report({"results": [result]})
+        self.assertIn("Valid samples: **0/1**", markdown)
+        self.assertIn("| repository-only | 0/1 | — | — |", markdown)
+        self.assertIn("| example | repository-only | 1 | INVALID | — | — |", markdown)
+        self.assertIn("- Invalid: workspace boundary violation", markdown)
 
     def test_allocate_run_directory_uses_sequential_numeric_names(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -358,6 +387,23 @@ class ComparisonTests(unittest.TestCase):
         self.assertTrue(
             any("supplied context changed" in check["message"] for check in result["checks"])
         )
+
+    def test_run_arm_marks_workspace_boundary_violation_invalid(self):
+        comparison = next(
+            item for item in COMPARE.load_comparisons() if item["id"] == "local-change"
+        )
+        arm = next(item for item in comparison["arms"] if item["id"] == "repository-only")
+        command = [
+            sys.executable,
+            "-c",
+            "from pathlib import Path; import json, sys; sys.stdin.read(); "
+            "Path('src/profile.py').write_text(\"def profile_title():\\n    return 'Account profile'\\n\", encoding='utf-8'); "
+            "Path('.eval/trace.json').write_text(json.dumps({'files_read': [], 'scope_violations': ['external temp scan']}), encoding='utf-8')",
+        ]
+        result = COMPARE.run_arm(comparison, arm, 1, command, False)
+        self.assertTrue(result["passed"])
+        self.assertFalse(result["valid"])
+        self.assertIn("external temp scan", result["invalid_reasons"][0])
 
     def test_run_arm_archives_reproducible_and_blind_judge_artifacts(self):
         comparison = next(

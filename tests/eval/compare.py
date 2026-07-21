@@ -13,7 +13,6 @@ import shlex
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -125,8 +124,9 @@ def write_files(workspace: Path, files: dict[str, str]) -> None:
 def build_prompt(comparison: dict[str, Any]) -> str:
     return (
         "You are running a blinded downstream coding evaluation.\n"
-        "Treat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\n"
-        f"{comparison['prompt'].strip()}\n"
+        + RUNNER.WORKSPACE_BOUNDARY_INSTRUCTIONS
+        + "Treat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\n"
+        + f"{comparison['prompt'].strip()}\n"
     )
 
 
@@ -134,7 +134,8 @@ def build_judge_prompt(bundle: dict[str, Any]) -> str:
     return (
         "You are a blind architecture evaluator. Score only the submitted change; "
         "do not infer which experimental arm produced it. Use only the request, diff, "
-        "final response, and rubric below. For every rubric criterion, assign an integer score: "
+        "final response, and rubric below. Do not inspect the filesystem or any external source. "
+        "For every rubric criterion, assign an integer score: "
         "0 = contradicted, 1 = partially satisfied or unclear from the submitted evidence, "
         "2 = fully satisfied. Return JSON only, with exactly this shape: "
         '{"scores":{"<criterion>":{"score":0,"rationale":"concise evidence"}},'
@@ -303,11 +304,16 @@ def trace_metrics(trace: dict[str, Any] | None, irrelevant: list[str]) -> dict[s
         path for path in unique_files if any(RUNNER.fnmatch.fnmatch(path, pattern) for pattern in irrelevant)
     )
     token_usage = {} if trace is None else trace.get("token_usage", {})
+    scope_violations = [] if trace is None else [
+        str(item) for item in trace.get("scope_violations", [])
+    ]
     return {
         "files_read": len(unique_files),
         "irrelevant_files_read": irrelevant_reads,
         "input_tokens": token_usage.get("input_tokens") if isinstance(token_usage, dict) else None,
+        "cached_input_tokens": token_usage.get("cached_input_tokens") if isinstance(token_usage, dict) else None,
         "output_tokens": token_usage.get("output_tokens") if isinstance(token_usage, dict) else None,
+        "scope_violations": scope_violations,
     }
 
 
@@ -319,12 +325,13 @@ def run_arm(
     keep_workspace: bool,
     artifacts_dir: Path | None = None,
 ) -> dict[str, Any]:
-    workspace = Path(tempfile.mkdtemp(prefix=f"specspine-compare-{comparison['id']}-"))
+    workspace = RUNNER.create_workspace(prefix=f"specspine-compare-{comparison['id']}-")
     retained = False
     try:
         write_files(workspace, comparison["initial_files"])
         write_files(workspace, arm.get("context_files", {}))
         (workspace / ".eval").mkdir(exist_ok=True)
+        RUNNER.initialize_git_workspace(workspace)
         context_paths = sorted(arm.get("context_files", {}))
         context_before = {
             path: (workspace / path).read_bytes()
@@ -401,6 +408,11 @@ def run_arm(
             "checks": [{"passed": check.passed, "message": check.message} for check in checks],
             **trace_metrics(trace, comparison.get("irrelevant_read_patterns", [])),
         }
+        result["valid"] = not result["scope_violations"]
+        result["invalid_reasons"] = [
+            f"workspace boundary violation: {message}"
+            for message in result["scope_violations"]
+        ]
         if trace is not None:
             result["actual_model"] = trace.get("model")
             result["actual_reasoning"] = trace.get("reasoning_effort")
@@ -417,7 +429,7 @@ def run_arm(
                 workspace / ".eval",
             )
             result["artifacts"] = str(artifact_target)
-        if not passed and keep_workspace:
+        if (not passed or not result["valid"]) and keep_workspace:
             result["workspace"] = str(workspace)
             retained = True
         return result
@@ -432,7 +444,7 @@ def run_judge(
     command: list[str],
     keep_workspace: bool,
 ) -> dict[str, Any]:
-    workspace = Path(tempfile.mkdtemp(prefix="specspine-judge-"))
+    workspace = RUNNER.create_workspace(prefix="specspine-judge-")
     retained = False
     bundle = judge_bundle(result, comparison)
     prompt = build_judge_prompt(bundle)
@@ -550,15 +562,33 @@ def positive_int(value: str) -> int:
 def summarize_arms(results: list[dict[str, Any]]) -> dict[str, Any]:
     summary: dict[str, Any] = {}
     for arm in ARM_ORDER:
-        samples = [item for item in results if item["arm"] == arm]
+        all_samples = [item for item in results if item["arm"] == arm]
+        samples = [item for item in all_samples if item.get("valid", True)]
+        if not samples:
+            summary[arm] = {"samples": 0, "invalid_samples": len(all_samples)}
+            continue
         token_values = [item["input_tokens"] for item in samples if item["input_tokens"] is not None]
+        cached_values = [
+            item["cached_input_tokens"]
+            for item in samples
+            if item.get("cached_input_tokens") is not None
+        ]
+        uncached_values = [
+            item["input_tokens"] - item["cached_input_tokens"]
+            for item in samples
+            if item.get("input_tokens") is not None
+            and item.get("cached_input_tokens") is not None
+        ]
         arm_summary = {
             "samples": len(samples),
+            "invalid_samples": len(all_samples) - len(samples),
             "outcome_pass_rate": sum(bool(item["passed"]) for item in samples) / len(samples),
             "median_context_words": median(item["context_words"] for item in samples),
             "median_files_read": median(item["files_read"] for item in samples),
             "median_irrelevant_files_read": median(len(item["irrelevant_files_read"]) for item in samples),
             "median_input_tokens": median(token_values) if token_values else None,
+            "median_cached_input_tokens": median(cached_values) if cached_values else None,
+            "median_uncached_input_tokens": median(uncached_values) if uncached_values else None,
             "median_duration_seconds": median(item["duration_seconds"] for item in samples),
         }
         judged = [item["judge"] for item in samples if "judge" in item]
@@ -627,7 +657,8 @@ def format_rate(passed: int, total: int) -> str:
 
 def markdown_report(report: dict[str, Any]) -> str:
     results = report["results"]
-    passed = sum(bool(item["passed"]) for item in results)
+    valid_results = [item for item in results if item.get("valid", True)]
+    passed = sum(bool(item["passed"]) for item in valid_results)
     valid_judges = [item["judge"] for item in results if item.get("judge", {}).get("valid")]
     judge_passed = sum(bool(item["passed"]) for item in valid_judges)
     lines = [
@@ -644,7 +675,8 @@ def markdown_report(report: dict[str, Any]) -> str:
         )
     lines.extend(
         [
-            f"- Outcome: **{passed}/{len(results)} passed**",
+            f"- Valid samples: **{len(valid_results)}/{len(results)}**",
+            f"- Outcome: **{passed}/{len(valid_results)} valid samples passed**",
             f"- Architecture: **{judge_passed}/{len(valid_judges)} passed**"
             if valid_judges
             else "- Architecture: not judged",
@@ -678,24 +710,31 @@ def markdown_report(report: dict[str, Any]) -> str:
             "1. Every arm/sample starts from the same clean fixture and receives the same user request; only the supplied architectural context differs.",
             "2. A downstream coding agent works in an isolated temporary workspace, and deterministic checks measure executable outcome invariants.",
             "3. A blind model judge receives only the request, diff, final response, and frozen rubric—not the arm name or supplied context—and scores each rubric criterion from 0 to 2.",
-            "4. Outcome, architectural scores, file reads, token usage, and duration are aggregated by arm with every sample weighted equally.",
+            "4. Samples that violate the workspace boundary are marked invalid, excluded from aggregates, and not sent to the judge.",
+            "5. Outcome, architectural scores, file reads, token usage, and duration are aggregated by arm with every valid sample weighted equally.",
             "",
             "## Results",
             "",
             "### Summary by arm",
             "",
-            "Each row averages all results for that arm across comparisons and samples; each sample has equal weight.",
+            "Each row averages valid results for that arm across comparisons and samples; each valid sample has equal weight.",
             "",
             "A mismatch means deterministic outcome and architectural judgment disagree; it is a diagnostic signal, not an overwritten score.",
             "",
-            "| Arm | Runs | Outcome | Architecture | Mismatches | Avg judge | Avg violations | Avg files read | Avg input tokens | Avg duration |",
-            "|---|---:|:---:|:---:|---:|---:|---:|---:|---:|---:|",
+            "| Arm | Valid/total | Outcome | Architecture | Mismatches | Avg judge | Avg violations | Avg files read | Avg total input | Avg cached | Avg uncached | Avg duration |",
+            "|---|---:|:---:|:---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for arm in ARM_ORDER:
         if arm not in present_arms:
             continue
-        arm_results = [item for item in results if item["arm"] == arm]
+        all_arm_results = [item for item in results if item["arm"] == arm]
+        arm_results = [item for item in all_arm_results if item.get("valid", True)]
+        if not arm_results:
+            lines.append(
+                f"| {arm} | 0/{len(all_arm_results)} | — | — | — | — | — | — | — | — | — | — |"
+            )
+            continue
         arm_judges = [
             item["judge"]
             for item in arm_results
@@ -705,6 +744,17 @@ def markdown_report(report: dict[str, Any]) -> str:
             item["input_tokens"]
             for item in arm_results
             if item.get("input_tokens") is not None
+        ]
+        cached_values = [
+            item["cached_input_tokens"]
+            for item in arm_results
+            if item.get("cached_input_tokens") is not None
+        ]
+        uncached_values = [
+            item["input_tokens"] - item["cached_input_tokens"]
+            for item in arm_results
+            if item.get("input_tokens") is not None
+            and item.get("cached_input_tokens") is not None
         ]
         average_score = (
             f"{mean(item['total_score'] for item in arm_judges):.1f}/"
@@ -718,7 +768,7 @@ def markdown_report(report: dict[str, Any]) -> str:
                 markdown_cell(value)
                 for value in (
                     arm,
-                    len(arm_results),
+                    f"{len(arm_results)}/{len(all_arm_results)}",
                     format_rate(sum(bool(item["passed"]) for item in arm_results), len(arm_results)),
                     format_rate(sum(bool(item["passed"]) for item in arm_judges), len(arm_judges)),
                     sum(
@@ -732,6 +782,8 @@ def markdown_report(report: dict[str, Any]) -> str:
                     else None,
                     f"{mean(item['files_read'] for item in arm_results):.1f}",
                     f"{mean(token_values):.0f}" if token_values else None,
+                    f"{mean(cached_values):.0f}" if cached_values else None,
+                    f"{mean(uncached_values):.0f}" if uncached_values else None,
                     f"{mean(item['duration_seconds'] for item in arm_results):.1f}s",
                 )
             )
@@ -742,8 +794,8 @@ def markdown_report(report: dict[str, Any]) -> str:
             "",
             "### Individual results",
             "",
-            "| Comparison | Arm | Sample | Outcome | Judge | Mismatch | Violations | Files read | Input tokens | Duration |",
-            "|---|---|---:|:---:|:---:|:---:|---:|---:|---:|---:|",
+            "| Comparison | Arm | Sample | Validity | Outcome | Judge | Mismatch | Violations | Files read | Total input | Cached | Uncached | Duration |",
+            "|---|---|---:|:---:|:---:|:---:|:---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for item in results:
@@ -763,7 +815,10 @@ def markdown_report(report: dict[str, Any]) -> str:
                     item["comparison"],
                     item["arm"],
                     item["sample"],
-                    "PASS" if item["passed"] else "FAIL",
+                    "VALID" if item.get("valid", True) else "INVALID",
+                    ("PASS" if item["passed"] else "FAIL")
+                    if item.get("valid", True)
+                    else "—",
                     judge_score,
                     "YES"
                     if item_judge.get("valid")
@@ -772,6 +827,11 @@ def markdown_report(report: dict[str, Any]) -> str:
                     item_judge.get("violation_count") if item_judge.get("valid") else None,
                     item["files_read"],
                     item["input_tokens"],
+                    item.get("cached_input_tokens"),
+                    item["input_tokens"] - item["cached_input_tokens"]
+                    if item.get("input_tokens") is not None
+                    and item.get("cached_input_tokens") is not None
+                    else None,
                     f"{item['duration_seconds']:.1f}s",
                 )
             )
@@ -789,8 +849,10 @@ def markdown_report(report: dict[str, Any]) -> str:
             for name, value in item_judge.get("scores", {}).items()
             if value["score"] < JUDGE_SCORE_MAX
         ]
-        if failed_checks or violations:
+        invalid_reasons = item.get("invalid_reasons", [])
+        if failed_checks or violations or invalid_reasons:
             findings.extend(["", f"### {item['comparison']} / {item['arm']} / sample {item['sample']}", ""])
+            findings.extend(f"- Invalid: {markdown_cell(message)}" for message in invalid_reasons)
             findings.extend(f"- Outcome: {markdown_cell(message)}" for message in failed_checks)
             findings.extend(f"- Judge: {markdown_cell(message)}" for message in violations)
     if findings:
@@ -827,7 +889,7 @@ def actual_settings(results: list[dict[str, Any]]) -> dict[str, str]:
 
 
 def judge_settings(results: list[dict[str, Any]]) -> dict[str, str]:
-    judgments = [item.get("judge", {}) for item in results]
+    judgments = [item["judge"] for item in results if "judge" in item]
     models = {
         str(item["actual_model"])
         for item in judgments
@@ -950,23 +1012,27 @@ def main() -> int:
             comparisons_by_id = {item["id"]: item for item in selected}
             judge_groups: dict[str, list[int]] = {}
             for index, result in enumerate(results):
+                if not result.get("valid", True):
+                    continue
                 comparison = comparisons_by_id[result["comparison"]]
                 judge_groups.setdefault(judge_cache_key(result, comparison), []).append(index)
             representative_indices = [indices[0] for indices in judge_groups.values()]
-            with ThreadPoolExecutor(
-                max_workers=min(args.judge_jobs, len(representative_indices))
-            ) as executor:
-                judgments = list(
-                    executor.map(
-                        lambda index: run_judge(
-                            results[index],
-                            comparisons_by_id[results[index]["comparison"]],
-                            judge_command,
-                            args.keep_workspace,
-                        ),
-                        representative_indices,
+            judgments: list[dict[str, Any]] = []
+            if representative_indices:
+                with ThreadPoolExecutor(
+                    max_workers=min(args.judge_jobs, len(representative_indices))
+                ) as executor:
+                    judgments = list(
+                        executor.map(
+                            lambda index: run_judge(
+                                results[index],
+                                comparisons_by_id[results[index]["comparison"]],
+                                judge_command,
+                                args.keep_workspace,
+                            ),
+                            representative_indices,
+                        )
                     )
-                )
             for (cache_key, indices), judgment in zip(judge_groups.items(), judgments):
                 for position, index in enumerate(indices):
                     result = results[index]
@@ -999,7 +1065,7 @@ def main() -> int:
             report["judge"] = {
                 **observed_judge_settings,
                 "calls": len(judge_groups),
-                "results": len(results),
+                "results": sum(item.get("valid", True) for item in results),
         }
         if args.json_output:
             (run_dir / args.json_output.name).write_text(
@@ -1009,13 +1075,15 @@ def main() -> int:
             (run_dir / args.markdown_output.name).write_text(
                 markdown_report(report), encoding="utf-8"
             )
-        # Outcome failures are benchmark data, not harness failures. Reserve a
-        # non-zero exit for agents that could not complete their runs.
+        # Outcome failures are benchmark data. Execution/judge failures and
+        # invalid samples are harness-integrity failures.
         agents_completed = all(item["agent_exit"] == 0 for item in results)
         judges_completed = all(
             item.get("judge", {}).get("valid", False) for item in results
+            if item.get("valid", True)
         ) if args.judge_command else True
-        return 0 if agents_completed and judges_completed else 1
+        samples_valid = all(item.get("valid", True) for item in results)
+        return 0 if agents_completed and judges_completed and samples_valid else 1
     if not any((args.list, args.validate)):
         parser.print_help()
     return 2 if validation else 0
