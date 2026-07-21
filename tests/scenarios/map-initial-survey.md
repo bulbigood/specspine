@@ -4,6 +4,7 @@
 
 ```text
 README.md
+AGENTS.md
 package.json
 apps/web/
 apps/api/
@@ -13,7 +14,8 @@ packages/documents/
 docker-compose.yml
 ```
 
-No `<spine-root>/` directory exists.
+No `<spine-root>/` directory exists. Persistent project instructions require
+all SpecSpine documentation to be in English.
 
 ## User request
 
@@ -28,6 +30,7 @@ The skill should:
 - inspect high-value repository signals before deep internals;
 - identify major runtime components and responsibilities;
 - create `<spine-root>/README.md`;
+- honor the configured SpecSpine documentation language;
 - create a small set of top-level specification nodes;
 - distinguish observed facts from inferred architecture;
 - record incomplete coverage and open questions;

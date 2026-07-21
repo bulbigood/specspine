@@ -9,7 +9,8 @@ SpecSpine notice. No SDD framework is present.
 ## User request
 
 ```text
-Connect this SpecSpine to my coding agent. Apply the integration immediately.
+Connect this SpecSpine to my coding agent. Use English for all SpecSpine
+documentation. Apply the integration immediately.
 ```
 
 ## Expected behavior
@@ -20,6 +21,7 @@ The skill should:
 - inspect only applicable agent and integration metadata;
 - add one balanced managed bootstrap to `AGENTS.md` without changing other
   content;
+- persist English as the SpecSpine documentation language in that bootstrap;
 - create no project binding or project-local skill;
 - point the bootstrap to `specspine/README.md`;
 - distinguish Decisions and Constraints from Observed, Inferred, and Open

@@ -49,7 +49,6 @@ def main() -> int:
         "--json",
         "--ephemeral",
         "--skip-git-repo-check",
-        "--ignore-rules",
         "-s",
         "workspace-write",
         "-C",

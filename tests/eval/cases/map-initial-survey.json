@@ -4,6 +4,7 @@
   "skill": "skills/specspine-map",
   "status": "executable",
   "initial_files": {
+    "AGENTS.md": "# Project instructions\n\n<!-- specspine:begin -->\n## Architecture\n\nBefore planning, specifying, implementing, or reviewing a change, read `specspine/README.md` and follow only relevant links. Write all SpecSpine documentation in English.\n<!-- specspine:end -->\n",
     "README.md": "# Documents platform\n\nWeb, API, and worker process documents.\n",
     "package.json": "{\"workspaces\":[\"apps/*\",\"packages/*\"]}\n",
     "apps/web/main.js": "export function startWeb() {}\n",
@@ -17,7 +18,7 @@
     {"type": "path_exists", "path": "specspine/README.md"},
     {"type": "glob_count", "glob": "specspine/*.md", "min": 3, "max": 7},
     {"type": "file_contains", "path": "specspine/README.md", "value": "## Mapping status"},
-    {"type": "unchanged", "paths": ["README.md", "package.json", "apps/**", "packages/**", "docker-compose.yml"]},
+    {"type": "unchanged", "paths": ["AGENTS.md", "README.md", "package.json", "apps/**", "packages/**", "docker-compose.yml"]},
     {"type": "changed_only", "paths": ["specspine/**"]},
     {"type": "markdown_links_valid", "glob": "specspine/*.md"}
   ]

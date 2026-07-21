@@ -27,9 +27,10 @@ disagreements and never infer that documented intent is implemented.
 Keep the managed block small enough for every turn. It contains only:
 
 1. the resolved index path;
-2. when to consult it;
-3. compact authority and conflict semantics;
-4. the optional binding path.
+2. the explicitly selected SpecSpine documentation language;
+3. when to consult the index;
+4. compact authority and conflict semantics;
+5. the optional binding path.
 
 Use exactly one managed region:
 

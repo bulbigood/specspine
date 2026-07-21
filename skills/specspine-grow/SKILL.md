@@ -193,6 +193,11 @@ Preserve the existing responsibility unless the user changes it. Add accepted
 behavior or intent, link canonical neighbors, and extract a concept only when it
 now evolves independently.
 
+When the user explicitly adds a capability to an existing canonical owner,
+record the smallest accepted statement of that capability. Keep unspecified
+policies or implementation details as open questions; do not leave the explicit
+change unapplied merely because those non-blocking details remain unresolved.
+
 ### Split or merge
 
 For a split, identify the extracted responsibility, moved content, and changed

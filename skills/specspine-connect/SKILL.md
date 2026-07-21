@@ -21,23 +21,16 @@ exists, one lazily read project binding. Generate no project-local skill.
 
 ## Scope
 
-Use this skill to:
-
-- declare the SpecSpine entry point in persistent project instructions;
-- bind minimal SpecSpine context to a detected native SDD workflow;
-- refresh stale bindings after framework changes;
-- remove only integration artifacts owned by this skill when explicitly asked.
-
-Do not initialize or edit specifications, source code, tests, downstream
+Declare the SpecSpine entry point in project instructions; bind minimal context
+to a detected native SDD workflow; refresh it; or explicitly remove only owned
+integration artifacts. Do not edit specifications, code, tests, downstream
 artifacts, third-party skills, or global agent configuration.
 
 ## Discovery boundary
 
-Inspect only applicable persistent agent instructions and SDD manifests,
-instructions, templates, or command definitions. Do not inspect implementation,
-tests, feature contents, or unrelated documentation unless explicitly
-authorized. Treat framework files as integration metadata, not architecture.
-Do not execute framework commands during discovery.
+Inspect only applicable persistent instructions and SDD integration metadata.
+Do not inspect implementation, tests, features, or unrelated documentation
+unless authorized, and do not execute framework commands during discovery.
 
 ## Workflow
 
@@ -64,18 +57,17 @@ Do not discover project-local skill conventions because this integration does
 not generate a skill. If several instruction surfaces or frameworks are
 plausible, ask which target to adapt.
 
+Resolve the SpecSpine documentation language only from an explicit choice in
+the current request or an existing managed bootstrap. Otherwise ask the user
+which language to use before writing the integration; do not infer it from the
+conversation, repository, or existing specification prose.
+
 ### 3. Derive minimal artifacts
 
-Always derive one managed bootstrap. Generate the project binding only for a
-detected SDD workflow. A generic coding agent needs only the bootstrap and reads
-the relevant SpecSpine documents directly.
-
-Use `.specspine-integration.md` at the project root unless the user or an
-applicable project instruction selects another binding path.
-
-Keep canonical SpecSpine names and formats unchanged. Resolve binding fields
-from inspected evidence. Omit unknown optional fields; do not guess or leave
-placeholders. If the framework or native entry is unknown, install only the
+Always derive one managed bootstrap. Add a project binding only for a detected
+SDD workflow; default it to root `.specspine-integration.md`. Preserve canonical
+SpecSpine names and formats. Resolve fields from evidence and omit unknown
+options. If the framework or native entry is unknown, install only the
 bootstrap.
 
 ### 4. Determine changes
@@ -90,6 +82,9 @@ Spine root:
 
 Persistent instruction:
 - path and evidence
+
+Documentation language:
+- explicit language
 
 SDD framework:
 - framework and evidence, or none
@@ -117,7 +112,7 @@ a choice the request did not decide.
 
 - Add or replace one balanced `specspine:begin` / `specspine:end` block.
 - Preserve all content outside the managed block.
-- Render the resolved index and optional binding path.
+- Render the resolved index, documentation language, and optional binding path.
 - For SDD, render the required core and only discovered optional fields.
 - For a generic agent, create no binding or other generated artifact.
 - Keep integration artifacts outside `<spine-root>`.
@@ -127,6 +122,7 @@ a choice the request did not decide.
 Check that:
 
 - bootstrap and binding, when present, point to the same index;
+- the bootstrap declares the explicitly selected documentation language;
 - no unresolved `{{...}}` placeholder remains;
 - referenced workflow entries and format sources exist;
 - managed markers occur once and are balanced;

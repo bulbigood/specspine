@@ -115,9 +115,10 @@ configuration.md
 The skill should:
 
 - identify `external-identity.md` as the primary specification;
+- update it to record Google Sign-In as an accepted external provider;
 - update session creation only if its contract changes;
-- update configuration requirements;
-- update user-account linking rules;
+- leave unspecified configuration details and account-linking policy as open
+  questions without blocking the accepted provider change;
 - avoid creating `google-sign-in.md` when Google is merely one provider inside
   a general external identity concept;
 - propose `account-linking.md` only if account linking has independent rules.

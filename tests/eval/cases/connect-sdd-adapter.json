@@ -13,6 +13,7 @@
   },
   "assertions": [
     {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1},
+    {"type": "file_contains", "path": "AGENTS.md", "value": "Write all SpecSpine documentation in English."},
     {"type": "path_exists", "path": ".specspine-integration.md"},
     {"type": "file_contains", "path": ".specspine-integration.md", "values": ["architecture/README.md", "$change-proposal", "changes/<work-item>/proposal.md", "Architecture context", "Open architecture conflicts"]},
     {"type": "no_template_placeholders", "glob": "AGENTS.md"},

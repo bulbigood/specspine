@@ -10,7 +10,8 @@ workflow. Its feature artifacts use framework-specific paths and names.
 ## User request
 
 ```text
-Connect SpecSpine to this agent and its current SDD framework.
+Connect SpecSpine to this agent and its current SDD framework. Use English for
+all SpecSpine documentation.
 ```
 
 ## Expected behavior
@@ -18,6 +19,7 @@ Connect SpecSpine to this agent and its current SDD framework.
 The skill should:
 
 - use `architecture` rather than the default root;
+- persist English as the SpecSpine documentation language;
 - inspect the agent and SDD integration metadata but not source code or feature
   contents;
 - identify native downstream terms and paths only when supported by evidence;

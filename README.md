@@ -228,7 +228,9 @@ Adapt this project's SpecSpine to the current agent and SDD workflow.
 
 `specspine-connect` proposes a managed bootstrap and, when an SDD framework is
 present, a compact project binding. Generic coding-agent integration creates no
-additional artifact or project-local skill.
+additional artifact or project-local skill. The connector asks which language
+to use for SpecSpine documentation and persists that choice in the managed
+project instructions.
 
 ### Start a project
 
