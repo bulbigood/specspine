@@ -1,9 +1,9 @@
 ---
-name: specspine-init
+name: specspine-connect
 description: Bootstrap or refresh an ultralight project-local connection between an existing SpecSpine, persistent agent instructions, and an optional SDD framework. Use to advertise the SpecSpine entry point, generate a compact downstream binding, repair or remove a prior integration, or adapt architecture context to native project workflows without generating another skill.
 ---
 
-# SpecSpine Init
+# SpecSpine Connect
 
 Runtime contract: SpecSpine v1.
 

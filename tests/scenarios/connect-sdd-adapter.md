@@ -10,7 +10,7 @@ workflow. Its feature artifacts use framework-specific paths and names.
 ## User request
 
 ```text
-Initialize SpecSpine integration for this agent and its current SDD framework.
+Connect SpecSpine to this agent and its current SDD framework.
 ```
 
 ## Expected behavior

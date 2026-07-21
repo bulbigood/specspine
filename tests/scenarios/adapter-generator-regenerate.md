@@ -3,7 +3,7 @@
 ## Initial repository
 
 The maintainer-only `specspine-adapter-generator` contains canonical sources for
-`init`, `grow`, `map`, and `doctor`. Generated runtime packages are absent.
+`connect`, `grow`, `map`, and `doctor`. Generated runtime packages are absent.
 
 ## User request
 

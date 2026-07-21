@@ -1,0 +1,12 @@
+{
+  "contract_version": 1,
+  "files": {
+    "SKILL.md": "75c8b6e5e0b69f812cb883a01dd4681d1b1b9d8c973bfad21d9a0a6cbe705bf3",
+    "agents/openai.yaml": "81c323135274fa400ee08ddcd83740afd713b3fcacf67744ad0a78bb0e69ec62",
+    "assets/templates/agent-bootstrap.md": "b68e5713b4b7187ede4ed7a10eb04740e906065050b0df6156b77b352d8072c6",
+    "assets/templates/project-binding.md": "c15b3033efbb5d2c5aeb69545662bf9eafba1c3e963326981a54529e378db6e1",
+    "references/integration-contract.md": "4336e127c944b301ce900c2c11df145b1299256236b3e0981b0d0b59d58ae366"
+  },
+  "generator": "specspine-adapter-generator",
+  "source": "assets/skill-sources/specspine-connect"
+}

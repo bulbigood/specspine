@@ -1,0 +1,8 @@
+{
+  "id": "connect-binding-standalone",
+  "scenario": "tests/scenarios/connect-binding-standalone.md",
+  "skill": "skills/specspine-connect",
+  "status": "planned",
+  "initial_files": {},
+  "assertions": []
+}

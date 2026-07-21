@@ -1,8 +1,0 @@
-{
-  "id": "init-sdd-adapter",
-  "scenario": "tests/scenarios/init-sdd-adapter.md",
-  "skill": "skills/specspine-init",
-  "status": "planned",
-  "initial_files": {},
-  "assertions": []
-}

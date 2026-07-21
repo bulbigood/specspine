@@ -1,8 +1,0 @@
-{
-  "id": "init-binding-standalone",
-  "scenario": "tests/scenarios/init-binding-standalone.md",
-  "skill": "skills/specspine-init",
-  "status": "planned",
-  "initial_files": {},
-  "assertions": []
-}

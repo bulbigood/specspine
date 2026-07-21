@@ -1,8 +1,8 @@
-# Scenario: generated binding works without the initializer
+# Scenario: generated binding works without the connector
 
 ## Initial project
 
-The initializer has produced:
+The connector has produced:
 
 - a persistent project-instruction bootstrap;
 - a compact `.specspine-integration.md` binding;
@@ -10,7 +10,7 @@ The initializer has produced:
 
 The binding records a concrete native workflow entry, downstream stage,
 artifact paths, work-item naming rule, format source, context insertion point,
-traceability rule, and conflict destination. `specspine-init` is unavailable to
+traceability rule, and conflict destination. `specspine-connect` is unavailable to
 the new agent.
 
 ## User request
@@ -34,7 +34,7 @@ instructions, and SpecSpine, a fresh agent should:
   available;
 - route conflicts to the configured destination when one was discovered,
   otherwise block and report them explicitly;
-- avoid requiring `specspine-init`, a generated skill, or conversation history.
+- avoid requiring `specspine-connect`, a generated skill, or conversation history.
 
 ## Failure indicators
 
@@ -42,4 +42,4 @@ instructions, and SpecSpine, a fresh agent should:
 - a runtime binding is missing, vague, or unresolved;
 - the agent reads all specifications instead of selecting relevant context;
 - downstream artifacts silently override Decisions or Constraints;
-- the initializer or another generated skill is required at runtime.
+- the connector or another generated skill is required at runtime.

@@ -54,9 +54,9 @@ class AdapterGeneratorTests(unittest.TestCase):
     def test_generation_detects_output_drift(self):
         source_root = GENERATOR_ROOT / "assets" / "skill-sources"
         with tempfile.TemporaryDirectory() as directory:
-            target = Path(directory) / "skills" / "specspine-init"
-            source = source_root / "specspine-init"
-            files = GENERATOR.package_files(source_root, "specspine-init")
+            target = Path(directory) / "skills" / "specspine-connect"
+            source = source_root / "specspine-connect"
+            files = GENERATOR.package_files(source_root, "specspine-connect")
             GENERATOR.write_package(files, source, target)
             self.assertEqual([], GENERATOR.check_package(files, target))
             (target / "SKILL.md").write_text("drift\n", encoding="utf-8")
@@ -64,8 +64,8 @@ class AdapterGeneratorTests(unittest.TestCase):
                 any("drifted SKILL.md" in error for error in GENERATOR.check_package(files, target))
             )
 
-    def test_init_generates_no_project_local_skill_template(self):
-        templates = PROJECT_ROOT / "skills" / "specspine-init" / "assets" / "templates"
+    def test_connect_generates_no_project_local_skill_template(self):
+        templates = PROJECT_ROOT / "skills" / "specspine-connect" / "assets" / "templates"
         self.assertEqual(
             {"agent-bootstrap.md", "project-binding.md"},
             {path.name for path in templates.iterdir() if path.is_file()},

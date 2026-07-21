@@ -108,4 +108,4 @@ Never:
 - silently resolve ownership conflicts, accepted intent, or open questions;
 - treat stylistic preference as a correctness error;
 - claim formal validation, complete coverage, or code/spec conformance;
-- require `specspine-init`, which is unrelated to specification semantics.
+- require `specspine-connect`, which is unrelated to specification semantics.

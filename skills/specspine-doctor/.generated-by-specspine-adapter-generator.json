@@ -1,7 +1,7 @@
 {
   "contract_version": 1,
   "files": {
-    "SKILL.md": "3bccd93962fca52a485db5867c0de227589ce924707384f2c4ca9ed4b2eeb159",
+    "SKILL.md": "debb28d434959ffd4bd215374a681462c23913410d73760c068498777097a183",
     "agents/openai.yaml": "0d961d20ed13de06a8ba9951e48680abe87189fa6a956aad0bb457c6e18b816e",
     "references/context-handoff.md": "dacb3bf9cf89c08c36af3e6adc6ccbaf2625d4a1c5de52ca56d2cc9615ec281f",
     "references/review-method.md": "e4138e5d204426c0f90680409a3627158d28a617ff98c45d2914047ea42d8776",

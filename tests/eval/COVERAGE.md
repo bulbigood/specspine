@@ -10,7 +10,7 @@ classified.
 |---|---:|---:|
 | `specspine-grow` | 5 | 1 |
 | `specspine-map` | 5 | 2 |
-| `specspine-init` | 3 | 1 |
+| `specspine-connect` | 3 | 1 |
 | `specspine-doctor` | 2 | 2 |
 | package generator tooling | 1 | 1 |
 | Total | 16 | 7 |
@@ -51,7 +51,7 @@ High priority:
 
 - longitudinal evolution: map, refine, split, handoff, drift, refresh, and
   supersede a decision in the same project;
-- repeated invocation and idempotency, especially `specspine-init`;
+- repeated invocation and idempotency, especially `specspine-connect`;
 - merge, rename, removal, incoming-link updates, and semantic-ID tombstones;
 - intended-versus-observed conflict resolution after explicit user approval;
 - minimal handoff selection on a larger graph, including read and context-size

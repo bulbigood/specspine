@@ -6,7 +6,7 @@
   "status": "executable",
   "initial_files": {},
   "assertions": [
-    {"type": "path_exists", "path": "skills/specspine-init/SKILL.md"},
+    {"type": "path_exists", "path": "skills/specspine-connect/SKILL.md"},
     {"type": "path_exists", "path": "skills/specspine-grow/SKILL.md"},
     {"type": "path_exists", "path": "skills/specspine-map/SKILL.md"},
     {"type": "path_exists", "path": "skills/specspine-doctor/SKILL.md"},

@@ -6,7 +6,7 @@ runtime skill.
 
 Maintain four autonomous runtime skills without runtime dependencies or
 hand-edited duplicated rules. Treat files under `assets/skill-sources/` as
-canonical and `<repo-root>/skills/specspine-{init,grow,map,doctor}/` directories
+canonical and `<repo-root>/skills/specspine-{connect,grow,map,doctor}/` directories
 as generated output.
 
 ## Resources
@@ -40,7 +40,7 @@ as generated output.
 - Keep `SKILL.md` files concise and route conditional detail to references.
 - Prefer build-time duplication over runtime skill dependencies.
 - Do not generate project-specific architecture or SDD bindings here;
-  `specspine-init` owns that one-time project adaptation.
+  `specspine-connect` owns that one-time project adaptation.
 - Do not include this maintainer skill in the generated package set.
 
 ## Restrictions

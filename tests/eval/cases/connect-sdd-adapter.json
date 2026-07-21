@@ -1,0 +1,8 @@
+{
+  "id": "connect-sdd-adapter",
+  "scenario": "tests/scenarios/connect-sdd-adapter.md",
+  "skill": "skills/specspine-connect",
+  "status": "planned",
+  "initial_files": {},
+  "assertions": []
+}

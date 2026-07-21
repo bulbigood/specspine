@@ -6,7 +6,7 @@ Canonical sources live under:
 
 ```text
 assets/skill-sources/
-├── specspine-init/
+├── specspine-connect/
 ├── specspine-grow/
 ├── specspine-map/
 └── specspine-doctor/
@@ -39,7 +39,7 @@ Package generation resolves framework-maintainer duplication. It cannot know a
 consumer project's agent instructions, SpecSpine root, SDD workflow, paths, or
 naming rules.
 
-`specspine-init` may therefore generate only:
+`specspine-connect` may therefore generate only:
 
 - one small persistent discovery block;
 - one compact project binding when a downstream SDD workflow exists.
@@ -62,6 +62,6 @@ Before publishing:
 Generation and testing do not authorize external publishing.
 
 The generator enforces maximum word counts for the always-loaded bootstrap,
-conditional project binding, and latency-sensitive `init` and `doctor` skill
+conditional project binding, and latency-sensitive `connect` and `doctor` skill
 bodies. Change a budget only with an explicit architectural reason and a before
 and after runtime-cost comparison.

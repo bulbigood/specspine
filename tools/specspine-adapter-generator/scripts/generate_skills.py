@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 PACKAGES = (
-    "specspine-init",
+    "specspine-connect",
     "specspine-grow",
     "specspine-map",
     "specspine-doctor",
@@ -26,9 +26,9 @@ SHARED_REFERENCES = (
     "context-handoff.md",
 )
 WORD_BUDGETS = {
-    ("specspine-init", "SKILL.md"): 850,
-    ("specspine-init", "assets/templates/agent-bootstrap.md"): 60,
-    ("specspine-init", "assets/templates/project-binding.md"): 110,
+    ("specspine-connect", "SKILL.md"): 850,
+    ("specspine-connect", "assets/templates/agent-bootstrap.md"): 60,
+    ("specspine-connect", "assets/templates/project-binding.md"): 110,
     ("specspine-doctor", "SKILL.md"): 700,
 }
 

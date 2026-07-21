@@ -103,10 +103,10 @@ Software architecture is rarely a strict tree. A concept such as authentication 
 
 ## Skills
 
-### `specspine-init` (Connect)
+### `specspine-connect`
 
-Despite the compatibility-preserved package name, this does not create a
-SpecSpine. It connects an existing SpecSpine to the project's persistent agent
+This does not create a SpecSpine. It connects an existing SpecSpine to the
+project's persistent agent
 instructions and optional SDD workflow. It adds a short discovery block and,
 only for SDD projects, a compact lazily read binding. It never generates another
 skill or maintains framework-version adapters.
@@ -156,10 +156,10 @@ installable through `npx skills`.
 
 ## Installation
 
-Install `specspine-init` from this repository:
+Install `specspine-connect` from this repository:
 
 ```bash
-npx skills add bulbigood/specspine --skill specspine-init
+npx skills add bulbigood/specspine --skill specspine-connect
 ```
 
 Install `specspine-grow` from this repository:
@@ -189,7 +189,7 @@ npx skills add bulbigood/specspine --list
 Install all runtime SpecSpine skills without the maintainer-only generator:
 
 ```bash
-npx skills add bulbigood/specspine --skill specspine-init
+npx skills add bulbigood/specspine --skill specspine-connect
 npx skills add bulbigood/specspine --skill specspine-grow
 npx skills add bulbigood/specspine --skill specspine-map
 npx skills add bulbigood/specspine --skill specspine-doctor
@@ -202,7 +202,7 @@ git clone https://github.com/bulbigood/specspine.git
 cd specspine
 
 npx skills add . --list
-npx skills add . --skill specspine-init
+npx skills add . --skill specspine-connect
 npx skills add . --skill specspine-grow
 npx skills add . --skill specspine-map
 npx skills add . --skill specspine-doctor
@@ -226,7 +226,7 @@ command workflow.
 Adapt this project's SpecSpine to the current agent and SDD workflow.
 ```
 
-`specspine-init` proposes a managed bootstrap and, when an SDD framework is
+`specspine-connect` proposes a managed bootstrap and, when an SDD framework is
 present, a compact project binding. Generic coding-agent integration creates no
 additional artifact or project-local skill.
 
@@ -553,7 +553,7 @@ specspine/
 ├── README.md
 ├── LICENSE
 ├── skills/
-│   ├── specspine-init/
+│   ├── specspine-connect/
 │   │   ├── SKILL.md
 │   │   ├── references/
 │   │   │   └── integration-contract.md
@@ -648,7 +648,7 @@ Source code
 ```
 
 SpecSpine is conceptually compatible with OpenSpec, spec-kit, and direct
-coding-agent workflows through its neutral context handoff. `specspine-init`
+coding-agent workflows through its neutral context handoff. `specspine-connect`
 can capture inspected project conventions in a compact binding read only during
 downstream SDD work. SpecSpine does not ship maintained framework-version
 adapters, convert canonical specifications, or guarantee compatibility.
@@ -671,7 +671,7 @@ The most important success criterion is:
 ## Roadmap
 
 * [x] Define the SpecSpine principles
-* [x] Create `specspine-init` for project-local agent and SDD adaptation
+* [x] Create `specspine-connect` for project-local agent and SDD adaptation
 * [x] Create `specspine-grow`
 * [ ] Add example greenfield projects
 * [x] Add a repeatable evaluation harness

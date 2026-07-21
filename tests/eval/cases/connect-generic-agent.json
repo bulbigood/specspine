@@ -1,7 +1,7 @@
 {
-  "id": "init-generic-agent",
-  "scenario": "tests/scenarios/init-generic-agent.md",
-  "skill": "skills/specspine-init",
+  "id": "connect-generic-agent",
+  "scenario": "tests/scenarios/connect-generic-agent.md",
+  "skill": "skills/specspine-connect",
   "status": "executable",
   "initial_files": {
     "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n",
