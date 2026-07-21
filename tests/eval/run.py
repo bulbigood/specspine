@@ -341,8 +341,12 @@ def main() -> int:
     parser.add_argument("--validate", action="store_true", help="validate manifests without running an agent")
     parser.add_argument("--case", action="append", default=[], help="case ID to run; repeatable")
     parser.add_argument("--agent-command", help="command that accepts the prompt on stdin and edits its cwd")
-    parser.add_argument("--parallel", action="store_true", help="run all selected evaluation cases concurrently")
-    parser.add_argument("--jobs", type=positive_int, default=4, help="maximum parallel cases (default: 4)")
+    parser.add_argument(
+        "--jobs",
+        type=positive_int,
+        default=8,
+        help="maximum concurrent cases; use 1 for sequential execution (default: 8)",
+    )
     parser.add_argument("--keep-workspace", action="store_true", help="keep failed workspaces")
     args = parser.parse_args()
     cases = load_cases()
@@ -384,7 +388,7 @@ def main() -> int:
             print("No selected executable cases", file=sys.stderr)
             return 2
         command = shlex.split(args.agent_command)
-        if args.parallel and len(executable) > 1:
+        if args.jobs > 1 and len(executable) > 1:
             with ThreadPoolExecutor(max_workers=min(args.jobs, len(executable))) as executor:
                 results = list(
                     executor.map(

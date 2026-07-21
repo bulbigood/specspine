@@ -113,7 +113,7 @@ class RunnerTests(unittest.TestCase):
             }
             self.assertTrue(RUNNER.run_case(case, [sys.executable, str(adapter)], False))
 
-    def test_parallel_jobs_run_selected_cases_concurrently_and_queue_the_rest(self):
+    def test_jobs_run_selected_cases_concurrently_and_queue_the_rest(self):
         cases = [
             {
                 "id": case_id,
@@ -137,7 +137,7 @@ class RunnerTests(unittest.TestCase):
                 barrier.wait(timeout=2)
             return True
 
-        argv = ["run.py", "--parallel", "--jobs", "2", "--agent-command", "fake-agent"]
+        argv = ["run.py", "--jobs", "2", "--agent-command", "fake-agent"]
         with (
             patch.object(RUNNER, "load_cases", return_value=cases),
             patch.object(RUNNER, "validate_collection", return_value=[]),
@@ -147,6 +147,80 @@ class RunnerTests(unittest.TestCase):
         ):
             self.assertEqual(0, RUNNER.main())
         self.assertCountEqual(["parallel-a", "parallel-b", "parallel-c"], called)
+
+    def test_default_runs_selected_cases_concurrently(self):
+        cases = [
+            {
+                "id": case_id,
+                "scenario": "tests/scenarios/initialize-project.md",
+                "skill": "skills/specspine-grow",
+                "status": "executable",
+                "initial_files": {},
+                "assertions": [],
+            }
+            for case_id in (f"default-{number}" for number in range(9))
+        ]
+        barrier = threading.Barrier(8)
+        lock = threading.Lock()
+        calls = 0
+        worker_counts: list[int] = []
+        real_executor = RUNNER.ThreadPoolExecutor
+
+        def fake_run_case(case, command, keep_workspace):
+            nonlocal calls
+            with lock:
+                calls += 1
+                call_number = calls
+            if call_number <= 8:
+                barrier.wait(timeout=2)
+            return True
+
+        def recording_executor(max_workers):
+            worker_counts.append(max_workers)
+            return real_executor(max_workers=max_workers)
+
+        argv = ["run.py", "--agent-command", "fake-agent"]
+        with (
+            patch.object(RUNNER, "load_cases", return_value=cases),
+            patch.object(RUNNER, "validate_collection", return_value=[]),
+            patch.object(RUNNER, "validate_case", return_value=[]),
+            patch.object(RUNNER, "run_case", side_effect=fake_run_case),
+            patch.object(RUNNER, "ThreadPoolExecutor", side_effect=recording_executor),
+            patch.object(sys, "argv", argv),
+        ):
+            self.assertEqual(0, RUNNER.main())
+        self.assertEqual([8], worker_counts)
+
+    def test_one_job_runs_selected_cases_sequentially(self):
+        cases = [
+            {
+                "id": case_id,
+                "scenario": "tests/scenarios/initialize-project.md",
+                "skill": "skills/specspine-grow",
+                "status": "executable",
+                "initial_files": {},
+                "assertions": [],
+            }
+            for case_id in ("sequential-a", "sequential-b")
+        ]
+        called: list[str] = []
+
+        def fake_run_case(case, command, keep_workspace):
+            called.append(case["id"])
+            return True
+
+        argv = ["run.py", "--jobs", "1", "--agent-command", "fake-agent"]
+        with (
+            patch.object(RUNNER, "load_cases", return_value=cases),
+            patch.object(RUNNER, "validate_collection", return_value=[]),
+            patch.object(RUNNER, "validate_case", return_value=[]),
+            patch.object(RUNNER, "run_case", side_effect=fake_run_case),
+            patch.object(RUNNER, "ThreadPoolExecutor") as executor,
+            patch.object(sys, "argv", argv),
+        ):
+            self.assertEqual(0, RUNNER.main())
+        executor.assert_not_called()
+        self.assertEqual(["sequential-a", "sequential-b"], called)
 
     def test_jobs_must_be_positive(self):
         self.assertEqual(3, RUNNER.positive_int("3"))

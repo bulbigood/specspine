@@ -29,7 +29,6 @@ Run the main behavioral set concurrently:
 
 ```bash
 python3 tests/eval/run.py \
-  --parallel \
   --case map-deepen-selected-area \
   --case add-cross-cutting-feature \
   --case grow-existing-spec \
@@ -43,16 +42,18 @@ python3 tests/eval/run.py \
 
 Omit `--case` to run every executable eval. This is a long, resource-intensive,
 and potentially expensive operation; run it as infrequently as possible. Planned
-cases are not executed. `--jobs` limits simultaneous agents while the remaining
-cases wait in the executor queue (default: `4`):
+cases are not executed. The runner executes up to eight cases concurrently by
+default. `--jobs` changes that limit while the remaining cases wait in the
+executor queue; use `--jobs 1` for sequential execution:
 
 ```bash
 python3 tests/eval/run.py \
-  --parallel \
-  --jobs 4 \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py" \
   --keep-workspace
 ```
+
+Pass a different limit when eight concurrent agents are too many, for example
+`--jobs 4`.
 
 The bundled Codex adapter defaults to `gpt-5.6-terra` with medium reasoning.
 For cheaper eval runs, select `gpt-5.6-luna` and leave reasoning at the
@@ -60,8 +61,6 @@ adapter default by omitting `--reasoning-effort`:
 
 ```bash
 python3 tests/eval/run.py \
-  --parallel \
-  --jobs 4 \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna"
 ```
 
