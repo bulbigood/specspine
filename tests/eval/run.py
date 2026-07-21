@@ -22,17 +22,20 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 CASES_DIR = Path(__file__).resolve().parent / "cases"
 SCENARIOS_DIR = ROOT / "tests" / "scenarios"
-ID_RE = re.compile(r"^(DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$")
-REFERENCE_RE = re.compile(r"\[((?:DEC|CON|OBS|INF|OQ)-[^\]]+)\]\(([^)]+)\)")
-MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
-SECTION_PREFIXES = {
-    "Decisions": "DEC",
-    "Constraints": "CON",
-    "Observed": "OBS",
-    "Inferred": "INF",
-    "Open questions": "OQ",
-}
 CASE_CATEGORIES = {"core", "extended", "planned"}
+SEMANTIC_ID_ERROR_CODES = {
+    "DUPLICATE_ID",
+    "ID_FRAGMENT",
+    "ID_REGION_END",
+    "ID_REGION_NESTED",
+    "ID_REGION_UNCLOSED",
+    "ID_SECTION",
+    "INVALID_ID",
+    "INVALID_ID_REFERENCE",
+    "MULTIPLE_ID_REGIONS",
+    "UNRESOLVED_ID",
+}
+PREFLIGHT_ERROR_CODES = {"INDEX_MISSING", "READ_ERROR", "ROOT_MISSING"}
 
 
 @dataclass(frozen=True)
@@ -236,59 +239,52 @@ def project_files(workspace: Path, glob: str) -> list[Path]:
     ]
 
 
-def check_markdown_links(workspace: Path, glob: str) -> CheckResult:
-    failures: list[str] = []
-    for source in markdown_files(workspace, glob):
-        text = source.read_text(encoding="utf-8")
-        for target in MARKDOWN_LINK_RE.findall(text):
-            target = target.split("#", 1)[0]
-            if not target or "://" in target or target.startswith("mailto:"):
-                continue
-            resolved = (source.parent / target).resolve()
-            if not resolved.exists():
-                failures.append(f"{source.relative_to(workspace)} -> {target}")
-    return CheckResult(not failures, "broken links: " + ", ".join(failures) if failures else "all Markdown links resolve")
+def doctor_findings(workspace: Path, spine_path: str = "specspine") -> tuple[list[dict[str, Any]] | None, str]:
+    checker = ROOT / "skills" / "specspine-doctor" / "scripts" / "check_spine.py"
+    completed = subprocess.run(
+        [sys.executable, str(checker), str(workspace / spine_path), "--json"],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    try:
+        findings = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        return None, f"Doctor checker returned invalid JSON: {completed.stderr.strip()}"
+    if not isinstance(findings, list):
+        return None, "Doctor checker returned a non-list JSON result"
+    return findings, ""
 
 
-def check_semantic_ids(workspace: Path, glob: str) -> CheckResult:
-    definitions: dict[tuple[Path, str], int] = {}
-    failures: list[str] = []
-    references: list[tuple[Path, str, str]] = []
-    for source in markdown_files(workspace, glob):
-        text = source.read_text(encoding="utf-8")
-        section = ""
-        for line in text.splitlines():
-            heading = re.match(r"^##\s+(.+?)\s*$", line)
-            if heading:
-                section = heading.group(1)
-            definition = re.match(r"^- \*\*((?:DEC|CON|OBS|INF|OQ)-[^*]+)\*\* — ", line)
-            if not definition:
-                continue
-            identifier = definition.group(1)
-            if not ID_RE.fullmatch(identifier):
-                failures.append(f"invalid ID {identifier} in {source.relative_to(workspace)}")
-            expected_prefix = SECTION_PREFIXES.get(section)
-            actual_prefix = identifier.split("-", 1)[0]
-            if expected_prefix != actual_prefix:
-                failures.append(
-                    f"{identifier} is under '{section or 'no section'}' in {source.relative_to(workspace)}"
-                )
-            key = (source.resolve(), identifier)
-            definitions[key] = definitions.get(key, 0) + 1
-        for identifier, target in REFERENCE_RE.findall(text):
-            references.append((source, identifier, target))
-            if not ID_RE.fullmatch(identifier):
-                failures.append(f"invalid reference ID {identifier} in {source.relative_to(workspace)}")
-            if "#" in target:
-                failures.append(f"ID reference uses a fragment in {source.relative_to(workspace)}: {target}")
-    for (source, identifier), count in definitions.items():
-        if count > 1:
-            failures.append(f"duplicate {identifier} in {source.relative_to(workspace)}")
-    for source, identifier, target in references:
-        resolved = (source.parent / target).resolve()
-        if resolved.exists() and definitions.get((resolved, identifier), 0) != 1:
-            failures.append(f"unresolved {identifier}: {source.relative_to(workspace)} -> {target}")
-    return CheckResult(not failures, "; ".join(failures) if failures else "semantic IDs are valid and resolvable")
+def check_doctor_findings(
+    workspace: Path,
+    assertion: dict[str, Any],
+    *,
+    selected_codes: set[str] | None = None,
+) -> CheckResult:
+    spine_path = assertion.get("path")
+    if spine_path is None:
+        glob = assertion.get("glob", "specspine/**/*.md")
+        spine_path = glob.split("*", 1)[0].rstrip("/") or "specspine"
+    findings, error = doctor_findings(workspace, spine_path)
+    if findings is None:
+        return CheckResult(False, error)
+    allowed = set(assertion.get("allowed_codes", []))
+    forbidden = set(assertion.get("forbidden_codes", []))
+    unexpected = []
+    for item in findings:
+        code = str(item.get("code", ""))
+        if code in forbidden or (
+            item.get("severity") == "error"
+            and code not in allowed
+            and (selected_codes is None or code in selected_codes)
+        ):
+            unexpected.append(f"{code}:{item.get('path')}")
+    return CheckResult(
+        not unexpected,
+        f"unexpected Doctor findings: {unexpected}" if unexpected else "Doctor mechanical errors are absent",
+    )
 
 
 def evaluate_assertion(
@@ -383,33 +379,15 @@ def evaluate_assertion(
                 failures.append(str(item.relative_to(workspace)))
         return CheckResult(not failures, f"unresolved placeholders: {failures}" if failures else "no unresolved placeholders")
     if kind == "markdown_links_valid":
-        return check_markdown_links(workspace, assertion.get("glob", "**/*.md"))
+        return check_doctor_findings(
+            workspace, assertion, selected_codes=PREFLIGHT_ERROR_CODES | {"BROKEN_LINK"}
+        )
     if kind == "semantic_ids_valid":
-        return check_semantic_ids(workspace, assertion.get("glob", "**/*.md"))
+        return check_doctor_findings(
+            workspace, assertion, selected_codes=PREFLIGHT_ERROR_CODES | SEMANTIC_ID_ERROR_CODES
+        )
     if kind == "spine_mechanical_valid":
-        checker = ROOT / "skills" / "specspine-doctor" / "scripts" / "check_spine.py"
-        spine_root = workspace / assertion.get("path", "specspine")
-        completed = subprocess.run(
-            [sys.executable, str(checker), str(spine_root), "--json"],
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-        )
-        try:
-            findings = json.loads(completed.stdout)
-        except json.JSONDecodeError:
-            return CheckResult(False, f"Doctor checker returned invalid JSON: {completed.stderr.strip()}")
-        allowed = set(assertion.get("allowed_codes", []))
-        unexpected = [
-            f"{item.get('code')}:{item.get('path')}"
-            for item in findings
-            if item.get("code") not in allowed
-        ]
-        return CheckResult(
-            not unexpected,
-            f"unexpected Doctor findings: {unexpected}" if unexpected else "Doctor mechanical checks pass",
-        )
+        return check_doctor_findings(workspace, assertion)
     raise ValueError(f"unknown assertion type: {kind}")
 
 

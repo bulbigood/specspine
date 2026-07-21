@@ -32,42 +32,93 @@ class RunnerTests(unittest.TestCase):
     def test_detects_broken_markdown_link(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
-            (workspace / "README.md").write_text("[Missing](missing.md)\n", encoding="utf-8")
-            result = RUNNER.check_markdown_links(workspace, "**/*.md")
+            spine = workspace / "specspine"
+            spine.mkdir()
+            (spine / "README.md").write_text("# Architecture\n\n[Missing](missing.md)\n", encoding="utf-8")
+            result = RUNNER.evaluate_assertion(
+                {"type": "markdown_links_valid"}, workspace, {}, {}, "", None
+            )
             self.assertFalse(result.passed)
 
-    def test_validates_cross_file_semantic_id(self):
+    def test_semantic_id_assertion_uses_doctor_commonmark_rules(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
-            (workspace / "owner.md").write_text(
-                "## Constraints\n\n- **CON-retry-limit** — Stop retrying.\n", encoding="utf-8"
+            spine = workspace / "specspine"
+            spine.mkdir()
+            (spine / "README.md").write_text(
+                "# Architecture\n\n[Owner](owner.md)\n[Consumer](consumer.md)\n", encoding="utf-8"
             )
-            (workspace / "consumer.md").write_text(
+            (spine / "owner.md").write_text(
+                "# Owner\n\n<!-- specspine:semantic-ids:begin -->\n"
+                "## Ограничения ##\n\n+ **CON-retry-limit** — Stop retrying.\n"
+                "<!-- specspine:semantic-ids:end -->\n",
+                encoding="utf-8",
+            )
+            (spine / "consumer.md").write_text(
+                "# Consumer\n\n"
                 "Preserve [CON-retry-limit](owner.md).\n", encoding="utf-8"
             )
-            result = RUNNER.check_semantic_ids(workspace, "**/*.md")
+            result = RUNNER.evaluate_assertion(
+                {"type": "semantic_ids_valid"}, workspace, {}, {}, "", None
+            )
             self.assertTrue(result.passed, result.message)
 
     def test_rejects_semantic_id_url_fragment(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
-            (workspace / "owner.md").write_text(
-                "## Constraints\n\n- **CON-retry-limit** — Stop retrying.\n", encoding="utf-8"
+            spine = workspace / "specspine"
+            spine.mkdir()
+            (spine / "README.md").write_text(
+                "# Architecture\n\n[Owner](owner.md)\n[Consumer](consumer.md)\n", encoding="utf-8"
             )
-            (workspace / "consumer.md").write_text(
+            (spine / "owner.md").write_text(
+                "# Owner\n\n<!-- specspine:semantic-ids:begin -->\n## Constraints\n\n"
+                "- **CON-retry-limit** — Stop retrying.\n<!-- specspine:semantic-ids:end -->\n",
+                encoding="utf-8",
+            )
+            (spine / "consumer.md").write_text(
+                "# Consumer\n\n"
                 "Preserve [CON-retry-limit](owner.md#CON-retry-limit).\n", encoding="utf-8"
             )
-            result = RUNNER.check_semantic_ids(workspace, "**/*.md")
+            result = RUNNER.evaluate_assertion(
+                {"type": "semantic_ids_valid"}, workspace, {}, {}, "", None
+            )
             self.assertFalse(result.passed)
 
     def test_rejects_semantic_id_in_wrong_section(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
-            (workspace / "owner.md").write_text(
-                "## Decisions\n\n- **OBS-current-shape** — Current behavior.\n", encoding="utf-8"
+            spine = workspace / "specspine"
+            spine.mkdir()
+            (spine / "README.md").write_text(
+                "# Architecture\n\n<!-- specspine:semantic-ids:begin -->\n## Decisions\n\n"
+                "- **OBS-current-shape** — Current behavior.\n<!-- specspine:semantic-ids:end -->\n",
+                encoding="utf-8",
             )
-            result = RUNNER.check_semantic_ids(workspace, "**/*.md")
+            result = RUNNER.evaluate_assertion(
+                {"type": "semantic_ids_valid"}, workspace, {}, {}, "", None
+            )
             self.assertFalse(result.passed)
+
+    def test_mechanical_valid_ignores_advisories_unless_forbidden(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            spine = workspace / "specspine"
+            spine.mkdir()
+            (spine / "README.md").write_text("No level-one heading.\n", encoding="utf-8")
+            default = RUNNER.evaluate_assertion(
+                {"type": "spine_mechanical_valid"}, workspace, {}, {}, "", None
+            )
+            strict = RUNNER.evaluate_assertion(
+                {"type": "spine_mechanical_valid", "forbidden_codes": ["MISSING_H1"]},
+                workspace,
+                {},
+                {},
+                "",
+                None,
+            )
+            self.assertTrue(default.passed, default.message)
+            self.assertFalse(strict.passed)
 
     def test_accepts_any_existing_path(self):
         with tempfile.TemporaryDirectory() as directory:

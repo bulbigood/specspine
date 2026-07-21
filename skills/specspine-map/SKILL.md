@@ -153,18 +153,9 @@ same mapping information in the final report instead of pausing.
 - Write repository evidence paths as inline code, not as Markdown links that
   escape `<spine-root>`; reserve relative Markdown links for the specification
   graph.
-- When a document defines semantic IDs, keep every definition inside exactly
-  one balanced `specspine:semantic-ids:begin` / `specspine:semantic-ids:end`
-  region as required by `references/spec-format.md`; keep references as
-  ordinary ID-labeled Markdown links.
-- Before reporting, re-read every changed specification. If it defines IDs,
-  place its only begin marker before the first ID-owning section and its end
-  marker after the last. This must include `Observed` or `Inferred` definitions
-  that precede an existing `Decisions` region. Verify that no definition remains
-  outside the region. Keep `DEC`, `CON`, `OBS`, `INF`, and `OQ` definitions under
-  the exact `Decisions`, `Constraints`, `Observed`, `Inferred`, and
-  `Open questions` headings respectively; do not use alternate headings for
-  addressable claims. Verify that ID-labeled links have no `#` fragment.
+- When adding or changing a semantic ID, follow `Addressable statements` in
+  `references/spec-format.md`. Preserve the document's language and local
+  heading style when the statement kind remains unambiguous.
 - Do not rewrite intent to legitimize accidental implementation behavior.
 - Update `<spine-root>/README.md` only when top-level navigation, system-wide
   intent, or mapping coverage changes.

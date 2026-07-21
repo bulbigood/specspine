@@ -1,7 +1,7 @@
 # SpecSpine diagnostic method
 
-Use this method after loading the bundled build-generated format and semantic
-rules.
+Use this method with the bundled semantic rules. Load the full format rules only
+when a finding or repair depends on them.
 
 ## Severity
 
@@ -17,14 +17,18 @@ Confidence is separate from severity: `high`, `medium`, or `low`.
 
 ## Mechanical pass
 
-Use the bundled checker for reproducible findings. Verify:
+Use the bundled checker for reproducible findings. Its interoperability checks
+cover:
 
 - index presence and specification reachability;
 - relative Markdown link targets;
 - semantic-ID definitions, sections, uniqueness, and references;
-- headings and empty sections;
-- optional filename and directory conventions;
 - semantic-ID marker regions and evidence-baseline syntax.
+
+It may also report headings, empty sections, naming conventions, provenance,
+and reachability as warnings or notes. Treat these as advisory unless the
+requested operation gives them concrete semantic or navigation impact. Do not
+manually re-check advisory findings merely to reproduce the script.
 
 Only internal SpecSpine targets participate in link validity and reachability.
 Report a relative link that resolves outside `<spine-root>` as unchecked scope;
@@ -80,30 +84,7 @@ Check that the handoff:
 
 ## Report shape
 
-```markdown
-# SpecSpine health report
-
-## Summary
-
-## Errors
-
-### DOC-001 — Short title
-
-- Severity:
-- Confidence:
-- Location:
-- Evidence:
-- Impact:
-- Recommended owner:
-
-## Warnings
-
-## Notes
-
-## Scope
-
-- Checked:
-- Not checked:
-```
-
-Omit empty finding sections. Finding labels are report-local and ephemeral.
+List mechanical findings compactly with their checker code, severity, location,
+and message. For semantic findings, add report-local labels, confidence,
+evidence, impact, and repair disposition when useful. Omit empty severity
+groups. End with checked and unchecked scope. Finding labels are ephemeral.

@@ -344,11 +344,31 @@ class DoctorCheckerTests(unittest.TestCase):
                 "DUPLICATE_ID",
             ),
         }
+        expected_severities = {
+            "MISSING_H1": "warning",
+            "INVALID_BASELINE": "warning",
+            "EMPTY_SECTION": "warning",
+            "ID_REGION_NESTED": "error",
+            "ID_REGION_END": "error",
+            "INVALID_ID": "error",
+            "ID_SECTION": "error",
+            "ID_REGION_UNCLOSED": "error",
+            "MULTIPLE_ID_REGIONS": "error",
+            "EMPTY_ID_REGION": "warning",
+            "MULTIPLE_BASELINES": "warning",
+            "MISSING_BASELINE": "warning",
+            "DUPLICATE_ID": "error",
+        }
         for name, (content, expected) in cases.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 (root / "README.md").write_text(content, encoding="utf-8")
-                self.assertIn(expected, {finding.code for finding in CHECKER.check(root)})
+                findings = CHECKER.check(root)
+                self.assertIn(expected, {finding.code for finding in findings})
+                self.assertEqual(
+                    expected_severities[expected],
+                    next(finding.severity for finding in findings if finding.code == expected),
+                )
 
     def test_semantic_reference_finding_codes(self):
         with tempfile.TemporaryDirectory() as directory:

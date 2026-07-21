@@ -121,9 +121,11 @@ Supported assertions:
 - `unchanged`, `changed_only`, `max_changed_files`;
 - `read_only`, `read_includes`, `max_files_read` when an adapter emits a trace;
 - `balanced_markers`, `no_template_placeholders`;
-- `markdown_links_valid`, `semantic_ids_valid`;
-- `spine_mechanical_valid`, with optional `allowed_codes` for deliberately
-  unresolved Doctor findings.
+- `markdown_links_valid`, `semantic_ids_valid`, both implemented as scoped views
+  of the bundled Doctor checker rather than independent Markdown parsers;
+- `spine_mechanical_valid`, which fails on unallowed `error` findings and accepts
+  optional `allowed_codes` and `forbidden_codes`. Warnings and notes are
+  advisory unless explicitly forbidden by a scenario.
 
 Glob assertions inspect project files only and exclude the harness-owned
 `.eval/` directory.

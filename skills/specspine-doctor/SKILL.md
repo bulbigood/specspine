@@ -10,9 +10,11 @@ different contract version, report version skew before suggesting repairs.
 
 ## Resources
 
-- Read [references/spec-semantics.md](references/spec-semantics.md) and
-  [references/spec-format.md](references/spec-format.md) before semantic
-  diagnosis.
+- Read [references/spec-semantics.md](references/spec-semantics.md) before
+  semantic diagnosis.
+- Read [references/spec-format.md](references/spec-format.md) only when a
+  finding or repair depends on document organization, addressable-statement
+  syntax, or stopping rules.
 - Read [references/context-handoff.md](references/context-handoff.md) only when
   reviewing a handoff.
 - Run `scripts/check_spine.py <spine-root>` for deterministic checks; use
@@ -40,9 +42,10 @@ findings. Diagnose before editing and remain self-contained.
 
 ### 1. Resolve rules and root
 
-Load the bundled rules before classifying findings. Resolve `<spine-root>` from
-the user request, applicable project instructions, existing integration, or
-the documented default. Require its `README.md`.
+Load only the bundled rules required by the selected pass before classifying
+findings. Resolve `<spine-root>` from the user request, applicable project
+instructions, existing integration, or the documented default. Require its
+`README.md`.
 
 ### 2. Establish inspection boundary
 
@@ -81,17 +84,14 @@ anything left open.
 
 ### 6. Report
 
-Report findings in severity order with stable local finding labels such as
-`DOC-001`. These labels belong only to the report and must not be written into
-SpecSpine documents.
+Report mechanical findings compactly using the checker code, severity, path,
+line, and message. Do not expand advisory findings unless they affect the
+requested repair.
 
-For each finding include:
-
-- severity and confidence;
-- affected specification paths and semantic IDs when present;
-- evidence or reasoning;
-- impact;
-- repair disposition: automatic, Doctor repair, or user decision required.
+Give semantic findings stable report-local labels such as `DOC-001`. Include
+confidence, affected paths and IDs, evidence or reasoning, impact, and repair
+disposition only when those fields add information beyond the mechanical
+result. Never write report labels into SpecSpine documents.
 
 End with checked scope, unchecked scope, and a concise health summary. If no
 defects are found, say only that no defects were found within the inspected

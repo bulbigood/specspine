@@ -16,10 +16,10 @@ Check this SpecSpine for mechanical problems.
 
 The skill should:
 
-- load current bundled format and semantic rules;
+- load only the bundled rules required by the mechanical pass;
 - run the deterministic checker;
-- report broken links, reachability, semantic-ID, and empty-section findings
-  separately;
+- report broken links and unresolved semantic IDs as errors, and distinguish
+  reachability and empty-section advice from those errors;
 - include affected paths and evidence;
 - remain read-only;
 - avoid claiming formal validity or completeness.

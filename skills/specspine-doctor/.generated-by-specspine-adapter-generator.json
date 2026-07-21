@@ -1,11 +1,11 @@
 {
   "contract_version": 1,
   "files": {
-    "SKILL.md": "debb28d434959ffd4bd215374a681462c23913410d73760c068498777097a183",
+    "SKILL.md": "280eeb83d158b77cf530696db7952f63ee41614fd2eab12acdd593993cd3952b",
     "agents/openai.yaml": "0d961d20ed13de06a8ba9951e48680abe87189fa6a956aad0bb457c6e18b816e",
     "references/context-handoff.md": "dacb3bf9cf89c08c36af3e6adc6ccbaf2625d4a1c5de52ca56d2cc9615ec281f",
-    "references/review-method.md": "7b443eee3ac9952aa19221d7526c628b7c7de354bda805ed9b83d72ea044eb21",
-    "references/spec-format.md": "35f7c9ecc67feb017842f335317e716cca318e1357cb00e9dd9388b2e1979f28",
+    "references/review-method.md": "b8b428b79944d9bdfc422a26fb250e4ef12dd268f4a7bc837aa4fc16660d0f41",
+    "references/spec-format.md": "5e5f1fdefc20a5403deadddc9d7d64c59fc075e80a4d2c565b3a86d2f47feb58",
     "references/spec-semantics.md": "91f80ae2065123bcfd1048545ea350293b7000470b80c055bb5b07a9761341f2",
     "scripts/check_spine.py": "99412320d34ff6d589715ae541b605d3e46e6fb0abff48aa2ee433edc6b08240"
   },

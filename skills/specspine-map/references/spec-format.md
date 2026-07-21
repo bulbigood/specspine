@@ -49,8 +49,9 @@ Keep this value stable for the operation. Start with a flat directory:
 └── users.md
 ```
 
-Use lowercase kebab-case filenames and, when present, directory names based on
-stable concepts.
+Prefer lowercase kebab-case filenames and, when present, directory names based
+on stable concepts. Preserve established names when renaming would add churn
+without improving navigation.
 
 Prefer:
 
@@ -266,11 +267,13 @@ Use this identifier grammar:
 ^(DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$
 ```
 
-Match the prefix to the owning section: `DEC` for `Decisions`, `CON` for
-`Constraints`, `OBS` for `Observed`, `INF` for `Inferred`, and `OQ` for
-`Open questions`. Define an ID only once within a specification. IDs are local
-to their canonical specification, so an address is the resolved specification
-path plus the ID. An identifier adds addressability, not authority or proof.
+Match the prefix to the statement kind expressed by the owning section. The
+canonical English headings are `Decisions` for `DEC`, `Constraints` for `CON`,
+`Observed` for `OBS`, `Inferred` for `INF`, and `Open questions` for `OQ`.
+Equivalent translated headings may express the same kinds. Define an ID only
+once within a specification. IDs are local to their canonical specification,
+so an address is the resolved specification path plus the ID. An identifier
+adds addressability, not authority or proof.
 
 In the architecture index, `System-wide decisions` and `System-wide
 constraints` are the corresponding owners of `DEC` and `CON` identifiers.
