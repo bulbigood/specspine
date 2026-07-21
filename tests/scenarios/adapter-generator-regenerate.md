@@ -1,31 +1,31 @@
-# Scenario: regenerate autonomous runtime skills
+# Scenario: synchronize shared resources between canonical skills
 
 ## Initial repository
 
-The maintainer-only `specspine-adapter-generator` contains canonical sources for
-`connect`, `grow`, `map`, and `doctor`. Generated runtime packages are absent.
+The publishable `connect`, `grow`, `map`, and `doctor` packages under `skills/`
+are canonical. Shared references in `map` or `doctor` are stale.
 
 ## User request
 
 ```text
-Regenerate and validate all publishable SpecSpine runtime skills.
+Synchronize and validate shared references in all canonical SpecSpine runtime
+skills.
 ```
 
 ## Expected behavior
 
 The skill should:
 
-- run deterministic generation for all four runtime packages;
-- generate self-contained packages without runtime skill dependencies;
-- inject common rules from their single canonical authoring source;
-- write portable generated manifests;
+- treat the publishable packages under `skills/` as the source of truth;
+- synchronize common rules from `skills/specspine-grow` into their standalone
+  consumers;
 - run drift checking and available validation gates;
 - avoid publishing without explicit authorization.
 
 ## Failure indicators
 
-- generated output is hand-written instead of using the script;
-- common authoring rules are copied into several source packages;
-- a generated runtime skill depends on the generator;
+- canonical owner resources are overwritten from consumer copies;
+- full skill copies or snapshots are created under `tools/`;
+- a runtime skill depends on the generator;
 - publication occurs automatically;
 - generation check reports drift after regeneration.

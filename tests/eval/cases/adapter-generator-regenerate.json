@@ -7,11 +7,9 @@
   "category": "planned",
   "initial_files": {},
   "assertions": [
-    {"type": "path_exists", "path": "skills/specspine-connect/SKILL.md"},
-    {"type": "path_exists", "path": "skills/specspine-grow/SKILL.md"},
-    {"type": "path_exists", "path": "skills/specspine-map/SKILL.md"},
-    {"type": "path_exists", "path": "skills/specspine-doctor/SKILL.md"},
-    {"type": "glob_count", "glob": "skills/specspine-*/.generated-by-specspine-adapter-generator.json", "min": 4, "max": 4},
-    {"type": "changed_only", "paths": ["skills/**"]}
+    {"type": "path_exists", "path": "skills/specspine-map/references/spec-format.md"},
+    {"type": "path_exists", "path": "skills/specspine-map/references/spec-semantics.md"},
+    {"type": "path_exists", "path": "skills/specspine-doctor/references/context-handoff.md"},
+    {"type": "changed_only", "paths": ["skills/specspine-map/references/**", "skills/specspine-doctor/references/**"]}
   ]
 }

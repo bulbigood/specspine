@@ -1,45 +1,39 @@
-# SpecSpine package generation contract
+# SpecSpine resource generation contract
 
-## Source and output
+## Canonical packages
 
-Canonical sources live under:
+The publishable packages under `<repo-root>/skills/specspine-*` are the only
+canonical skill sources. Edit skill instructions, references, scripts,
+templates, and agent metadata there.
 
-```text
-assets/skill-sources/
-├── specspine-connect/
-├── specspine-grow/
-├── specspine-map/
-└── specspine-doctor/
-```
-
-Canonical entrypoints are named `SKILL.md.src` so skill installers do not
-discover source templates as additional runtime skills. Generation renames each
-one to `SKILL.md` in its output package.
-
-The generator copies them to sibling publishable skill directories and writes
-`.generated-by-specspine-adapter-generator.json` with source hashes. Generated
-directories must not contain additional files except ignored local artifacts.
+The maintainer tool must not contain copies or snapshots of those packages. It
+reads canonical skills directly and generates only resources that must be
+duplicated between independently published skills.
 
 ## Shared rules
 
-The `specspine-grow` source owns the canonical copies of:
+`skills/specspine-grow/references/` owns the canonical copies of:
 
-- `references/spec-format.md`;
-- `references/spec-semantics.md`;
-- `references/context-handoff.md`.
+- `spec-format.md`;
+- `spec-semantics.md`;
+- `context-handoff.md`.
 
-Copy those files at build time into every runtime skill that needs them. Test
-byte equality. Do not replace them with runtime cross-skill reads: independently
-installed skills cannot reliably locate each other's resources, and version
-skew would make claim classification unsafe.
+The generator synchronizes those files into `specspine-map` and
+`specspine-doctor`. These build-time copies keep every published skill
+independently installable without introducing another authoring source or a
+runtime companion dependency.
+
+Selecting `--skill specspine-grow` synchronizes both consumers. Selecting a
+consumer synchronizes only that consumer. Run the full generator before a
+release.
 
 ## Project adaptation boundary
 
-Package generation resolves framework-maintainer duplication. It cannot know a
-consumer project's agent instructions, SpecSpine root, SDD workflow, paths, or
-naming rules.
+Resource generation resolves framework-maintainer duplication. It cannot know
+a consumer project's agent instructions, SpecSpine root, SDD workflow, paths,
+or naming rules.
 
-`specspine-connect` may therefore generate only:
+`specspine-connect` may generate only:
 
 - one small persistent discovery block;
 - one compact project binding when a downstream SDD workflow exists.
@@ -47,17 +41,26 @@ naming rules.
 It must not generate another project-local skill. Generic integrations need
 only the discovery block.
 
+## Safety properties
+
+- Use deterministic byte copying; never use an LLM rewrite.
+- Write files through temporary siblings and atomic replacement.
+- Make `--check` read-only and return a non-zero exit code for drift.
+- Never create canonical skill instructions from files under `tools/`.
+- Never persist full skill copies under `tools/`.
+
 ## Required gates
 
 Before publishing:
 
-1. regenerate all packages;
-2. run generation in `--check` mode;
-3. validate every generated skill with an available native validator;
-4. run unit tests and the eval-manifest audit;
-5. run deterministic scripts on representative valid and invalid fixtures;
-6. inspect the generated diff for unintended prompt growth;
-7. record the release version through the repository's release mechanism.
+1. edit canonical files under `skills/`;
+2. synchronize shared resources;
+3. run generation in `--check` mode;
+4. validate every canonical skill with an available native validator;
+5. run unit tests and the eval-manifest audit;
+6. run deterministic scripts on representative valid and invalid fixtures;
+7. inspect the generated diff for unintended prompt growth;
+8. record the release version through the repository's release mechanism.
 
 Generation and testing do not authorize external publishing.
 

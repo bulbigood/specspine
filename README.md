@@ -182,9 +182,11 @@ evidence baselines.
 
 ### Package generator
 
-Repository-only tooling under `tools/specspine-adapter-generator/` generates the
-four publishable runtime skills. It is intentionally not discoverable or
-installable through `npx skills`.
+The four publishable packages under `skills/` are the source of truth.
+Repository-only tooling under `tools/specspine-adapter-generator/` synchronizes
+references shared by independently installable packages. It contains no skill
+copies, never generates canonical skills from files under `tools/`, and is
+intentionally not discoverable or installable through `npx skills`.
 
 ## Installation
 
@@ -240,11 +242,12 @@ npx skills add . --skill specspine-map
 npx skills add . --skill specspine-doctor
 ```
 
-Maintainers regenerate and verify the runtime packages from canonical sources:
+Maintainers synchronize shared package resources and verify that derived copies
+match their canonical owner under `skills/`:
 
 ```bash
-tools/specspine-adapter-generator/scripts/generate_skills.py
-tools/specspine-adapter-generator/scripts/generate_skills.py --check
+tools/specspine-adapter-generator/scripts/generate_resources.py
+tools/specspine-adapter-generator/scripts/generate_resources.py --check
 ```
 
 ## Usage
@@ -618,7 +621,7 @@ specspine/
 │   │       └── templates/
 │   │           ├── architecture-index.md
 │   │           └── specification.md
-│   ├── specspine-doctor/
+│   └── specspine-doctor/
 │   │   ├── SKILL.md
 │   │   ├── references/
 │   │   │   ├── spec-format.md
@@ -627,24 +630,23 @@ specspine/
 │   │   │   └── review-method.md
 │   │   └── scripts/
 │   │       └── check_spine.py
+├── tools/
 │   └── specspine-adapter-generator/
-│       ├── SKILL.md
+│       ├── MAINTAINER.md
 │       ├── references/
 │       │   └── generation-contract.md
 │       ├── scripts/
-│       │   └── generate_skills.py
-│       └── assets/
-│           └── skill-sources/
+│       │   └── generate_resources.py
 ├── examples/
 │   └── minimal-saas/
 └── tests/
     └── scenarios/
 ```
 
-The four runtime skills are generated, self-contained, and independently
-installable. `specspine-adapter-generator` is a maintainer-only build skill; it
-keeps shared authoring rules canonical and copies them into publishable packages
-without runtime dependencies.
+The four runtime skills are canonical, self-contained, and independently
+installable. `specspine-adapter-generator` is maintainer-only tooling: it keeps
+shared rules synchronized between standalone packages without retaining another
+copy of the skills or adding runtime dependencies.
 
 ## What SpecSpine is not
 

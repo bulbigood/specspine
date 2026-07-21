@@ -1,4 +1,4 @@
 interface:
-  display_name: "SpecSpine Adapter Generator"
-  short_description: "Generate and validate SpecSpine skill packages"
-  default_prompt: "Use $specspine-adapter-generator to regenerate and validate the publishable SpecSpine skill packages."
+  display_name: "SpecSpine Resource Generator"
+  short_description: "Synchronize shared SpecSpine resources"
+  default_prompt: "Use $specspine-adapter-generator to synchronize shared references between the canonical publishable SpecSpine skills and validate the result."

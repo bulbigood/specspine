@@ -26,10 +26,7 @@ class DoctorCheckerTests(unittest.TestCase):
     def test_checker_id_grammar_matches_canonical_format(self):
         format_path = (
             Path(__file__).parents[2]
-            / "tools"
-            / "specspine-adapter-generator"
-            / "assets"
-            / "skill-sources"
+            / "skills"
             / "specspine-grow"
             / "references"
             / "spec-format.md"

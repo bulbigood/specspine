@@ -1,6 +1,7 @@
 import importlib.util
-import json
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -9,7 +10,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parents[2]
 GENERATOR_ROOT = PROJECT_ROOT / "tools" / "specspine-adapter-generator"
-MODULE_PATH = GENERATOR_ROOT / "scripts" / "generate_skills.py"
+MODULE_PATH = GENERATOR_ROOT / "scripts" / "generate_resources.py"
 SPEC = importlib.util.spec_from_file_location("specspine_adapter_generator", MODULE_PATH)
 assert SPEC and SPEC.loader
 GENERATOR = importlib.util.module_from_spec(SPEC)
@@ -18,51 +19,97 @@ SPEC.loader.exec_module(GENERATOR)
 
 
 class AdapterGeneratorTests(unittest.TestCase):
-    def test_generated_packages_match_canonical_sources(self):
-        source_root = GENERATOR_ROOT / "assets" / "skill-sources"
+    def test_publishable_skills_are_canonical_packages(self):
+        skills_root = PROJECT_ROOT / "skills"
         for name in GENERATOR.PACKAGES:
-            files = GENERATOR.package_files(source_root, name)
-            errors = GENERATOR.check_package(files, PROJECT_ROOT / "skills" / name)
-            self.assertEqual([], errors, name)
+            self.assertTrue((skills_root / name / "SKILL.md").is_file(), name)
+            self.assertNotEqual({}, GENERATOR.package_files(skills_root, name), name)
 
-    def test_shared_rules_have_one_authoring_source(self):
-        source_root = GENERATOR_ROOT / "assets" / "skill-sources"
-        for consumer in ("specspine-map", "specspine-doctor"):
-            for filename in GENERATOR.SHARED_REFERENCES:
-                self.assertFalse((source_root / consumer / "references" / filename).exists())
+    def test_shared_rules_have_one_canonical_owner(self):
+        skills_root = PROJECT_ROOT / "skills"
+        files = GENERATOR.shared_files(skills_root)
+        for consumer in GENERATOR.SHARED_CONSUMERS:
+            self.assertEqual(
+                [],
+                GENERATOR.check_shared_files(files, skills_root / consumer),
+                consumer,
+            )
 
-    def test_source_entrypoints_are_not_discoverable_as_skills(self):
-        source_root = GENERATOR_ROOT / "assets" / "skill-sources"
-        self.assertEqual([], list(source_root.rglob("SKILL.md")))
+    def test_prompt_budgets_are_enforced_on_canonical_skills(self):
+        skills_root = PROJECT_ROOT / "skills"
         for name in GENERATOR.PACKAGES:
-            self.assertTrue((source_root / name / "SKILL.md.src").is_file())
-
-    def test_prompt_budgets_are_enforced(self):
-        source_root = GENERATOR_ROOT / "assets" / "skill-sources"
-        for name in GENERATOR.PACKAGES:
-            files = GENERATOR.package_files(source_root, name)
+            files = GENERATOR.package_files(skills_root, name)
             self.assertEqual([], GENERATOR.check_word_budgets(name, files), name)
 
-    def test_generated_manifests_are_portable(self):
+    def test_canonical_skills_do_not_claim_to_be_generated(self):
+        legacy_manifest = ".generated-by-specspine-adapter-generator.json"
         for name in GENERATOR.PACKAGES:
-            manifest = PROJECT_ROOT / "skills" / name / GENERATOR.MANIFEST
-            data = json.loads(manifest.read_text(encoding="utf-8"))
-            self.assertEqual(GENERATOR.CONTRACT_VERSION, data["contract_version"])
-            self.assertEqual(f"assets/skill-sources/{name}", data["source"])
-            self.assertNotIn(str(PROJECT_ROOT), manifest.read_text(encoding="utf-8"))
+            self.assertFalse((PROJECT_ROOT / "skills" / name / legacy_manifest).exists())
 
-    def test_generation_detects_output_drift(self):
-        source_root = GENERATOR_ROOT / "assets" / "skill-sources"
+    def test_cli_synchronizes_only_shared_skill_resources(self):
         with tempfile.TemporaryDirectory() as directory:
-            target = Path(directory) / "skills" / "specspine-connect"
-            source = source_root / "specspine-connect"
-            files = GENERATOR.package_files(source_root, "specspine-connect")
-            GENERATOR.write_package(files, source, target)
-            self.assertEqual([], GENERATOR.check_package(files, target))
-            (target / "SKILL.md").write_text("drift\n", encoding="utf-8")
-            self.assertTrue(
-                any("drifted SKILL.md" in error for error in GENERATOR.check_package(files, target))
+            repo_root = Path(directory)
+            shutil.copytree(PROJECT_ROOT / "skills", repo_root / "skills")
+            owner = repo_root / "skills/specspine-grow/references/spec-format.md"
+            consumer = repo_root / "skills/specspine-map/references/spec-format.md"
+            connect = repo_root / "skills/specspine-connect/SKILL.md"
+            owner_before = owner.read_bytes()
+            connect_before = connect.read_bytes()
+            consumer.write_text("drift\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(MODULE_PATH),
+                    "--repo-root",
+                    str(repo_root),
+                    "--check",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
             )
+            self.assertNotEqual(0, result.returncode)
+            self.assertEqual("drift\n", consumer.read_text(encoding="utf-8"))
+
+            subprocess.run(
+                [sys.executable, str(MODULE_PATH), "--repo-root", str(repo_root)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(owner_before, owner.read_bytes())
+            self.assertEqual(owner_before, consumer.read_bytes())
+            self.assertEqual(connect_before, connect.read_bytes())
+            self.assertFalse((repo_root / "tools").exists())
+
+    def test_focused_owner_generation_updates_all_shared_consumers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo_root = Path(directory)
+            shutil.copytree(PROJECT_ROOT / "skills", repo_root / "skills")
+            owner = repo_root / "skills/specspine-grow/references/spec-format.md"
+            expected = owner.read_bytes()
+            for consumer in GENERATOR.SHARED_CONSUMERS:
+                (repo_root / "skills" / consumer / "references/spec-format.md").write_text(
+                    "drift\n", encoding="utf-8"
+                )
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(MODULE_PATH),
+                    "--repo-root",
+                    str(repo_root),
+                    "--skill",
+                    GENERATOR.SHARED_OWNER,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            for consumer in GENERATOR.SHARED_CONSUMERS:
+                generated = repo_root / "skills" / consumer / "references/spec-format.md"
+                self.assertEqual(expected, generated.read_bytes())
 
     def test_connect_generates_no_project_local_skill_template(self):
         templates = PROJECT_ROOT / "skills" / "specspine-connect" / "assets" / "templates"
@@ -72,39 +119,28 @@ class AdapterGeneratorTests(unittest.TestCase):
         )
 
     def test_connect_bootstrap_requires_documentation_language(self):
-        source = (
-            GENERATOR_ROOT
-            / "assets"
-            / "skill-sources"
-            / "specspine-connect"
-        )
-        skill = (source / "SKILL.md.src").read_text(encoding="utf-8")
+        source = PROJECT_ROOT / "skills" / "specspine-connect"
+        skill = (source / "SKILL.md").read_text(encoding="utf-8")
         bootstrap = (source / "assets/templates/agent-bootstrap.md").read_text(encoding="utf-8")
         self.assertIn("ask the user", skill)
         self.assertIn("{{DOCUMENTATION_LANGUAGE}}", bootstrap)
 
-    def test_generator_is_not_discoverable_as_a_runtime_skill(self):
+    def test_generator_has_no_runtime_skill_or_skill_copies(self):
         self.assertFalse((GENERATOR_ROOT / "SKILL.md").exists())
         self.assertTrue((GENERATOR_ROOT / "MAINTAINER.md").is_file())
-        self.assertEqual(
-            [],
-            list((PROJECT_ROOT / "tools").glob("**/SKILL.md")),
-        )
+        self.assertFalse((GENERATOR_ROOT / "assets" / "skill-sources").exists())
+        self.assertEqual([], list((PROJECT_ROOT / "tools").glob("**/SKILL.md")))
 
     def test_each_runtime_skill_is_standalone(self):
         link_re = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
-        versions = set()
         for name in GENERATOR.PACKAGES:
             root = PROJECT_ROOT / "skills" / name
-            manifest = json.loads((root / GENERATOR.MANIFEST).read_text(encoding="utf-8"))
-            versions.add(manifest["contract_version"])
             text = (root / "SKILL.md").read_text(encoding="utf-8")
             for raw_target in link_re.findall(text):
                 target = raw_target.split("#", 1)[0]
                 if target and "://" not in target:
                     self.assertTrue((root / target).is_file(), f"{name}: missing {target}")
             self.assertNotIn("../specspine-", text)
-        self.assertEqual({GENERATOR.CONTRACT_VERSION}, versions)
 
 
 if __name__ == "__main__":
