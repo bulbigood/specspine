@@ -117,6 +117,51 @@ class DoctorCheckerTests(unittest.TestCase):
             )
             self.assertEqual([], CHECKER.check(root))
 
+    def test_traces_nested_links_and_path_scoped_semantic_ids(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payments = root / "domains" / "payments"
+            resilience = root / "platform" / "resilience"
+            payments.mkdir(parents=True)
+            resilience.mkdir(parents=True)
+            (root / "README.md").write_text(
+                "# Architecture\n\n[Payments](domains/payments/payment-processing.md)\n",
+                encoding="utf-8",
+            )
+            (payments / "payment-processing.md").write_text(
+                "# Payment processing\n\n"
+                "Preserve [CON-retry-limit](../../platform/resilience/retry-policy.md).\n\n"
+                "[Retry policy](../../platform/resilience/retry-policy.md)\n",
+                encoding="utf-8",
+            )
+            (resilience / "retry-policy.md").write_text(
+                "# Retry policy\n\n"
+                "<!-- specspine:semantic-ids:begin -->\n"
+                "## Constraints\n\n"
+                "- **CON-retry-limit** — Retries stop after five attempts.\n"
+                "<!-- specspine:semantic-ids:end -->\n",
+                encoding="utf-8",
+            )
+            self.assertEqual([], CHECKER.check(root))
+
+    def test_id_outside_marker_region_does_not_satisfy_reference(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "README.md").write_text(
+                "# Architecture\n\n[Consumer](consumer.md)\n[Owner](owner.md)\n",
+                encoding="utf-8",
+            )
+            (root / "consumer.md").write_text(
+                "# Consumer\n\nPreserve [CON-retry-limit](owner.md).\n",
+                encoding="utf-8",
+            )
+            (root / "owner.md").write_text(
+                "# Owner\n\n## Constraints\n\n- **CON-retry-limit** — Retries are bounded.\n",
+                encoding="utf-8",
+            )
+            codes = {finding.code for finding in CHECKER.check(root)}
+            self.assertTrue({"ID_OUTSIDE_REGION", "UNRESOLVED_ID"} <= codes)
+
 
 if __name__ == "__main__":
     unittest.main()

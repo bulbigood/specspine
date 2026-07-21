@@ -51,7 +51,7 @@ def load_cases() -> list[dict[str, Any]]:
 
 def validate_case(case: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    required = {"id", "scenario", "skill", "status", "initial_files", "assertions"}
+    required = {"id", "scenario", "status", "initial_files"}
     missing = sorted(required - case.keys())
     if missing:
         errors.append(f"missing fields: {', '.join(missing)}")
@@ -61,21 +61,85 @@ def validate_case(case: dict[str, Any]) -> list[str]:
     if not isinstance(case.get("runs", 1), int) or case.get("runs", 1) < 1:
         errors.append("runs must be a positive integer")
     scenario = ROOT / case["scenario"]
-    skill = ROOT / case["skill"]
     if not scenario.is_file():
         errors.append(f"scenario does not exist: {case['scenario']}")
-    entrypoint = case.get("entrypoint", "SKILL.md")
-    if not (skill / entrypoint).is_file():
-        errors.append(f"evaluation entrypoint does not exist: {case['skill']}/{entrypoint}")
-    if case["status"] == "executable" and not case["assertions"]:
-        errors.append("executable case has no assertions")
-    for companion in case.get("companion_skills", []):
+    stages = case.get("stages")
+    if stages is not None:
+        if not isinstance(stages, list) or not stages:
+            errors.append("stages must be a non-empty list")
+        else:
+            stage_ids = [stage.get("id") for stage in stages if isinstance(stage, dict)]
+            duplicates = sorted({value for value in stage_ids if value and stage_ids.count(value) > 1})
+            for value in duplicates:
+                errors.append(f"duplicate stage id: {value}")
+            for index, stage in enumerate(stages, 1):
+                errors.extend(validate_stage(stage, index))
+        assertion_count = len(case.get("final_assertions", [])) + sum(
+            len(stage.get("assertions", [])) for stage in stages if isinstance(stage, dict)
+        ) if isinstance(stages, list) else 0
+        if case["status"] == "executable" and not assertion_count:
+            errors.append("executable staged case has no assertions")
+    else:
+        if "skill" not in case or "assertions" not in case:
+            errors.append("non-staged case requires skill and assertions")
+        else:
+            errors.extend(validate_skill(case["skill"], case.get("entrypoint", "SKILL.md"), case.get("companion_skills", [])))
+            if case["status"] == "executable" and not case["assertions"]:
+                errors.append("executable case has no assertions")
+    for rel in case["initial_files"]:
+        if not safe_relative_path(rel):
+            errors.append(f"unsafe initial file path: {rel}")
+    return errors
+
+
+def safe_relative_path(value: str) -> bool:
+    path = Path(value)
+    return bool(value) and not path.is_absolute() and ".." not in path.parts
+
+
+def validate_skill(skill: str, entrypoint: str, companions: list[str]) -> list[str]:
+    errors: list[str] = []
+    if not (ROOT / skill / entrypoint).is_file():
+        errors.append(f"evaluation entrypoint does not exist: {skill}/{entrypoint}")
+    for companion in companions:
         if not (ROOT / companion / "SKILL.md").is_file():
             errors.append(f"companion skill does not exist: {companion}")
-    for rel in case["initial_files"]:
-        path = Path(rel)
-        if path.is_absolute() or ".." in path.parts:
-            errors.append(f"unsafe initial file path: {rel}")
+    return errors
+
+
+def validate_stage(stage: Any, index: int) -> list[str]:
+    label = f"stage {index}"
+    if not isinstance(stage, dict):
+        return [f"{label} must be an object"]
+    errors: list[str] = []
+    if not stage.get("id"):
+        errors.append(f"{label} requires id")
+    agent_stage = "skill" in stage
+    fixture_stage = "fixture" in stage
+    if agent_stage == fixture_stage:
+        errors.append(f"{label} must define exactly one of skill or fixture")
+        return errors
+    if agent_stage:
+        if not isinstance(stage.get("prompt"), str) or not stage["prompt"].strip():
+            errors.append(f"{label} agent stage requires prompt")
+        errors.extend(
+            validate_skill(
+                stage["skill"],
+                stage.get("entrypoint", "SKILL.md"),
+                stage.get("companion_skills", []),
+            )
+        )
+    else:
+        fixture = stage["fixture"]
+        if not isinstance(fixture, dict):
+            errors.append(f"{label} fixture must be an object")
+            return errors
+        unknown = sorted(set(fixture) - {"write_files", "remove_files"})
+        if unknown:
+            errors.append(f"{label} fixture has unknown operations: {', '.join(unknown)}")
+        for rel in list(fixture.get("write_files", {})) + list(fixture.get("remove_files", [])):
+            if not safe_relative_path(rel):
+                errors.append(f"{label} has unsafe fixture path: {rel}")
     return errors
 
 
@@ -101,14 +165,35 @@ def write_fixture(case: dict[str, Any], workspace: Path) -> None:
         path = workspace / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
-    skill_source = ROOT / case["skill"]
-    shutil.copytree(skill_source, workspace / ".eval" / "skill")
-    for companion in case.get("companion_skills", []):
-        companion_source = ROOT / companion
-        shutil.copytree(companion_source, workspace / ".eval" / "companions" / companion_source.name)
     scenario_source = ROOT / case["scenario"]
     (workspace / ".eval").mkdir(exist_ok=True)
     shutil.copy2(scenario_source, workspace / ".eval" / "scenario.md")
+    if "stages" not in case:
+        install_stage_skill(case, workspace)
+
+
+def install_stage_skill(stage: dict[str, Any], workspace: Path) -> None:
+    skill_target = workspace / ".eval" / "skill"
+    companions_target = workspace / ".eval" / "companions"
+    if skill_target.exists():
+        shutil.rmtree(skill_target)
+    if companions_target.exists():
+        shutil.rmtree(companions_target)
+    shutil.copytree(ROOT / stage["skill"], skill_target)
+    for companion in stage.get("companion_skills", []):
+        companion_source = ROOT / companion
+        shutil.copytree(companion_source, companions_target / companion_source.name)
+
+
+def apply_fixture_mutation(fixture: dict[str, Any], workspace: Path) -> None:
+    for rel, content in fixture.get("write_files", {}).items():
+        path = workspace / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    for rel in fixture.get("remove_files", []):
+        path = workspace / rel
+        if path.is_file() or path.is_symlink():
+            path.unlink()
 
 
 def snapshot(workspace: Path) -> dict[str, bytes]:
@@ -129,6 +214,14 @@ def matches_any(path: str, patterns: list[str]) -> bool:
 
 def markdown_files(workspace: Path, glob: str = "**/*.md") -> list[Path]:
     return [path for path in workspace.glob(glob) if path.is_file() and ".eval" not in path.parts]
+
+
+def project_files(workspace: Path, glob: str) -> list[Path]:
+    return [
+        path
+        for path in workspace.glob(glob)
+        if path.is_file() and ".eval" not in path.relative_to(workspace).parts
+    ]
 
 
 def check_markdown_links(workspace: Path, glob: str) -> CheckResult:
@@ -205,10 +298,19 @@ def evaluate_assertion(
     if kind == "path_absent":
         return CheckResult(not path.exists(), f"absent: {assertion['path']}")
     if kind == "glob_count":
-        count = len([item for item in workspace.glob(assertion["glob"]) if item.is_file()])
+        count = len(project_files(workspace, assertion["glob"]))
         minimum = assertion.get("min", 0)
         maximum = assertion.get("max", sys.maxsize)
         return CheckResult(minimum <= count <= maximum, f"{assertion['glob']}: {count}, expected {minimum}..{maximum}")
+    if kind == "glob_contains":
+        files = project_files(workspace, assertion["glob"])
+        content = "\n".join(path.read_text(encoding="utf-8") for path in files)
+        needles = assertion.get("values", [assertion.get("value", "")])
+        missing = [needle for needle in needles if needle not in content]
+        return CheckResult(
+            not missing,
+            f"{assertion['glob']} missing: {missing}" if missing else f"content found in {assertion['glob']}",
+        )
     if kind == "file_contains":
         content = path.read_text(encoding="utf-8") if path.is_file() else ""
         needles = assertion.get("values", [assertion.get("value", "")])
@@ -264,23 +366,48 @@ def evaluate_assertion(
         return CheckResult(passed, f"marker counts: {content.count(begin)}/{content.count(end)}")
     if kind == "no_template_placeholders":
         failures = []
-        for item in workspace.glob(assertion["glob"]):
-            if item.is_file() and re.search(r"\{\{[^{}]+\}\}", item.read_text(encoding="utf-8")):
+        for item in project_files(workspace, assertion["glob"]):
+            if re.search(r"\{\{[^{}]+\}\}", item.read_text(encoding="utf-8")):
                 failures.append(str(item.relative_to(workspace)))
         return CheckResult(not failures, f"unresolved placeholders: {failures}" if failures else "no unresolved placeholders")
     if kind == "markdown_links_valid":
         return check_markdown_links(workspace, assertion.get("glob", "**/*.md"))
     if kind == "semantic_ids_valid":
         return check_semantic_ids(workspace, assertion.get("glob", "**/*.md"))
+    if kind == "spine_mechanical_valid":
+        checker = ROOT / "skills" / "specspine-doctor" / "scripts" / "check_spine.py"
+        spine_root = workspace / assertion.get("path", "specspine")
+        completed = subprocess.run(
+            [sys.executable, str(checker), str(spine_root), "--json"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        try:
+            findings = json.loads(completed.stdout)
+        except json.JSONDecodeError:
+            return CheckResult(False, f"Doctor checker returned invalid JSON: {completed.stderr.strip()}")
+        allowed = set(assertion.get("allowed_codes", []))
+        unexpected = [
+            f"{item.get('code')}:{item.get('path')}"
+            for item in findings
+            if item.get("code") not in allowed
+        ]
+        return CheckResult(
+            not unexpected,
+            f"unexpected Doctor findings: {unexpected}" if unexpected else "Doctor mechanical checks pass",
+        )
     raise ValueError(f"unknown assertion type: {kind}")
 
 
-def build_prompt(case: dict[str, Any]) -> str:
-    scenario = (ROOT / case["scenario"]).read_text(encoding="utf-8")
-    eval_language = case.get("eval_language", "English")
+def build_prompt(case: dict[str, Any], stage: dict[str, Any] | None = None) -> str:
+    scenario = stage["prompt"] if stage is not None else (ROOT / case["scenario"]).read_text(encoding="utf-8")
+    config = stage or case
+    eval_language = config.get("eval_language", case.get("eval_language", "English"))
     return (
         "You are running a repeatable SpecSpine evaluation.\n"
-        f"Read .eval/skill/{case.get('entrypoint', 'SKILL.md')} and all references it requires.\n"
+        f"Read .eval/skill/{config.get('entrypoint', 'SKILL.md')} and all references it requires.\n"
         "Installed companion skills, when configured, are under .eval/companions/.\n"
         "Treat the current directory as the project root.\n"
         f"For reproducibility, write the final response and newly created project documents in {eval_language}. "
@@ -288,6 +415,99 @@ def build_prompt(case: dict[str, Any]) -> str:
         "Perform the user request described by the scenario.\n\n"
         f"{scenario}\n"
     )
+
+
+def read_trace(workspace: Path) -> dict[str, Any] | None:
+    trace_path = workspace / ".eval" / "trace.json"
+    return json.loads(trace_path.read_text(encoding="utf-8")) if trace_path.is_file() else None
+
+
+def archive_stage(
+    workspace: Path,
+    stage_number: int,
+    stage_id: str,
+    response: str,
+    stderr: str,
+    trace: dict[str, Any] | None,
+) -> None:
+    target = workspace / ".eval" / "stages" / f"{stage_number:02d}-{stage_id}"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "response.md").write_text(response, encoding="utf-8")
+    if stderr:
+        (target / "stderr.txt").write_text(stderr, encoding="utf-8")
+    if trace is not None:
+        (target / "trace.json").write_text(json.dumps(trace, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def print_results(results: list[CheckResult], indent: str = "  ") -> None:
+    for result in results:
+        print(f"{indent}{'ok' if result.passed else 'not ok'} - {result.message}")
+
+
+def run_staged_case(case: dict[str, Any], command: list[str], workspace: Path, env: dict[str, str]) -> bool:
+    initial = snapshot(workspace)
+    all_responses: list[str] = []
+    last_trace: dict[str, Any] | None = None
+    passed = True
+    for stage_number, stage in enumerate(case["stages"], 1):
+        stage_id = stage["id"]
+        before = snapshot(workspace)
+        response = ""
+        stderr = ""
+        returncode = 0
+        trace: dict[str, Any] | None = None
+        if "fixture" in stage:
+            apply_fixture_mutation(stage["fixture"], workspace)
+        else:
+            install_stage_skill(stage, workspace)
+            trace_path = workspace / ".eval" / "trace.json"
+            if trace_path.exists():
+                trace_path.unlink()
+            completed = subprocess.run(
+                command,
+                cwd=workspace,
+                input=build_prompt(case, stage),
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env={
+                    **env,
+                    "SPECSPINE_EVAL_RUN": str(stage_number),
+                    "SPECSPINE_EVAL_STAGE": stage_id,
+                },
+                timeout=stage.get("timeout_seconds", case.get("timeout_seconds", 600)),
+                check=False,
+            )
+            response = completed.stdout
+            stderr = completed.stderr
+            returncode = completed.returncode
+            trace = read_trace(workspace)
+            last_trace = trace
+            all_responses.append(response)
+        after = snapshot(workspace)
+        results = [
+            evaluate_assertion(item, workspace, before, after, response, trace)
+            for item in stage.get("assertions", [])
+        ]
+        stage_passed = returncode == 0 and all(result.passed for result in results)
+        print(f"  {'PASS' if stage_passed else 'FAIL'} stage {stage_number}: {stage_id} (agent exit {returncode})")
+        print_results(results, "    ")
+        if stderr:
+            print("    agent stderr:")
+            print("      " + stderr.strip().replace("\n", "\n      "))
+        archive_stage(workspace, stage_number, stage_id, response, stderr, trace)
+        if not stage_passed:
+            passed = False
+            break
+    final = snapshot(workspace)
+    final_results = [
+        evaluate_assertion(item, workspace, initial, final, "\n".join(all_responses), last_trace)
+        for item in case.get("final_assertions", [])
+    ]
+    if final_results:
+        print("  final assertions:")
+        print_results(final_results, "    ")
+    return passed and all(result.passed for result in final_results)
 
 
 def positive_int(value: str) -> int:
@@ -305,6 +525,14 @@ def run_case(case: dict[str, Any], command: list[str], keep_workspace: bool) -> 
         env = os.environ.copy()
         env["SPECSPINE_EVAL_CASE"] = case["id"]
         env["SPECSPINE_EVAL_WORKSPACE"] = str(temp)
+        if "stages" in case:
+            print(f"CASE {case['id']} ({len(case['stages'])} stages)")
+            passed = run_staged_case(case, command, temp, env)
+            print(f"{'PASS' if passed else 'FAIL'} {case['id']}")
+            if not passed and keep_workspace:
+                print(f"  workspace: {temp}")
+                temp = None  # type: ignore[assignment]
+            return passed
         responses: list[str] = []
         errors: list[str] = []
         returncode = 0
@@ -328,13 +556,11 @@ def run_case(case: dict[str, Any], command: list[str], keep_workspace: bool) -> 
         response = "\n".join(responses)
         stderr = "\n".join(item for item in errors if item)
         after = snapshot(temp)
-        trace_path = temp / ".eval" / "trace.json"
-        trace = json.loads(trace_path.read_text(encoding="utf-8")) if trace_path.is_file() else None
+        trace = read_trace(temp)
         results = [evaluate_assertion(item, temp, before, after, response, trace) for item in case["assertions"]]
         passed = returncode == 0 and all(result.passed for result in results)
         print(f"{'PASS' if passed else 'FAIL'} {case['id']} ({case.get('runs', 1)} run(s), agent exit {returncode})")
-        for result in results:
-            print(f"  {'ok' if result.passed else 'not ok'} - {result.message}")
+        print_results(results)
         if stderr:
             print("  agent stderr:")
             print("    " + stderr.strip().replace("\n", "\n    "))
@@ -367,7 +593,8 @@ def main() -> int:
 
     if args.list:
         for case in cases:
-            print(f"{case['id']}: {case['status']} ({case['skill']})")
+            owner = case.get("skill", f"{len(case.get('stages', []))} stages")
+            print(f"{case['id']}: {case['status']} ({owner})")
 
     failed_validation = False
     if args.validate or args.audit or args.agent_command:

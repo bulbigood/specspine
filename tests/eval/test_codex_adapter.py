@@ -33,6 +33,49 @@ class CodexAdapterTests(unittest.TestCase):
         command = "sed -n '1,20p' .eval/skill/SKILL.md && rg --files -g 'README.md'"
         self.assertEqual(set(), ADAPTER.traced_files(command, candidates))
 
+    def test_traces_files_read_through_shell_glob_loop(self):
+        candidates = ["specspine/README.md", "specspine/payments.md", "README.md"]
+        command = "for f in specspine/*.md; do sed -n '1,200p' \"$f\"; done"
+        self.assertEqual(
+            {"specspine/README.md", "specspine/payments.md"},
+            ADAPTER.traced_files(command, candidates),
+        )
+
+    def test_traces_files_read_from_rg_listing_loop(self):
+        candidates = ["src/api.ts", "src/payments/settlement.ts", "README.md"]
+        command = "for f in $(rg --files src | sort); do sed -n '1,200p' \"$f\"; done"
+        self.assertEqual(
+            {"src/api.ts", "src/payments/settlement.ts"},
+            ADAPTER.traced_files(command, candidates),
+        )
+
+    def test_traces_spine_read_by_doctor_checker(self):
+        candidates = ["specspine/README.md", "specspine/payments.md", "src/payment.ts"]
+        command = "python3 .eval/skill/scripts/check_spine.py specspine --json"
+        self.assertEqual(
+            {"specspine/README.md", "specspine/payments.md"},
+            ADAPTER.traced_files(command, candidates),
+        )
+
+    def test_rg_pattern_and_glob_do_not_count_named_out_of_scope_files(self):
+        candidates = ["README.md", "package.json", "specspine/README.md", "specspine/payment.md"]
+        command = (
+            "/bin/zsh -lc \"rg -n --glob '!README.md' "
+            "'payment-webhook-retry|package.json' specspine\""
+        )
+        self.assertEqual(
+            {"specspine/README.md", "specspine/payment.md"},
+            ADAPTER.traced_files(command, candidates),
+        )
+
+    def test_does_not_treat_echoed_path_as_content_read(self):
+        candidates = ["README.md", "specspine/README.md"]
+        command = "sed -n '1,40p' specspine/README.md\necho 'README.md -> payments.md'"
+        self.assertEqual(
+            {"specspine/README.md"},
+            ADAPTER.traced_files(command, candidates),
+        )
+
     def test_parses_commands_reads_and_agent_messages(self):
         stdout = "\n".join(
             [

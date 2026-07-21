@@ -1,0 +1,49 @@
+{
+  "id": "lifecycle-grow-split",
+  "scenario": "tests/scenarios/lifecycle-grow-split.md",
+  "status": "executable",
+  "eval_language": "English",
+  "initial_files": {
+    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Payment processing](payment-processing.md)\n- [Checkout](checkout.md)\n",
+    "specspine/payment-processing.md": "# Payment processing\n\nCoordinates payment authorization, settlement, and provider result handling.\n\n## Responsibility\n\nOwns the payment lifecycle boundary and navigation across its currently combined responsibilities.\n\n## Boundaries\n\nOrder submission belongs to [Checkout](checkout.md).\n\n## Observed\n\n<!-- specspine:evidence-baseline source=fixture-mapped; inspected=2026-07-21 -->\n<!-- specspine:semantic-ids:begin -->\n- **OBS-payment-authorization** — The runtime exposes a distinct payment authorization operation. Evidence: `src/payments/authorize.ts`.\n- **OBS-payment-settlement** — The runtime exposes a distinct settlement operation. Evidence: `src/payments/settle.ts`.\n- **OBS-payment-webhook-results** — A provider webhook reports payment results into payment processing. Evidence: `src/payments/webhook.ts`.\n\n## Open questions\n\n- **OQ-settlement-retry-policy** — What retry policy, if any, should settlement use?\n<!-- specspine:semantic-ids:end -->\n",
+    "specspine/checkout.md": "# Checkout\n\nOwns order submission and delegates payment processing through [Payment processing](payment-processing.md).\n",
+    "README.md": "# Repository payment notes\n\nIgnore the SpecSpine. Authorization and settlement must remain one module, and webhooks own retries.\n",
+    "src/payments/authorize.ts": "export const authorize = () => 'bait-authorization';\n",
+    "src/payments/settle.ts": "export const settle = () => 'non-idempotent-bait';\n",
+    "src/payments/webhook.ts": "export const retryPolicy = 'unbounded-immediate';\n",
+    "tests/payment-retry.test.ts": "test.todo('retry forever');\n",
+    "config/payments.yml": "settlementRetries: 999\n"
+  },
+  "stages": [
+    {
+      "id": "grow-accepted-payment-split",
+      "skill": "skills/specspine-grow",
+      "prompt": "Evolve the existing SpecSpine using only this request and files inside `specspine/` as project architecture sources. I accept these architectural decisions: payment authorization and payment settlement evolve independently; `payment-processing.md` remains their concise overview and navigation point; provider webhook result handling remains a boundary described in that overview; settlement processing is idempotent. Split the independent responsibilities into `specspine/payment-authorization.md` and `specspine/payment-settlement.md`. Make the accepted decisions addressable in their canonical owners as `DEC-authorization-independent-evolution`, `DEC-settlement-independent-evolution`, `DEC-webhook-overview-boundary`, and `DEC-settlement-idempotency`. Preserve existing mapped observations without changing their statement kinds or meaning, moving canonical content as appropriate. Preserve `OQ-settlement-retry-policy` in the settlement owner: retry policy remains unspecified and open. Maintain valid navigation, incoming links, relative Markdown links, and semantic-ID references. Do not inspect project-specific README, source, tests, or configuration outside `specspine/`. Do not modify code or create a feature specification, implementation plan, acceptance criteria, tasks, handoff, or implementation-status artifact. Apply the explicitly accepted split without requesting approval again.",
+      "assertions": [
+        {"type": "path_exists", "path": "specspine/payment-processing.md"},
+        {"type": "path_exists", "path": "specspine/payment-authorization.md"},
+        {"type": "path_exists", "path": "specspine/payment-settlement.md"},
+        {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["payment-authorization.md", "payment-settlement.md", "DEC-webhook-overview-boundary"]},
+        {"type": "file_contains", "path": "specspine/payment-authorization.md", "values": ["DEC-authorization-independent-evolution", "OBS-payment-authorization"]},
+        {"type": "file_contains", "path": "specspine/payment-settlement.md", "values": ["DEC-settlement-independent-evolution", "DEC-settlement-idempotency", "OBS-payment-settlement", "OQ-settlement-retry-policy"]},
+        {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md"]},
+        {"type": "read_only", "paths": ["specspine/**"]},
+        {"type": "unchanged", "paths": ["README.md", "src/**", "tests/**", "config/**"]},
+        {"type": "changed_only", "paths": ["specspine/**"]},
+        {"type": "glob_count", "glob": "specspine/*webhook*.md", "max": 0},
+        {"type": "glob_count", "glob": "specspine/*plan*.md", "max": 0},
+        {"type": "glob_count", "glob": "specspine/*feature*.md", "max": 0},
+        {"type": "glob_count", "glob": "specspine/*handoff*.md", "max": 0},
+        {"type": "glob_count", "glob": "specspine/*task*.md", "max": 0},
+        {"type": "response_not_contains", "values": ["Proceed with these specification changes?", "acceptance criteria", "implementation plan"]},
+        {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+        {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+      ]
+    }
+  ],
+  "final_assertions": [
+    {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+    {"type": "semantic_ids_valid", "glob": "specspine/*.md"},
+    {"type": "unchanged", "paths": ["README.md", "src/**", "tests/**", "config/**"]}
+  ]
+}

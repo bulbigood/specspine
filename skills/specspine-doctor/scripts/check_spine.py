@@ -187,14 +187,15 @@ def check(root: Path) -> list[Finding]:
                 if in_id_region:
                     region_definitions += 1
                 else:
-                    add(findings, "warning", "ID_OUTSIDE_REGION", path, root, f"semantic ID is outside the marker region: {identifier}", line_number)
+                    add(findings, "error", "ID_OUTSIDE_REGION", path, root, f"semantic ID is outside the marker region: {identifier}", line_number)
                 if not ID_RE.fullmatch(identifier):
                     add(findings, "error", "INVALID_ID", path, root, f"invalid semantic ID: {identifier}", line_number)
                 expected = SECTION_PREFIXES.get(section)
                 actual = identifier.split("-", 1)[0]
                 if expected != actual:
                     add(findings, "error", "ID_SECTION", path, root, f"{identifier} does not belong under '{section or 'no section'}'", line_number)
-                definitions.setdefault((path.resolve(), identifier), []).append(line_number)
+                if in_id_region:
+                    definitions.setdefault((path.resolve(), identifier), []).append(line_number)
 
         if in_id_region:
             add(findings, "error", "ID_REGION_UNCLOSED", path, root, "semantic-ID region is not closed")

@@ -89,14 +89,57 @@ visible rather than treating prose scenarios as passing tests.
 
 Supported assertions:
 
-- `path_exists`, `path_absent`, `glob_count`;
+- `path_exists`, `path_absent`, `glob_count`, `glob_contains`;
 - `file_contains`, `file_not_contains`, `response_contains`, `response_not_contains`;
 - `unchanged`, `changed_only`, `max_changed_files`;
 - `read_only`, `read_includes`, `max_files_read` when an adapter emits a trace;
 - `balanced_markers`, `no_template_placeholders`;
-- `markdown_links_valid`, `semantic_ids_valid`.
+- `markdown_links_valid`, `semantic_ids_valid`;
+- `spine_mechanical_valid`, with optional `allowed_codes` for deliberately
+  unresolved Doctor findings.
+
+Glob assertions inspect project files only and exclude the harness-owned
+`.eval/` directory.
 
 Set manifest field `runs` above one to invoke the agent repeatedly in the same
 workspace, for example to test connector idempotency. The bundled live Codex
 adapter emits a conservative `.eval/trace.json` from command events; broad read
 commands are treated as reading every candidate file.
+
+## Staged lifecycle cases
+
+A lifecycle manifest can replace the top-level `skill` and `assertions` with a
+`stages` list. Agent stages select their own skill, receive only their local
+prompt, and evaluate assertions against the snapshot immediately before that
+stage. Fixture stages model downstream or external changes without invoking an
+agent:
+
+```json
+{
+  "id": "example-lifecycle",
+  "scenario": "tests/scenarios/example-lifecycle.md",
+  "status": "executable",
+  "initial_files": {},
+  "stages": [
+    {
+      "id": "map",
+      "skill": "skills/specspine-map",
+      "prompt": "Map the payment subsystem.",
+      "assertions": [{"type": "path_exists", "path": "specspine/README.md"}]
+    },
+    {
+      "id": "implementation",
+      "fixture": {
+        "write_files": {"src/payment.js": "export const mode = 'async';\n"},
+        "remove_files": []
+      }
+    }
+  ],
+  "final_assertions": [{"type": "markdown_links_valid", "glob": "specspine/*.md"}]
+}
+```
+
+Each agent stage is archived under `.eval/stages/<number>-<id>/` with its final
+response, stderr when present, and trace. `SPECSPINE_EVAL_STAGE` contains the
+current stage ID. A failing stage stops subsequent stages; final assertions run
+against the state reached so far.

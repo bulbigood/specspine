@@ -1,0 +1,67 @@
+{
+  "id": "lifecycle-survey-deepen",
+  "scenario": "tests/scenarios/lifecycle-survey-deepen.md",
+  "status": "executable",
+  "initial_files": {
+    "README.md": "# Acme storefront\n\nThe API accepts checkout requests. A separate worker consumes payment-provider webhooks. PostgreSQL stores orders and payment state.\n",
+    "package.json": "{\"scripts\":{\"api\":\"node src/api/server.js\",\"payment-webhooks\":\"node src/workers/payment-webhooks.js\"}}\n",
+    "src/api/server.js": "const { createOrder } = require('../checkout/order-service');\nconst { authorize } = require('../payments/provider-adapter');\nexports.checkout = async request => authorize(await createOrder(request));\n",
+    "src/checkout/order-service.js": "exports.createOrder = async request => ({ orderId: request.orderId, amount: request.amount });\n",
+    "src/checkout/payment-port.js": "exports.requestAuthorization = paymentAdapter => order => paymentAdapter.authorize(order.orderId, order.amount);\n",
+    "src/payments/provider-adapter.js": "exports.authorize = async (orderId, amount) => provider.authorize({ merchantReference: orderId, amount });\n",
+    "src/payments/webhook-handler.js": "exports.handleProviderEvent = async event => {\n  if (await paymentEvents.wasHandled(event.id)) return;\n  await paymentAttempts.recordResult(event.merchantReference, event.status);\n  await paymentEvents.markHandled(event.id);\n};\n",
+    "src/workers/payment-webhooks.js": "const { handleProviderEvent } = require('../payments/webhook-handler');\nqueue.consume('payment-provider-events', handleProviderEvent);\n",
+    "config/payments.yml": "provider: example-pay\nwebhook_queue: payment-provider-events\nrequest_timeout_ms: 3000\n",
+    "db/payment-schema.sql": "create table payment_attempts (order_id text, provider_status text);\ncreate table payment_events (provider_event_id text primary key, handled_at timestamp);\n",
+    "tests/payment-flow.test.js": "// checkout authorization uses order_id as merchant reference; duplicate provider events are ignored\n",
+    "src/reporting/monthly-revenue.js": "const UNRELATED_REPORTING_INTERNAL = 'must-not-be-read-during-payment-deepen';\n",
+    "tests/reporting.test.js": "// unrelated reporting behavior\n"
+  },
+  "stages": [
+    {
+      "id": "initial-survey",
+      "skill": "skills/specspine-map",
+      "prompt": "Create the smallest useful initial SpecSpine for this brownfield storefront. Survey breadth before depth. Use specspine/payment-processing.md as the canonical, intentionally brief entry point for the payment responsibility so it can be deepened later. Capture both direct repository observations and any useful unconfirmed interpretation with an evidence baseline; do not manufacture decisions or constraints from code. Keep the map flat, qualitative, and incomplete. Do not modify repository files outside specspine/.",
+      "assertions": [
+        {"type": "path_exists", "path": "specspine/README.md"},
+        {"type": "path_exists", "path": "specspine/payment-processing.md"},
+        {"type": "glob_count", "glob": "specspine/*.md", "min": 3, "max": 6},
+        {"type": "file_contains", "path": "specspine/README.md", "value": "## Mapping status"},
+        {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["## Observed", "<!-- specspine:evidence-baseline"]},
+        {"type": "changed_only", "paths": ["specspine/**"]},
+        {"type": "unchanged", "paths": ["README.md", "package.json", "src/**", "config/**", "db/**", "tests/**"]},
+        {"type": "max_changed_files", "max": 6},
+        {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+        {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+      ]
+    },
+    {
+      "id": "deepen-payment-processing",
+      "skill": "skills/specspine-map",
+      "prompt": "Deepen only the selected payment-processing area, starting from specspine/payment-processing.md. The relevant repository boundary is src/payments/**, src/checkout/payment-port.js, src/workers/payment-webhooks.js, config/payments.yml, db/payment-schema.sql, and tests/payment-flow.test.js. Inspect only representative evidence needed to explain authorization, webhook ingestion, persistence ownership, and the checkout boundary. Do not repeat the whole-repository survey or read reporting and unrelated checkout internals. Preserve observations versus unconfirmed interpretations, refresh the evidence baseline for rechecked observations, and update the smallest useful set under specspine/. Do not change source, tests, configuration, schema, or root documentation.",
+      "assertions": [
+        {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["## Responsibility", "## Boundaries", "## Observed", "<!-- specspine:evidence-baseline", "src/payments/", "tests/payment-flow.test.js"]},
+        {"type": "changed_only", "paths": ["specspine/**"]},
+        {"type": "unchanged", "paths": ["README.md", "package.json", "src/**", "config/**", "db/**", "tests/**"]},
+        {"type": "read_only", "paths": ["specspine/**", "src/payments/**", "src/checkout/payment-port.js", "src/workers/payment-webhooks.js", "config/payments.yml", "db/payment-schema.sql", "tests/payment-flow.test.js"]},
+        {"type": "read_includes", "paths": ["specspine/payment-processing.md", "src/payments/provider-adapter.js", "src/payments/webhook-handler.js", "tests/payment-flow.test.js"]},
+        {"type": "max_files_read", "max": 12},
+        {"type": "max_changed_files", "max": 4},
+        {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+        {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+      ]
+    }
+  ],
+  "final_assertions": [
+    {"type": "path_exists", "path": "specspine/README.md"},
+    {"type": "path_exists", "path": "specspine/payment-processing.md"},
+    {"type": "glob_count", "glob": "specspine/*.md", "min": 3, "max": 6},
+    {"type": "path_absent", "path": "specspine/controllers.md"},
+    {"type": "path_absent", "path": "specspine/workers.md"},
+    {"type": "path_absent", "path": "specspine/services.md"},
+    {"type": "changed_only", "paths": ["specspine/**"]},
+    {"type": "unchanged", "paths": ["README.md", "package.json", "src/**", "config/**", "db/**", "tests/**"]},
+    {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+    {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+  ]
+}

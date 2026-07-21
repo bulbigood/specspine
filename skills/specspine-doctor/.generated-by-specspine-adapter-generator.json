@@ -7,7 +7,7 @@
     "references/review-method.md": "e4138e5d204426c0f90680409a3627158d28a617ff98c45d2914047ea42d8776",
     "references/spec-format.md": "1f8394893d80eaa00cdc651a96f6cd6167aaa193f63b8a8c00e14a60baa9f5a7",
     "references/spec-semantics.md": "91f80ae2065123bcfd1048545ea350293b7000470b80c055bb5b07a9761341f2",
-    "scripts/check_spine.py": "56d167f270d55fede568b561a1a310f3501ce3fbb2f76dd9f7d16bab5a5531a7"
+    "scripts/check_spine.py": "b230457ffc646183b0cd9949aa18ac3ed6bcd636a687baedc292bef2c7066ee1"
   },
   "generator": "specspine-adapter-generator",
   "source": "assets/skill-sources/specspine-doctor"

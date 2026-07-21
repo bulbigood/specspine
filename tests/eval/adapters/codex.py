@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -22,9 +23,15 @@ def relative_files(root: Path) -> list[str]:
 
 
 def traced_files(command: str, candidates: list[str]) -> set[str]:
-    found: set[str] = set()
-    for segment in re.split(r"\s*(?:&&|\|\||[;|])\s*", command):
+    command = shell_source(command)
+    found = indirect_reads(command, candidates)
+    for segment in shell_segments(command):
         if re.search(r"\brg\b[^;&|]*\s--files(?:\s|$)", segment) or re.search(r"(?:^|\s)find\s", segment):
+            continue
+        if re.match(r"^(?:then\s+)?(?:echo|printf)\b", segment.strip()):
+            continue
+        if re.search(r"(?:^|\s)rg\b", segment):
+            found.update(rg_content_reads(segment, candidates))
             continue
         found.update(
             path
@@ -35,6 +42,121 @@ def traced_files(command: str, candidates: list[str]) -> set[str]:
         if broad_reader and re.search(r"(?:\s|^)(?:\.|\./|\*|\*\*)(?:\s|$)", segment):
             found.update(candidates)
     return found
+
+
+def shell_source(command: str) -> str:
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return command
+    for index, token in enumerate(tokens[:-1]):
+        if token in {"-c", "-lc"} and index > 0 and Path(tokens[index - 1]).name in {"sh", "bash", "zsh"}:
+            return tokens[index + 1]
+    return command
+
+
+def shell_segments(command: str) -> list[str]:
+    segments: list[str] = []
+    current: list[str] = []
+    quote = ""
+    escaped = False
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if escaped:
+            current.append(char)
+            escaped = False
+        elif char == "\\" and quote != "'":
+            current.append(char)
+            escaped = True
+        elif quote:
+            current.append(char)
+            if char == quote:
+                quote = ""
+        elif char in {"'", '"'}:
+            current.append(char)
+            quote = char
+        elif char in {";", "|", "\n", "&"}:
+            segment = "".join(current).strip()
+            if segment:
+                segments.append(segment)
+            current = []
+            if index + 1 < len(command) and command[index + 1] == char:
+                index += 1
+        else:
+            current.append(char)
+        index += 1
+    segment = "".join(current).strip()
+    if segment:
+        segments.append(segment)
+    return segments
+
+
+def rg_content_reads(segment: str, candidates: list[str]) -> set[str]:
+    try:
+        tokens = shlex.split(segment)
+    except ValueError:
+        return set(candidates)
+    try:
+        index = next(i for i, token in enumerate(tokens) if Path(token).name == "rg")
+    except StopIteration:
+        return set()
+    value_options = {"-g", "--glob", "-t", "--type", "--type-add", "--encoding", "-f", "--file"}
+    positional: list[str] = []
+    skip_next = False
+    for token in tokens[index + 1 :]:
+        if skip_next:
+            skip_next = False
+            continue
+        if token in value_options:
+            skip_next = True
+            continue
+        if token.startswith("-"):
+            continue
+        positional.append(token)
+    roots = positional[1:] if positional else []
+    if not roots:
+        roots = ["."]
+    found: set[str] = set()
+    for root in roots:
+        root = root.removeprefix("./").rstrip("/")
+        if root in {"", "."}:
+            found.update(candidates)
+        elif "*" in root or "?" in root:
+            found.update(path for path in candidates if fnmatch_path(path, root))
+        else:
+            found.update(path for path in candidates if path == root or path.startswith(root + "/"))
+    return found
+
+
+def indirect_reads(command: str, candidates: list[str]) -> set[str]:
+    """Infer files consumed through bounded shell loops or known checker commands."""
+    found: set[str] = set()
+    for match in re.finditer(r"\bcheck_spine\.py\s+([^\s;&|]+)", command):
+        root = match.group(1).strip("'\"").rstrip("/")
+        if root and not root.startswith("-"):
+            found.update(path for path in candidates if path == root or path.startswith(root + "/"))
+
+    content_reader = re.search(r"(?:^|[\s;|])(?:cat|sed|head|tail|awk)\b", command)
+    if not content_reader:
+        return found
+
+    for pattern in re.findall(r"(?:[\w.-]+/)+[^\s;'\"]*[*?][^\s;'\"]*", command):
+        cleaned = pattern.rstrip(");}")
+        found.update(path for path in candidates if fnmatch_path(path, cleaned))
+
+    if re.search(r"\bfor\b", command):
+        for match in re.finditer(r"\brg\s+--files\s+([^;&|)$]+)", command):
+            for root in match.group(1).split():
+                root = root.strip("'\"").rstrip("/")
+                if root and not root.startswith("-"):
+                    found.update(path for path in candidates if path == root or path.startswith(root + "/"))
+    return found
+
+
+def fnmatch_path(path: str, pattern: str) -> bool:
+    pattern_re = re.escape(pattern).replace(r"\*\*", ".*").replace(r"\*", "[^/]*").replace(r"\?", "[^/]")
+    return re.fullmatch(pattern_re, path) is not None
 
 
 def parse_events(stdout: str, candidates: list[str]) -> tuple[set[str], list[str], list[str]]:

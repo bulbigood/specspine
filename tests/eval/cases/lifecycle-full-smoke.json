@@ -1,0 +1,141 @@
+{
+  "id": "lifecycle-full-smoke",
+  "scenario": "tests/scenarios/lifecycle-full-smoke.md",
+  "status": "executable",
+  "eval_language": "English",
+  "initial_files": {
+    "README.md": "# Payment service\n\nCheckout authorizes a payment, settlement captures it, and provider webhooks report results.\n",
+    "package.json": "{\"scripts\":{\"api\":\"node src/api.ts\",\"webhooks\":\"node src/payments/provider-webhook.ts\"}}\n",
+    "src/api.ts": "import { submitOrder } from './checkout/submit-order';\nexport const checkout = submitOrder;\n",
+    "src/checkout/submit-order.ts": "import { authorize } from '../payments/authorization';\nexport async function submitOrder(orderId: string): Promise<void> { await authorize(orderId); }\n",
+    "src/payments/authorization.ts": "export async function authorize(paymentId: string): Promise<void> { await provider.authorize(paymentId); }\n",
+    "src/payments/settlement.ts": "export async function settle(paymentId: string): Promise<void> { await provider.capture(paymentId); }\n",
+    "src/payments/provider-webhook.ts": "export async function handleProviderResult(event: ProviderEvent): Promise<void> { await paymentState.record(event.paymentId, event.status); }\n",
+    "tests/payments/payment-flow.test.ts": "test.todo('authorization, settlement, and provider result flow');\n"
+  },
+  "stages": [
+    {
+      "id": "map-initial-survey",
+      "skill": "skills/specspine-map",
+      "prompt": "Create the smallest useful initial SpecSpine for this brownfield payment service. Survey breadth before depth and use `specspine/payment-processing.md` as the canonical, intentionally concise payment entry point. Capture representative repository facts as Observed, keep useful unconfirmed interpretation separate as Inferred, and add an evidence baseline. Do not manufacture normative Decisions or Constraints from repository behavior. Keep the map flat and qualitative. Modify only files under `specspine/`; do not change source, tests, package metadata, or root documentation.",
+      "assertions": [
+        {"type": "path_exists", "path": "specspine/README.md"},
+        {"type": "path_exists", "path": "specspine/payment-processing.md"},
+        {"type": "glob_count", "glob": "specspine/*.md", "min": 2, "max": 5},
+        {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["## Observed", "<!-- specspine:evidence-baseline"]},
+        {"type": "changed_only", "paths": ["specspine/**"]},
+        {"type": "unchanged", "paths": ["README.md", "package.json", "src/**", "tests/**"]},
+        {"type": "read_only", "paths": ["README.md", "package.json", "src/**", "tests/**", "specspine/**"]},
+        {"type": "read_includes", "paths": ["README.md", "src/payments/settlement.ts", "src/payments/provider-webhook.ts"]},
+        {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+        {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+      ]
+    },
+    {
+      "id": "grow-accepted-split",
+      "skill": "skills/specspine-grow",
+      "prompt": "Evolve the existing SpecSpine using only this request and files inside `specspine/` as project architecture sources. I accept that payment authorization and payment settlement evolve independently, `payment-processing.md` remains their concise overview, provider webhook result handling remains a boundary described by that overview, and settlement processing is idempotent. Create `specspine/payment-authorization.md` and `specspine/payment-settlement.md` as the canonical responsibility owners. Record the accepted intent as `DEC-authorization-independent-evolution`, `DEC-settlement-independent-evolution`, `DEC-webhook-overview-boundary`, and `DEC-settlement-idempotency` in the appropriate canonical owners. Preserve mapped observations without changing their kind or meaning. Retry policy is unspecified: retain it as `OQ-settlement-retry-policy` in the settlement owner. Maintain reachable navigation and valid links and semantic IDs. Do not inspect or modify README, package metadata, source, or tests outside `specspine/`, and do not create a handoff or downstream work artifacts.",
+      "assertions": [
+        {"type": "path_exists", "path": "specspine/payment-authorization.md"},
+        {"type": "path_exists", "path": "specspine/payment-settlement.md"},
+        {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["payment-authorization.md", "payment-settlement.md", "DEC-webhook-overview-boundary"]},
+        {"type": "file_contains", "path": "specspine/payment-authorization.md", "values": ["DEC-authorization-independent-evolution"]},
+        {"type": "file_contains", "path": "specspine/payment-settlement.md", "values": ["DEC-settlement-independent-evolution", "DEC-settlement-idempotency", "OQ-settlement-retry-policy"]},
+        {"type": "read_only", "paths": ["specspine/**"]},
+        {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md"]},
+        {"type": "changed_only", "paths": ["specspine/**"]},
+        {"type": "unchanged", "paths": ["README.md", "package.json", "src/**", "tests/**"]},
+        {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+        {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+      ]
+    },
+    {
+      "id": "grow-temporary-handoff",
+      "skill": "skills/specspine-grow",
+      "prompt": "Prepare the smallest temporary architecture context handoff for downstream work on settlement idempotency. Treat `specspine/payment-settlement.md` as required context and `specspine/payment-processing.md` as potentially affected context; authorization is merely related and need not be included unless required for navigation. Preserve the accepted idempotency decision and carry `OQ-settlement-retry-policy` as unresolved. Return the handoff only in your response. Do not create or modify project files, do not inspect anything outside `specspine/`, and omit implementation tasks, acceptance criteria, test scenarios, ordering, and proposed implementation filenames.",
+      "assertions": [
+        {"type": "changed_only", "paths": []},
+        {"type": "read_only", "paths": ["specspine/**"]},
+        {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md", "specspine/payment-settlement.md"]},
+        {"type": "response_contains", "values": ["Required specifications", "Potentially affected specifications", "specspine/payment-settlement.md", "specspine/payment-processing.md", "idempotency", "retry"]},
+        {"type": "response_not_contains", "values": ["acceptance criteria", "implementation tasks", "test scenarios"]},
+        {"type": "glob_count", "glob": "**/*handoff*.md", "max": 0}
+      ]
+    },
+    {
+      "id": "downstream-implementation",
+      "fixture": {
+        "write_files": {
+          "src/payments/settlement.ts": "import { enqueueSettlementRetry } from './retry-queue';\nexport async function settle(paymentId: string, idempotencyKey: string): Promise<void> {\n  try { await provider.capture(paymentId, { idempotencyKey }); }\n  catch (error) { await enqueueSettlementRetry({ paymentId, idempotencyKey, attempt: 1 }); }\n}\n",
+          "src/payments/retry-queue.ts": "export async function enqueueSettlementRetry(job: { paymentId: string; idempotencyKey: string; attempt: number }): Promise<void> {\n  const delaySeconds = 5 * (2 ** job.attempt);\n  await retryQueue.enqueue(job, { delaySeconds, maxAttempts: 5 });\n}\n",
+          "config/payment-retry.yml": "strategy: exponential\ninitial_delay_seconds: 5\nmax_attempts: 5\n",
+          "tests/payments/settlement-idempotency.test.ts": "test.todo('stable idempotency key survives settlement retry');\n"
+        },
+        "remove_files": []
+      },
+      "assertions": [
+        {"type": "changed_only", "paths": ["src/payments/settlement.ts", "src/payments/retry-queue.ts", "config/payment-retry.yml", "tests/payments/settlement-idempotency.test.ts"]},
+        {"type": "unchanged", "paths": ["specspine/**", "README.md", "package.json", "src/api.ts", "src/checkout/**", "src/payments/authorization.ts", "src/payments/provider-webhook.ts", "tests/payments/payment-flow.test.ts"]}
+      ]
+    },
+    {
+      "id": "map-targeted-refresh",
+      "skill": "skills/specspine-map",
+      "prompt": "Refresh only settlement after a local repository change. Start from `specspine/payment-settlement.md`. The authorized repository evidence boundary is `src/payments/settlement.ts`, `src/payments/retry-queue.ts`, `config/payment-retry.yml`, and `tests/payments/settlement-idempotency.test.ts`; `specspine/payment-processing.md` may be read only as navigation context. Record stable idempotency-key propagation as `OBS-settlement-idempotency-propagation` and the exponential delay with five-attempt limit as `OBS-settlement-retry-runtime-policy`, with representative evidence and a refreshed evidence baseline. Preserve `DEC-settlement-idempotency`. Preserve `OQ-settlement-retry-policy` and explicitly retain that the observed concrete policy is not accepted intent. Do not create a retry Decision or Constraint and do not claim conformance. Modify only `specspine/payment-settlement.md`; do not read unrelated specifications or repository files and do not change source, configuration, or tests.",
+      "assertions": [
+        {"type": "changed_only", "paths": ["specspine/payment-settlement.md"]},
+        {"type": "unchanged", "paths": ["specspine/README.md", "specspine/payment-processing.md", "specspine/payment-authorization.md", "README.md", "package.json", "src/**", "config/**", "tests/**"]},
+        {"type": "file_contains", "path": "specspine/payment-settlement.md", "values": ["DEC-settlement-idempotency", "OBS-settlement-idempotency-propagation", "OBS-settlement-retry-runtime-policy", "OQ-settlement-retry-policy", "src/payments/settlement.ts", "src/payments/retry-queue.ts", "<!-- specspine:evidence-baseline"]},
+        {"type": "file_not_contains", "path": "specspine/payment-settlement.md", "values": ["DEC-settlement-bounded-exponential-retry", "CON-settlement-retry-policy"]},
+        {"type": "read_only", "paths": ["specspine/payment-settlement.md", "specspine/payment-processing.md", "src/payments/settlement.ts", "src/payments/retry-queue.ts", "config/payment-retry.yml", "tests/payments/settlement-idempotency.test.ts"]},
+        {"type": "read_includes", "paths": ["specspine/payment-settlement.md", "src/payments/settlement.ts", "src/payments/retry-queue.ts", "config/payment-retry.yml"]},
+        {"type": "response_not_contains", "values": ["code conforms", "implementation conforms", "conformance proven"]},
+        {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+        {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+      ]
+    },
+    {
+      "id": "grow-resolve-retry-policy",
+      "skill": "skills/specspine-grow",
+      "prompt": "Evolve the existing SpecSpine using only this request and files inside `specspine/` as project architecture sources. I explicitly accept bounded exponential retry with no more than five attempts for failed settlement operations. `specspine/payment-settlement.md` remains the sole canonical owner of settlement retry coordination and policy. Record the accepted policy as `DEC-settlement-bounded-exponential-retry` in that owner and resolve `OQ-settlement-retry-policy` so it is no longer active; it may be removed or retained only as a short resolved tombstone. Remove the now-stale disagreement that the observed concrete retry policy is not accepted intent. Preserve `OBS-settlement-idempotency-propagation` and `OBS-settlement-retry-runtime-policy` as Observed statements with their evidence baseline and paths; do not promote them or claim the implementation conforms. Keep payment overview and authorization content concise and free of duplicate retry ownership. Maintain valid navigation, links, and semantic IDs. Do not inspect or modify README, package metadata, source, configuration, or tests outside `specspine/`, and do not create downstream work artifacts.",
+      "assertions": [
+        {"type": "file_contains", "path": "specspine/payment-settlement.md", "values": ["DEC-settlement-bounded-exponential-retry", "bounded exponential", "OBS-settlement-idempotency-propagation", "OBS-settlement-retry-runtime-policy"]},
+        {"type": "file_not_contains", "path": "specspine/payment-settlement.md", "values": ["observed concrete retry policy is not accepted intent"]},
+        {"type": "file_not_contains", "path": "specspine/payment-processing.md", "values": ["DEC-settlement-bounded-exponential-retry"]},
+        {"type": "file_not_contains", "path": "specspine/payment-authorization.md", "values": ["DEC-settlement-bounded-exponential-retry"]},
+        {"type": "read_only", "paths": ["specspine/**"]},
+        {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md", "specspine/payment-settlement.md"]},
+        {"type": "changed_only", "paths": ["specspine/**"]},
+        {"type": "unchanged", "paths": ["README.md", "package.json", "src/**", "config/**", "tests/**"]},
+        {"type": "response_not_contains", "values": ["code conforms", "implementation conforms", "conformance proven"]},
+        {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+        {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+      ]
+    },
+    {
+      "id": "doctor-final-check",
+      "skill": "skills/specspine-doctor",
+      "prompt": "Run a final whole-Spine health check in spine-only check mode for `specspine/`. Load the bundled rules, run the bundled `check_spine.py` checker, and traverse the complete reachable specification graph from `specspine/README.md`. Do not inspect anything outside `specspine/`; repository README, package metadata, source, configuration, and tests are out of scope. Remain read-only. Report findings only within the inspected scope and do not claim formal validation, completeness, complete coverage, implementation status, or code/spec conformance.",
+      "assertions": [
+        {"type": "max_changed_files", "max": 0},
+        {"type": "read_only", "paths": ["specspine/**"]},
+        {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md", "specspine/payment-authorization.md", "specspine/payment-settlement.md"]},
+        {"type": "command_includes", "value": "check_spine.py"},
+        {"type": "spine_mechanical_valid"},
+        {"type": "response_not_contains", "values": ["formally valid", "complete coverage", "code conforms", "implementation conforms", "conformance proven"]}
+      ]
+    }
+  ],
+  "final_assertions": [
+    {"type": "file_contains", "path": "specspine/payment-settlement.md", "values": ["DEC-settlement-bounded-exponential-retry", "OBS-settlement-idempotency-propagation", "OBS-settlement-retry-runtime-policy"]},
+    {"type": "file_not_contains", "path": "specspine/payment-settlement.md", "values": ["observed concrete retry policy is not accepted intent"]},
+    {"type": "file_not_contains", "path": "specspine/payment-processing.md", "values": ["DEC-settlement-bounded-exponential-retry"]},
+    {"type": "file_not_contains", "path": "specspine/payment-authorization.md", "values": ["DEC-settlement-bounded-exponential-retry"]},
+    {"type": "glob_count", "glob": "**/*handoff*.md", "max": 0},
+    {"type": "changed_only", "paths": ["specspine/**", "src/payments/settlement.ts", "src/payments/retry-queue.ts", "config/payment-retry.yml", "tests/payments/settlement-idempotency.test.ts"]},
+    {"type": "unchanged", "paths": ["README.md", "package.json", "src/api.ts", "src/checkout/**", "src/payments/authorization.ts", "src/payments/provider-webhook.ts", "tests/payments/payment-flow.test.ts"]},
+    {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+    {"type": "semantic_ids_valid", "glob": "specspine/*.md"},
+    {"type": "spine_mechanical_valid"}
+  ]
+}

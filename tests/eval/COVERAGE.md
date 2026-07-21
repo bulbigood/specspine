@@ -2,18 +2,19 @@
 
 ## Current inventory
 
-The repository has seventeen prose behavioral scenarios. Every scenario is
+The repository has twenty-four prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
 | Area | Documented scenarios | Executable fixtures |
 |---|---:|---:|
-| `specspine-grow` | 6 | 6 |
-| `specspine-map` | 5 | 5 |
+| `specspine-grow` | 9 | 9 |
+| `specspine-map` | 7 | 7 |
 | `specspine-connect` | 3 | 2 |
-| `specspine-doctor` | 2 | 2 |
+| `specspine-doctor` | 3 | 3 |
+| cross-skill lifecycle | 1 | 1 |
 | package generator tooling | 1 | 1 |
-| Total | 17 | 16 |
+| Total | 24 | 23 |
 
 `traceable-visual-spec` is assigned to `specspine-map` because its expected
 result includes repository-backed observations.
@@ -25,7 +26,12 @@ Executable cases currently cover:
 - generic project-agent bootstrap boundaries;
 - semantic-ID references, evidence, and a Mermaid lifecycle view.
 - mechanical and semantic Doctor diagnosis without runtime companions;
+- recursive Doctor link and marker-bounded semantic-ID validation across
+  nested specification directories;
 - deterministic runtime-skill generation and drift detection.
+- staged lifecycle transitions covering survey, deepening, intentional split,
+  temporary handoff, downstream repository evolution, drift refresh,
+  supersession, removal, and bounded Doctor repair.
 
 Only the downstream binding-without-connector scenario remains `planned`; it
 requires a separate native SDD executor rather than a SpecSpine skill.
@@ -40,10 +46,6 @@ This needs a native downstream SDD fixture and executor.
 
 High priority:
 
-- longitudinal evolution: map, refine, split, handoff, drift, refresh, and
-  supersede a decision in the same project;
-- removal and semantic-ID tombstones;
-- intended-versus-observed conflict resolution after explicit user approval;
 - minimal handoff selection on a larger graph, including read and context-size
   budgets;
 - custom `<spine-root>` handling in `grow` and `map`;

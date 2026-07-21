@@ -1,0 +1,66 @@
+{
+  "id": "lifecycle-drift-refresh",
+  "scenario": "tests/scenarios/lifecycle-drift-refresh.md",
+  "status": "executable",
+  "initial_files": {
+    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Checkout](checkout.md)\n- [Payment processing](payment-processing.md)\n- [Reporting](reporting.md)\n",
+    "specspine/payment-processing.md": "# Payment processing\n\nCoordinates payment authorization, settlement, and provider result handling.\n\n## Architecture map\n\n- [Payment authorization](payment-authorization.md)\n- [Payment settlement](payment-settlement.md)\n- [Payment webhooks](payment-webhooks.md)\n",
+    "specspine/payment-authorization.md": "# Payment authorization\n\nOwns authorization before settlement.\n\n## Related specifications\n\n- [Payment processing](payment-processing.md)\n",
+    "specspine/payment-settlement.md": "# Payment settlement\n\nOwns provider capture and settlement retry coordination.\n\n## Constraints\n\n<!-- specspine:semantic-ids:begin -->\n- **CON-settlement-stable-idempotency-key** — Every provider capture must use a stable idempotency key for the settlement operation.\n<!-- specspine:semantic-ids:end -->\n\n## Observed\n\n<!-- specspine:evidence-baseline source=fixture-before-evolution; inspected=2026-07-21 -->\n\n- Provider capture currently receives only the payment identifier. Evidence: `src/payments/settlement.ts`.\n\n## Open questions\n\n<!-- specspine:semantic-ids:begin -->\n- **OQ-settlement-retry-policy** — Which retry strategy, delay, and attempt limit should settlement use?\n<!-- specspine:semantic-ids:end -->\n\n## Related specifications\n\n- [Payment processing](payment-processing.md)\n- [Payment webhooks](payment-webhooks.md)\n",
+    "specspine/payment-webhooks.md": "# Payment webhooks\n\nOwns provider-result delivery into payment processing.\n\n## Related specifications\n\n- [Payment settlement](payment-settlement.md)\n",
+    "specspine/checkout.md": "# Checkout\n\nOwns order submission and requests payment processing without coordinating settlement retries.\n\n## Related specifications\n\n- [Payment processing](payment-processing.md)\n",
+    "specspine/reporting.md": "# Reporting\n\nOwns revenue reporting and is unrelated to settlement execution.\n",
+    "src/payments/settlement.ts": "export async function settle(paymentId: string): Promise<void> {\n  await provider.capture(paymentId);\n}\n",
+    "src/payments/provider-webhook.ts": "export async function handleProviderResult(event: ProviderEvent): Promise<void> {\n  await paymentState.record(event.paymentId, event.status);\n}\n",
+    "src/checkout/submit-order.ts": "export async function submitOrder(order: Order): Promise<void> {\n  await payments.authorize(order.id, order.total);\n}\n",
+    "src/reporting/monthly-revenue.ts": "export const UNRELATED_REPORTING_INTERNAL = 'must-not-be-read';\n",
+    "config/payment.yml": "provider: sandbox\n",
+    "tests/payments/settlement.test.ts": "test('captures a payment', async () => {\n  await settle('payment-1');\n});\n",
+    "tests/reporting/monthly-revenue.test.ts": "// unrelated reporting behavior\n"
+  },
+  "stages": [
+    {
+      "id": "downstream-code-evolution",
+      "fixture": {
+        "write_files": {
+          "src/payments/settlement.ts": "import { enqueueSettlementRetry } from './retry-queue';\n\nexport async function settle(paymentId: string, idempotencyKey: string): Promise<void> {\n  try {\n    await provider.capture(paymentId, { idempotencyKey });\n  } catch (error) {\n    await enqueueSettlementRetry({ paymentId, idempotencyKey, attempt: 1 });\n  }\n}\n",
+          "src/payments/retry-queue.ts": "export async function enqueueSettlementRetry(job: { paymentId: string; idempotencyKey: string; attempt: number }): Promise<void> {\n  const delaySeconds = 5 * (2 ** job.attempt);\n  await retryQueue.enqueue(job, { delaySeconds, maxAttempts: 5 });\n}\n",
+          "config/payment-retry.yml": "strategy: exponential\ninitial_delay_seconds: 5\nmax_attempts: 5\n",
+          "tests/payments/settlement-idempotency.test.ts": "test('preserves the idempotency key in a retry job', async () => {\n  await settle('payment-1', 'settlement-key-1');\n  expect(retryQueue.lastJob.idempotencyKey).toBe('settlement-key-1');\n});\n"
+        },
+        "remove_files": []
+      },
+      "assertions": [
+        {"type": "changed_only", "paths": ["src/payments/settlement.ts", "src/payments/retry-queue.ts", "config/payment-retry.yml", "tests/payments/settlement-idempotency.test.ts"]},
+        {"type": "unchanged", "paths": ["specspine/**", "src/checkout/**", "src/reporting/**", "src/payments/provider-webhook.ts", "config/payment.yml", "tests/reporting/**"]},
+        {"type": "file_contains", "path": "src/payments/settlement.ts", "values": ["idempotencyKey", "enqueueSettlementRetry"]},
+        {"type": "file_contains", "path": "src/payments/retry-queue.ts", "values": ["delaySeconds", "maxAttempts: 5"]},
+        {"type": "file_contains", "path": "config/payment-retry.yml", "values": ["strategy: exponential", "max_attempts: 5"]}
+      ]
+    },
+    {
+      "id": "map-refresh-settlement-drift",
+      "skill": "skills/specspine-map",
+      "prompt": "Refresh only the settlement architecture after the named local repository evolution. Start from specspine/payment-settlement.md. The authorized evidence boundary is src/payments/settlement.ts, src/payments/retry-queue.ts, config/payment-retry.yml, and tests/payments/settlement-idempotency.test.ts; specspine/payment-processing.md may be read only as directly related navigation context. Record implemented idempotency-key propagation, retry coordination, exponential delay, and five-attempt limit as Observed with representative evidence and refresh the evidence baseline. Preserve CON-settlement-stable-idempotency-key as accepted normative intent. Preserve OQ-settlement-retry-policy and explicitly retain the disagreement that the concrete observed retry policy has not been accepted; do not create a Decision or Constraint for that policy and do not claim conformance. Modify only specspine/payment-settlement.md. Do not read checkout, reporting, webhooks, authorization, root navigation, or any evidence outside the authorized boundary. Do not change source, configuration, tests, or any other specification.",
+      "assertions": [
+        {"type": "changed_only", "paths": ["specspine/payment-settlement.md"]},
+        {"type": "unchanged", "paths": ["specspine/README.md", "specspine/payment-processing.md", "specspine/payment-authorization.md", "specspine/payment-webhooks.md", "specspine/checkout.md", "specspine/reporting.md", "src/**", "config/**", "tests/**"]},
+        {"type": "file_contains", "path": "specspine/payment-settlement.md", "values": ["## Constraints", "CON-settlement-stable-idempotency-key", "## Observed", "idempotency", "retry", "exponential", "attempt", "src/payments/settlement.ts", "src/payments/retry-queue.ts", "config/payment-retry.yml", "## Open questions", "OQ-settlement-retry-policy", "<!-- specspine:evidence-baseline"]},
+        {"type": "file_not_contains", "path": "specspine/payment-settlement.md", "values": ["DEC-settlement-retry", "DEC-retry-policy", "CON-settlement-retry", "CON-retry-policy"]},
+        {"type": "read_only", "paths": ["specspine/payment-settlement.md", "specspine/payment-processing.md", "src/payments/settlement.ts", "src/payments/retry-queue.ts", "config/payment-retry.yml", "tests/payments/settlement-idempotency.test.ts"]},
+        {"type": "read_includes", "paths": ["specspine/payment-settlement.md", "src/payments/settlement.ts", "src/payments/retry-queue.ts", "config/payment-retry.yml"]},
+        {"type": "max_files_read", "max": 6},
+        {"type": "max_changed_files", "max": 1},
+        {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+        {"type": "semantic_ids_valid", "glob": "specspine/*.md"},
+        {"type": "response_not_contains", "values": ["code conforms", "implementation conforms", "fully conformant", "conformance proven"]}
+      ]
+    }
+  ],
+  "final_assertions": [
+    {"type": "changed_only", "paths": ["specspine/payment-settlement.md", "src/payments/settlement.ts", "src/payments/retry-queue.ts", "config/payment-retry.yml", "tests/payments/settlement-idempotency.test.ts"]},
+    {"type": "unchanged", "paths": ["specspine/README.md", "specspine/payment-processing.md", "specspine/payment-authorization.md", "specspine/payment-webhooks.md", "specspine/checkout.md", "specspine/reporting.md", "src/checkout/**", "src/reporting/**", "src/payments/provider-webhook.ts", "config/payment.yml", "tests/reporting/**"]},
+    {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+    {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+  ]
+}
