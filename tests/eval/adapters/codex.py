@@ -8,8 +8,10 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -239,13 +241,32 @@ def scope_violations(commands: list[str], root: Path) -> list[str]:
     for command in commands:
         inspected = command.replace(root_text, "<WORKSPACE>")
         markers = [marker for marker in FORBIDDEN_SCOPE_MARKERS if marker in inspected]
-        if re.search(r"(?<![.\w])\.\.(?:/|\b)", inspected):
+        audit_text = re.sub(r"!\.\./[^\s'\"|;&]*", "<NEGATED_PARENT_GLOB>", inspected)
+        if re.search(r"(?<![.\w])\.\.(?:/|\b)", audit_text):
             markers.append("parent traversal (`..`)")
         if re.search(
             r"(?:^|[;&|]\s*|\s)(?:cd|find|ls|tree|du)\s+(?:-[^\s]+\s+)*/(?:\s|$)",
             inspected,
         ):
             markers.append("filesystem-root traversal (`/`)")
+        allowed_eval = re.sub(
+            r"(?:\./)?\.eval/(?:skill|companions)(?:/[^\s'\"]*)?",
+            "<ALLOWED_EVAL_CONTEXT>",
+            audit_text,
+        )
+        # Mentioning evaluator internals in an exclusion does not inspect them.
+        # Mask only recognized negative selectors; direct path operands remain
+        # visible to the check below.
+        for pattern in (
+            r"--exclude-dir(?:=|\s+)[\"']?(?:\./)?\.eval[\"']?",
+            r"--exclude(?:=|\s+)[\"']?(?:\./)?\.eval(?:/[^\s\"']*)?[\"']?",
+            r"(?:-not|!)\s+-path\s+[\"']*(?:\./)?\.eval(?:[^\s\"']*)?[\"']*",
+            r"-path\s+[\"']*(?:\./)?\.eval(?:/?)[\"']*\s+-prune\b",
+            r"(?:-g|--glob)(?:=|\s+)[\"']*!\s*(?:\./)?\.eval(?:/[^\s\"']*)?[\"']*",
+        ):
+            allowed_eval = re.sub(pattern, "<EVAL_EXCLUSION>", allowed_eval)
+        if re.search(r"(?:^|[\s'\"])(?:\./)?\.eval(?:/|\b)", allowed_eval):
+            markers.append("evaluator internals (`.eval`)")
         if markers:
             violations.append(
                 f"external path marker(s) {', '.join(sorted(set(markers)))} in command: "
@@ -284,7 +305,71 @@ def write_codex_artifacts(
     )
 
 
-def build_codex_command(model: str, reasoning_effort: str, root: Path, private_tmp: Path) -> list[str]:
+def sandbox_path(runtime_root: Path | None = None) -> str:
+    """Keep usable system tools while excluding inaccessible user shims."""
+    home = str(Path.home().resolve()).rstrip("/") + "/"
+    paths = [
+        item
+        for item in os.environ.get("PATH", "").split(os.pathsep)
+        if item
+        and not str(Path(item).expanduser()).startswith(home)
+        and "pyenv" not in item.lower()
+        and not item.startswith("/var/")
+    ]
+    developer_tools = Path("/Applications/Xcode.app/Contents/Developer/usr/bin")
+    if developer_tools.is_dir():
+        paths.insert(0, str(developer_tools))
+    if runtime_root is not None:
+        paths.insert(0, str(runtime_root / "bin"))
+    return os.pathsep.join(dict.fromkeys(paths))
+
+
+def prepare_codex_home(runtime_root: Path) -> Path:
+    """Create a private Codex home containing credentials but no shared state."""
+    codex_home = runtime_root / "codex-home"
+    codex_home.mkdir(parents=True)
+    source_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    source_auth = source_home / "auth.json"
+    if source_auth.is_file():
+        target_auth = codex_home / "auth.json"
+        shutil.copyfile(source_auth, target_auth)
+        target_auth.chmod(0o600)
+    return codex_home
+
+
+def build_codex_command(model: str, reasoning_effort: str, root: Path, runtime_root: Path) -> list[str]:
+    runtime_root = runtime_root.resolve()
+    private_home = runtime_root / "home"
+    private_cache = runtime_root / "cache"
+    private_config = runtime_root / "config"
+    private_data = runtime_root / "data"
+    private_state = runtime_root / "state"
+    python_cache = runtime_root / "pycache"
+    private_tmp = runtime_root / "tmp"
+    git_config = runtime_root / "gitconfig"
+    workspace_roots = "{" + f'"."=true,{json.dumps(str(runtime_root))}=true' + "}"
+    writable_roots = (
+        "{"
+        + '"."="write",".git"="read",".agents"="read",".codex"="read"'
+        + "}"
+    )
+    environment = {
+        "GIT_CONFIG_GLOBAL": str(git_config),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "HOME": str(private_home),
+        "PATH": sandbox_path(runtime_root),
+        "PIP_CACHE_DIR": str(private_cache / "pip"),
+        "PYTHONPYCACHEPREFIX": str(python_cache),
+        "TMPDIR": str(private_tmp),
+        "XDG_CACHE_HOME": str(private_cache),
+        "XDG_CONFIG_HOME": str(private_config),
+        "XDG_DATA_HOME": str(private_data),
+        "XDG_STATE_HOME": str(private_state),
+        "ZDOTDIR": str(private_home),
+    }
+    environment_config = "{" + ",".join(
+        f"{key}={json.dumps(value)}" for key, value in environment.items()
+    ) + "}"
     return [
         "codex",
         "-a",
@@ -296,9 +381,9 @@ def build_codex_command(model: str, reasoning_effort: str, root: Path, private_t
         "--config",
         'default_permissions="specspine_eval"',
         "--config",
-        'permissions.specspine_eval.workspace_roots={"."=true}',
+        f"permissions.specspine_eval.workspace_roots={workspace_roots}",
         "--config",
-        'permissions.specspine_eval.filesystem={":minimal"="read",":workspace_roots"={"."="write",".git"="read",".agents"="read",".codex"="read"}}',
+        f'permissions.specspine_eval.filesystem={{":minimal"="read",":workspace_roots"={writable_roots}}}',
         "--config",
         "permissions.specspine_eval.network.enabled=false",
         "--config",
@@ -306,7 +391,9 @@ def build_codex_command(model: str, reasoning_effort: str, root: Path, private_t
         "--config",
         "shell_environment_policy.ignore_default_excludes=false",
         "--config",
-        f"shell_environment_policy.set={{TMPDIR={json.dumps(str(private_tmp))}}}",
+        f"shell_environment_policy.set={environment_config}",
+        "--config",
+        "allow_login_shell=false",
         "exec",
         "--strict-config",
         "--json",
@@ -329,13 +416,49 @@ def main() -> int:
     root = Path.cwd()
     prompt = sys.stdin.read()
     candidates = relative_files(root)
-    private_tmp = root / ".eval" / "tmp"
-    private_tmp.mkdir(parents=True, exist_ok=True)
-    command = build_codex_command(args.model, args.reasoning_effort, root, private_tmp)
-    started = time.monotonic()
-    completed = subprocess.run(command, input=prompt, text=True, capture_output=True, check=False)
-    duration_seconds = round(time.monotonic() - started, 3)
     eval_dir = root / ".eval"
+    runtime_root = Path(tempfile.mkdtemp(prefix="specspine-runtime-", dir=root.parent))
+    try:
+        for directory in (
+            runtime_root / "bin",
+            runtime_root / "home",
+            runtime_root / "cache",
+            runtime_root / "config",
+            runtime_root / "data",
+            runtime_root / "state",
+            runtime_root / "pycache",
+            runtime_root / "tmp",
+        ):
+            directory.mkdir(parents=True, exist_ok=True)
+        codex_home = prepare_codex_home(runtime_root)
+        (runtime_root / "gitconfig").touch()
+        safe_path = sandbox_path(runtime_root)
+        profile = f"export PATH={shlex.quote(safe_path)}\n"
+        (runtime_root / "home" / ".zshenv").write_text(profile, encoding="utf-8")
+        (runtime_root / "home" / ".zprofile").write_text(profile, encoding="utf-8")
+        tool_targets = {
+            "git": Path("/Applications/Xcode.app/Contents/Developer/usr/bin/git"),
+            "python": Path("/Applications/Xcode.app/Contents/Developer/usr/bin/python3"),
+            "python3": Path("/Applications/Xcode.app/Contents/Developer/usr/bin/python3"),
+        }
+        for name, target in tool_targets.items():
+            if target.is_file():
+                (runtime_root / "bin" / name).symlink_to(target)
+        command = build_codex_command(args.model, args.reasoning_effort, root, runtime_root)
+        process_environment = os.environ.copy()
+        process_environment["CODEX_HOME"] = str(codex_home)
+        started = time.monotonic()
+        completed = subprocess.run(
+            command,
+            input=prompt,
+            text=True,
+            capture_output=True,
+            check=False,
+            env=process_environment,
+        )
+    finally:
+        shutil.rmtree(runtime_root)
+    duration_seconds = round(time.monotonic() - started, 3)
     write_codex_artifacts(
         eval_dir,
         prompt=prompt,

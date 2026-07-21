@@ -178,6 +178,7 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("newly created project documents in English", prompt)
         self.assertIn("complete and only authorized project", prompt)
         self.assertIn("Never use `..`, `$HOME`, `~`", prompt)
+        self.assertIn("never inspect any other `.eval` content", prompt)
 
     def test_non_staged_prompts_exclude_hidden_rubrics(self):
         for case in RUNNER.load_cases():

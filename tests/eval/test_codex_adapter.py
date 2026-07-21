@@ -1,9 +1,11 @@
 import importlib.util
 import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 MODULE_PATH = Path(__file__).with_name("adapters") / "codex.py"
@@ -163,24 +165,130 @@ class CodexAdapterTests(unittest.TestCase):
             "rg secret /private/var/folders/shared",
             "cat ../sibling/HANDOFF.md",
             "find / -name ARCHITECTURE.md",
+            "rg --files -g '!../*'",
+            "cat .eval/trace.json",
+            "cat .eval/skill/SKILL.md",
         ]
         violations = ADAPTER.scope_violations(commands, root)
-        self.assertEqual(3, len(violations))
+        self.assertEqual(4, len(violations))
         self.assertIn("/private/var/", violations[0])
         self.assertIn("parent traversal", violations[1])
         self.assertIn("filesystem-root traversal", violations[2])
+        self.assertIn("evaluator internals", violations[3])
+
+    def test_scope_audit_allows_eval_exclusion_filters(self):
+        root = Path("/Users/example/.cache/specspine-eval/workspaces/run-1")
+        commands = [
+            "find . -type f -not -path './.eval/*' -print",
+            "find . -type f ! -path './.eval/*' -print",
+            "grep -RIn --exclude-dir=.eval TODO .",
+            "grep -RIn --exclude-dir '.eval' TODO .",
+            "find . -path './.eval' -prune -o -type f -print",
+            "rg --files -g '!.eval/**'",
+            "rg --files -g '! .eval/**'",
+            "/bin/zsh -c 'find . -type f ! -path '\"'\"'./.eval/*' -print\"",
+            (
+                "/bin/zsh -c 'find . -type f ! -path '\"'\"'./.git/*' "
+                "\"'! -path '\"'\"'./.eval/*' -print | sort\""
+            ),
+        ]
+        self.assertEqual([], ADAPTER.scope_violations(commands, root))
+
+    def test_scope_audit_still_rejects_direct_eval_access(self):
+        root = Path("/Users/example/.cache/specspine-eval/workspaces/run-1")
+        commands = [
+            "cat .eval/trace.json",
+            "find .eval -type f",
+            "rg secret .eval",
+            "sed -n '1,20p' .eval/codex-events.jsonl",
+        ]
+        violations = ADAPTER.scope_violations(commands, root)
+        self.assertEqual(4, len(violations))
+        self.assertTrue(all("evaluator internals" in item for item in violations))
+
+    def test_private_codex_home_copies_only_authentication(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            runtime = root / "runtime"
+            source.mkdir()
+            runtime.mkdir()
+            (source / "auth.json").write_text('{"token":"secret"}\n', encoding="utf-8")
+            (source / "models_cache.json").write_text("stale\n", encoding="utf-8")
+            (source / "config.toml").write_text("untrusted\n", encoding="utf-8")
+
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(source)}):
+                target = ADAPTER.prepare_codex_home(runtime)
+
+            self.assertEqual('{"token":"secret"}\n', (target / "auth.json").read_text())
+            self.assertEqual(0o600, (target / "auth.json").stat().st_mode & 0o777)
+            self.assertEqual(["auth.json"], sorted(path.name for path in target.iterdir()))
 
     def test_codex_command_uses_restricted_permission_profile(self):
         command = ADAPTER.build_codex_command(
-            "agent-model", "medium", Path("/workspace"), Path("/workspace/.eval/tmp")
+            "agent-model", "medium", Path("/workspace"), Path("/runtime")
         )
         rendered = " ".join(command)
         self.assertIn('default_permissions="specspine_eval"', command)
         self.assertIn('permissions.specspine_eval.network.enabled=false', command)
         self.assertIn('shell_environment_policy.inherit="core"', command)
+        environment_argument = next(
+            item for item in command if item.startswith("shell_environment_policy.set=")
+        )
+        self.assertIn('HOME="/runtime/home"', environment_argument)
+        self.assertIn('TMPDIR="/runtime/tmp"', environment_argument)
+        self.assertIn(
+            'PYTHONPYCACHEPREFIX="/runtime/pycache"', environment_argument
+        )
+        self.assertIn(
+            'GIT_CONFIG_GLOBAL="/runtime/gitconfig"', environment_argument
+        )
+        path_setting = environment_argument.split('PATH="', 1)[1].split('"', 1)[0]
+        self.assertNotIn(str(Path.home()), path_setting)
+        self.assertNotIn("pyenv", path_setting.lower())
         self.assertIn("--ignore-user-config", command)
         self.assertIn("--ignore-rules", command)
+        self.assertIn("allow_login_shell=false", command)
         self.assertNotIn("workspace-write", rendered)
+
+    def test_main_uses_and_removes_external_private_runtime(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observed_runtime: Path | None = None
+
+            def complete(command, **kwargs):
+                nonlocal observed_runtime
+                environment_argument = next(
+                    item for item in command if item.startswith("shell_environment_policy.set=")
+                )
+                home = environment_argument.split('HOME="', 1)[1].split('"', 1)[0]
+                observed_runtime = Path(home).parent
+                self.assertNotEqual(root / ".eval", observed_runtime)
+                self.assertEqual(root.parent.resolve(), observed_runtime.parent.resolve())
+                self.assertTrue((observed_runtime / "gitconfig").is_file())
+                self.assertTrue((observed_runtime / "home" / ".zprofile").is_file())
+                self.assertTrue((observed_runtime / "bin" / "python").is_symlink())
+                process_environment = kwargs["env"]
+                private_codex_home = Path(process_environment["CODEX_HOME"])
+                self.assertEqual(
+                    (observed_runtime / "codex-home").resolve(),
+                    private_codex_home.resolve(),
+                )
+                self.assertTrue(private_codex_home.is_dir())
+                return ADAPTER.subprocess.CompletedProcess([], 0, "", "")
+
+            with mock.patch.object(Path, "cwd", return_value=root), mock.patch.object(
+                sys, "argv", ["codex.py"]
+            ), mock.patch("sys.stdin.read", return_value="prompt"), mock.patch.object(
+                ADAPTER.subprocess,
+                "run",
+                side_effect=complete,
+            ):
+                self.assertEqual(0, ADAPTER.main())
+
+            self.assertIsNotNone(observed_runtime)
+            self.assertFalse(observed_runtime.exists())
+            self.assertTrue((root / ".eval" / "trace.json").is_file())
 
 
 if __name__ == "__main__":

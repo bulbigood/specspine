@@ -29,7 +29,9 @@ WORKSPACE_BOUNDARY_INSTRUCTIONS = (
     "outside it, including parent/sibling directories, system temporary directories, "
     "the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an "
     "absolute path outside the current project to discover context. If required "
-    "information is absent, report that it is unavailable.\n"
+    "information is absent, report that it is unavailable. The `.eval` directory "
+    "is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the "
+    "prompt explicitly requires them; never inspect any other `.eval` content.\n"
 )
 SEMANTIC_ID_ERROR_CODES = {
     "DUPLICATE_ID",

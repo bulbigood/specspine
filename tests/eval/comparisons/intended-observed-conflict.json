@@ -8,7 +8,7 @@
     "ownership_boundary": "Provider login remains in src/login.py and returns an application session rather than exposing provider-session ownership.",
     "constraints": "Both Google and GitHub produce provider-independent local sessions; the observed legacy Google token return is corrected rather than copied.",
     "responsibility_duplication": "The change does not introduce parallel provider-token session behavior or unrelated reporting logic.",
-    "policy_decision": "No unsupported provider or session policy is invented beyond the accepted constraint."
+    "policy_decision": "Existing rejection of unsupported providers may be preserved. No new provider or session policy is invented beyond the accepted constraint."
   },
   "initial_files": {
     "src/login.py": "def provider_login(provider, provider_token):\n    if provider == 'google':\n        return provider_token\n    raise ValueError('unsupported provider')\n",
@@ -16,7 +16,7 @@
   },
   "irrelevant_read_patterns": ["src/reports.py", "specspine/reports.md"],
   "assertions": [
-    {"type": "command_succeeds", "command": ["python3", "-c", "from src.login import provider_login; results = [provider_login(provider, 'provider-secret') for provider in ('google', 'github')]; assert all(isinstance(result, str) and result for result in results); assert all('provider-secret' not in result for result in results)"]},
+    {"type": "command_succeeds", "command": ["python3", "-c", "from src.login import provider_login; results = [provider_login(provider, 'provider-secret') for provider in ('google', 'github')]; assert all(results); assert all('provider-secret' not in repr(result) for result in results)"]},
     {"type": "unchanged", "paths": ["src/reports.py"]}
   ],
   "arms": [

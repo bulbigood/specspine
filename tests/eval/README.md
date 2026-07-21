@@ -118,6 +118,15 @@ network access is disabled, user config and exec rules are ignored, and secret
 environment variables are filtered. Every prompt also forbids leaving the
 workspace. Commands containing external-path markers invalidate the sample;
 invalid samples are excluded from aggregates and are not judged.
+Tool subprocesses receive private HOME, temporary, Git, Python, pip, and XDG
+cache/config directories in an ephemeral sibling runtime that is removed after
+the agent exits and is not part of repository context. Login shells are
+disabled, and inaccessible user-level PATH entries such as pyenv shims are
+removed. Each invocation also receives a private `CODEX_HOME` containing only a
+temporary copy of `auth.json`; model cache, config, rules and memory are not
+shared between concurrent agents. `.eval` is reserved for evaluator output and
+excluded from agent inspection except for requested skill and companion inputs;
+commands that explicitly exclude `.eval` from searches remain valid.
 The profile was verified with Codex CLI 0.144.4; strict config validation makes
 older incompatible CLIs fail instead of silently weakening isolation.
 
