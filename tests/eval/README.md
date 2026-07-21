@@ -1,265 +1,149 @@
-# SpecSpine evaluation harness
+# SpecSpine evaluation
 
-The harness runs an agent in a fresh temporary workspace and checks the result
-with deterministic assertions. It has no third-party dependencies.
+The evaluation directory contains two independent harnesses:
 
-These skill and format regressions are distinct from the SpecSpine product
-hypothesis. [HYPOTHESIS.md](HYPOTHESIS.md) defines the comparative downstream
-evaluation contract; `compare.py` runs its repository-only, conventional
-architecture document, full-Spine, and minimal-handoff arms.
+- `run.py` checks SpecSpine skills against deterministic case manifests.
+- `compare.py` compares architectural-context strategies on downstream coding
+  tasks using deterministic checks and an optional blind model judge.
 
-## Commands
+The Python harnesses use only the standard library. The bundled adapter requires
+the Codex CLI.
+
+## Validation
 
 ```bash
-python3 tests/eval/run.py --list
 python3 tests/eval/run.py --validate --audit
 python3 tests/eval/compare.py --validate --list
 python3 -m unittest discover -s tests/eval -p 'test_*.py'
+```
+
+The optional installed-package test requires npm execution:
+
+```bash
 SPECSPINE_RUN_NPX=1 python3 -m unittest discover -s tests/eval -p 'test_npx_install.py' -v
 ```
 
-Run an explicitly selected case with an agent adapter. The command receives the
-evaluation prompt on standard input, runs with the isolated workspace as its
-current directory, and must return zero on success:
+## Deterministic skill evaluation
+
+List cases or run an explicitly selected case/category:
 
 ```bash
-python3 tests/eval/run.py \
-  --case initialize-project \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py"
-```
+python3 tests/eval/run.py --list
 
-The adapter path must be absolute because each case runs with its temporary
-workspace as the current directory.
-
-## Categories
-
-Every case belongs to exactly one resource category:
-
-- `core` — the minimum PR behavioral set: 10 manifests and 12 agent calls;
-- `extended` — rare restructuring and visualization behavior: 3 manifests and
-  4 agent calls;
-- `planned` — documented but intentionally non-executable coverage.
-
-Run only the category needed for the change:
-
-```bash
 python3 tests/eval/run.py \
   --category core \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py" \
-  --keep-workspace
-```
-
-`--case` and `--category` are repeatable and may be combined. Planned cases are
-never executed. Agent execution without at least one explicit `--case` or
-`--category` is rejected; there is deliberately no implicit "run everything"
-mode.
-
-Eval agents are slow and consume tokens. Prefer the smallest relevant set:
-
-- run deterministic unit tests first;
-- run named cases while developing a focused change;
-- run `core` only when the change can affect several primary contracts;
-- run `extended` only for its rare operations;
-- do not run both a category and names already included in it.
-
-The runner executes selected cases concurrently, up to eight by default.
-`--jobs` changes that limit; use `--jobs 1` for sequential execution:
-
-```bash
-python3 tests/eval/run.py \
-  --category extended \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py" \
-  --jobs 1 \
-  --keep-workspace
-```
-
-Pass a different limit when eight concurrent agents are too many, for example
-`--jobs 4`.
-
-The bundled Codex adapter defaults to `gpt-5.6-luna` with medium reasoning.
-To select another model while keeping the same reasoning default, omit
-`--reasoning-effort`:
-
-```bash
-python3 tests/eval/run.py \
-  --case initialize-project \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py"
 ```
 
-The runner also sets `SPECSPINE_EVAL_CASE` and `SPECSPINE_EVAL_WORKSPACE`.
-Failed workspaces are deleted by default; use `--keep-workspace` to inspect one.
-An adapter that can audit file reads should write `.eval/trace.json`:
+`--case` and `--category` are repeatable and may be combined. There is no
+implicit run-all mode. Planned cases are never executed.
 
-```json
-{
-  "files_read": ["specspine/README.md", "specspine/billing.md"],
-  "token_usage": {"input_tokens": 12000, "output_tokens": 900}
-}
-```
+Categories are disjoint:
 
-The bundled Codex adapter records token counters when the Codex event stream
-provides them. Use the archived trace to compare category and case cost.
+- `core`: 10 executable cases, 12 agent calls;
+- `extended`: 3 executable cases, 4 agent calls;
+- `planned`: 11 documented, non-executable cases.
 
-## Case manifests
+The runner creates a clean temporary workspace per case, sends the prompt to the
+adapter on stdin, and evaluates the resulting files. The adapter path must be
+absolute because its current directory is the temporary workspace. Cases run
+with concurrency 8 by default; use `--jobs N` to change it.
 
-Each `cases/*.json` manifest connects one prose scenario to:
+Failed workspaces are deleted unless `--keep-workspace` is set. Successful
+workspaces are always deleted. The final terminal line reports how many selected
+cases passed.
 
-- the skill under evaluation;
-- its resource category (`core`, `extended`, or `planned`);
-- optional installed `companion_skills` copied into the isolated environment;
-- an inline clean-room fixture;
-- deterministic assertions;
-- its migration status (`executable` or `planned`).
+### Case manifests
 
-For non-staged cases, the runner sends only the scenario's `User request`
-section (or an explicit manifest `prompt`) to the agent. Expected behavior and
-failure indicators remain a hidden maintainer rubric.
+`cases/*.json` defines the fixture, category, status, skill, prompt and
+deterministic assertions. A manifest may instead define `stages`: agent stages
+run their own prompt and assertions, while fixture stages model external
+changes. A failing stage stops later stages; `final_assertions` still inspect the
+state reached. Stage diagnostics are stored under
+`.eval/stages/<number>-<id>/` inside the temporary workspace.
 
-Assertions intentionally cover only objective invariants. Architectural
-quality, minimality of context, and whether an inference is reasonable still
-need a model judge or human rubric. The audit makes that missing coverage
-visible rather than treating prose scenarios as passing tests.
+Supported assertion types:
 
-## Comparative downstream benchmarks
+- paths/content: `path_exists`, `path_absent`, `glob_count`, `glob_contains`,
+  `file_contains`, `file_not_contains`;
+- response: `response_contains`, `response_not_contains`;
+- changes: `unchanged`, `changed_only`, `max_changed_files`;
+- execution: `command_succeeds`;
+- trace: `read_only`, `read_includes`, `max_files_read`;
+- structure: `balanced_markers`, `no_template_placeholders`,
+  `markdown_links_valid`, `semantic_ids_valid`, `spine_mechanical_valid`.
 
-Run all four isolated arms for a named comparison with the same coding agent:
+Trace assertions require the adapter to write `.eval/trace.json`. The bundled
+Codex adapter derives a conservative read trace from CLI command events; broad
+content searches may count every candidate file as read.
 
-```bash
-python3 tests/eval/compare.py \
-  --comparison cross-cutting-change \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --reasoning-effort medium" \
-  --samples 5
-```
+## Comparative evaluation
 
-Run every executable comparison with all downstream agents in parallel, then
-score every result with parallel blind judges using a different model:
+Run all comparisons with repeated samples:
 
 ```bash
 python3 tests/eval/compare.py \
   --all \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
-  --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-sol --reasoning-effort high" \
   --samples 5 \
-  --jobs 16 \
-  --judge-jobs 16
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
+  --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium"
 ```
 
-The two phases are ordered: all downstream changes are produced first, then all
-available results are judged concurrently. Each judge receives only one
-`request`/`diff`/`response`/`rubric` bundle and cannot see its arm name or
-supplied context. The judge returns a strict JSON score from 0 to 2 for every rubric
-criterion. The harness derives `architectural_pass_rate`, median architectural
-score, and median architectural violation count per arm. A missing, malformed,
-or non-zero judge response makes the harness fail rather than silently dropping
-that judgment. Byte-identical `request`/`diff`/`response`/`rubric` bundles share
-one judge call and one judgment, preventing random arm differences when the
-judge evidence is identical. The report records distinct judge `calls` and
-total judged `results`.
+Use repeatable `--comparison ID` instead of `--all` to select scenarios. The
+four current scenarios are `blocking-question`, `cross-cutting-change`,
+`intended-observed-conflict`, and `local-change`.
 
-Agent and judge concurrency both default to 8. Use `--jobs` and
-`--judge-jobs` only when a lower or higher concurrency limit is needed.
+Every sample uses the same frozen fixture and request across four arms, ordered
+from least to most supplied context:
 
-Each arm receives the same frozen repository and user request but a different
-architectural context. The downstream prompt is byte-identical across arms and
-does not name the arm or context format. Outcome assertion failures are
-recorded as benchmark data and do not make the harness itself fail. Agent
-execution failures return a non-zero status. Use repeated samples before
-drawing product conclusions.
+1. `repository-only`: repository and request; no architecture files.
+2. `architecture-document`: repository, request, and one monolithic
+   `ARCHITECTURE.md`.
+3. `minimal-handoff`: repository, request, task-specific `HANDOFF.md`, and only
+   the SpecSpine files referenced by it.
+4. `full-spine`: repository, request, and the complete SpecSpine graph,
+   including deliberately unrelated specifications.
 
-Each execution allocates the next numeric directory under `comparison-runs/`
-(`001/`, `002/`, and so on). Its `comparison-results.md` contains aggregate
-outcomes, a summary averaged by arm across every comparison and sample, judge
-scores, outcome/judge mismatch markers, cost metrics, failure details, and the
-run number. Per-result lines are not printed to
-the terminal. Use `--runs-dir` to select another parent directory,
-`--markdown-output` to change the Markdown filename, and `--json-output` to
-change the JSON filename. Every run writes `comparison-results.json`
-automatically beside `comparison-results.md`.
+All agent runs finish before judging starts. A judge receives only the request,
+diff, final response and frozen rubric; it cannot see the arm or supplied
+context. Each rubric criterion is scored `0` (violated), `1` (partial/unclear),
+or `2` (fully satisfied). Identical judge inputs reuse one judgment.
 
-Every Markdown report begins with an English legend describing the included
-comparison scenarios and all executed arms, followed by a short explanation of
-fixture isolation, deterministic outcome checks, blind judging, and aggregation.
-Comparison descriptions are maintained in their manifests and validated as
-required metadata.
+Deterministic failures are benchmark results and do not cause a non-zero process
+exit. Agent execution errors, missing/invalid judge responses, and inconsistent
+observed model settings do. Agent and judge concurrency default to 8; override
+them with `--jobs` and `--judge-jobs`.
 
-Every run's artifacts are stored under
-`comparison-runs/<run>/artifacts/<comparison>/<arm>/sample-<n>/`. Each archive contains
-the exact prompt, final response, unified diff, optional stderr and trace, plus
-`judge-input.json`. The judge input contains only the request, diff, final
-response, and frozen scenario rubric; it does not contain the arm name or
-supplied context. Pass
-`--artifacts-dir` to choose a different archive root.
+### Run output
 
-The `agent/` and `judge/` subdirectories preserve the complete information made
-available by each Codex CLI invocation: the unfiltered `--json` JSONL event
-stream, CLI stderr, exact prompt, invocation arguments and exit metadata, parsed
-trace, and final response. The event stream may contain exported reasoning
-summaries, command output, file changes, tool calls, and intermediate agent
-messages. Private model chain-of-thought and event types omitted by Codex itself
-cannot be archived by the harness.
+Each execution allocates the next numeric directory:
 
-The JSON report embeds the prompt, response, diff, fixture/context hashes, and
-actual adapter model/reasoning metadata from the trace. Its top-level `model`
-and `reasoning` values are derived from those traces, or set to `unknown` when
-any trace is missing. A run with conflicting observed settings is rejected.
-
-Supported assertions:
-
-- `path_exists`, `path_absent`, `glob_count`, `glob_contains`;
-- `command_succeeds` for build, test, and observable-behavior checks;
-- `file_contains`, `file_not_contains`, `response_contains`, `response_not_contains`;
-- `unchanged`, `changed_only`, `max_changed_files`;
-- `read_only`, `read_includes`, `max_files_read` when an adapter emits a trace;
-- `balanced_markers`, `no_template_placeholders`;
-- `markdown_links_valid`, `semantic_ids_valid`, both implemented as scoped views
-  of the bundled Doctor checker rather than independent Markdown parsers;
-- `spine_mechanical_valid`, which fails on unallowed `error` findings and accepts
-  optional `allowed_codes` and `forbidden_codes`. Warnings and notes are
-  advisory unless explicitly forbidden by a scenario.
-
-Glob assertions inspect project files only and exclude the harness-owned
-`.eval/` directory.
-
-Set manifest field `runs` above one to invoke the agent repeatedly in the same
-workspace, for example to test connector idempotency. The bundled live Codex
-adapter emits a conservative `.eval/trace.json` from command events; broad read
-commands are treated as reading every candidate file.
-
-## Staged lifecycle cases
-
-A lifecycle manifest can replace the top-level `skill` and `assertions` with a
-`stages` list. Agent stages select their own skill, receive only their local
-prompt, and evaluate assertions against the snapshot immediately before that
-stage. Fixture stages model downstream or external changes without invoking an
-agent:
-
-```json
-{
-  "id": "example-lifecycle",
-  "scenario": "tests/scenarios/example-lifecycle.md",
-  "status": "executable",
-  "category": "core",
-  "initial_files": {},
-  "stages": [
-    {
-      "id": "map",
-      "skill": "skills/specspine-map",
-      "prompt": "Map the payment subsystem.",
-      "assertions": [{"type": "path_exists", "path": "specspine/README.md"}]
-    },
-    {
-      "id": "implementation",
-      "fixture": {
-        "write_files": {"src/payment.js": "export const mode = 'async';\n"},
-        "remove_files": []
-      }
-    }
-  ],
-  "final_assertions": [{"type": "markdown_links_valid", "glob": "specspine/*.md"}]
-}
+```text
+comparison-runs/<run>/
+├── comparison-results.md
+├── comparison-results.json
+└── artifacts/<comparison>/<arm>/sample-<n>/
 ```
 
-Each agent stage is archived under `.eval/stages/<number>-<id>/` with its final
-response, stderr when present, and trace. `SPECSPINE_EVAL_STAGE` contains the
-current stage ID. A failing stage stops subsequent stages; final assertions run
-against the state reached so far.
+Both reports are automatic. Use `--markdown-output` or `--json-output` only to
+change their filenames, `--runs-dir` to change the parent directory, and
+`--artifacts-dir` to rename the artifacts directory.
+
+The Markdown report contains the legend, methodology, arm aggregates,
+individual results and failure findings. The JSON report additionally preserves
+structured prompts, responses, diffs, checks, hashes, read metrics, token usage,
+model metadata and artifact paths.
+
+Each sample artifact contains the prompt, response, diff, judge input and parsed
+traces. Its `agent/` and, when judging is enabled, `judge/` directories preserve:
+
+- unfiltered Codex `--json` event stream (`codex-events.jsonl`);
+- Codex stderr and exact prompt;
+- invocation arguments, exit status and duration;
+- parsed trace and final response.
+
+The raw stream includes every event exported by Codex CLI, potentially including
+reasoning summaries, command output, file changes and tool calls. Hidden model
+chain-of-thought and events omitted by Codex itself are unavailable.
+
+See [HYPOTHESIS.md](HYPOTHESIS.md) for the experimental hypothesis and metrics.
