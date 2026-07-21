@@ -1,12 +1,12 @@
 {
   "files": {
-    "SKILL.md": "e0c83a797521520bece4dd0b0f45834a93a1847ba37bc18629521cef5cead057",
+    "SKILL.md": "1756ded7cd05c322c802e0038864c9ba26f154e6288fd77223d41f73c082eead",
     "agents/openai.yaml": "0d961d20ed13de06a8ba9951e48680abe87189fa6a956aad0bb457c6e18b816e",
-    "references/context-handoff.md": "a65e4d6f610d1b8b85a53c7de4aa640c71ac9e963a009800055849794b6ff337",
-    "references/review-method.md": "ee6ac4de6829ff132a1a6c5be61e0e33736f7eb5012122a6165b7772ada6eaad",
-    "references/spec-format.md": "b175b30805de5d04cdfad939b24396ec6c995f8e8ad30a84ca3dfe71e92eda5b",
-    "references/spec-semantics.md": "921eb77d053f9ad1606a285b1fbe674cb0e490aac725bc2125ee4c1f707717ce",
-    "scripts/check_spine.py": "420d04f4abf03f4ca4358f4d85df1e8a83d0e310265256d9cf0e482c569bee9c"
+    "references/context-handoff.md": "1a654b1ad1d841956d1c526e4862dfd2465dbe15096d10d6ff94b5c3957b1932",
+    "references/review-method.md": "40894d04b6cef6b566bf716d680e0ce0956a7f440f31e093083842cb0e3f61c6",
+    "references/spec-format.md": "a612ab20c18197946ef0e62ffe1ca8cbf950224e0bfa42b8d1fa5ff0131a91b3",
+    "references/spec-semantics.md": "6f36d94ae6705f0f92a849e4b249de63df76c6cfe1c68b739e023e3038771dda",
+    "scripts/check_spine.py": "38b3076e46d697174ebc691f0260e5e59c12c47c1cffce3c99ecca2e0f64a145"
   },
   "generator": "specspine-adapter-generator",
   "source": "assets/skill-sources/specspine-doctor"

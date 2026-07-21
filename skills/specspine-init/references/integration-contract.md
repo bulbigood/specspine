@@ -50,20 +50,22 @@ user or applicable project instructions choose another path. Record:
 
 | Field | Meaning |
 |---|---|
-| SpecSpine entry | Resolved architecture index |
-| Framework | Detected native SDD framework |
-| Native workflow entry | Skill, command, or instruction entry |
-| Downstream stage | Stage that consumes architecture context |
-| Artifact paths | Framework-native destination pattern |
-| Work-item naming | Native identifier rule |
-| Format source | Existing template, schema, or instruction |
-| Context insertion | Named section or workflow input |
-| Traceability | Specification path and semantic ID rule |
-| Conflict destination | Artifact section or blocking response |
+| SpecSpine entry | Resolved architecture index; required |
+| Framework | Detected native SDD framework; required |
+| Native workflow entry | Skill, command, or instruction entry; required |
+| Context insertion | Named section or workflow input; optional |
+| Downstream stage | Stage that consumes architecture context; optional |
+| Artifact paths | Framework-native destination pattern; optional |
+| Work-item naming | Native identifier rule; optional |
+| Format source | Existing template, schema, or instruction; optional |
+| Traceability | Specification path and semantic ID rule; optional |
+| Conflict destination | Artifact section or blocking response; optional |
 
-Use native terminology and evidence-backed values. If a required convention is
-unknown, leave it as an open decision in the proposal and do not install. Never
-write `not applicable` fields into a generic binding; omit the entire binding.
+Use native terminology and evidence-backed values. Omit unknown optional fields
+instead of guessing, and list the resulting limitations in the proposal. If
+the framework or native entry is unknown, use only the bootstrap until a
+binding would add concrete value. Never write placeholders or `not applicable`
+fields.
 
 The binding carries no copied authority explanation, architecture prose, skill
 frontmatter, UI metadata, or generic framework workflow. Persistent

@@ -5,13 +5,7 @@
 - SpecSpine entry: `{{SPINE_ROOT}}/README.md`
 - Framework: {{FRAMEWORK_NAME}}
 - Native workflow entry: {{NATIVE_WORKFLOW_ENTRY}}
-- Downstream stage: {{DOWNSTREAM_STAGE}}
-- Artifact paths: {{DOWNSTREAM_ARTIFACTS}}
-- Work-item naming: {{WORK_ITEM_NAMING_RULE}}
-- Format source: {{FORMAT_SOURCE}}
-- Context insertion: {{CONTEXT_INSERTION}}
-- Traceability: {{TRACEABILITY_RULE}}
-- Conflict destination: {{CONFLICT_DESTINATION}}
+{{DISCOVERED_OPTIONAL_FIELDS}}
 
 Read the index and only relevant linked specifications. Carry the canonical
 owner, required context, potentially affected context, accepted decisions and

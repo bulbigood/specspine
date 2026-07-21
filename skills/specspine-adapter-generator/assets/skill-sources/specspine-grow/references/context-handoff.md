@@ -34,6 +34,7 @@ Accepted architectural intent that downstream work must preserve.
 ## Relevant observations
 
 Current repository facts that affect downstream execution.
+Include their evidence baseline when freshness matters.
 
 ## Unconfirmed inferences
 

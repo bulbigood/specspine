@@ -20,8 +20,18 @@ Use the bundled checker for reproducible findings. Verify:
 - relative Markdown link targets;
 - semantic-ID definitions, sections, uniqueness, and references;
 - filenames, headings, empty sections, and unresolved placeholders.
+- optional directory names, semantic-ID marker regions, and evidence-baseline
+  syntax.
 
 Do not promote optional-format preferences into errors.
+
+## Repair discipline
+
+In repair mode, fix a finding directly only when the transformation is
+unambiguous and preserves meaning. Re-run the checker after edits. A plausible
+repair is not an accepted architecture decision: stop for user judgment when a
+repair would choose canonical ownership, change a decision or constraint,
+resolve a conflict or open question, or infer intent from repository evidence.
 
 ## Semantic pass
 

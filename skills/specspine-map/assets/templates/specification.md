@@ -38,6 +38,9 @@ behavior.
 
 - [Related concept](related-concept.md)
 
+<!-- Include this region only when the specification defines semantic IDs. -->
+<!-- specspine:semantic-ids:begin -->
+
 ## Decisions
 
 - Record accepted architectural or behavioral decisions here. Add a stable
@@ -52,6 +55,9 @@ behavior.
 
 ## Observed
 
+- Add `<!-- specspine:evidence-baseline source=...; inspected=YYYY-MM-DD -->`
+  before repository-backed observations and refresh it when evidence is
+  rechecked.
 - When relevant, record current repository facts without presenting them as
   intended architecture. Add representative `Evidence:` paths when a claim
   needs traceability.
@@ -64,3 +70,5 @@ behavior.
 ## Open questions
 
 - Record unresolved questions here.
+
+<!-- specspine:semantic-ids:end -->

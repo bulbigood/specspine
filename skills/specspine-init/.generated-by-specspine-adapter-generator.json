@@ -1,10 +1,10 @@
 {
   "files": {
-    "SKILL.md": "68282e6fc53b7a5877bb3f1757da751b45faee9208b7bd2a35ea49572d4deb85",
+    "SKILL.md": "96a8db9e2f7bcab7ec8d69505884e92f016ad4d9132803abd8acc68ae982fdeb",
     "agents/openai.yaml": "bb82d18e659f96c584d50cba492a5cbf576a599e82c2660495b2800d9d81fcf0",
     "assets/templates/agent-bootstrap.md": "b68e5713b4b7187ede4ed7a10eb04740e906065050b0df6156b77b352d8072c6",
-    "assets/templates/project-binding.md": "0bea3c294687cb4257de7b798678e978fb3f1a139523cc842e7b0137376a6495",
-    "references/integration-contract.md": "51afb8d32c36081be85bfd5db0bc44ef01b784103717469bba31b66da4e013f3"
+    "assets/templates/project-binding.md": "80d5270441cac3c16cec45634345dac2ef3c8f0940b54b846afc7fbedb6de244",
+    "references/integration-contract.md": "4562b4bbf681c5c3ae4308144c6d113288e5f9adc3268ca08316ca98937606b2"
   },
   "generator": "specspine-adapter-generator",
   "source": "assets/skill-sources/specspine-init"

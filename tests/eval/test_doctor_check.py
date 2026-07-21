@@ -44,7 +44,9 @@ class DoctorCheckerTests(unittest.TestCase):
             root = Path(directory)
             (root / "README.md").write_text("# Architecture\n\n[Jobs](jobs.md)\n", encoding="utf-8")
             (root / "jobs.md").write_text(
-                "# Jobs\n\nOwns jobs.\n\n## Constraints\n\n- **CON-retry-limit** — Retries are bounded.\n",
+                "# Jobs\n\nOwns jobs.\n\n<!-- specspine:semantic-ids:begin -->\n"
+                "## Constraints\n\n- **CON-retry-limit** — Retries are bounded.\n"
+                "<!-- specspine:semantic-ids:end -->\n",
                 encoding="utf-8",
             )
             self.assertEqual([], CHECKER.check(root))
@@ -70,6 +72,32 @@ class DoctorCheckerTests(unittest.TestCase):
             (root / "owner.md").write_text("# Owner\n", encoding="utf-8")
             codes = {finding.code for finding in CHECKER.check(root)}
             self.assertIn("UNRESOLVED_ID", codes)
+
+    def test_ignores_links_and_ids_in_fenced_examples(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "README.md").write_text(
+                "# Architecture\n\n```markdown\n[Missing](missing.md)\n"
+                "- **CON-example** — Example only.\n```\n",
+                encoding="utf-8",
+            )
+            self.assertEqual([], CHECKER.check(root))
+
+    def test_accepts_kebab_case_directories_and_checks_baseline(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            area = root / "server" / "billing"
+            area.mkdir(parents=True)
+            (root / "README.md").write_text(
+                "# Architecture\n\n[Billing](server/billing/payments.md)\n", encoding="utf-8"
+            )
+            (area / "payments.md").write_text(
+                "# Payments\n\n## Observed\n\n"
+                "<!-- specspine:evidence-baseline source=commit-abc; inspected=2026-07-21 -->\n"
+                "- A worker consumes payment events.\n",
+                encoding="utf-8",
+            )
+            self.assertEqual([], CHECKER.check(root))
 
 
 if __name__ == "__main__":

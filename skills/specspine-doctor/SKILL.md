@@ -1,12 +1,12 @@
 ---
 name: specspine-doctor
-description: Diagnose mechanical integrity and semantic architecture health in an existing SpecSpine. Use when checking broken links, reachability, semantic IDs, duplicate ownership, conflicting claims, poor decomposition, hidden uncertainty, implementation-detail leakage, handoff quality, or possible repository drift. This skill is read-only and self-contained.
+description: Diagnose and, when requested, repair mechanical integrity and semantic architecture health in an existing SpecSpine. Use when checking or fixing broken links, reachability, semantic IDs, evidence baselines, duplicate ownership, conflicting claims, poor decomposition, hidden uncertainty, implementation-detail leakage, handoff quality, or possible repository drift. It is self-contained and never guesses architectural intent.
 ---
 
 # SpecSpine Doctor
 
-Diagnose a SpecSpine without silently repairing or reinterpreting it. Report
-mechanical facts separately from semantic findings and unconfirmed drift.
+Diagnose a SpecSpine, then repair findings when requested without reinterpreting
+intent. Separate mechanical facts, semantic findings, and unconfirmed drift.
 
 ## Resources
 
@@ -27,7 +27,7 @@ follow the references.
 
 ## Scope
 
-Use one explicit mode:
+Use one evidence mode:
 
 - `spine-only` — default; inspect the full specification graph for internal
   integrity and semantic health;
@@ -37,10 +37,8 @@ Use one explicit mode:
 - `handoff` — review a supplied architecture context handoff against its source
   specifications.
 
-Remain read-only in every mode. When the user asks to fix findings, finish the
-diagnosis first and recommend `specspine-grow` for normative changes or
-`specspine-map` for repository-evidence changes when available. Do not require
-or invoke them as runtime dependencies.
+Default to `check`, which is read-only. Use `repair` when the user asks to fix
+findings. Diagnose before editing and remain self-contained.
 
 ## Workflow
 
@@ -81,7 +79,17 @@ facts as observed and interpretations as inferred. Do not let implementation
 evidence override decisions or constraints, and do not claim complete
 conformance.
 
-### 6. Report
+### 6. Repair when requested
+
+Fix unambiguous mechanical defects directly, including balanced metadata
+markers and uniquely resolvable links. Make broader structural or semantic
+repairs only when meaning and canonical ownership are already clear. Ask for a
+user decision before changing accepted intent, resolving a conflict or blocking
+question, choosing among plausible owners, or deriving intent from repository
+evidence. Modify only files under `<spine-root>`, preserve unrelated content,
+then rerun mechanical and affected semantic checks. Report anything left open.
+
+### 7. Report
 
 Report findings in severity order with stable local finding labels such as
 `DOC-001`. These labels belong only to the report and must not be written into
@@ -93,8 +101,7 @@ For each finding include:
 - affected specification paths and semantic IDs when present;
 - evidence or reasoning;
 - impact;
-- recommended owner: Doctor script, `specspine-grow`, `specspine-map`, or user
-  decision.
+- repair disposition: automatic, Doctor repair, or user decision required.
 
 End with checked scope, unchecked scope, and a concise health summary. If no
 defects are found, say only that no defects were found within the inspected
@@ -104,10 +111,11 @@ scope; do not certify conformance or completeness.
 
 Never:
 
-- edit specifications, source code, integration artifacts, or other skills;
+- edit source code, integration artifacts, or other skills;
+- edit specifications in `check` mode or outside `<spine-root>`;
 - copy the bundled rules into the report;
 - infer accepted intent from code or repetition;
-- silently resolve ownership conflicts or open questions;
+- silently resolve ownership conflicts, accepted intent, or open questions;
 - treat stylistic preference as a correctness error;
 - claim formal validation, complete coverage, or code/spec conformance;
 - require `specspine-init`, which is unrelated to specification semantics.

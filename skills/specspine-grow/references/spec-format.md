@@ -4,9 +4,10 @@ This document defines the self-contained Markdown artifacts produced by a
 SpecSpine workflow. It is the canonical instruction for what belongs in those
 artifacts; workflow skills should only route here.
 
-It is a flexible template, not a schema. Include only sections that add useful
-architectural information. Do not create empty sections merely to satisfy the
-format.
+It is a flexible Markdown profile, not a schema language. It uses no required
+frontmatter or DSL. Optional mechanical lint checks a small interoperable
+subset; it does not formally validate architecture. Include only useful
+sections and do not create empty ones merely to satisfy the format.
 
 Keep each durable architectural concept in its own document. Do not embed
 feature specifications, acceptance criteria, plans, tasks, implementation
@@ -37,8 +38,7 @@ Resolve `<spine-root>` once before reading or writing specifications:
 2. Otherwise use an existing configured SpecSpine root.
 3. Otherwise default to `specspine`.
 
-Keep this value stable for the operation. Store project specifications in a
-flat directory beneath it:
+Keep this value stable for the operation. Start with a flat directory:
 
 ```text
 <spine-root>/
@@ -49,7 +49,8 @@ flat directory beneath it:
 └── users.md
 ```
 
-Use lowercase kebab-case filenames based on stable concepts.
+Use lowercase kebab-case filenames and, when present, directory names based on
+stable concepts.
 
 Prefer:
 
@@ -67,8 +68,12 @@ feature-017.md
 fix-auth-flow.md
 ```
 
-Specifications form a graph through relative Markdown links. Directory nesting
-should not encode architectural hierarchy.
+Specifications form a graph through relative Markdown links. Add directories
+only when the flat list has become hard to navigate and several specifications
+form a stable cohesive area. Prefer a few broad namespaces such as `client/`,
+`server/`, and selected server capabilities. Do not mirror source directories
+or recursively classify every concept. Directory nesting organizes files but
+does not define ownership or architectural hierarchy.
 
 ## Architecture index
 
@@ -175,6 +180,18 @@ Use these sections only when repository evidence matters. Record direct
 evidence under `Observed` and unconfirmed interpretation under `Inferred`.
 Neither overrides accepted decisions or constraints.
 
+When a document contains repository-backed observations, record one invisible
+evidence baseline near its first `Observed` section:
+
+```markdown
+<!-- specspine:evidence-baseline source=commit-abc1234; inspected=2026-07-21 -->
+```
+
+Use a commit, a branch plus dirty-state note, or another concise source. For
+evidence explicitly supplied outside a repository, use `user-supplied`. The
+baseline records freshness and provenance, not conformance. Update it only when
+the observations are rechecked.
+
 When an observation needs traceability, add representative repository-relative
 evidence without claiming exhaustive coverage:
 
@@ -230,11 +247,18 @@ An addressable definition is an unordered-list item whose first element is a
 bold identifier, followed by an em dash and the statement:
 
 ```markdown
+<!-- specspine:semantic-ids:begin -->
 ## Decisions
 
 - **DEC-provider-independent-sessions** — Application sessions are independent
   of authentication providers.
+<!-- specspine:semantic-ids:end -->
 ```
+
+Include one balanced semantic-ID region only when a document defines IDs. Keep
+all ID definitions inside it and ordinary prose outside when practical. The
+comments are invisible when rendered and give dependency-free tools a precise
+parsing boundary; they do not affect statement meaning.
 
 Use this identifier grammar:
 

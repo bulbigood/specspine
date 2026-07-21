@@ -10,8 +10,8 @@ The specifications form an architectural spine for the project: they describe re
 SpecSpine is intentionally lightweight:
 
 * Markdown only
-* no schema or DSL
-* no formal validation
+* no required frontmatter, schema language, or DSL
+* optional mechanical lint instead of claims of formal validation
 * no required CLI
 * no implementation workflow
 * no vendor lock-in
@@ -92,7 +92,9 @@ Specifications are stored as ordinary Markdown files:
 └── notifications.md
 ```
 
-The directory is intentionally flat.
+Start with a flat directory. A larger Spine may add a few broad directories for
+stable cohesive areas; directories organize navigation but do not define the
+architecture.
 
 Software architecture is rarely a strict tree. A concept such as authentication may depend on users, sessions, configuration, security, and audit at the same time. Specifications therefore form a graph through relative Markdown links.
 
@@ -139,10 +141,10 @@ handoff as `specspine-grow`.
 
 ### `specspine-doctor`
 
-Performs read-only mechanical and semantic health checks on an existing
-SpecSpine. It is independently installable and includes build-generated current
-format and semantics plus a deterministic checker for links, reachability, and
-semantic IDs.
+Diagnoses mechanical and semantic health and, when requested, repairs findings
+without guessing architectural intent. It is independently installable and
+includes current format and semantics plus a deterministic checker for links,
+reachability, semantic IDs, and evidence baselines.
 
 ### `specspine-adapter-generator`
 
@@ -673,7 +675,7 @@ The most important success criterion is:
 * [ ] Test across multiple coding agents
 * [ ] Improve impact proposals and decomposition behavior
 * [x] Create `specspine-map` for brownfield projects
-* [x] Create `specspine-doctor` for read-only integrity and semantic diagnosis
+* [x] Create `specspine-doctor` for integrity diagnosis and guarded repair
 * [x] Generate autonomous runtime skills from canonical build-time sources
 * [x] Add optional mechanical integrity checks
 * [ ] Add optional graph visualization

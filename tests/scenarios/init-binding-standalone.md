@@ -25,12 +25,14 @@ Using only persistent project instructions, the compact binding, native SDD
 instructions, and SpecSpine, a fresh agent should:
 
 - read the SpecSpine index and smallest relevant linked context;
-- identify the exact native workflow entry, work-item identifier, and artifact
-  destination without inventing a naming convention;
+- identify the native workflow entry without guessing;
+- use a context insertion point only when one is defined;
+- use work-item and artifact conventions only when present;
 - place architectural context at the configured insertion point using the
   configured format source;
 - preserve path-plus-semantic-ID traceability when available;
-- route conflicts and blocking questions to the configured destination;
+- route conflicts to the configured destination when one was discovered,
+  otherwise block and report them explicitly;
 - avoid requiring `specspine-init`, a generated skill, or conversation history.
 
 ## Failure indicators

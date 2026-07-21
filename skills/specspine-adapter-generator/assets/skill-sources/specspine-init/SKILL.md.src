@@ -55,6 +55,9 @@ establish from evidence:
 - format source and context insertion point;
 - traceability rule and conflict destination.
 
+Require only the framework and native workflow entry for a binding. Treat all
+other mapping fields as optional capabilities.
+
 Do not discover project-local skill conventions because this integration does
 not generate a skill. If several instruction surfaces or frameworks are
 plausible, ask which target to adapt.
@@ -68,8 +71,10 @@ the relevant SpecSpine documents directly.
 Use `.specspine-integration.md` at the project root unless the user or an
 applicable project instruction selects another binding path.
 
-Keep canonical SpecSpine names and formats unchanged. Resolve every binding
-field from inspected evidence; do not guess or leave placeholders.
+Keep canonical SpecSpine names and formats unchanged. Resolve binding fields
+from inspected evidence. Omit unknown optional fields; do not guess or leave
+placeholders. If the framework or native entry is unknown, install only the
+bootstrap.
 
 ### 4. Propose changes
 
@@ -94,7 +99,7 @@ Modify:
 - persistent instruction path
 
 Runtime binding:
-- every field, or not applicable — generic coding agent
+- resolved fields and omitted capabilities, or none
 
 Open decisions:
 - unresolved choices, or none
@@ -108,7 +113,7 @@ after target paths were known.
 - Add or replace one balanced `specspine:begin` / `specspine:end` block.
 - Preserve all content outside the managed block.
 - Render the resolved index and optional binding path.
-- For SDD, render every binding field in the compact binding template.
+- For SDD, render the required core and only discovered optional fields.
 - For a generic agent, create no binding or other generated artifact.
 - Keep integration artifacts outside `<spine-root>`.
 

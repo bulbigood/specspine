@@ -151,6 +151,8 @@ directly.
 - Preserve unrelated and user-authored content.
 - Maintain useful relative Markdown links and reachability from
   `<spine-root>/README.md`.
+- Preserve optional directory organization without treating it as ownership;
+  introduce broad directories only when a flat namespace impairs navigation.
 - Keep one canonical home per concept; replace duplicates with summaries and
   links.
 - Keep overview specifications concise after decomposition.

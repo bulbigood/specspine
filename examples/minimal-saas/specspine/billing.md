@@ -28,12 +28,14 @@ state transition twice.
 
 - [Operations](operations.md)
 
+<!-- specspine:semantic-ids:begin -->
 ## Decisions
 
 - The local subscription record is the application's current view of billing
   state.
 - **DEC-idempotent-provider-events** — Payment-provider event handling must be
   idempotent.
+<!-- specspine:semantic-ids:end -->
 
 ## Open questions
 

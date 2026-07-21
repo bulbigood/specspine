@@ -186,6 +186,10 @@ The first pass should usually produce:
 
 Each file can be short.
 
+Keep the first survey flat. Introduce a few broad kebab-case directories only
+after the namespace becomes difficult to scan and stable cohesive clusters are
+visible. Never mirror the repository tree.
+
 Use the templates routed from `SKILL.md` for file structure and its examples
 reference for representative survey output.
 
@@ -231,6 +235,8 @@ When code has changed:
 - propose architectural changes when boundaries changed;
 - preserve accepted decisions;
 - record unresolved drift.
+- refresh the invisible evidence baseline only for observations actually
+  rechecked against the named source.
 
 Do not perform a whole-repository remap for a local change.
 

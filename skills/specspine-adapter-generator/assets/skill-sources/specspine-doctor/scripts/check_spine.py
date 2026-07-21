@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import re
 import sys
@@ -16,6 +17,13 @@ ID_LINK_RE = re.compile(r"\[((?:DEC|CON|OBS|INF|OQ)-[^\]]+)\]\(([^)]+)\)")
 LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
 DEFINITION_RE = re.compile(r"^- \*\*((?:DEC|CON|OBS|INF|OQ)-[^*]+)\*\* — ")
 FILENAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
+DIRECTORY_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+BASELINE_RE = re.compile(
+    r"^<!-- specspine:evidence-baseline source=([^;<>]+); inspected=(\d{4}-\d{2}-\d{2}) -->$"
+)
+ID_REGION_BEGIN = "<!-- specspine:semantic-ids:begin -->"
+ID_REGION_END = "<!-- specspine:semantic-ids:end -->"
 SECTION_PREFIXES = {
     "Decisions": "DEC",
     "Constraints": "CON",
@@ -49,6 +57,27 @@ def local_target(source: Path, raw_target: str) -> Path | None:
     return (source.parent / target.split("#", 1)[0]).resolve()
 
 
+def strip_comments(line: str, in_comment: bool) -> tuple[str, bool]:
+    visible = ""
+    rest = line
+    while rest:
+        if in_comment:
+            end = rest.find("-->")
+            if end < 0:
+                return visible, True
+            rest = rest[end + 3 :]
+            in_comment = False
+        else:
+            start = rest.find("<!--")
+            if start < 0:
+                visible += rest
+                break
+            visible += rest[:start]
+            rest = rest[start + 4 :]
+            in_comment = True
+    return visible, in_comment
+
+
 def check(root: Path) -> list[Finding]:
     root = root.resolve()
     findings: list[Finding] = []
@@ -66,9 +95,10 @@ def check(root: Path) -> list[Finding]:
 
     for path in files:
         relative = path.relative_to(root)
-        if len(relative.parts) > 1:
-            add(findings, "warning", "NESTED_SPEC", path, root, "specification is nested; the standard organization is flat")
-        if path.name != "README.md" and not FILENAME_RE.fullmatch(path.name):
+        for directory in relative.parts[:-1]:
+            if not DIRECTORY_RE.fullmatch(directory):
+                add(findings, "error", "INVALID_DIRECTORY", path, root, f"directory must use lowercase kebab-case: {directory}")
+        if relative != Path("README.md") and not FILENAME_RE.fullmatch(path.name):
             add(findings, "error", "INVALID_FILENAME", path, root, "filename must use lowercase kebab-case")
 
         text = path.read_text(encoding="utf-8")
@@ -81,7 +111,56 @@ def check(root: Path) -> list[Finding]:
         section = ""
         section_line = 0
         section_has_content = True
-        for line_number, line in enumerate(lines, 1):
+        visible_lines: list[tuple[int, str]] = []
+        in_fence = False
+        fence_char = ""
+        fence_length = 0
+        in_comment = False
+        in_id_region = False
+        id_regions = 0
+        region_definitions = 0
+        observed_content = False
+        baselines: list[tuple[int, str, str]] = []
+        for line_number, raw_line in enumerate(lines, 1):
+            fence = FENCE_RE.match(raw_line)
+            if in_fence:
+                if fence and fence.group(1)[0] == fence_char and len(fence.group(1)) >= fence_length:
+                    in_fence = False
+                continue
+            if fence and not in_comment:
+                in_fence = True
+                fence_char = fence.group(1)[0]
+                fence_length = len(fence.group(1))
+                continue
+
+            stripped = raw_line.strip()
+            if not in_comment and stripped == ID_REGION_BEGIN:
+                if in_id_region:
+                    add(findings, "error", "ID_REGION_NESTED", path, root, "semantic-ID regions must not nest", line_number)
+                in_id_region = True
+                id_regions += 1
+                continue
+            if not in_comment and stripped == ID_REGION_END:
+                if not in_id_region:
+                    add(findings, "error", "ID_REGION_END", path, root, "semantic-ID region ends without a matching begin", line_number)
+                in_id_region = False
+                continue
+            if not in_comment and "specspine:evidence-baseline" in stripped:
+                baseline = BASELINE_RE.fullmatch(stripped)
+                if not baseline:
+                    add(findings, "error", "INVALID_BASELINE", path, root, "invalid evidence-baseline syntax", line_number)
+                else:
+                    baselines.append((line_number, baseline.group(1).strip(), baseline.group(2)))
+                    try:
+                        dt.date.fromisoformat(baseline.group(2))
+                    except ValueError:
+                        add(findings, "error", "INVALID_BASELINE_DATE", path, root, "invalid evidence-baseline date", line_number)
+                continue
+
+            line, in_comment = strip_comments(raw_line, in_comment)
+            if not line.strip():
+                continue
+            visible_lines.append((line_number, line))
             heading = re.match(r"^##\s+(.+?)\s*$", line)
             if heading:
                 if section and not section_has_content:
@@ -92,10 +171,16 @@ def check(root: Path) -> list[Finding]:
                 continue
             if section and line.strip() and not line.startswith("###"):
                 section_has_content = True
+                if section == "Observed":
+                    observed_content = True
 
             definition = DEFINITION_RE.match(line)
             if definition:
                 identifier = definition.group(1)
+                if in_id_region:
+                    region_definitions += 1
+                else:
+                    add(findings, "warning", "ID_OUTSIDE_REGION", path, root, f"semantic ID is outside the marker region: {identifier}", line_number)
                 if not ID_RE.fullmatch(identifier):
                     add(findings, "error", "INVALID_ID", path, root, f"invalid semantic ID: {identifier}", line_number)
                 expected = SECTION_PREFIXES.get(section)
@@ -104,10 +189,25 @@ def check(root: Path) -> list[Finding]:
                     add(findings, "error", "ID_SECTION", path, root, f"{identifier} does not belong under '{section or 'no section'}'", line_number)
                 definitions.setdefault((path.resolve(), identifier), []).append(line_number)
 
+        if in_id_region:
+            add(findings, "error", "ID_REGION_UNCLOSED", path, root, "semantic-ID region is not closed")
+        if in_comment:
+            add(findings, "error", "HTML_COMMENT_UNCLOSED", path, root, "HTML comment is not closed")
+        if in_fence:
+            add(findings, "error", "FENCE_UNCLOSED", path, root, "fenced code block is not closed")
+        if id_regions > 1:
+            add(findings, "error", "MULTIPLE_ID_REGIONS", path, root, "use at most one semantic-ID region")
+        if id_regions and not region_definitions:
+            add(findings, "warning", "EMPTY_ID_REGION", path, root, "semantic-ID region defines no IDs")
+        if len(baselines) > 1:
+            add(findings, "error", "MULTIPLE_BASELINES", path, root, "use at most one evidence baseline", baselines[1][0])
+        if observed_content and not baselines:
+            add(findings, "warning", "MISSING_BASELINE", path, root, "Observed content has no evidence baseline")
+
         if section and not section_has_content:
             add(findings, "warning", "EMPTY_SECTION", path, root, f"section '{section}' is empty", section_line)
 
-        for line_number, line in enumerate(lines, 1):
+        for line_number, line in visible_lines:
             for identifier, target in ID_LINK_RE.findall(line):
                 references.append((path, line_number, identifier, target))
                 if not ID_RE.fullmatch(identifier):

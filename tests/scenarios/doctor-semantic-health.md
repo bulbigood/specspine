@@ -22,7 +22,7 @@ The skill should:
 - identify competing ownership and the misclassified inference;
 - describe the broad specification as a decomposition candidate rather than
   automatically splitting it;
-- assign remediation to the user or `specspine-grow`;
+- distinguish repairs Doctor can apply from choices requiring the user;
 - remain read-only.
 
 ## Failure indicators

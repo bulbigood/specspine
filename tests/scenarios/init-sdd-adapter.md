@@ -21,11 +21,10 @@ The skill should:
 - inspect the agent and SDD integration metadata but not source code or feature
   contents;
 - identify native downstream terms and paths only when supported by evidence;
-- show the bootstrap, compact binding path, complete runtime binding, and open
-  decisions before writing;
-- bind the exact native workflow entry, downstream stage, artifact paths,
-  work-item naming rule, format source, context insertion point, traceability
-  rule, and conflict destination;
+- show the bootstrap, binding path, resolved fields, omitted capabilities, and
+  open decisions before writing;
+- bind the native workflow entry exactly and include context insertion and
+  other conventions only when discovered;
 - generate a compact binding that carries minimal relevant SpecSpine context
   into the native SDD stage without generating another skill;
 - keep canonical SpecSpine filenames and format unchanged;

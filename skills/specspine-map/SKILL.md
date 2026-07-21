@@ -132,6 +132,7 @@ applied directly.
 - Preserve user-authored decisions and unrelated content.
 - Keep useful relative links and reachability from `<spine-root>/README.md`.
 - Keep observations separate from inference and normative intent.
+- Add or refresh the evidence baseline for repository-backed observations.
 - Do not rewrite intent to legitimize accidental implementation behavior.
 - Update `<spine-root>/README.md` only when top-level navigation, system-wide
   intent, or mapping coverage changes.
@@ -172,6 +173,12 @@ without project-specific architectural value.
 
 Keep coverage qualitative: mapped, deepened, partial, or not mapped. Do not use
 percentages or claim formal completeness.
+
+### Directories
+
+Start flat. Introduce a few broad directories only when navigation has become
+materially difficult and stable cohesive clusters are clear. Do not mirror the
+source tree or treat directories as architectural ownership.
 
 ### Intended versus observed architecture
 
