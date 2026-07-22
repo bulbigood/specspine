@@ -1,4 +1,5 @@
 import importlib.util
+import datetime
 import sys
 import tempfile
 import unittest
@@ -113,9 +114,31 @@ class ExtractMetricsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "nested" / "metrics.md"
 
-            METRICS.write_markdown(target, "sentinel")
+            written = METRICS.write_markdown(target, "sentinel")
 
+            self.assertEqual(target, written)
             self.assertEqual("sentinel\n", target.read_text(encoding="utf-8"))
+
+    def test_markdown_writer_never_overwrites_an_existing_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "metrics.md"
+            target.write_text("old\n", encoding="utf-8")
+
+            written = METRICS.write_markdown(target, "new")
+
+            self.assertEqual("old\n", target.read_text(encoding="utf-8"))
+            self.assertNotEqual(target, written)
+            self.assertEqual("new\n", written.read_text(encoding="utf-8"))
+
+    def test_default_report_names_are_timestamped(self):
+        instant = datetime.datetime(2026, 7, 22, 10, 11, 12, 123456, tzinfo=datetime.timezone.utc)
+
+        result = METRICS.default_output_path(instant)
+
+        self.assertEqual(
+            METRICS.DEFAULT_OUTPUT_DIRECTORY / "extract-metrics-20260722T101112.123456Z.md",
+            result,
+        )
 
     def test_report_directories_are_resolved_and_deduplicated(self):
         with tempfile.TemporaryDirectory() as directory:

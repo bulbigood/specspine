@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import html
 import json
 import shlex
@@ -13,7 +14,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-DEFAULT_OUTPUT = Path(__file__).with_name("EXTRACT_METRICS.md")
+DEFAULT_OUTPUT_DIRECTORY = Path(__file__).with_name("reports")
 TOKEN_METRICS = (
     "total_tokens",
     "input_tokens",
@@ -340,16 +341,42 @@ def render_comparison(
     return "\n".join(lines)
 
 
-def write_markdown(path: Path, content: str) -> None:
+def default_output_path(now: datetime.datetime | None = None) -> Path:
+    instant = now or datetime.datetime.now(datetime.timezone.utc)
+    timestamp = instant.astimezone(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    return DEFAULT_OUTPUT_DIRECTORY / f"extract-metrics-{timestamp}.md"
+
+
+def available_output_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+    for number in range(1, 10_000):
+        candidate = path.with_name(f"{path.stem}-{number}{path.suffix}")
+        if not candidate.exists():
+            return candidate
+    raise ComparisonError(f"cannot allocate a unique report path beside {path}")
+
+
+def write_markdown(path: Path, content: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content.rstrip() + "\n", encoding="utf-8")
+    candidate = available_output_path(path)
+    try:
+        with candidate.open("x", encoding="utf-8") as output:
+            output.write(content.rstrip() + "\n")
+    except FileExistsError:
+        return write_markdown(path, content)
+    return candidate
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fallback", type=Path, required=True)
     parser.add_argument("--accelerated", type=Path, required=True)
-    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="preferred Markdown path; an existing file is never overwritten",
+    )
     args = parser.parse_args()
     directories = report_directories((args.fallback, args.accelerated))
     try:
@@ -358,13 +385,13 @@ def main() -> int:
             load_report(args.accelerated),
             directories,
         )
-        write_markdown(args.output, content)
+        output_path = write_markdown(args.output or default_output_path(), content)
     except ComparisonError as error:
         print(f"cannot compare reports: {error}", file=sys.stderr)
         return 2
     for directory in directories:
         print(f"Reports read from: {directory}")
-    print(f"Markdown report: {args.output.resolve()}")
+    print(f"Markdown report: {output_path.resolve()}")
     return 0
 
 

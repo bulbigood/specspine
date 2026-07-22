@@ -173,7 +173,7 @@ unavailable, so the skill exercises its normal Markdown-link fallback.
 Run both groups concurrently and save their per-sample reports:
 
 ```bash
-report_dir=$(mktemp -d)
+report_dir=$(mktemp -d -t specspine-extract-eval.XXXXXX)
 python3 tests/eval/run.py \
   --case extract-accelerated-handoff --samples 5 \
   --report-label forced-fallback --report-json "$report_dir/fallback.json" \
@@ -192,8 +192,12 @@ python3 tests/eval/compare_extract_metrics.py \
 
 The analyzer prints the absolute source-report directory and records it in the
 generated Markdown, so every snapshot can be traced back to its JSON inputs.
-It updates [EXTRACT_METRICS.md](EXTRACT_METRICS.md) by default; use `--output
-PATH` for a disposable or alternate report. It performs no agent calls. It
+By default it creates a timestamped, never-overwritten report under
+`tests/eval/reports/`. `--output PATH` selects a preferred location, but if that
+path exists the analyzer adds a numeric suffix instead of replacing it. Raw JSON
+reports stay in the unique system temporary directory created by `mktemp`; the
+runner and analyzer do not remove them, leaving eventual cleanup to the
+operating system. It performs no agent calls. It
 rejects reports with different case
 fingerprints, models, reasoning effort, sample identities, or parallelism. Its
 paired averages include behavioral failures; environment-invalid samples are
