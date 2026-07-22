@@ -50,10 +50,13 @@ must remain usable without those skills.
 
 ## Workflow
 
-1. Resolve `<spine-root>` as defined by `references/spec-format.md` and test for
-   its `README.md` without listing the project. If present, read it and follow
-   only relevant links. If absent, immediately initialize from the request;
-   do not run any other project discovery or read any other project path.
+1. Resolve `<spine-root>` as defined by `references/spec-format.md`; absent an
+   explicit user or project configuration, this is exactly `specspine`
+   relative to the current working directory, never the repository root.
+   Test for its `README.md` without listing the project. If present, read it
+   and follow only relevant links. If absent, immediately initialize from the
+   request; do not run any other project discovery or read any other project
+   path.
 2. Classify the operation: initialize, refine, split, merge, rename, or link.
    Identify the canonical owner, specifications whose architectural meaning or
    boundaries change, and context needed only for understanding.
