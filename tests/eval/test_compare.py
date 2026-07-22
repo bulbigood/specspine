@@ -51,7 +51,25 @@ class ComparisonTests(unittest.TestCase):
                 if item["task"] == task and item["experiment"] in {"value", "projection"}
             ]
             self.assertEqual(2, len(selected))
-            self.assertEqual(1, len({COMPARE.build_prompt(item) for item in selected}))
+            prompts = {
+                COMPARE.build_prompt(
+                    item,
+                    next(arm for arm in item["arms"] if arm["id"] == "minimal-handoff"),
+                )
+                for item in selected
+            }
+            self.assertEqual(1, len(prompts))
+
+    def test_arm_protocols_force_the_intended_context_intervention(self):
+        comparisons = COMPARE.load_comparisons()
+        value = next(item for item in comparisons if item["id"] == "value-auditor-role")
+        minimal = next(arm for arm in value["arms"] if arm["id"] == "minimal-handoff")
+        self.assertIn("HANDOFF.md exists, read it", COMPARE.build_prompt(value, minimal))
+        projection = next(item for item in comparisons if item["id"] == "projection-auditor-role")
+        full = next(arm for arm in projection["arms"] if arm["id"] == "full-spine")
+        self.assertIn("specspine/README.md exists, read it", COMPARE.build_prompt(projection, full))
+        native = next(arm for arm in value["arms"] if arm["id"] == "native-repository")
+        self.assertEqual(COMPARE.build_prompt(value, native), COMPARE.build_prompt(value, minimal))
 
     def test_context_bundles_keep_handoff_smaller_than_full_spine(self):
         full = COMPARE.context_files({"context_bundle": "node-express/full-spine"})
@@ -67,7 +85,7 @@ class ComparisonTests(unittest.TestCase):
             for item in COMPARE.load_comparisons()
             if item["id"] == "production-reset-revocation"
         )
-        prompt = COMPARE.build_prompt(comparison)
+        prompt = COMPARE.build_prompt(comparison, comparison["arms"][0])
         self.assertIn(".eval/skill/SKILL.md", prompt)
         self.assertIn("Do not inspect source code", prompt)
         self.assertNotIn("generated-handoff", prompt)
@@ -111,6 +129,23 @@ class ComparisonTests(unittest.TestCase):
             self.assertEqual(10, result["input_tokens"])
             self.assertNotIn("HANDOFF.md", result["changed_files"])
 
+    def test_handoff_production_uses_a_dedicated_semantic_rubric(self):
+        comparison = next(
+            item for item in COMPARE.load_comparisons() if item["id"] == "production-bootstrap-admin-policy"
+        )
+        bundle = COMPARE.judge_bundle({"diff": "", "response": "handoff"}, comparison)
+        self.assertEqual("handoff", bundle["submission_type"])
+        self.assertEqual(comparison["handoff_rubric"], bundle["rubric"])
+        self.assertIn("empty diff is required", COMPARE.build_judge_prompt(bundle))
+
+    def test_semantic_phrasing_is_not_checked_mechanically(self):
+        for comparison in COMPARE.load_comparisons():
+            assertions = comparison.get("assertions", []) + comparison.get("production_assertions", [])
+            self.assertFalse(
+                any(item["type"].startswith("response_") for item in assertions),
+                comparison["id"],
+            )
+
     def test_judge_input_is_blind_to_experiment_and_arm(self):
         comparison = next(
             item for item in COMPARE.load_comparisons() if item["id"] == "value-local-utility"
@@ -137,6 +172,7 @@ class ComparisonTests(unittest.TestCase):
                     "sample": 1,
                     "valid": True,
                     "passed": True,
+                    "mechanical_passed": True,
                     "context_words": 0,
                     "files_read": 1,
                     "irrelevant_files_read": [],
@@ -158,6 +194,7 @@ class ComparisonTests(unittest.TestCase):
                 "comparison": "example",
                 "arm": arm,
                 "passed": True,
+                "mechanical_passed": True,
                 "context_words": index,
                 "files_read": index + 1,
                 "irrelevant_files_read": [],

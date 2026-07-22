@@ -7,6 +7,12 @@
     "unrelated_change": "Authentication, tokens, users, API routes, and architectural documents are unchanged.",
     "unsupported_decision": "No unrelated product or architecture decision is introduced."
   },
+  "handoff_rubric": {
+    "owner_selection": "The handoff selects specspine/utilities.md as the sole architectural owner of this generic helper behavior.",
+    "behavioral_precision": "It says that only undefined values are omitted while false, null, zero, and empty strings are preserved.",
+    "context_minimality": "It does not import authentication, authorization, token, user, API, or other unrelated architectural context.",
+    "handoff_discipline": "It remains an architecture context handoff and contains no implementation filename, task list, test scenario, or unrelated decision."
+  },
   "irrelevant_read_patterns": [
     "src/controllers/**",
     "src/models/**",
@@ -25,13 +31,9 @@
         "-e",
         "const pick=require('./src/utils/pick'); const value=pick({a:undefined,b:false,c:null,d:0,e:'',f:'kept'},['a','b','c','d','e','f','missing']); const expected={b:false,c:null,d:0,e:'',f:'kept'}; if(JSON.stringify(value)!==JSON.stringify(expected)) throw new Error(JSON.stringify(value));"
       ]
-    },
-    {"type": "changed_only", "paths": ["src/utils/pick.js", "tests/**"]},
-    {"type": "max_changed_files", "max": 2}
+    }
   ],
   "production_assertions": [
-    {"type": "response_contains", "values": ["specspine/utilities.md", "Primary specification"]},
-    {"type": "response_not_contains", "values": ["src/utils/pick.js", "implementation tasks"]},
     {"type": "read_only", "paths": ["specspine/**", ".eval/skill/**"]},
     {"type": "changed_only", "paths": []}
   ]

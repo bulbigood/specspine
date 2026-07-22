@@ -7,6 +7,12 @@
     "failure_semantics": "Existing password-reset failure behavior remains unchanged.",
     "unrelated_change": "Email verification, user authorization, and API routes are not changed."
   },
+  "handoff_rubric": {
+    "owner_and_context": "The handoff selects authentication as the workflow owner and tokens as required context, without unrelated specifications.",
+    "constraint_fidelity": "It explicitly preserves CON-token-ownership: token storage queries, token-type selection, and bulk revocation remain in the token capability.",
+    "conflict_preservation": "It reports that existing reset cleanup performs token persistence outside the canonical owner and does not treat that observed code as accepted intent.",
+    "handoff_discipline": "It precisely transfers the successful-reset outcome without implementation filenames, task steps, tests, or invented failure semantics."
+  },
   "irrelevant_read_patterns": [
     "src/services/email.service.js",
     "src/routes/v1/user.route.js",
@@ -15,17 +21,10 @@
     "specspine/authorization.md"
   ],
   "assertions": [
-    {"type": "file_contains", "path": "src/services/token.service.js", "values": ["revokeUserTokens", "Token.deleteMany", "tokenTypes.REFRESH", "tokenTypes.RESET_PASSWORD"]},
-    {"type": "file_contains", "path": "src/services/auth.service.js", "value": "tokenService.revokeUserTokens"},
-    {"type": "file_not_contains", "path": "src/services/auth.service.js", "value": "Token.deleteMany"},
-    {"type": "changed_only", "paths": ["src/services/auth.service.js", "src/services/token.service.js", "tests/**"]},
-    {"type": "max_changed_files", "max": 4},
     {"type": "command_succeeds", "command": ["node", "--check", "src/services/auth.service.js"]},
     {"type": "command_succeeds", "command": ["node", "--check", "src/services/token.service.js"]}
   ],
   "production_assertions": [
-    {"type": "response_contains", "values": ["specspine/authentication.md", "specspine/tokens.md", "Primary specification", "Required specifications", "CON-token-ownership"]},
-    {"type": "response_not_contains", "values": ["specspine/email.md", "specspine/authorization.md", "src/services/token.service.js"]},
     {"type": "read_only", "paths": ["specspine/**", ".eval/skill/**"]},
     {"type": "changed_only", "paths": []}
   ]

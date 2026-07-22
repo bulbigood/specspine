@@ -7,6 +7,12 @@
     "repository_integrity": "The source, tests, native documentation, and supplied architectural context remain unchanged.",
     "response": "The agent clearly identifies the unresolved bootstrap policy as blocking rather than choosing a policy."
   },
+  "handoff_rubric": {
+    "unresolved_policy": "The handoff preserves first-account eligibility, concurrency serialization, and deployment enablement as unresolved blocking questions; it does not assert that the first registered user is eligible.",
+    "security_boundary": "It states that registration must not silently gain role-assignment authority or implement bootstrap promotion until the authorization policy is accepted.",
+    "owner_and_context": "It selects authorization as the primary owner and includes only the user and authentication context needed to understand registration integration.",
+    "handoff_discipline": "It is a concise context handoff with no implementation plan, code locations, tests, or invented bootstrap policy."
+  },
   "irrelevant_read_patterns": [
     "src/services/email.service.js",
     "src/docs/**",
@@ -15,12 +21,9 @@
     "specspine/utilities.md"
   ],
   "assertions": [
-    {"type": "changed_only", "paths": []},
-    {"type": "response_contains", "values": ["policy", "unresolved"]}
+    {"type": "changed_only", "paths": []}
   ],
   "production_assertions": [
-    {"type": "response_contains", "values": ["specspine/authorization.md", "Blocking questions", "concurrent", "bootstrap"]},
-    {"type": "response_not_contains", "values": ["specspine/email.md", "specspine/utilities.md", "src/"]},
     {"type": "read_only", "paths": ["specspine/**", ".eval/skill/**"]},
     {"type": "changed_only", "paths": []}
   ]

@@ -4,7 +4,7 @@ The evaluation directory contains two independent harnesses:
 
 - `run.py` checks SpecSpine skills against deterministic case manifests.
 - `compare.py` compares architectural-context strategies on downstream coding
-  tasks using deterministic checks and an optional blind model judge.
+  tasks using narrow mechanical checks and an optional blind semantic judge.
 
 The Python harnesses use only the standard library. The bundled adapter requires
 the Codex CLI.
@@ -149,6 +149,12 @@ The value experiment has two arms:
 2. `minimal-handoff`: the same repository plus a reviewed `HANDOFF.md` and only
    the required SpecSpine files.
 
+The minimal arm must read `HANDOFF.md` and every supplied primary/required
+specification before editing. The full-Spine arm must begin at
+`specspine/README.md` and navigate the Spine itself. Required protocol reads are
+verified from the adapter trace, so the intervention does not depend on chance
+discovery of an unfamiliar root file.
+
 The projection experiment reuses the same task definitions and compares:
 
 1. `full-spine`: native repository plus the complete reviewed Spine.
@@ -164,12 +170,21 @@ The repository fixture is a hash-verified archive of
 `~/.cache/specspine-eval/fixtures`; override this with
 `SPECSPINE_EVAL_FIXTURES_DIR`. Agent workspaces do not require network access.
 
-All agent runs finish before judging starts. A judge receives only the request,
-diff, final response and frozen rubric; it cannot see the arm or supplied
-context. Each rubric criterion is scored `0` (violated), `1` (partial/unclear),
-or `2` (fully satisfied). Identical judge inputs reuse one judgment. Prefer
-deterministic assertions; use a judge only for unique outputs with genuinely
-semantic criteria.
+All agent runs finish before judging starts. A judge receives only the
+submission type, request, diff, final response and matching frozen rubric; it
+cannot see the arm or supplied context. Implementation and handoff production
+use separate rubrics. The handoff judge is explicitly told that its required
+empty diff is not missing implementation evidence. Each criterion is scored
+`0` (violated), `1` (partial/unclear), or `2` (fully satisfied). Identical judge
+inputs reuse one judgment.
+
+Mechanical checks are limited to facts requiring no interpretation: command
+success, syntax, workspace/read boundaries, required context consumption,
+protected-context integrity, and tasks whose only safe outcome is no repository
+change. Ownership, blocker meaning, relevance, documentation adequacy,
+unrelated scope, and handoff quality belong to the blind judge. Exact response
+wording is never a pass condition. Overall pass requires both layers; efficiency
+metrics remain independent.
 
 The bundled Codex adapter uses an isolated named permission profile: only the
 current workspace is writable/readable beyond minimal operating-system files,
@@ -181,16 +196,18 @@ Tool subprocesses receive private HOME, temporary, Git, Python, pip, and XDG
 cache/config directories in an ephemeral sibling runtime that is removed after
 the agent exits and is not part of repository context. Login shells are
 disabled, and inaccessible user-level PATH entries such as pyenv shims are
-removed. Each invocation also receives a private `CODEX_HOME` containing only a
-temporary copy of `auth.json`; model cache, config, rules and memory are not
-shared between concurrent agents. `.eval` is reserved for evaluator output and
+removed. When available, `node` and `rg` are copied into the permitted
+ephemeral runtime so agents can run dependency-free checks and search without
+access to user tool directories. Each invocation also receives a private
+`CODEX_HOME` containing only a temporary copy of `auth.json`; model cache,
+config, rules and memory are not shared between concurrent agents. `.eval` is reserved for evaluator output and
 excluded from agent inspection except for requested skill and companion inputs;
 commands that explicitly exclude `.eval` from searches remain valid.
 The profile was verified with Codex CLI 0.144.4; strict config validation makes
 older incompatible CLIs fail instead of silently weakening isolation.
 
-Deterministic failures are benchmark results and do not cause a non-zero process
-exit. Workspace-boundary violations, agent execution errors, missing/invalid
+Mechanical or semantic failures are benchmark results and do not cause a
+non-zero process exit. Workspace-boundary violations, agent execution errors, missing/invalid
 judge responses, and inconsistent observed model settings do. Agent and judge
 concurrency default to 8; override them with `--jobs` and `--judge-jobs`.
 
@@ -209,8 +226,9 @@ Both reports are automatic. Use `--markdown-output` or `--json-output` only to
 change their filenames, `--runs-dir` to change the parent directory, and
 `--artifacts-dir` to rename the artifacts directory.
 
-The Markdown report contains the legend, methodology, arm aggregates,
-individual results and failure findings. The JSON report additionally preserves
+The Markdown report separates overall, mechanical, and semantic outcomes and
+contains the legend, methodology, arm aggregates, individual results and
+failure findings. The JSON report additionally preserves
 structured prompts, responses, diffs, checks, hashes, read metrics, token usage,
 model metadata and artifact paths.
 

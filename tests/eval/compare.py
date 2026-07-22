@@ -119,6 +119,10 @@ def validate_comparison(comparison: dict[str, Any]) -> list[str]:
     rubric = comparison.get("architectural_rubric")
     if not isinstance(rubric, dict) or not rubric:
         errors.append("architectural_rubric must be a non-empty object")
+    if experiment == "handoff-production":
+        handoff_rubric = comparison.get("handoff_rubric")
+        if not isinstance(handoff_rubric, dict) or not handoff_rubric:
+            errors.append("handoff-production requires a non-empty handoff_rubric")
     arms = comparison["arms"]
     if not isinstance(arms, list):
         return errors + ["arms must be a list"]
@@ -223,7 +227,7 @@ def context_files(arm: dict[str, Any]) -> dict[str, str]:
     return files
 
 
-def build_prompt(comparison: dict[str, Any]) -> str:
+def build_prompt(comparison: dict[str, Any], arm: dict[str, Any]) -> str:
     if comparison.get("experiment") == "handoff-production":
         return (
             "You are running a blinded SpecSpine handoff-production evaluation.\n"
@@ -236,14 +240,31 @@ def build_prompt(comparison: dict[str, Any]) -> str:
     return (
         "You are running a blinded downstream coding evaluation.\n"
         + RUNNER.WORKSPACE_BOUNDARY_INSTRUCTIONS
+        + "Before planning or editing: if HANDOFF.md exists, read it and every specification named under Primary specification and Required specifications; otherwise, if specspine/README.md exists, read it and navigate the Spine to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\n"
         + "Treat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\n"
         + f"{comparison['prompt'].strip()}\n"
     )
 
 
+def rubric_for(comparison: dict[str, Any]) -> dict[str, str]:
+    if comparison.get("experiment") == "handoff-production":
+        return comparison["handoff_rubric"]
+    return comparison["architectural_rubric"]
+
+
 def build_judge_prompt(bundle: dict[str, Any]) -> str:
+    submission_type = bundle["submission_type"]
+    evidence_rule = (
+        "The submission is a context handoff, not an implementation. An empty diff is required and must not reduce a score. "
+        "Evaluate whether the response transfers the correct, minimal, decision-safe context for downstream work. "
+        if submission_type == "handoff"
+        else
+        "The submission is an implementation. Evaluate the diff and final response as evidence of the resulting behavior and architecture. "
+    )
     return (
-        "You are a blind architecture evaluator. Score only the submitted change; "
+        "You are a blind semantic evaluator. "
+        + evidence_rule
+        + "Score only the submitted work; "
         "do not infer which experimental arm produced it. Use only the request, diff, "
         "final response, and rubric below. Do not inspect the filesystem or any external source. "
         "For every rubric criterion, assign an integer score: "
@@ -310,7 +331,7 @@ def parse_judge_response(response: str, rubric: dict[str, str]) -> dict[str, Any
         "summary": summary.strip(),
         "total_score": total_score,
         "max_score": len(normalized) * JUDGE_SCORE_MAX,
-        "violation_count": sum(
+        "partial_criteria_count": sum(
             item["score"] < JUDGE_SCORE_MAX for item in normalized.values()
         ),
         "passed": all(item["score"] == JUDGE_SCORE_MAX for item in normalized.values()),
@@ -341,10 +362,13 @@ def comparison_snapshot(workspace: Path) -> dict[str, bytes]:
 
 def judge_bundle(result: dict[str, Any], comparison: dict[str, Any]) -> dict[str, Any]:
     return {
+        "submission_type": "handoff"
+        if comparison.get("experiment") == "handoff-production"
+        else "implementation",
         "request": comparison["prompt"].strip(),
         "diff": result["diff"],
         "response": result["response"],
-        "rubric": comparison["architectural_rubric"],
+        "rubric": rubric_for(comparison),
     }
 
 
@@ -420,12 +444,23 @@ def trace_metrics(trace: dict[str, Any] | None, irrelevant: list[str]) -> dict[s
     ]
     return {
         "files_read": len(unique_files),
+        "files_read_paths": unique_files,
         "irrelevant_files_read": irrelevant_reads,
         "input_tokens": token_usage.get("input_tokens") if isinstance(token_usage, dict) else None,
         "cached_input_tokens": token_usage.get("cached_input_tokens") if isinstance(token_usage, dict) else None,
         "output_tokens": token_usage.get("output_tokens") if isinstance(token_usage, dict) else None,
         "scope_violations": scope_violations,
     }
+
+
+def context_protocol_assertions(arm: dict[str, Any], supplied_context: dict[str, str]) -> list[dict[str, Any]]:
+    """Return objective reads required to ensure the intended context intervention occurred."""
+    if arm["id"] == "minimal-handoff":
+        paths = ["HANDOFF.md", *sorted(path for path in supplied_context if path.startswith("specspine/"))]
+        return [{"type": "read_includes", "paths": paths}]
+    if arm["id"] == "full-spine":
+        return [{"type": "read_includes", "paths": ["specspine/README.md"]}]
+    return []
 
 
 def run_arm(
@@ -455,7 +490,7 @@ def run_arm(
         }
         before = comparison_snapshot(workspace)
         started = time.monotonic()
-        prompt = build_prompt(comparison)
+        prompt = build_prompt(comparison, arm)
         completed = subprocess.run(
             command,
             cwd=workspace,
@@ -486,7 +521,11 @@ def run_arm(
             if comparison.get("experiment") == "handoff-production"
             else "assertions"
         )
-        assertions = comparison.get(assertion_key, []) + arm.get("assertions", [])
+        assertions = (
+            comparison.get(assertion_key, [])
+            + arm.get("assertions", [])
+            + context_protocol_assertions(arm, supplied_context)
+        )
         checks = [
             RUNNER.evaluate_assertion(item, workspace, before, after, completed.stdout, trace)
             for item in assertions
@@ -504,13 +543,14 @@ def run_arm(
                 else "supplied context unchanged",
             )
         )
-        passed = completed.returncode == 0 and all(check.passed for check in checks)
+        mechanical_passed = completed.returncode == 0 and all(check.passed for check in checks)
         result = {
             "comparison": comparison["id"],
             "experiment": comparison["experiment"],
             "arm": arm["id"],
             "sample": sample,
-            "passed": passed,
+            "mechanical_passed": mechanical_passed,
+            "passed": mechanical_passed,
             "agent_exit": completed.returncode,
             "duration_seconds": round(elapsed, 3),
             "prompt": prompt,
@@ -555,7 +595,7 @@ def run_arm(
                 workspace / ".eval",
             )
             result["artifacts"] = str(artifact_target)
-        if (not passed or not result["valid"]) and keep_workspace:
+        if (not mechanical_passed or not result["valid"]) and keep_workspace:
             result["workspace"] = str(workspace)
             retained = True
         return result
@@ -611,7 +651,7 @@ def run_judge(
         else:
             try:
                 judge.update(
-                    parse_judge_response(completed.stdout, comparison["architectural_rubric"])
+                    parse_judge_response(completed.stdout, rubric_for(comparison))
                 )
                 judge["valid"] = True
             except ValueError as error:
@@ -709,6 +749,9 @@ def summarize_arms(results: list[dict[str, Any]]) -> dict[str, Any]:
             "samples": len(samples),
             "invalid_samples": len(all_samples) - len(samples),
             "outcome_pass_rate": sum(bool(item["passed"]) for item in samples) / len(samples),
+            "mechanical_pass_rate": sum(
+                bool(item.get("mechanical_passed", item["passed"])) for item in samples
+            ) / len(samples),
             "median_context_words": median(item["context_words"] for item in samples),
             "median_files_read": median(item["files_read"] for item in samples),
             "median_irrelevant_files_read": median(len(item["irrelevant_files_read"]) for item in samples),
@@ -723,19 +766,19 @@ def summarize_arms(results: list[dict[str, Any]]) -> dict[str, Any]:
             arm_summary.update(
                 {
                     "judge_valid_rate": len(valid_judgments) / len(judged),
-                    "architectural_pass_rate": (
+                    "semantic_pass_rate": (
                         sum(bool(item["passed"]) for item in valid_judgments)
                         / len(valid_judgments)
                         if valid_judgments
                         else None
                     ),
-                    "median_architectural_score": (
+                    "median_semantic_score": (
                         median(item["total_score"] for item in valid_judgments)
                         if valid_judgments
                         else None
                     ),
-                    "median_architectural_violations": (
-                        median(item["violation_count"] for item in valid_judgments)
+                    "median_partial_criteria": (
+                        median(item["partial_criteria_count"] for item in valid_judgments)
                         if valid_judgments
                         else None
                     ),
@@ -802,10 +845,10 @@ def markdown_report(report: dict[str, Any]) -> str:
     lines.extend(
         [
             f"- Valid samples: **{len(valid_results)}/{len(results)}**",
-            f"- Outcome: **{passed}/{len(valid_results)} valid samples passed**",
-            f"- Architecture: **{judge_passed}/{len(valid_judges)} passed**"
+            f"- Overall: **{passed}/{len(valid_results)} valid samples passed**",
+            f"- Semantic judgment: **{judge_passed}/{len(valid_judges)} passed**"
             if valid_judges
-            else "- Architecture: not judged",
+            else "- Semantic judgment: not available",
             "",
             "## Legend and methodology",
             "",
@@ -835,9 +878,10 @@ def markdown_report(report: dict[str, Any]) -> str:
             "",
             "1. Every arm/sample starts from the same clean fixture and receives the same user request; only the supplied architectural context differs.",
             "2. Value and projection runs use a downstream coding agent; handoff-production runs use specspine-grow without implementation. All work occurs in isolated temporary workspaces.",
-            "3. A blind model judge receives only the request, diff, final response, and frozen rubric—not the arm name or supplied context—and scores each rubric criterion from 0 to 2.",
-            "4. Samples that violate the workspace boundary are marked invalid, excluded from aggregates, and not sent to the judge.",
-            "5. Outcome, architectural scores, file reads, token usage, and duration are aggregated by arm with every valid sample weighted equally.",
+            "3. Mechanical checks cover only objective execution, workspace, context-consumption, and repository-integrity facts; they do not interpret prose or architectural meaning.",
+            "4. A blind model judge receives only the submission type, request, diff, final response, and matching frozen semantic rubric—not the arm name or supplied context—and scores each criterion from 0 to 2.",
+            "5. Samples that violate the workspace boundary are marked invalid, excluded from aggregates, and not sent to the judge.",
+            "6. Overall pass requires both mechanical and semantic pass; file reads, token usage, and duration remain separate efficiency metrics.",
             "",
             "## Results",
             "",
@@ -845,10 +889,8 @@ def markdown_report(report: dict[str, Any]) -> str:
             "",
             "Rows are grouped by experiment. Arms from different experiments are never interpreted as a direct comparison; each valid sample has equal weight within its row.",
             "",
-            "A mismatch means deterministic outcome and architectural judgment disagree; it is a diagnostic signal, not an overwritten score.",
-            "",
-            "| Experiment | Arm | Valid/total | Outcome | Architecture | Mismatches | Avg judge | Avg violations | Avg context words | Avg files read | Avg irrelevant reads | Avg total input | Avg cached | Avg uncached | Avg duration |",
-            "|---|---|---:|:---:|:---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            "| Experiment | Arm | Valid/total | Overall | Mechanics | Semantics | Avg judge | Avg partial criteria | Avg context words | Avg files read | Avg irrelevant reads | Avg total input | Avg cached | Avg uncached | Avg duration |",
+            "|---|---|---:|:---:|:---:|:---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     experiment_order = ("value", "projection", "handoff-production")
@@ -904,14 +946,10 @@ def markdown_report(report: dict[str, Any]) -> str:
                     arm,
                     f"{len(arm_results)}/{len(all_arm_results)}",
                     format_rate(sum(bool(item["passed"]) for item in arm_results), len(arm_results)),
+                    format_rate(sum(bool(item.get("mechanical_passed", item["passed"])) for item in arm_results), len(arm_results)),
                     format_rate(sum(bool(item["passed"]) for item in arm_judges), len(arm_judges)),
-                    sum(
-                        item["passed"] != item.get("judge", {}).get("passed")
-                        for item in arm_results
-                        if item.get("judge", {}).get("valid")
-                    ),
                     average_score,
-                    f"{mean(item['violation_count'] for item in arm_judges):.1f}"
+                    f"{mean(item['partial_criteria_count'] for item in arm_judges):.1f}"
                     if arm_judges
                     else None,
                     f"{mean(item['context_words'] for item in arm_results):.0f}",
@@ -930,7 +968,7 @@ def markdown_report(report: dict[str, Any]) -> str:
             "",
             "### Individual results",
             "",
-            "| Experiment | Comparison | Arm | Sample | Validity | Outcome | Judge | Mismatch | Violations | Context words | Files read | Irrelevant reads | Total input | Cached | Uncached | Duration |",
+            "| Experiment | Comparison | Arm | Sample | Validity | Overall | Mechanics | Judge | Partial criteria | Context words | Files read | Irrelevant reads | Total input | Cached | Uncached | Duration |",
             "|---|---|---|---:|:---:|:---:|:---:|:---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
@@ -956,12 +994,9 @@ def markdown_report(report: dict[str, Any]) -> str:
                     ("PASS" if item["passed"] else "FAIL")
                     if item.get("valid", True)
                     else "—",
+                    "PASS" if item.get("mechanical_passed", item["passed"]) else "FAIL",
                     judge_score,
-                    "YES"
-                    if item_judge.get("valid")
-                    and item["passed"] != item_judge["passed"]
-                    else "—",
-                    item_judge.get("violation_count") if item_judge.get("valid") else None,
+                    item_judge.get("partial_criteria_count") if item_judge.get("valid") else None,
                     item["context_words"],
                     item["files_read"],
                     len(item["irrelevant_files_read"]),
@@ -992,7 +1027,7 @@ def markdown_report(report: dict[str, Any]) -> str:
         if failed_checks or violations or invalid_reasons:
             findings.extend(["", f"### {item['comparison']} / {item['arm']} / sample {item['sample']}", ""])
             findings.extend(f"- Invalid: {markdown_cell(message)}" for message in invalid_reasons)
-            findings.extend(f"- Outcome: {markdown_cell(message)}" for message in failed_checks)
+            findings.extend(f"- Mechanics: {markdown_cell(message)}" for message in failed_checks)
             findings.extend(f"- Judge: {markdown_cell(message)}" for message in violations)
     if findings:
         lines.extend(["", "## Findings", *findings])
@@ -1190,6 +1225,7 @@ def main() -> int:
                 for position, index in enumerate(indices):
                     result = results[index]
                     result["judge"] = {**judgment, "reused": position > 0}
+                    result["passed"] = bool(result["mechanical_passed"] and judgment.get("passed"))
                     if position > 0:
                         archive_reused_judgment(
                             result,

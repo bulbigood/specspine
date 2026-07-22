@@ -84,10 +84,10 @@ Scale and robustness:
 - prompt-injection-like text in repository evidence;
 - runs across multiple agent implementations and repeated stochastic samples.
 
-## Missing evaluation capabilities
+## Semantic evaluation boundary
 
-The deterministic runner cannot judge architectural quality by itself. A later
-model-judge layer should score:
+The mechanical runner does not judge architectural meaning. The comparative
+model-judge layer scores:
 
 - correct canonical owner selection;
 - reasonableness of decomposition;
@@ -96,9 +96,10 @@ model-judge layer should score:
 - invention of product or technology decisions;
 - preservation of meaning without implementation-level duplication.
 
-Judge output should be advisory and stored separately from deterministic
-pass/fail assertions. Model name, version, prompt, sample count, duration, and
-token usage should be recorded for reproducibility.
+Implementation and handoff production use separate frozen rubrics. Mechanical
+checks remain independent objective gates, while overall comparative pass
+requires both mechanical and semantic pass. Model name, version, prompt, sample
+count, duration, and token usage are recorded for reproducibility.
 
 Comparative downstream coverage under `comparisons/` uses a hash-pinned full
 `node-express-boilerplate` repository. Four value tasks cover an

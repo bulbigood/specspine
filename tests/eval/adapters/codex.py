@@ -337,6 +337,17 @@ def prepare_codex_home(runtime_root: Path) -> Path:
     return codex_home
 
 
+def stage_runtime_tools(runtime_root: Path) -> None:
+    """Copy essential user-installed executables into the permitted ephemeral runtime."""
+    for name in ("node", "rg"):
+        source = shutil.which(name)
+        if not source:
+            continue
+        resolved = Path(source).resolve()
+        if resolved.is_file():
+            shutil.copy2(resolved, runtime_root / "bin" / name)
+
+
 def build_codex_command(model: str, reasoning_effort: str, root: Path, runtime_root: Path) -> list[str]:
     runtime_root = runtime_root.resolve()
     private_home = runtime_root / "home"
@@ -430,6 +441,7 @@ def main() -> int:
             runtime_root / "tmp",
         ):
             directory.mkdir(parents=True, exist_ok=True)
+        stage_runtime_tools(runtime_root)
         codex_home = prepare_codex_home(runtime_root)
         (runtime_root / "gitconfig").touch()
         safe_path = sandbox_path(runtime_root)

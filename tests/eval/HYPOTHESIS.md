@@ -52,9 +52,12 @@ inspect repository material outside the Spine. No implementation is performed.
 
 Do not let one arm see files assigned to another arm. Use the same model,
 reasoning level, request, timeout, repository snapshot, and sample count within
-each experiment. Use one byte-identical downstream prompt that does not name
-the arm or context format. Do not expose the arm identifier through the agent
-environment.
+each experiment. Keep the complete downstream prompt byte-identical. Its common
+routing rule uses `HANDOFF.md` when present, otherwise the full Spine index when
+present, otherwise native documentation. Thus file availability selects the
+path without naming the arm or adding an instruction confound. Do not expose the
+arm identifier through the environment. Verify required handoff/index reads
+from the trace.
 
 The value and projection experiments reuse the same task definitions so their
 requests and deterministic outcome checks cannot drift. Arms from different
@@ -83,16 +86,23 @@ confused with downstream consumer failure.
 
 Measure:
 
-1. Functional outcome: deterministic checks and requested observable behavior.
-2. Architectural outcome: preserved constraints, correct ownership boundary,
+1. Mechanical outcome: executable behavior, syntax, required context reads,
+   workspace boundaries, context integrity, and objectively required no-change
+   outcomes.
+2. Semantic outcome: requested behavior that cannot be executed cheaply,
+   preserved constraints, correct ownership boundary,
    no duplicated responsibility, and no silently invented blocking decision.
 3. Context efficiency: unique files read, task-irrelevant files read, input
    tokens, elapsed time, and reported cost when available.
 4. Stability: variance and violation frequency across repeated samples.
 
-Deterministic checks own executable behavior. A blind judge may score remaining
-architectural outcomes, but must be calibrated against human review and must
-not know which arm produced the result.
+Do not use exact words, substring presence, file-count caps, or guessed change
+allowlists as proxies for meaning. A blind judge scores remaining implementation
+semantics against a task rubric and must not know which arm produced the result.
+Handoff production uses a separate handoff rubric and must never be penalized
+for its required empty diff. Overall pass requires both mechanical and semantic
+pass. Calibrate rubric and judge behavior against human review before treating a
+pilot as product evidence.
 
 Archive the exact prompt, response, diff, trace, fixture/context hashes, and
 actual model settings for every run. Construct judge inputs from only the
@@ -130,8 +140,8 @@ The default manifests require 36 agent calls:
 - handoff production: 4 tasks × 1 sample = 4.
 
 Run the value experiment regularly. Run projection only after material changes
-to handoff format or selection. Judge only unique outputs requiring semantic
-review; deterministic outcomes do not need model judgment.
+to handoff format or selection. Judge every unique comparative output requiring
+semantic review; identical judge inputs reuse one judgment.
 
 ## Pilot success criteria
 
