@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
-import math
 import os
 import re
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
@@ -32,9 +33,7 @@ DEFINITION_RE = re.compile(r"^ {0,3}[-+*]\s+\*\*((?:DEC|CON|OBS|INF|OQ)-[a-z0-9]
 REFERENCE_DEFINITION_RE = re.compile(
     r'^ {0,3}\[([^\]]+)\]:\s*(?:<([^>]+)>|(\S+?))(?:\s+(?:"[^"]*"|\'[^\']*\'|\([^)]*\)))?\s*$'
 )
-QUERY_TOKEN_RE = re.compile(r"[^\W_]+(?:-[^\W_]+)*", re.UNICODE)
 ID_RE = re.compile(r"^(?:DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$")
-ID_QUERY_RE = re.compile(r"^(?:DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$", re.IGNORECASE)
 SECTION_KINDS = {
     "decisions": "DEC",
     "system-wide decisions": "DEC",
@@ -44,6 +43,28 @@ SECTION_KINDS = {
     "inferred": "INF",
     "open questions": "OQ",
 }
+
+
+def load_ranking_module():
+    """Load the sibling policy module under direct and diagnostic execution."""
+    path = Path(__file__).with_name("ranking.py")
+    name = f"{__name__}_ranking"
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load ranking module: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+try:
+    RANKING = load_ranking_module()
+except (ImportError, OSError) as error:
+    print(json.dumps({"schema_version": 2, "mode": "fallback"}))
+    raise SystemExit(2) from error
+QUERY_TOKEN_RE = RANKING.QUERY_TOKEN_RE
+ID_QUERY_RE = RANKING.ID_QUERY_RE
 
 
 class AcceleratorUnavailable(RuntimeError):
@@ -773,59 +794,10 @@ def ensure_index(
 def fts_plan(
     query: str, connection: sqlite3.Connection | None = None
 ) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
-    raw_tokens = QUERY_TOKEN_RE.findall(query.casefold())[:32]
-    tokens: list[str] = []
-    for token in raw_tokens:
-        if token not in tokens:
-            tokens.append(token)
-    if connection is not None and tokens:
-        document_count = connection.execute("SELECT count(*) FROM documents").fetchone()[0]
-        maximum_frequency = max(2, math.ceil(document_count * 0.25))
-        phrases = list(dict.fromkeys(
-            " ".join(raw_tokens[index:index + 2])
-            for index in range(len(raw_tokens) - 1)
-        ))
-        matching_phrases = [
-            phrase
-            for phrase in phrases
-            if 0 < connection.execute(
-                "SELECT count(DISTINCT path) FROM sections_fts WHERE sections_fts MATCH ?",
-                (f'"{phrase}"',),
-            ).fetchone()[0] <= maximum_frequency
-        ]
-        frequencies = [
-            (
-                token,
-                connection.execute(
-                    "SELECT count(DISTINCT path) FROM sections_fts WHERE sections_fts MATCH ?",
-                    (f'"{token.replace(chr(34), chr(34) * 2)}"',),
-                ).fetchone()[0],
-            )
-            for token in tokens[:32]
-        ]
-        present = [(token, frequency) for token, frequency in frequencies if frequency]
-        informative = [token for token, frequency in present if frequency <= maximum_frequency]
-        tokens = informative or [
-            token for token, _ in sorted(present, key=lambda item: (item[1], item[0]))[:8]
-        ]
-        clauses = [f'"{phrase}"' for phrase in matching_phrases[:12]]
-        clauses.extend(
-            f'"{token.replace(chr(34), chr(34) * 2)}"'
-            for token in tokens[: 32 - len(clauses)]
-        )
-        if clauses:
-            return (
-                " OR ".join(dict.fromkeys(clauses)),
-                tuple(tokens[:32]),
-                tuple(matching_phrases[:12]),
-            )
-    if not tokens:
-        raise AcceleratorUnavailable("query has no searchable terms", "invalid_query")
-    return (
-        " OR ".join(f'"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens[:32]),
-        tuple(tokens[:32]),
-        (),
-    )
+    try:
+        return RANKING.fts_plan(query, connection)
+    except RANKING.InvalidRankingQuery as error:
+        raise AcceleratorUnavailable(str(error), "invalid_query") from error
 
 
 def fts_query(query: str, connection: sqlite3.Connection | None = None) -> str:
@@ -833,18 +805,7 @@ def fts_query(query: str, connection: sqlite3.Connection | None = None) -> str:
 
 
 def routing_stem(token: str) -> str:
-    """Normalize common English inflections for metadata reranking only."""
-    value = token.casefold()
-    if len(value) > 4 and value.endswith("ies"):
-        return value[:-3] + "y"
-    if len(value) > 4 and value.endswith("ing"):
-        value = value[:-3]
-        return value[:-1] if len(value) > 2 and value[-1:] == value[-2:-1] else value
-    if len(value) > 3 and value.endswith("ed"):
-        return value[:-2]
-    if len(value) > 3 and value.endswith("s") and not value.endswith("ss"):
-        return value[:-1]
-    return value
+    return RANKING.routing_stem(token)
 
 
 def search(
@@ -928,13 +889,21 @@ def search(
         for token in QUERY_TOKEN_RE.findall(normalized)
         for part in (token, *token.split("-"))
     ))
+
+    def path_matches(path: str, clause: str) -> bool:
+        escaped = clause.replace('"', '""')
+        return bool(connection.execute(
+            "SELECT 1 FROM sections_fts WHERE path = ? AND sections_fts MATCH ? LIMIT 1",
+            (path, f'"{escaped}"'),
+        ).fetchone())
+
     for row in connection.execute(
         "SELECT path, title, summary FROM documents WHERE lower(path) = ? OR lower(title) = ?",
         (normalized, normalized),
     ):
         add(
             row["path"],
-            100.0,
+            RANKING.EXACT_MATCH_SCORE,
             "exact",
             row["title"],
             row["summary"],
@@ -949,7 +918,7 @@ def search(
         ):
             add(
                 row["path"],
-                120.0,
+                RANKING.SEMANTIC_ID_SCORE,
                 "semantic_id",
                 row["title"],
                 row["summary"],
@@ -960,7 +929,6 @@ def search(
     retrieval_strategy = "strong-match" if strong_match else "hybrid-fts"
     if not strong_match:
         match_query, query_tokens, query_phrases = fts_plan(query, connection)
-        rare_frequency = 1
         token_frequencies = {
             token: connection.execute(
                 "SELECT count(DISTINCT path) FROM sections_fts "
@@ -975,16 +943,9 @@ def search(
         document_signals: dict[str, tuple[int, int, int]] = {}
         query_stems = {routing_stem(token) for token in query_tokens}
 
-        def path_matches(path: str, clause: str) -> bool:
-            escaped = clause.replace('"', '""')
-            return bool(connection.execute(
-                "SELECT 1 FROM sections_fts WHERE path = ? AND sections_fts MATCH ? LIMIT 1",
-                (path, f'"{escaped}"'),
-            ).fetchone())
-
         while len(document_ranks) < limit:
             rows = connection.execute(
-                "SELECT path, title, summary, heading, bm25(sections_fts, 0.0, 10.0, 5.0, 3.0, 1.0) AS rank "
+                f"SELECT path, title, summary, heading, {RANKING.BM25_EXPRESSION} AS rank "
                 "FROM sections_fts WHERE sections_fts MATCH ? ORDER BY rank LIMIT ? OFFSET ?",
                 (match_query, batch_size, offset),
             ).fetchall()
@@ -999,7 +960,8 @@ def search(
                         len(matched_tokens),
                         sum(path_matches(row["path"], phrase) for phrase in query_phrases),
                         sum(
-                            token_frequencies[token] <= rare_frequency
+                            token_frequencies[token]
+                            <= RANKING.RARE_TOKEN_MAX_DOCUMENTS
                             for token in matched_tokens
                         ),
                     )
@@ -1011,22 +973,16 @@ def search(
                     )
                 }
                 metadata_hits = len(query_stems & metadata_tokens)
-                rank_score = 40.0 / math.sqrt(document_rank + 1)
-                if (
-                    len(query_tokens) >= 3
-                    and token_hits < 2
-                    and phrase_hits < 2
-                ):
-                    rank_score *= 0.25
-                # Broad intent phrases often contain an entity name that also
-                # appears in adjacent-but-non-owning documents. Prefer coverage
-                # across distinct intent terms over one generic phrase match.
-                coverage_score = 30.0 * token_hits / max(1, len(query_tokens))
-                phrase_score = min(9.0, 3.0 * phrase_hits)
-                metadata_score = min(30.0, 20.0 * metadata_hits)
+                score = RANKING.direct_fts_score(
+                    document_rank,
+                    len(query_tokens),
+                    token_hits,
+                    phrase_hits,
+                    metadata_hits,
+                )
                 add(
                     row["path"],
-                    rank_score + coverage_score + phrase_score + metadata_score,
+                    score,
                     "fts",
                     row["title"],
                     row["summary"],
@@ -1048,57 +1004,13 @@ def search(
         if len(candidates) > 1:
             candidates.pop("README.md", None)
 
-    def weak_direct(item: dict[str, object]) -> bool:
-        signals = item["signals"]
-        assert isinstance(signals, dict)
-        return int(signals.get("query_tokens") or 0) >= 3 and not (
-            signals.get("exact")
-            or signals.get("semantic_ids")
-            or int(signals.get("token_hits") or 0) >= 2
-            or int(signals.get("rare_token_hits") or 0) >= 1
-            or int(signals.get("phrase_hits") or 0) >= 1
-            or int(signals.get("graph_support") or 0) >= 1
-        )
-
-    def adaptive_direct(
-        items: list[dict[str, object]], weak_limit: int
-    ) -> list[dict[str, object]]:
-        if not items:
-            return []
-        # Keep weak-but-distinct recall signals while dropping the long tail.
-        # Exact/semantic queries bypass this heuristic entirely.
-        threshold = max(5.0, float(items[0]["score"]) * 0.1)
-        selected: list[dict[str, object]] = []
-        weak_count = 0
-        for item in items:
-            if not strong_match and float(item["score"]) < threshold:
-                continue
-            if not strong_match and weak_direct(item):
-                if weak_count >= weak_limit:
-                    continue
-                weak_count += 1
-            selected.append(item)
-            if len(selected) >= limit:
-                break
-        return selected
-
-    def graph_relevance(path: str, title: str) -> int:
-        if strong_match:
-            return 0
-        metadata_tokens = {
-            part
-            for token in QUERY_TOKEN_RE.findall(f"{path} {title}".casefold())
-            for part in (token, *token.split("-"))
-        }
-        metadata_hits = sum(token in metadata_tokens for token in routing_tokens)
-        document_hits = sum(path_matches(path, token) for token in routing_tokens)
-        return metadata_hits * 3 + document_hits
-
     direct_paths = set(candidates)
-    preliminary_direct = adaptive_direct(sorted(
-        candidates.values(),
-        key=lambda item: (-float(item["score"]), str(item["path"])),
-    ), weak_limit=2)
+    preliminary_direct = RANKING.select_direct(
+        RANKING.rank_direct(candidates.values()),
+        limit=limit,
+        strong_match=strong_match,
+        weak_limit=2,
+    )
     frontier = [str(item["path"]) for item in preliminary_direct]
     visited = set(frontier)
     graph_candidates: dict[str, dict[str, object]] = {}
@@ -1134,11 +1046,11 @@ def search(
                 if document is None:
                     continue
                 origin = f"graph_{direction}"
-                score = base * 0.25
+                score = RANKING.transition_score(base)
                 if neighbor in direct_paths:
                     add(
                         neighbor,
-                        min(5.0, score),
+                        RANKING.direct_graph_bonus(base),
                         origin,
                         document["title"],
                         document["summary"],
@@ -1154,8 +1066,12 @@ def search(
                             "origins": [],
                             "_transitions": {},
                             "_root_path": root_path,
-                            "_relevance": graph_relevance(
-                                neighbor, str(document["title"])
+                            "_relevance": RANKING.graph_relevance(
+                                neighbor,
+                                str(document["title"]),
+                                routing_tokens,
+                                path_matches,
+                                strong_match=strong_match,
                             ),
                             "title": document["title"],
                         },
@@ -1165,10 +1081,7 @@ def search(
                     signal = f"{source}:{origin}"
                     scores[signal] = max(float(scores.get(signal, 0.0)), score)
                     strongest = max(float(value) for value in scores.values())
-                    graph["score"] = min(
-                        sum(float(value) for value in scores.values()),
-                        strongest * 2.0,
-                    )
+                    graph["score"] = RANKING.combined_graph_score(scores.values())
                     if origin not in graph["origins"]:
                         graph["origins"].append(origin)
                     stored_transitions = graph["_transitions"]
@@ -1191,16 +1104,14 @@ def search(
                     next_frontier.append(neighbor)
         frontier = next_frontier
 
-    ranked_direct = sorted(
-        candidates.values(),
-        key=lambda item: (-float(item["score"]), str(item["path"])),
+    ranked_direct = RANKING.rank_direct(candidates.values())
+    direct = RANKING.select_direct(
+        ranked_direct,
+        limit=limit,
+        strong_match=strong_match,
+        weak_limit=0,
     )
-    direct = adaptive_direct(ranked_direct, weak_limit=0)
-    direct_cutoff_score = (
-        None
-        if strong_match or not ranked_direct
-        else max(5.0, float(ranked_direct[0]["score"]) * 0.1)
-    )
+    direct_cutoff_score = RANKING.direct_cutoff(ranked_direct, strong_match)
     returned_direct_paths = {str(item["path"]) for item in direct}
     usable_graph: list[dict[str, object]] = []
     for item in graph_candidates.values():
@@ -1212,36 +1123,15 @@ def search(
         }
         if not retained:
             continue
-        strongest = max(float(value) for value in retained.values())
         item["_transitions"] = retained
-        item["score"] = min(
-            sum(float(value) for value in retained.values()),
-            strongest * 2.0,
-        )
+        item["score"] = RANKING.combined_graph_score(retained.values())
         usable_graph.append(item)
-    ranked_graph = sorted(
-        usable_graph,
-        key=lambda item: (
-            -int(item.get("_relevance") or 0),
-            -float(item["score"]),
-            str(item["path"]),
-        ),
+    ranked_graph = RANKING.rank_graph(usable_graph)
+    graph, graph_threshold = RANKING.select_graph(
+        ranked_graph,
+        graph_limit=graph_limit,
+        direct_count=len(direct),
     )
-    if ranked_graph and graph_limit:
-        graph_threshold = max(5.0, float(ranked_graph[0]["score"]) * 0.4)
-        adaptive_graph_limit = min(graph_limit, max(2, len(direct)))
-        if (
-            len(ranked_graph) > 1
-            and int(ranked_graph[0].get("_relevance") or 0)
-            >= int(ranked_graph[1].get("_relevance") or 0) + 3
-        ):
-            adaptive_graph_limit = 1
-        graph = [
-            item for item in ranked_graph if float(item["score"]) >= graph_threshold
-        ][:adaptive_graph_limit]
-    else:
-        graph_threshold = None
-        graph = []
     for item in direct:
         item.pop("_scores", None)
         item.pop("summary", None)
@@ -1279,8 +1169,8 @@ def search(
     selection = {
         "direct_considered": len(ranked_direct),
         "direct_returned": len(direct),
-        "direct_weak_considered": sum(weak_direct(item) for item in ranked_direct),
-        "direct_weak_returned": sum(weak_direct(item) for item in direct),
+        "direct_weak_considered": sum(RANKING.weak_direct(item) for item in ranked_direct),
+        "direct_weak_returned": sum(RANKING.weak_direct(item) for item in direct),
         "direct_cutoff_score": (
             round(direct_cutoff_score, 3) if direct_cutoff_score is not None else None
         ),

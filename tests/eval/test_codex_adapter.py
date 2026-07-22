@@ -29,6 +29,9 @@ class CodexAdapterTests(unittest.TestCase):
             production = root / ".eval" / "skill" / "scripts" / "search_spine.py"
             production.parent.mkdir(parents=True)
             production.write_text("# production\n", encoding="utf-8")
+            production.with_name("ranking.py").write_text(
+                "# ranking\n", encoding="utf-8"
+            )
 
             ADAPTER.enable_retrieval_telemetry(root, "minimal")
 
@@ -41,6 +44,10 @@ class CodexAdapterTests(unittest.TestCase):
                 (root / ".eval/tools/search_spine_production.py").read_text(
                     encoding="utf-8"
                 ),
+            )
+            self.assertEqual(
+                "# ranking\n",
+                (root / ".eval/tools/ranking.py").read_text(encoding="utf-8"),
             )
             self.assertIn("minimal_telemetry", production.read_text(encoding="utf-8"))
 

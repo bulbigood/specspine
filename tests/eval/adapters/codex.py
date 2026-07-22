@@ -1052,6 +1052,7 @@ def enable_retrieval_telemetry(root: Path, level: str) -> None:
     preserved = root / ".eval" / "tools" / "search_spine_production.py"
     preserved.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(production, preserved)
+    shutil.copy2(production.with_name("ranking.py"), preserved.with_name("ranking.py"))
     shutil.copy2(source, production)
 
 

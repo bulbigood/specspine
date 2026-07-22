@@ -654,6 +654,7 @@ specspine/
 │   │   ├── references/
 │   │   │   └── context-handoff.md
 │   │   └── scripts/
+│   │       ├── ranking.py
 │   │       └── search_spine.py
 │   ├── specspine-grow/
 │   │   ├── SKILL.md
