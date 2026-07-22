@@ -7,7 +7,9 @@ description: Extract the smallest task-oriented architecture context handoff fro
 
 Create a temporary projection of the persistent SpecSpine for one downstream
 change. Read [references/context-handoff.md](references/context-handoff.md)
-before extracting.
+before extracting. Read
+[references/retrieval-accelerator.md](references/retrieval-accelerator.md) when
+command execution may accelerate source selection.
 
 ## Workflow
 
@@ -15,12 +17,16 @@ before extracting.
    documented default `specspine`. Require `<spine-root>/README.md`.
 2. Establish the change intent from the user request. Do not invent downstream
    requirements.
-3. Read the index, the canonical owner, and only the linked neighborhood needed
-   to classify required, potentially affected, and merely related context.
-4. Preserve statement kinds, semantic IDs, decision provenance, evidence
+3. Read the index. When available, use the bundled retrieval accelerator to
+   select candidates; otherwise navigate from the index through ordinary
+   Markdown links. Accelerator failure is a silent fallback, not a blocker.
+4. Read current candidate documents and only the linked neighborhood needed to
+   identify the canonical owner and classify required, potentially affected,
+   and merely related context. Never treat cached text as source evidence.
+5. Preserve statement kinds, semantic IDs, decision provenance, evidence
    baselines, unconfirmed inferences, and blocking questions.
-5. Render the smallest useful handoff using the bundled contract.
-6. Return it in the response by default. Write a file only when the user
+6. Render the smallest useful handoff using the bundled contract.
+7. Return it in the response by default. Write a file only when the user
    explicitly requests a location; never store it inside the persistent
    SpecSpine unless explicitly requested.
 
@@ -35,7 +41,9 @@ unless the user separately accepts it as intent.
 ## Restrictions
 
 Never modify the SpecSpine, implementation, or downstream artifacts while
-extracting. Never add acceptance criteria, tasks, ordering, implementation
-filenames, test scenarios, estimates, release scope, or implementation status.
-Never silently answer blocking questions, promote inference, claim code/spec
-conformance, or treat extraction readiness as implementation readiness.
+extracting. A disposable accelerator cache outside `<spine-root>` is not a
+persistent artifact. Never add acceptance criteria, tasks, ordering,
+implementation filenames, test scenarios, estimates, release scope, or
+implementation status. Never silently answer blocking questions, promote
+inference, claim code/spec conformance, or treat extraction readiness as
+implementation readiness.

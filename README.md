@@ -10,10 +10,11 @@ The specifications form an architectural spine for the project: they describe re
 
 SpecSpine is intentionally lightweight:
 
-* Markdown only
+* Markdown-only persistent architecture
 * no required frontmatter, schema language, or DSL
 * optional mechanical lint instead of claims of formal validation
 * no required CLI
+* optional disposable retrieval acceleration
 * no implementation workflow
 * no vendor lock-in
 
@@ -131,6 +132,12 @@ Software architecture is rarely a strict tree. A concept such as authentication 
 
 `<spine-root>/README.md` is the entry point into the architecture. It is a curated map, not the semantic parent of every specification.
 
+`specspine-extract` may derive a local SQLite FTS5 index and link graph to find
+candidate documents efficiently in a large Spine. This index is disposable,
+stored outside the Spine, and never becomes an architecture source. If Python,
+SQLite FTS5, command execution, or a usable cache is unavailable, extraction
+continues by navigating the same Markdown links directly.
+
 ## Skills
 
 ### `specspine-connect`
@@ -173,7 +180,8 @@ decisions and preserves disagreements.
 Extracts the smallest temporary architecture context handoff needed by a
 downstream feature, SDD, review, or coding workflow. It reads the SpecSpine,
 preserves claim semantics and uncertainty, and does not modify persistent
-specifications or create implementation artifacts.
+specifications or create implementation artifacts. Its optional local search
+index reduces irrelevant reading without being required for extraction.
 
 ### `specspine-doctor`
 
@@ -618,8 +626,11 @@ specspine/
 │   │           └── agent-bootstrap.md
 │   ├── specspine-extract/
 │   │   ├── SKILL.md
-│   │   └── references/
-│   │       └── context-handoff.md
+│   │   ├── references/
+│   │   │   ├── context-handoff.md
+│   │   │   └── retrieval-accelerator.md
+│   │   └── scripts/
+│   │       └── search_spine.py
 │   ├── specspine-grow/
 │   │   ├── SKILL.md
 │   │   ├── references/
@@ -719,7 +730,7 @@ SpecSpine is experimental.
 
 The current goal is to test whether linked architectural memory and minimal
 context handoffs improve downstream coding-agent outcomes across repeated
-project changes without introducing a formal schema or custom runtime.
+project changes without introducing a formal schema or mandatory runtime.
 
 The most important success criterion is:
 
@@ -733,16 +744,13 @@ The most important success criterion is:
 * [x] Create `specspine-connect` for the project-agent bootstrap
 * [x] Create `specspine-extract` for context handoffs
 * [x] Create `specspine-grow`
-* [ ] Add example greenfield projects
 * [x] Add a repeatable evaluation harness
-* [ ] Convert remaining prose scenarios into executable fixtures
-* [ ] Test across multiple coding agents
-* [ ] Improve impact proposals and decomposition behavior
 * [x] Create `specspine-map` for brownfield projects
 * [x] Create `specspine-doctor` for integrity diagnosis and guarded repair
 * [x] Generate autonomous runtime skills from canonical build-time sources
 * [x] Add optional mechanical integrity checks
-* [ ] Add optional graph visualization
+* [x] Add optional local retrieval acceleration with native link fallback
+* [ ] Add connectors to popular SDD frameworks
 
 The core workflow will remain Markdown-first and lightweight.
 
