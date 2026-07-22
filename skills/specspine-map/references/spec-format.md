@@ -33,8 +33,12 @@ these ordinary Markdown documents without owning their format.
 Resolve `<spine-root>` once before reading or writing specifications:
 
 1. Use the root explicitly supplied by the user or project instructions.
-2. Otherwise use an existing configured SpecSpine root.
-3. Otherwise default to `specspine`.
+2. Otherwise use a SpecSpine root explicitly named by project configuration;
+   do not infer one by searching for `README.md` files or from the repository
+   root itself.
+3. Otherwise use the literal `specspine` directory relative to the current
+   working directory. A repository-root `README.md` does not make the
+   repository root a SpecSpine root.
 
 Keep this value stable for the operation. Start with a flat directory:
 
