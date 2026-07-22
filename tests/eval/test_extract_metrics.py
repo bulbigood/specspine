@@ -27,7 +27,11 @@ def report(mode, samples, fingerprint="fixture-1"):
             "runner": "runner-1",
         },
         "runtime": {"python": "3.12", "platform": "test"},
-        "run": {"run_id": f"run-{mode}", "cache_profile": ["isolated-cold"]},
+        "run": {
+            "run_id": f"run-{mode}",
+            "cache_profile": ["isolated-cold"],
+            "execution_profile": ["extract"],
+        },
     }
 
 
@@ -37,6 +41,7 @@ def sample(number, mode, duration, tokens, passed, environment_valid=True):
         "agent_duration_seconds": duration,
         "agent_runs": [
             {
+                "evaluation_profile": "extract",
                 "accelerator_mode": mode,
                 "retrieval_mode": retrieval_mode,
                 "duration_seconds": duration,
@@ -98,6 +103,20 @@ def sample(number, mode, duration, tokens, passed, environment_valid=True):
 
 
 class ExtractMetricsTests(unittest.TestCase):
+    @staticmethod
+    def no_extract_report(samples):
+        baseline = report("enabled", samples)
+        baseline["run"]["execution_profile"] = ["no-extract"]
+        for item in baseline["samples"]:
+            for run in item["agent_runs"]:
+                run["evaluation_profile"] = "no-extract"
+                run["retrieval_mode"] = None
+                run["retrieval_attempts"] = []
+                run["retrieval_attempt_count"] = 0
+                run["cost_ledger"]["declared_skill_context_utf8_bytes"] = 0
+                run["cost_ledger"]["retrieval_output_utf8_bytes"] = 0
+        return baseline
+
     def test_bootstrap_effect_is_deterministic_for_separated_samples(self):
         first = METRICS.bootstrap_median_effect(
             [100, 100, 100], [50, 50, 50], "sentinel"
@@ -345,6 +364,41 @@ class ExtractMetricsTests(unittest.TestCase):
         self.assertIn("cold query", rendered)
         self.assertIn("warm query", rendered)
         self.assertIn("does not isolate cache-state effects", rendered)
+
+    def test_no_extract_report_compares_direct_navigation_to_both_extract_paths(self):
+        baseline = self.no_extract_report(
+            [sample(1, "enabled", 12, 120, True)]
+        )
+        fallback = report(
+            "fallback", [sample(1, "fallback", 10, 100, True)]
+        )
+        accelerated = report(
+            "enabled", [sample(1, "enabled", 5, 50, True)]
+        )
+
+        rendered = METRICS.render_no_extract_comparisons(
+            baseline, fallback, accelerated
+        )
+
+        self.assertIn("No Extract vs Extract fallback", rendered)
+        self.assertIn("No Extract vs Extract + SQLite", rendered)
+        self.assertIn("Behavior passed: no Extract 1/1", rendered)
+
+    def test_no_extract_comparison_rejects_a_retrieval_attempt(self):
+        baseline = self.no_extract_report(
+            [sample(1, "enabled", 12, 120, True)]
+        )
+        baseline["samples"][0]["agent_runs"][0]["retrieval_attempts"] = [
+            {"mode": "sqlite-fts5"}
+        ]
+        accelerated = report(
+            "enabled", [sample(1, "enabled", 5, 50, True)]
+        )
+
+        with self.assertRaises(METRICS.ComparisonError):
+            METRICS.validate_no_extract_comparable(
+                baseline, accelerated, compared_mode="enabled"
+            )
 
     def test_report_aggregates_direct_and_graph_candidates(self):
         fallback = report("fallback", [sample(1, "fallback", 10, 100, True)])

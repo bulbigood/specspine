@@ -40,6 +40,16 @@ WORKSPACE_BOUNDARY_INSTRUCTIONS = (
     "explicitly instructed `.eval/tools/` command when the "
     "prompt explicitly requires them; never inspect any other `.eval` content.\n"
 )
+NO_SKILL_BOUNDARY_INSTRUCTIONS = (
+    "SECURITY BOUNDARY: the current working directory is the complete and only "
+    "authorized project. Never read, list, search, inspect, or infer from any path "
+    "outside it, including parent/sibling directories, system temporary directories, "
+    "the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an "
+    "absolute path outside the current project to discover context. If required "
+    "information is absent, report that it is unavailable. The `.eval` directory is "
+    "evaluator-owned and contains no skill for this profile; never inspect it.\n"
+)
+EXECUTION_PROFILES = {"extract", "no-extract"}
 SEMANTIC_ID_ERROR_CODES = {
     "DUPLICATE_ID",
     "ID_FRAGMENT",
@@ -118,6 +128,7 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
     cost_ledger = trace.get("cost_ledger")
     usefulness = trace.get("retrieval_usefulness")
     return {
+        "evaluation_profile": trace.get("evaluation_profile"),
         "accelerator_mode": trace.get("accelerator_mode"),
         "retrieval_telemetry": trace.get("retrieval_telemetry"),
         "retrieval_mode": trace.get("retrieval_mode"),
@@ -166,6 +177,7 @@ def directory_digest(path: Path) -> str:
 
 
 def case_fingerprint(case: dict[str, Any]) -> str:
+    case = {key: value for key, value in case.items() if key != "_execution_profile"}
     manifest = {key: value for key, value in case.items() if not key.startswith("_")}
     prompts = (
         [build_prompt(case, stage) for stage in case.get("stages", []) if "skill" in stage]
@@ -269,6 +281,14 @@ def write_json_report(
                     for report in reports
                 ))
             ),
+            "execution_profile": sorted({execution_profile(case) for case in cases}),
+            "prompt_fingerprints": {
+                case["id"]: hashlib.sha256(
+                    build_prompt(case).encode("utf-8")
+                ).hexdigest()
+                for case in cases
+                if "stages" not in case
+            },
         },
         "runtime": {
             "python": platform.python_version(),
@@ -396,6 +416,16 @@ def validate_case(case: dict[str, Any]) -> list[str]:
             for assertion in stage.get("assertions", [])
         )
     for index, assertion in enumerate(assertions, 1):
+        profiles = assertion.get("profiles") if isinstance(assertion, dict) else None
+        if profiles is not None and (
+            not isinstance(profiles, list)
+            or not profiles
+            or any(profile not in EXECUTION_PROFILES for profile in profiles)
+        ):
+            errors.append(
+                f"assertion {index} profiles must be a non-empty subset of: "
+                f"{', '.join(sorted(EXECUTION_PROFILES))}"
+            )
         condition = assertion.get("when_trace") if isinstance(assertion, dict) else None
         if condition is not None and (not isinstance(condition, dict) or not condition):
             errors.append(f"assertion {index} when_trace must be a non-empty object")
@@ -479,6 +509,21 @@ def scenario_coverage(cases: list[dict[str, Any]]) -> tuple[set[str], set[str], 
     return documented, registered, executable
 
 
+def execution_profile(case: dict[str, Any]) -> str:
+    return str(case.get("_execution_profile", "extract"))
+
+
+def active_assertions(
+    assertions: list[dict[str, Any]], case: dict[str, Any]
+) -> list[dict[str, Any]]:
+    profile = execution_profile(case)
+    return [
+        assertion
+        for assertion in assertions
+        if "profiles" not in assertion or profile in assertion["profiles"]
+    ]
+
+
 def write_fixture(case: dict[str, Any], workspace: Path) -> None:
     initial_tree = case.get("initial_tree")
     if initial_tree:
@@ -488,7 +533,7 @@ def write_fixture(case: dict[str, Any], workspace: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
     (workspace / ".eval").mkdir(exist_ok=True)
-    if "stages" not in case:
+    if "stages" not in case and execution_profile(case) == "extract":
         install_stage_skill(case, workspace)
 
 
@@ -870,6 +915,18 @@ def build_prompt(case: dict[str, Any], stage: dict[str, Any] | None = None) -> s
     )
     config = stage or case
     eval_language = config.get("eval_language", case.get("eval_language", "English"))
+    if execution_profile(case) == "no-extract":
+        return (
+            "You are running a repeatable documentation-retrieval evaluation.\n"
+            + NO_SKILL_BOUNDARY_INSTRUCTIONS
+            + "No retrieval skill is installed for this profile. Work directly from "
+            "the project documentation without inspecting `.eval`.\n"
+            "Treat the current directory as the project root.\n"
+            f"For reproducibility, write the final response in {eval_language}. "
+            "Preserve existing user-authored language, identifiers, and quoted text.\n"
+            "Perform the user request described by the scenario.\n\n"
+            f"{scenario}\n"
+        )
     return (
         "You are running a repeatable SpecSpine evaluation.\n"
         + WORKSPACE_BOUNDARY_INSTRUCTIONS
@@ -1083,6 +1140,7 @@ def run_case(
         env["SPECSPINE_EVAL_CASE"] = case["id"]
         env["SPECSPINE_EVAL_SAMPLE"] = str(sample_number)
         env["SPECSPINE_EVAL_WORKSPACE"] = str(temp)
+        env["SPECSPINE_EVAL_PROFILE"] = execution_profile(case)
         if "stages" in case:
             stage_count = len(case["stages"])
             stage_label = "stage" if stage_count == 1 else "stages"
@@ -1143,17 +1201,21 @@ def run_case(
         stderr = "\n".join(item for item in errors if item)
         after = snapshot(temp)
         trace = read_trace(temp)
-        results = [evaluate_assertion(item, temp, before, after, response, trace) for item in case["assertions"]]
+        assertions = active_assertions(case["assertions"], case)
+        results = [
+            evaluate_assertion(item, temp, before, after, response, trace)
+            for item in assertions
+        ]
         results.extend(scope_checks)
         passed = returncode == 0 and all(result.passed for result in results)
         failed_checks = [
             {"type": assertion["type"], "message": result.message}
-            for assertion, result in zip(case["assertions"], results)
+            for assertion, result in zip(assertions, results)
             if not result.passed
         ]
         failed_checks.extend(
             {"type": "workspace_boundary", "message": result.message}
-            for result in results[len(case["assertions"]):]
+            for result in results[len(assertions):]
             if not result.passed
         )
         if returncode:
@@ -1238,6 +1300,12 @@ def main() -> int:
     parser.add_argument("--report-label", default="", help="label stored in the JSON report")
     parser.add_argument("--run-id", help="stable identifier to correlate related report runs")
     parser.add_argument(
+        "--execution-profile",
+        choices=sorted(EXECUTION_PROFILES),
+        default="extract",
+        help="run the staged Extract skill or a direct-documentation baseline",
+    )
+    parser.add_argument(
         "--jobs",
         type=positive_int,
         default=8,
@@ -1263,10 +1331,12 @@ def main() -> int:
     if unknown_ids:
         parser.error(f"unknown case(s): {', '.join(unknown_ids)}; use --list to inspect choices")
     selected = [
-        case
+        {**case, "_execution_profile": args.execution_profile}
         for case in cases
         if case["id"] in args.case or case["category"] in args.category
     ]
+    if args.execution_profile == "no-extract" and any("stages" in case for case in selected):
+        parser.error("the no-extract profile supports only non-staged cases")
 
     if args.list:
         for case in cases:

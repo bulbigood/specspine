@@ -366,6 +366,55 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(1, prompt.count(case["eval_language"]))
         self.assertTrue(prompt.endswith(case["prompt"] + "\n"))
 
+    def test_no_extract_prompt_and_fixture_do_not_expose_skill(self):
+        case = {
+            "id": "no-extract-sentinel",
+            "scenario": "tests/scenarios/initialize-project.md",
+            "skill": "skills/specspine-grow",
+            "prompt": "REQUEST_SENTINEL_no_extract",
+            "initial_files": {"README.md": "# Project\n"},
+            "assertions": [],
+            "_execution_profile": "no-extract",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            RUNNER.write_fixture(case, workspace)
+            prompt = RUNNER.build_prompt(case)
+            self.assertFalse((workspace / ".eval/skill").exists())
+
+        self.assertNotIn(".eval/skill/", prompt)
+        self.assertTrue(prompt.endswith(case["prompt"] + "\n"))
+
+    def test_profile_specific_assertions_are_selected(self):
+        assertions = [
+            {"type": "max_changed_files", "max": 0},
+            {"type": "command_includes", "value": "extract", "profiles": ["extract"]},
+            {"type": "command_excludes", "value": "extract", "profiles": ["no-extract"]},
+        ]
+
+        selected = RUNNER.active_assertions(
+            assertions, {"_execution_profile": "no-extract"}
+        )
+
+        self.assertEqual(
+            ["max_changed_files", "command_excludes"],
+            [assertion["type"] for assertion in selected],
+        )
+
+    def test_case_fingerprint_is_stable_across_execution_profiles(self):
+        case = next(
+            item
+            for item in RUNNER.load_cases()
+            if item["id"] == "extract-accelerated-handoff"
+        )
+
+        extract = RUNNER.case_fingerprint({**case, "_execution_profile": "extract"})
+        baseline = RUNNER.case_fingerprint(
+            {**case, "_execution_profile": "no-extract"}
+        )
+
+        self.assertEqual(extract, baseline)
+
     def test_prompt_exposes_only_user_request_from_scenario(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -828,6 +877,11 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(64, len(payload["cases"][case["id"]]["fingerprint"]))
         self.assertEqual(64, len(payload["fingerprints"]["runner"]))
         self.assertIn("run_id", payload["run"])
+        self.assertEqual(["extract"], payload["run"]["execution_profile"])
+        self.assertEqual(
+            64,
+            len(payload["run"]["prompt_fingerprints"][case["id"]]),
+        )
         self.assertEqual(0.25, payload["samples"][0]["queue_seconds"])
         self.assertEqual(
             "response-sentinel", payload["samples"][0]["diagnostics"]["response"]

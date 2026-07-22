@@ -166,8 +166,13 @@ lifecycle behavior.
 ### Compare extract retrieval cost
 
 Do not create another eval case for performance comparison. Run the existing
-`extract-accelerated-handoff` case against the same fixture and prompt in three
-profiles: forced fallback, isolated cold, and prewarmed. The adapter's
+`extract-accelerated-handoff` case against the same fixture and scenario in four
+profiles: no Extract skill, forced fallback, isolated cold, and prewarmed. The
+no-Extract profile does not stage a skill or retrieval instructions; it measures
+direct project-documentation search. Profile-specific assertions remove only
+the Extract response schema, retrieval command, and accelerator read budget.
+The required documents, semantic constraint, exclusions, read-only behavior,
+and response budget remain checked. The adapter's
 `fallback` mode makes only the disposable cache
 unavailable, so the skill exercises its normal Markdown-link fallback.
 
@@ -176,6 +181,13 @@ Run all groups concurrently and save their per-sample reports:
 ```bash
 report_dir=$(mktemp -d -t specspine-extract-eval.XXXXXX)
 run_id="extract-ab-$(date -u +%Y%m%dT%H%M%SZ)"
+python3 tests/eval/run.py \
+  --case extract-accelerated-handoff --samples 5 \
+  --execution-profile no-extract \
+  --run-id "$run_id-no-extract" \
+  --report-label no-extract --report-json "$report_dir/no-extract.json" \
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium --accelerator-mode enabled" &
+no_extract_pid=$!
 python3 tests/eval/run.py \
   --case extract-accelerated-handoff --samples 5 \
   --run-id "$run_id-fallback" \
@@ -197,14 +209,17 @@ warm_pid=$!
 fallback_status=0
 cold_status=0
 warm_status=0
+no_extract_status=0
+wait "$no_extract_pid" || no_extract_status=$?
 wait "$fallback_pid" || fallback_status=$?
 wait "$cold_pid" || cold_status=$?
 wait "$warm_pid" || warm_status=$?
 python3 tests/eval/compare_extract_metrics.py \
+  --no-extract "$report_dir/no-extract.json" \
   --fallback "$report_dir/fallback.json" \
   --accelerated "$report_dir/cold.json" \
   --warm "$report_dir/warm.json"
-test "$fallback_status" -eq 0 -a "$cold_status" -eq 0 -a "$warm_status" -eq 0
+test "$no_extract_status" -eq 0 -a "$fallback_status" -eq 0 -a "$cold_status" -eq 0 -a "$warm_status" -eq 0
 ```
 
 Each adapter invocation uses a private disposable runtime and cache. The cold
@@ -215,6 +230,11 @@ workspace's absolute Spine path. The report records both profiles explicitly.
 Prewarm setup is excluded from agent duration and shown separately per sample.
 Cold and prewarmed samples are also compared directly, independently of their
 comparisons against fallback.
+The report compares no Extract separately with forced fallback and the cold
+accelerator. This distinguishes the value and cost of Extract's navigation
+instructions from the additional effect of SQLite routing. The no-Extract
+profile must record zero retrieval attempts; otherwise the comparator rejects
+the reports.
 Use the prewarmed group when cache lifecycle, locking, refresh, or index startup
 changes. For routine retrieval-quality A/B runs, omit that group and `--warm`;
 warm state should not change agent tokens when routing output is identical.

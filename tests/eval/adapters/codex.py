@@ -1074,6 +1074,11 @@ def main() -> int:
     args = parser.parse_args()
     if args.accelerator_mode == "fallback" and args.cache_profile != "isolated-cold":
         parser.error("fallback mode supports only isolated-cold cache profile")
+    evaluation_profile = os.environ.get("SPECSPINE_EVAL_PROFILE", "extract")
+    if evaluation_profile == "no-extract" and args.cache_profile != "isolated-cold":
+        parser.error("no-extract profile supports only isolated-cold cache profile")
+    if evaluation_profile == "no-extract" and args.retrieval_telemetry:
+        parser.error("no-extract profile cannot enable retrieval telemetry")
 
     root = Path.cwd()
     prompt = sys.stdin.read()
@@ -1182,6 +1187,7 @@ def main() -> int:
         json.dumps(
             {
                 "commands": commands,
+                "evaluation_profile": evaluation_profile,
                 "accelerator_mode": args.accelerator_mode,
                 "retrieval_telemetry": args.retrieval_telemetry,
                 "retrieval_attempts": retrieval_attempts,

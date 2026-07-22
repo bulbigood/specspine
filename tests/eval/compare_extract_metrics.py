@@ -199,6 +199,66 @@ def validate_comparable(
     return left, right
 
 
+def validate_no_extract_comparable(
+    baseline: dict[str, Any],
+    compared: dict[str, Any],
+    *,
+    compared_mode: str,
+) -> tuple[dict[tuple[str, int], dict[str, Any]], dict[tuple[str, int], dict[str, Any]]]:
+    if baseline.get("cases") != compared.get("cases"):
+        raise ComparisonError("case/skill fingerprints differ")
+    if baseline.get("samples_requested") != compared.get("samples_requested"):
+        raise ComparisonError("requested sample counts differ")
+    if baseline.get("jobs") != compared.get("jobs"):
+        raise ComparisonError("configured parallelism differs")
+    if normalized_command(baseline.get("agent_command")) != normalized_command(
+        compared.get("agent_command")
+    ):
+        raise ComparisonError("agent commands differ beyond accelerator mode")
+    if report_fingerprint(baseline, "agent_command_files") != report_fingerprint(
+        compared, "agent_command_files"
+    ):
+        raise ComparisonError("agent adapter fingerprints differ")
+    if report_fingerprint(baseline, "runner") != report_fingerprint(compared, "runner"):
+        raise ComparisonError("runner fingerprints differ")
+    if baseline.get("runtime") != compared.get("runtime"):
+        raise ComparisonError("runner runtime/platform metadata differs")
+    baseline_run = baseline.get("run")
+    compared_run = compared.get("run")
+    if not isinstance(baseline_run, dict) or baseline_run.get("execution_profile") != [
+        "no-extract"
+    ]:
+        raise ComparisonError("no-extract report profile metadata is missing")
+    if not isinstance(compared_run, dict) or compared_run.get("execution_profile") != [
+        "extract"
+    ]:
+        raise ComparisonError("extract report profile metadata is missing")
+    left = {sample_key(sample): sample for sample in baseline["samples"]}
+    right = {sample_key(sample): sample for sample in compared["samples"]}
+    if len(left) != len(baseline["samples"]) or len(right) != len(compared["samples"]):
+        raise ComparisonError("duplicate sample identities")
+    if set(left) != set(right):
+        raise ComparisonError("matched sample identities differ")
+    for key in sorted(left):
+        if left[key].get("environment_valid"):
+            if trace_values(left[key], "evaluation_profile") != {"no-extract"}:
+                raise ComparisonError(f"no-extract profile is not recorded for {key}")
+            if attempts(left[key]):
+                raise ComparisonError(f"no-extract profile attempted retrieval for {key}")
+        if right[key].get("environment_valid"):
+            if trace_values(right[key], "evaluation_profile") != {"extract"}:
+                raise ComparisonError(f"extract profile is not recorded for {key}")
+            if trace_values(right[key], "accelerator_mode") != {compared_mode}:
+                raise ComparisonError(f"{compared_mode} mode is not recorded for {key}")
+        if left[key].get("environment_valid") and right[key].get("environment_valid"):
+            for field in ("model", "reasoning_effort", "cache_profile"):
+                if trace_values(left[key], field) != trace_values(right[key], field):
+                    raise ComparisonError(f"{field} differs for {key}")
+            if runtime_values(left[key], "codex_cli") != runtime_values(right[key], "codex_cli"):
+                raise ComparisonError(f"Codex CLI version differs for {key}")
+    return left, right
+
+
 def compatibility_warnings(fallback: dict[str, Any], accelerated: dict[str, Any]) -> list[str]:
     warnings: list[str] = []
     if report_fingerprint(fallback, "runner") != report_fingerprint(accelerated, "runner"):
@@ -493,6 +553,7 @@ def render_comparison(
         f"| Run ID | {markdown_text(run_left.get('run_id', 'unavailable'))} | {markdown_text(run_right.get('run_id', 'unavailable'))} |",
         f"| Cache profile | {markdown_text(cache_profile_text(run_left))} | {markdown_text(cache_profile_text(run_right))} |",
         f"| Cache scope | {all_trace_values(left.values(), 'cache_scope')} | {all_trace_values(right.values(), 'cache_scope')} |",
+        f"| Evaluation profile | {all_trace_values(left.values(), 'evaluation_profile')} | {all_trace_values(right.values(), 'evaluation_profile')} |",
         f"| Retrieval telemetry | {all_trace_values(left.values(), 'retrieval_telemetry')} | {all_trace_values(right.values(), 'retrieval_telemetry')} |",
         f"| Configured jobs | {fallback.get('jobs')} | {accelerated.get('jobs')} |",
         f"| Samples | {len(left)} | {len(right)} |",
@@ -724,6 +785,99 @@ def demote_report(report: str, title: str) -> str:
     return "\n".join(lines)
 
 
+def render_no_extract_pair(
+    baseline: dict[str, Any],
+    compared: dict[str, Any],
+    *,
+    compared_mode: str,
+    compared_label: str,
+) -> str:
+    left, right = validate_no_extract_comparable(
+        baseline, compared, compared_mode=compared_mode
+    )
+    valid_left = cohort(left, lambda sample: bool(sample.get("environment_valid")))
+    valid_right = cohort(right, lambda sample: bool(sample.get("environment_valid")))
+    passed_left = cohort(
+        left,
+        lambda sample: bool(sample.get("environment_valid"))
+        and bool(sample.get("passed")),
+    )
+    passed_right = cohort(
+        right,
+        lambda sample: bool(sample.get("environment_valid"))
+        and bool(sample.get("passed")),
+    )
+    lines = [
+        f"### No Extract vs {compared_label}",
+        "",
+        "The no-Extract profile receives the same scenario and project fixture, but no "
+        "skill package or retrieval instructions. Profile-specific checks remove only "
+        "the Extract response schema, retrieval command, and accelerator budget; the "
+        "required documents, semantic constraint, exclusions, read-only behavior, and "
+        "response budget remain checked.",
+        "",
+        f"Run IDs: no Extract `{markdown_text(baseline.get('run', {}).get('run_id', 'unavailable'))}`; "
+        f"{compared_label} `{markdown_text(compared.get('run', {}).get('run_id', 'unavailable'))}`.",
+        "",
+        f"Behavior passed: no Extract {len(passed_left)}/{len(valid_left)}; "
+        f"{compared_label} {len(passed_right)}/{len(valid_right)}.",
+        "",
+    ]
+    render_metric_table(lines, valid_left, valid_right, "N", "E")
+    lines.extend(["", "Deterministic cost ledger:", ""])
+    render_metric_table(
+        lines,
+        valid_left,
+        valid_right,
+        "N",
+        "E",
+        metrics=COST_METRICS,
+        show_uncertainty=False,
+    )
+    lines.extend(
+        [
+            "",
+            "| Profile | Sample | Passed | Files | Agent messages | Agent time | Total tokens | Outcome |",
+            "|---|---:|---:|---:|---:|---:|---:|---|",
+        ]
+    )
+    for label, samples in (("no-extract", left), (compared_label, right)):
+        for key, sample in sorted(samples.items()):
+            lines.append(
+                f"| {label} | {key[1]} | {bool(sample.get('passed'))} | "
+                f"{format_number(metric_value(sample, 'files_read'), 'files_read')} | "
+                f"{format_number(metric_value(sample, 'agent_message_count'), 'agent_message_count')} | "
+                f"{format_number(metric_value(sample, 'agent_duration_seconds'), 'agent_duration_seconds')} | "
+                f"{format_number(metric_value(sample, 'total_tokens'), 'total_tokens')} | "
+                f"{markdown_text(failure_summary(sample))} |"
+            )
+    return "\n".join(lines)
+
+
+def render_no_extract_comparisons(
+    baseline: dict[str, Any],
+    fallback: dict[str, Any],
+    cold: dict[str, Any],
+) -> str:
+    return "\n\n".join(
+        (
+            "## Direct documentation baseline",
+            render_no_extract_pair(
+                baseline,
+                fallback,
+                compared_mode="fallback",
+                compared_label="Extract fallback",
+            ),
+            render_no_extract_pair(
+                baseline,
+                cold,
+                compared_mode="enabled",
+                compared_label="Extract + SQLite",
+            ),
+        )
+    )
+
+
 def render_three_way(
     fallback: dict[str, Any],
     cold: dict[str, Any],
@@ -820,10 +974,17 @@ def main() -> int:
     parser.add_argument("--fallback", type=Path, required=True)
     parser.add_argument("--accelerated", type=Path, required=True)
     parser.add_argument("--warm", type=Path, help="optional prewarmed accelerator report")
+    parser.add_argument(
+        "--no-extract",
+        type=Path,
+        help="optional direct-documentation report produced without the Extract skill",
+    )
     parser.add_argument("--output", type=Path, help="preferred Markdown path; an existing file is never overwritten")
     args = parser.parse_args()
     report_paths = tuple(
-        path for path in (args.fallback, args.accelerated, args.warm) if path is not None
+        path
+        for path in (args.fallback, args.accelerated, args.warm, args.no_extract)
+        if path is not None
     )
     directories = report_directories(report_paths)
     print("Source report directories: " + ", ".join(str(path) for path in directories))
@@ -840,6 +1001,10 @@ def main() -> int:
             if args.warm
             else render_comparison(fallback, accelerated, directories)
         )
+        if args.no_extract:
+            rendered += "\n\n" + render_no_extract_comparisons(
+                load_report(args.no_extract), fallback, accelerated
+            )
         output_path = write_markdown(args.output or default_output_path(), rendered)
     except ComparisonError as error:
         print(f"cannot compare reports: {error}", file=sys.stderr)
