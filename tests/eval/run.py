@@ -322,6 +322,28 @@ def evaluate_assertion(
         minimum = assertion.get("min", 0)
         maximum = assertion.get("max", sys.maxsize)
         return CheckResult(minimum <= count <= maximum, f"{assertion['glob']}: {count}, expected {minimum}..{maximum}")
+    if kind == "word_budget":
+        if "path" in assertion:
+            files = [path] if path.is_file() else []
+            target = assertion["path"]
+        else:
+            files = project_files(workspace, assertion["glob"])
+            target = assertion["glob"]
+        if not files:
+            return CheckResult(False, f"word budget matched no files: {target}")
+        counts = {
+            str(item.relative_to(workspace)): len(item.read_text(encoding="utf-8").split())
+            for item in files
+        }
+        total = sum(counts.values())
+        maximum_each = assertion.get("max_each", sys.maxsize)
+        maximum_total = assertion.get("max_total", sys.maxsize)
+        oversized = {name: count for name, count in counts.items() if count > maximum_each}
+        passed = not oversized and total <= maximum_total
+        details = f"word counts: {counts}; total: {total}, maximum total: {maximum_total}"
+        if oversized:
+            details += f"; over per-file maximum {maximum_each}: {oversized}"
+        return CheckResult(passed, details)
     if kind == "glob_contains":
         files = project_files(workspace, assertion["glob"])
         content = "\n".join(path.read_text(encoding="utf-8") for path in files)

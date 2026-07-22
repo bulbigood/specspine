@@ -36,10 +36,21 @@ python3 tests/eval/run.py \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py"
 ```
 
+`run.py` does not select a model itself; it executes the command supplied by
+`--agent-command`. The standard Codex adapter defaults to `gpt-5.6-luna` with
+`medium` reasoning. Pass a model and reasoning effort through the quoted
+adapter command. This example states the adapter defaults explicitly:
+
+```bash
+python3 tests/eval/run.py \
+  --category core \
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium"
+```
+
 `--case` and `--category` are repeatable and may be combined. There is no
 implicit run-all mode. Planned cases are never executed. Categories are
-disjoint: `core` has 10 executable cases, `extended` has 3, and `planned` has
-11 documented non-executable cases.
+disjoint: `core` has 9 executable cases, `extended` has 4, and `planned` has
+9 documented non-executable cases.
 
 Each case gets a clean temporary workspace. Cases run with concurrency 8 by
 default; change it with `--jobs N`. Workspaces default to
@@ -54,7 +65,7 @@ prompt and assertions, while fixture stages model external changes.
 Supported assertions:
 
 - paths/content: `path_exists`, `path_absent`, `glob_count`, `glob_contains`,
-  `file_contains`, `file_not_contains`;
+  `file_contains`, `file_not_contains`, `word_budget`;
 - response: `response_contains`, `response_not_contains`;
 - changes: `unchanged`, `changed_only`, `max_changed_files`;
 - execution: `command_succeeds`;

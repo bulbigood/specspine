@@ -157,6 +157,41 @@ class RunnerTests(unittest.TestCase):
             )
             self.assertTrue(result.passed, result.message)
 
+    def test_word_budget_checks_each_file_and_total(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            spine = workspace / "specspine"
+            spine.mkdir()
+            (spine / "README.md").write_text("one two three\n", encoding="utf-8")
+            (spine / "payments.md").write_text("four five six seven\n", encoding="utf-8")
+            (workspace / ".eval").mkdir()
+            (workspace / ".eval/ignored.md").write_text("ignored " * 100, encoding="utf-8")
+
+            passing = RUNNER.evaluate_assertion(
+                {"type": "word_budget", "glob": "specspine/*.md", "max_each": 4, "max_total": 7},
+                workspace, {}, {}, "", None,
+            )
+            per_file_failure = RUNNER.evaluate_assertion(
+                {"type": "word_budget", "glob": "specspine/*.md", "max_each": 3, "max_total": 20},
+                workspace, {}, {}, "", None,
+            )
+            total_failure = RUNNER.evaluate_assertion(
+                {"type": "word_budget", "glob": "specspine/*.md", "max_each": 10, "max_total": 6},
+                workspace, {}, {}, "", None,
+            )
+
+            self.assertTrue(passing.passed, passing.message)
+            self.assertFalse(per_file_failure.passed)
+            self.assertFalse(total_failure.passed)
+
+    def test_word_budget_fails_when_target_is_missing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = RUNNER.evaluate_assertion(
+                {"type": "word_budget", "path": "specspine/missing.md", "max_total": 10},
+                Path(directory), {}, {}, "", None,
+            )
+            self.assertFalse(result.passed)
+
     def test_checks_recorded_command_text(self):
         result = RUNNER.evaluate_assertion(
             {"type": "command_includes", "value": "check_spine.py"},

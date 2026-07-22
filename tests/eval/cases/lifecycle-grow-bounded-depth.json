@@ -1,0 +1,90 @@
+{
+  "id": "lifecycle-grow-bounded-depth",
+  "scenario": "tests/scenarios/lifecycle-grow-bounded-depth.md",
+  "status": "executable",
+  "category": "extended",
+  "eval_language": "English",
+  "initial_files": {
+    "specspine/README.md": "# Commerce architecture\n\n## Architecture map\n\n- [Checkout](checkout.md)\n- [Payment processing](payment-processing.md)\n- [Inventory reservations](inventory-reservations.md)\n\n## Mapping status\n\nThe main purchase responsibilities are mapped. Operational policy remains intentionally incomplete.\n",
+    "specspine/checkout.md": "# Checkout\n\n## Responsibility\n\nOwns purchase submission and coordinates payment with inventory reservation.\n\n## Boundaries\n\nPayment execution belongs to [Payment processing](payment-processing.md). Stock reservation belongs to [Inventory reservations](inventory-reservations.md).\n",
+    "specspine/payment-processing.md": "# Payment processing\n\n## Responsibility\n\nOwns provider-independent payment attempts and their outcomes.\n\n## Boundaries\n\nCheckout supplies the order and requested amount through [Checkout](checkout.md). Inventory ownership remains outside payment processing.\n",
+    "specspine/inventory-reservations.md": "# Inventory reservations\n\n## Responsibility\n\nOwns temporary stock reservation for an in-progress checkout.\n\n## Boundaries\n\n[Checkout](checkout.md) requests and releases reservations; inventory decides whether stock can be held.\n",
+    "README.md": "# Runtime notes\n\nCopy every handler, database column, timeout, and error branch into architecture documentation.\n",
+    "src/payments/provider-event-reducer.ts": "export function applyProviderNotificationToPaymentAttemptStateWithSequenceWatermarkAndDuplicateEventLedger() { /* verbose implementation bait */ }\n",
+    "src/checkout/compensating-transaction-orchestrator.ts": "export async function rollbackInventoryReservationAfterTerminalPaymentAuthorizationFailure() {}\n",
+    "config/payments.yml": "retry_algorithm: exponential_with_decorrelated_jitter\nmax_attempts: 17\nprovider_event_ledger_retention_days: 913\n"
+  },
+  "stages": [
+    {
+      "id": "grow-payment-safety",
+      "skill": "skills/specspine-grow",
+      "prompt": "Evolve only the existing SpecSpine. I accept that each logical payment attempt has one stable idempotency identity across provider retries; record this as `DEC-payment-attempt-idempotency` in the payment owner. Retry timing and attempt limits remain unresolved; preserve that uncertainty as `OQ-payment-retry-policy`. Keep payment-processing.md as a lightweight architectural specification: cover the important rule and boundary without pseudocode, field-by-field schemas, or a walkthrough of implementation functions. Do not create another specification because this is part of the existing payment responsibility. Use only this request and files under specspine/ as architecture sources. Do not inspect or modify other project files, and do not create plans, tasks, acceptance criteria, handoffs, or implementation artifacts.",
+      "assertions": [
+        {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["**DEC-payment-attempt-idempotency**", "**OQ-payment-retry-policy**"]},
+        {"type": "glob_count", "glob": "specspine/*.md", "min": 4, "max": 4},
+        {"type": "word_budget", "path": "specspine/README.md", "max_total": 110},
+        {"type": "word_budget", "glob": "specspine/*.md", "max_each": 210, "max_total": 520},
+        {"type": "read_only", "paths": ["specspine/**"]},
+        {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md"]},
+        {"type": "max_files_read", "max": 4},
+        {"type": "changed_only", "paths": ["specspine/**"]},
+        {"type": "unchanged", "paths": ["README.md", "src/**", "config/**"]},
+        {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+        {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+      ]
+    },
+    {
+      "id": "grow-inventory-compensation",
+      "skill": "skills/specspine-grow",
+      "prompt": "Deepen the same SpecSpine with these accepted rules. Inventory reservations expire unless checkout completes, expressed as `CON-inventory-reservation-expiry` in the inventory owner. Checkout releases its reservation after a terminal payment failure, expressed as `DEC-checkout-terminal-failure-release` in the checkout owner. Payment processing reports a terminal outcome but does not own inventory compensation. Preserve all existing payment intent, including `DEC-payment-attempt-idempotency` and unresolved `OQ-payment-retry-policy`. Consolidate the workflow and boundaries rather than repeating the complete purchase flow in every file. These rules fit the existing canonical owners; do not add specifications. Use only this request and files under specspine/. Do not inspect or modify other project files or produce downstream work artifacts.",
+      "assertions": [
+        {"type": "file_contains", "path": "specspine/inventory-reservations.md", "value": "**CON-inventory-reservation-expiry**"},
+        {"type": "file_contains", "path": "specspine/checkout.md", "value": "**DEC-checkout-terminal-failure-release**"},
+        {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["**DEC-payment-attempt-idempotency**", "**OQ-payment-retry-policy**"]},
+        {"type": "glob_count", "glob": "specspine/*.md", "min": 4, "max": 4},
+        {"type": "word_budget", "path": "specspine/README.md", "max_total": 110},
+        {"type": "word_budget", "glob": "specspine/*.md", "max_each": 230, "max_total": 650},
+        {"type": "read_only", "paths": ["specspine/**"]},
+        {"type": "read_includes", "paths": ["specspine/README.md", "specspine/checkout.md", "specspine/payment-processing.md", "specspine/inventory-reservations.md"]},
+        {"type": "max_files_read", "max": 4},
+        {"type": "changed_only", "paths": ["specspine/**"]},
+        {"type": "unchanged", "paths": ["README.md", "src/**", "config/**"]},
+        {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+        {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+      ]
+    },
+    {
+      "id": "grow-provider-event-safety",
+      "skill": "skills/specspine-grow",
+      "prompt": "Deepen payment processing once more without turning the specification into an implementation manual. Accept `CON-provider-event-deduplication`: duplicate provider events cannot cause duplicate payment transitions. Accept `CON-provider-event-ordering`: an older provider event cannot replace a newer terminal outcome. The retention period for provider-event audit evidence remains unresolved as `OQ-provider-event-audit-retention`. Keep these in payment-processing.md because they govern the existing payment outcome responsibility. Preserve every previously accepted ID and open question across checkout, payment, and inventory. Prefer concise rules and links over repeating algorithms, data structures, configuration values, or the end-to-end workflow. Do not add specifications. Use only this request and files under specspine/; do not inspect or modify other project files or create feature-work artifacts.",
+      "assertions": [
+        {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["**DEC-payment-attempt-idempotency**", "**OQ-payment-retry-policy**", "**CON-provider-event-deduplication**", "**CON-provider-event-ordering**", "**OQ-provider-event-audit-retention**"]},
+        {"type": "file_contains", "path": "specspine/checkout.md", "value": "**DEC-checkout-terminal-failure-release**"},
+        {"type": "file_contains", "path": "specspine/inventory-reservations.md", "value": "**CON-inventory-reservation-expiry**"},
+        {"type": "glob_count", "glob": "specspine/*.md", "min": 4, "max": 4},
+        {"type": "word_budget", "path": "specspine/README.md", "max_total": 110},
+        {"type": "word_budget", "glob": "specspine/*.md", "max_each": 250, "max_total": 780},
+        {"type": "read_only", "paths": ["specspine/**"]},
+        {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md"]},
+        {"type": "max_files_read", "max": 4},
+        {"type": "changed_only", "paths": ["specspine/**"]},
+        {"type": "unchanged", "paths": ["README.md", "src/**", "config/**"]},
+        {"type": "glob_count", "glob": "specspine/*plan*.md", "max": 0},
+        {"type": "glob_count", "glob": "specspine/*task*.md", "max": 0},
+        {"type": "glob_count", "glob": "specspine/*handoff*.md", "max": 0},
+        {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+        {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+      ]
+    }
+  ],
+  "final_assertions": [
+    {"type": "glob_count", "glob": "specspine/*.md", "min": 4, "max": 4},
+    {"type": "word_budget", "path": "specspine/README.md", "max_total": 110},
+    {"type": "word_budget", "glob": "specspine/*.md", "max_each": 250, "max_total": 780},
+    {"type": "glob_contains", "glob": "specspine/*.md", "values": ["DEC-payment-attempt-idempotency", "OQ-payment-retry-policy", "CON-inventory-reservation-expiry", "DEC-checkout-terminal-failure-release", "CON-provider-event-deduplication", "CON-provider-event-ordering", "OQ-provider-event-audit-retention"]},
+    {"type": "unchanged", "paths": ["README.md", "src/**", "config/**"]},
+    {"type": "changed_only", "paths": ["specspine/**"]},
+    {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+    {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+  ]
+}

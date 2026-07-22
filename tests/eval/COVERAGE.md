@@ -2,19 +2,18 @@
 
 ## Current inventory
 
-The repository has twenty-four prose behavioral scenarios. Every scenario is
+The repository has twenty-two prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
 | Area | Documented scenarios | Executable fixtures |
 |---|---:|---:|
-| `specspine-grow` | 9 | 6 |
+| `specspine-grow` | 8 | 6 |
 | `specspine-map` | 7 | 3 |
 | `specspine-connect` | 3 | 2 |
 | `specspine-doctor` | 3 | 2 |
-| cross-skill lifecycle | 1 | 0 |
 | package generator tooling | 1 | 0 |
-| Total | 24 | 13 |
+| Total | 22 | 13 |
 
 `traceable-visual-spec` is assigned to `specspine-map` because its expected
 result includes repository-backed observations.
@@ -23,9 +22,9 @@ The executable set is divided by resource cost and necessity:
 
 | Category | Manifests | Agent calls | Purpose |
 |---|---:|---:|---|
-| `core` | 10 | 12 | Minimum behavioral regression set |
-| `extended` | 3 | 4 | Rare merge, supersession, removal, and visualization behavior |
-| `planned` | 11 | 0 | Documentation and future redesign only |
+| `core` | 9 | 11 | Minimum behavioral regression set |
+| `extended` | 4 | 7 | Rare merge, supersession, removal, bounded growth, and visualization behavior |
+| `planned` | 9 | 0 | Documentation and future redesign only |
 
 Core and extended cases currently cover:
 
@@ -39,6 +38,8 @@ Core and extended cases currently cover:
 - staged lifecycle transitions covering survey, deepening, intentional split,
   downstream repository evolution, drift refresh, supersession, removal, and
   bounded Doctor repair.
+- repeated Grow deepening with per-document and whole-Spine word budgets while
+  preserving addressable architectural meaning.
 
 Deterministic runtime-skill generation and drift detection remain covered by
 unit tests and do not consume an agent invocation.

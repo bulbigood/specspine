@@ -79,6 +79,19 @@ Look for:
 - diagrams that are the only source of important meaning;
 - semantic IDs applied indiscriminately or changed after external reference.
 
+Classify findings with the framework vocabulary when applicable:
+
+- competing owners are a `canonical ownership conflict`; do not select an
+  owner from repetition or repository evidence;
+- a broad specification with independently evolving responsibilities is a
+  `decomposition candidate`, not an automatic defect or an instruction to
+  split it;
+- an unconfirmed interpretation presented as accepted intent is an
+  `inference`, even when implementation evidence makes it plausible;
+- resolving any of these by choosing ownership, boundaries, or accepted intent
+  is `user decision required` unless the current request already supplies that
+  decision.
+
 Use absence sparingly. Missing detail is a defect only when the loaded stopping
 rules require it for the specification's current purpose.
 
@@ -87,5 +100,8 @@ rules require it for the specification's current purpose.
 Report `Mechanical integrity: PASS|FAIL` from checker errors only and list its
 findings compactly with code, severity, location, and message. Then report
 `Advisory semantic findings` with report-local labels, impact, confidence,
-evidence, and repair disposition when useful. End with checked scope, unchecked
-scope, and review limitations. Finding labels are ephemeral.
+evidence, and a recommended next action. Include repair disposition whenever a
+finding could lead to a structural or semantic change, explicitly stating
+`user decision required` when Doctor lacks authority to choose the result. End
+with checked scope, unchecked scope, and review limitations. Finding labels are
+ephemeral.

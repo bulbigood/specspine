@@ -90,15 +90,16 @@ Report two independent channels. Start with `Mechanical integrity: PASS` or
 path, line, and message. Mechanical status must depend only on reproducible
 checker errors.
 
-Under `Advisory semantic findings`, give review findings stable report-local
-labels such as `DOC-001`. Include confidence, affected paths and IDs, evidence
-or reasoning, impact, and repair disposition when useful. Advisory findings do
-not change mechanical PASS/FAIL. Never write report labels into SpecSpine
-documents.
+Under `Advisory semantic findings`, label findings locally. Include confidence,
+locations, evidence, impact, next action, and repair disposition. Use applicable
+review-method terms verbatim.
+State `user decision required` when Doctor cannot choose structure, intent, or
+canonical ownership. Advisory findings do not change mechanical PASS/FAIL.
+Never write report labels into specifications.
 
-End with checked scope, unchecked scope, mechanical status, and review
-limitations. If no findings remain, say only that none were found within the
-inspected scope; do not certify semantic validity, conformance, or completeness.
+End with checked and unchecked scope, status, and limitations. If no findings
+remain, report that only within inspected scope; do not certify semantic
+validity, conformance, or completeness.
 
 ## Restrictions
 
