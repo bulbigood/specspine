@@ -1,0 +1,37 @@
+{
+  "repository": "node-express-boilerplate",
+  "prompt": "Add an auditor role. Auditors can list and view users but cannot create, update, or delete them. Keep the existing roles unchanged and update the public API documentation where necessary.",
+  "architectural_rubric": {
+    "functional_scope": "The auditor role has getUsers but not manageUsers; existing user and admin rights remain unchanged.",
+    "ownership_boundary": "src/config/roles.js remains the canonical executable source of role names and rights; validation consumes that source instead of duplicating a role list.",
+    "documentation": "The public user API documentation exposes auditor as an accepted role without changing endpoint authorization boundaries.",
+    "unsupported_decision": "No additional roles, rights, or authorization policy are invented."
+  },
+  "irrelevant_read_patterns": [
+    "src/services/email.service.js",
+    "src/services/token.service.js",
+    "src/models/token.model.js",
+    "specspine/email.md",
+    "specspine/tokens.md"
+  ],
+  "assertions": [
+    {
+      "type": "command_succeeds",
+      "command": [
+        "node",
+        "-e",
+        "const {roles,roleRights}=require('./src/config/roles'); if(!roles.includes('auditor')) throw new Error('missing auditor'); if(JSON.stringify(roleRights.get('auditor'))!==JSON.stringify(['getUsers'])) throw new Error('wrong auditor rights'); if(JSON.stringify(roleRights.get('user'))!==JSON.stringify([])) throw new Error('user changed'); if(JSON.stringify(roleRights.get('admin'))!==JSON.stringify(['getUsers','manageUsers'])) throw new Error('admin changed');"
+      ]
+    },
+    {"type": "file_contains", "path": "src/validations/user.validation.js", "values": ["../config/roles", "...roles"]},
+    {"type": "file_contains", "path": "src/routes/v1/user.route.js", "value": "auditor"},
+    {"type": "changed_only", "paths": ["src/config/roles.js", "src/validations/user.validation.js", "src/routes/v1/user.route.js", "tests/**"]},
+    {"type": "max_changed_files", "max": 5}
+  ],
+  "production_assertions": [
+    {"type": "response_contains", "values": ["specspine/authorization.md", "specspine/users.md", "Primary specification", "Required specifications"]},
+    {"type": "response_not_contains", "values": ["specspine/email.md", "specspine/tokens.md", "src/config/roles.js"]},
+    {"type": "read_only", "paths": ["specspine/**", ".eval/skill/**"]},
+    {"type": "changed_only", "paths": []}
+  ]
+}

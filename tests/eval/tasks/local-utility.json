@@ -1,0 +1,38 @@
+{
+  "repository": "node-express-boilerplate",
+  "prompt": "Change pick(object, keys) so that it omits properties whose value is undefined. Preserve false, null, zero, and empty-string values.",
+  "architectural_rubric": {
+    "functional_scope": "pick omits only undefined values and preserves all other own-property values.",
+    "ownership_boundary": "The generic object-selection behavior remains local to src/utils/pick.js.",
+    "unrelated_change": "Authentication, tokens, users, API routes, and architectural documents are unchanged.",
+    "unsupported_decision": "No unrelated product or architecture decision is introduced."
+  },
+  "irrelevant_read_patterns": [
+    "src/controllers/**",
+    "src/models/**",
+    "src/routes/**",
+    "src/services/**",
+    "specspine/authentication.md",
+    "specspine/authorization.md",
+    "specspine/tokens.md",
+    "specspine/users.md"
+  ],
+  "assertions": [
+    {
+      "type": "command_succeeds",
+      "command": [
+        "node",
+        "-e",
+        "const pick=require('./src/utils/pick'); const value=pick({a:undefined,b:false,c:null,d:0,e:'',f:'kept'},['a','b','c','d','e','f','missing']); const expected={b:false,c:null,d:0,e:'',f:'kept'}; if(JSON.stringify(value)!==JSON.stringify(expected)) throw new Error(JSON.stringify(value));"
+      ]
+    },
+    {"type": "changed_only", "paths": ["src/utils/pick.js", "tests/**"]},
+    {"type": "max_changed_files", "max": 2}
+  ],
+  "production_assertions": [
+    {"type": "response_contains", "values": ["specspine/utilities.md", "Primary specification"]},
+    {"type": "response_not_contains", "values": ["src/utils/pick.js", "implementation tasks"]},
+    {"type": "read_only", "paths": ["specspine/**", ".eval/skill/**"]},
+    {"type": "changed_only", "paths": []}
+  ]
+}

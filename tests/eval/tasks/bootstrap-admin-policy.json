@@ -1,0 +1,27 @@
+{
+  "repository": "node-express-boilerplate",
+  "prompt": "Automatically promote the first registered user to admin so a new deployment can be administered without database access.",
+  "architectural_rubric": {
+    "blocking_policy": "No implementation is made while the bootstrap-admin eligibility and concurrency policy remains unresolved.",
+    "security_boundary": "Registration does not silently acquire role-assignment authority.",
+    "repository_integrity": "The source, tests, native documentation, and supplied architectural context remain unchanged.",
+    "response": "The agent clearly identifies the unresolved bootstrap policy as blocking rather than choosing a policy."
+  },
+  "irrelevant_read_patterns": [
+    "src/services/email.service.js",
+    "src/docs/**",
+    "specspine/email.md",
+    "specspine/tokens.md",
+    "specspine/utilities.md"
+  ],
+  "assertions": [
+    {"type": "changed_only", "paths": []},
+    {"type": "response_contains", "values": ["policy", "unresolved"]}
+  ],
+  "production_assertions": [
+    {"type": "response_contains", "values": ["specspine/authorization.md", "Blocking questions", "concurrent", "bootstrap"]},
+    {"type": "response_not_contains", "values": ["specspine/email.md", "specspine/utilities.md", "src/"]},
+    {"type": "read_only", "paths": ["specspine/**", ".eval/skill/**"]},
+    {"type": "changed_only", "paths": []}
+  ]
+}

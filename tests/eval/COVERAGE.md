@@ -100,9 +100,10 @@ Judge output should be advisory and stored separately from deterministic
 pass/fail assertions. Model name, version, prompt, sample count, duration, and
 token usage should be recorded for reproducibility.
 
-Comparative downstream coverage now begins under `comparisons/` with local,
-cross-cutting, intended-versus-observed conflict, and blocking-question tasks.
-These benchmarks exercise coding outcomes rather than runtime-skill behavior.
-Their initial one-sample setting validates the harness only; product claims
-require repeated samples and blind architectural review under
-`HYPOTHESIS.md`.
+Comparative downstream coverage under `comparisons/` uses a hash-pinned full
+`node-express-boilerplate` repository. Four value tasks cover an
+architecture-neutral utility change, cross-cutting authorization, an
+intended-versus-observed token ownership conflict, and a blocking security
+policy. Two focused projection comparisons test full-Spine versus handoff
+efficiency, while four separate production cases evaluate handoff selection.
+See `HYPOTHESIS.md` for sampling budgets and interpretation.

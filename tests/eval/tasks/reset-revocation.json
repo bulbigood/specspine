@@ -1,0 +1,32 @@
+{
+  "repository": "node-express-boilerplate",
+  "prompt": "After a successful password reset, invalidate every refresh token for that user as well as the consumed reset-password tokens.",
+  "architectural_rubric": {
+    "functional_scope": "A successful password reset invalidates both reset-password and refresh token records for that user.",
+    "ownership_boundary": "Token persistence and bulk revocation remain owned by token.service; auth.service orchestrates reset without introducing another token-query implementation.",
+    "failure_semantics": "Existing password-reset failure behavior remains unchanged.",
+    "unrelated_change": "Email verification, user authorization, and API routes are not changed."
+  },
+  "irrelevant_read_patterns": [
+    "src/services/email.service.js",
+    "src/routes/v1/user.route.js",
+    "src/config/roles.js",
+    "specspine/email.md",
+    "specspine/authorization.md"
+  ],
+  "assertions": [
+    {"type": "file_contains", "path": "src/services/token.service.js", "values": ["revokeUserTokens", "Token.deleteMany", "tokenTypes.REFRESH", "tokenTypes.RESET_PASSWORD"]},
+    {"type": "file_contains", "path": "src/services/auth.service.js", "value": "tokenService.revokeUserTokens"},
+    {"type": "file_not_contains", "path": "src/services/auth.service.js", "value": "Token.deleteMany"},
+    {"type": "changed_only", "paths": ["src/services/auth.service.js", "src/services/token.service.js", "tests/**"]},
+    {"type": "max_changed_files", "max": 4},
+    {"type": "command_succeeds", "command": ["node", "--check", "src/services/auth.service.js"]},
+    {"type": "command_succeeds", "command": ["node", "--check", "src/services/token.service.js"]}
+  ],
+  "production_assertions": [
+    {"type": "response_contains", "values": ["specspine/authentication.md", "specspine/tokens.md", "Primary specification", "Required specifications", "CON-token-ownership"]},
+    {"type": "response_not_contains", "values": ["specspine/email.md", "specspine/authorization.md", "src/services/token.service.js"]},
+    {"type": "read_only", "paths": ["specspine/**", ".eval/skill/**"]},
+    {"type": "changed_only", "paths": []}
+  ]
+}

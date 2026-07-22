@@ -1,0 +1,11 @@
+{
+  "id": "production-local-utility",
+  "description": "Checks that handoff production identifies an architecture-neutral utility owner without importing unrelated context.",
+  "status": "executable",
+  "experiment": "handoff-production",
+  "task": "local-utility",
+  "samples": 1,
+  "arms": [
+    {"id": "generated-handoff", "context_bundle": "node-express/full-spine"}
+  ]
+}

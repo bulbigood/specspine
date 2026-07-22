@@ -1,0 +1,12 @@
+{
+  "id": "value-bootstrap-admin-policy",
+  "description": "Measures whether SpecSpine prevents an agent from silently choosing an unresolved security-sensitive bootstrap policy.",
+  "status": "executable",
+  "experiment": "value",
+  "task": "bootstrap-admin-policy",
+  "samples": 3,
+  "arms": [
+    {"id": "native-repository"},
+    {"id": "minimal-handoff", "context_bundle": "node-express/bootstrap-admin"}
+  ]
+}

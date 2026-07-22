@@ -2,31 +2,63 @@
 
 ## Product claim
 
-Given the same repository, change request, and coding agent, relevant SpecSpine
-context should reduce architectural violations and irrelevant repository
-exploration without reducing functional correctness. A minimal context handoff
-should provide at least as much downstream value as navigating the full Spine
-at lower context cost.
+Given the same documented repository, change request, and coding agent, a
+reviewed SpecSpine handoff should reduce architectural violations and
+irrelevant repository exploration relative to the repository's native
+documentation without reducing functional correctness. For
+architecture-significant changes, a minimal handoff should provide at least as
+much downstream value as navigating the full Spine at lower context cost.
 
 This claim is distinct from skill and format regressions. Correct Markdown,
 valid links, stable semantic IDs, and compliant skill behavior do not establish
 downstream value.
 
-## Comparison arms
+## Focused experiments
 
-Run every downstream benchmark against the same frozen repository and request.
+Do not run every possible context strategy in one benchmark. Each experiment
+answers one product question with the smallest sufficient set of arms.
 
-| Arm | Supplied architectural context | Question answered |
-|---|---|---|
-| `repository-only` | none | What does the coding agent achieve unaided? |
-| `architecture-document` | a token-budgeted conventional `ARCHITECTURE.md` | Is any architecture document sufficient? |
-| `full-spine` | the complete frozen SpecSpine | Does linked architectural memory improve navigation? |
-| `minimal-handoff` | a reviewed handoff and only its required specifications | Does task-scoped projection retain value at lower cost? |
+### Incremental value
+
+Run all four task classes against the same frozen repository and request.
+
+| Arm | Supplied context |
+|---|---|
+| `native-repository` | Complete repository with its native README, API documentation, tests, comments, and configuration; no SpecSpine |
+| `minimal-handoff` | The same repository plus a reviewed handoff and only its required specifications |
+
+This is the primary product comparison. It measures incremental value over a
+normally documented project, not over an artificial code-only repository.
+
+### Projection efficiency
+
+Run only architecture-significant tasks.
+
+| Arm | Supplied context |
+|---|---|
+| `full-spine` | Native repository plus the complete reviewed SpecSpine; no handoff |
+| `minimal-handoff` | Native repository plus a reviewed handoff and only its required specifications |
+
+This is a design ablation for the handoff mechanism, not a general product
+baseline. Run it when handoff selection or format materially changes.
+
+### Handoff production
+
+Give `specspine-grow` the complete frozen Spine and the same request. Compare
+its returned handoff with a human-reviewed reference. The producer must not
+inspect repository material outside the Spine. No implementation is performed.
+
+## Experimental controls
 
 Do not let one arm see files assigned to another arm. Use the same model,
-reasoning level, request, timeout, repository snapshot, and sample count.
-Use one byte-identical downstream prompt that does not name the arm or context
-format. Do not expose the arm identifier through the agent environment.
+reasoning level, request, timeout, repository snapshot, and sample count within
+each experiment. Use one byte-identical downstream prompt that does not name
+the arm or context format. Do not expose the arm identifier through the agent
+environment.
+
+The value and projection experiments reuse the same task definitions so their
+requests and deterministic outcome checks cannot drift. Arms from different
+experiments are never interpreted as a direct comparison.
 
 ## Two evaluation layers
 
@@ -35,8 +67,7 @@ format. Do not expose the arm identifier through the agent environment.
 Evaluate a generated handoff against a human-reviewed reference set:
 
 - canonical primary owner;
-- required specification recall;
-- required specification precision;
+- required specification recall and precision;
 - potentially affected versus merely related classification;
 - preservation of relevant decisions, constraints, and blocking questions;
 - absence of feature requirements, tasks, and implementation proposals;
@@ -46,61 +77,89 @@ Do not require exact prose or ordering.
 
 ### Downstream outcome
 
-Use frozen, human-reviewed context in the comparison arms before evaluating
-automatic handoff production. This separates producer failure from downstream
-consumer failure.
+Use frozen, human-reviewed context in the value and projection experiments.
+Evaluate automatic handoff production separately so producer failure is not
+confused with downstream consumer failure.
 
 Measure:
 
-1. Functional outcome: build, tests, and requested observable behavior.
+1. Functional outcome: deterministic checks and requested observable behavior.
 2. Architectural outcome: preserved constraints, correct ownership boundary,
    no duplicated responsibility, and no silently invented blocking decision.
-3. Context efficiency: unique files read, irrelevant files read, input tokens,
-   elapsed time, and reported cost when available.
+3. Context efficiency: unique files read, task-irrelevant files read, input
+   tokens, elapsed time, and reported cost when available.
 4. Stability: variance and violation frequency across repeated samples.
 
-Deterministic checks own build and observable behavior. A blind judge may score
+Deterministic checks own executable behavior. A blind judge may score remaining
 architectural outcomes, but must be calibrated against human review and must
-not know which comparison arm produced the result.
+not know which arm produced the result.
 
 Archive the exact prompt, response, diff, trace, fixture/context hashes, and
-actual model settings for every run. Construct judge inputs separately from
-only the request, diff, final response, and frozen scenario rubric. Keep arm
-metadata outside that bundle.
+actual model settings for every run. Construct judge inputs from only the
+request, diff, final response, and frozen scenario rubric. Keep arm and
+experiment metadata outside that bundle.
 
-## Initial scenarios
+## Benchmark repository and tasks
 
-1. `local-change` — one canonical owner; additional context should add little
-   overhead.
-2. `cross-cutting-change` — several architectural responsibilities are relevant.
-3. `intended-observed-conflict` — repository behavior disagrees with an accepted
-   constraint.
-4. `blocking-question` — safe implementation requires an unresolved policy
-   decision.
+The pilot uses a hash-verified archive of
+`hagopj13/node-express-boilerplate` at commit
+`179ae84efec61b14206d0305d941daed6c6d07f9`. Its frozen native README,
+Swagger documentation, tests, comments, and configuration remain available in
+every downstream arm.
 
-Include tasks where architectural context is irrelevant. A framework that only
-helps carefully selected favorable cases has not established general value.
+Task classes:
+
+1. `local-utility` — architecture-neutral negative control; handoff overhead
+   should be negligible.
+2. `auditor-role` — cross-cutting authorization change with one canonical role
+   vocabulary.
+3. `reset-revocation` — repository behavior conflicts with accepted token
+   ownership.
+4. `bootstrap-admin-policy` — safe implementation requires an unresolved
+   security decision.
+
+Include architecture-neutral tasks. A framework that only helps deliberately
+favorable cases has not established general value.
+
+## Pilot execution budget
+
+The default manifests require 36 agent calls:
+
+- value: 4 tasks × 2 arms × 3 samples = 24;
+- projection: 2 tasks × 2 arms × 2 samples = 8;
+- handoff production: 4 tasks × 1 sample = 4.
+
+Run the value experiment regularly. Run projection only after material changes
+to handoff format or selection. Judge only unique outputs requiring semantic
+review; deterministic outcomes do not need model judgment.
 
 ## Pilot success criteria
 
-Set thresholds before the main run. Initial thresholds for the
-`minimal-handoff` arm relative to `repository-only` are:
+Set thresholds before the main run. Initial thresholds for `minimal-handoff`
+relative to `native-repository` are:
 
-- at least 30% fewer architectural violations across cross-cutting and conflict
-  scenarios;
+- at least 30% fewer architectural violations across cross-cutting, conflict,
+  and blocking-policy tasks;
 - no reduction in functional pass rate;
-- at least 25% fewer irrelevant file reads;
-- no more than 15% higher median input-token use on local changes.
+- at least 25% fewer task-irrelevant file reads on architecture-significant
+  tasks;
+- no more than 15% higher median input-token use on the local negative control.
+
+For projection, require no reduction in functional or architectural pass rate
+and lower median input-token use for `minimal-handoff` relative to `full-spine`.
 
 Treat these as pilot decision thresholds, not universal performance claims.
 Report every arm, failed sample, model identifier, reasoning level, prompt,
-sample count, duration, and token counters. Do not publish only aggregate wins.
+sample count, duration, and token counter. Do not publish only aggregate wins.
 
 ## Interpretation
 
-- If SpecSpine does not outperform `ARCHITECTURE.md`, simplify the product.
+- If SpecSpine does not outperform native repository documentation, narrow or
+  simplify the product.
 - If the full Spine helps but the handoff does not, revise handoff selection.
-- If only the handoff helps, make it the primary interoperability surface.
+- If only the handoff helps, keep it as the primary interoperability surface.
 - If gains occur only for architecture-significant changes, narrow the product
-  claim to those changes.
+  claim accordingly.
+- If handoff production fails while reviewed handoffs help downstream work,
+  improve the producer without changing the consumer contract.
 - If no stable gain appears, do not add formal graph or conformance machinery.

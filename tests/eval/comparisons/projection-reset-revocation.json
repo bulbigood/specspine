@@ -1,0 +1,12 @@
+{
+  "id": "projection-reset-revocation",
+  "description": "Tests handoff non-inferiority and context efficiency for an intended-versus-observed token ownership conflict.",
+  "status": "executable",
+  "experiment": "projection",
+  "task": "reset-revocation",
+  "samples": 2,
+  "arms": [
+    {"id": "full-spine", "context_bundle": "node-express/full-spine"},
+    {"id": "minimal-handoff", "context_bundle": "node-express/reset-revocation"}
+  ]
+}

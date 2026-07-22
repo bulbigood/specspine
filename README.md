@@ -50,11 +50,13 @@ acceptance criteria, planning, implementation, testing, or delivery.
 
 ## Core hypothesis
 
-Given the same repository, change request, and coding agent, relevant SpecSpine
-context should reduce architectural violations and irrelevant repository
-exploration without reducing functional correctness. A minimal context handoff
-should provide at least as much downstream value as navigating the full Spine
-at lower context cost.
+Given the same documented repository, change request, and coding agent, a
+relevant SpecSpine handoff should reduce architectural violations and
+irrelevant repository exploration relative to the repository's native
+documentation without reducing functional correctness. For
+architecture-significant changes, a minimal context handoff should provide at
+least as much downstream value as navigating the full Spine at lower context
+cost.
 
 This is an experimental, falsifiable product claim. Link validity, document
 shape, and skill behavior are regression properties; they are not evidence that

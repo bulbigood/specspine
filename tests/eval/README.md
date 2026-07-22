@@ -82,35 +82,94 @@ content searches may count every candidate file as read.
 
 ## Comparative evaluation
 
-Run all comparisons with repeated samples:
+The recommended pilot pairing is `gpt-5.6-luna` at medium reasoning for the
+downstream or handoff-producing agent and the independent `gpt-5.6-terra` at
+medium reasoning for the blind judge. Keep this pairing fixed within a run.
+
+The harness separates three questions. Run the primary incremental-value
+experiment with its manifest-defined sample counts (24 agent calls):
 
 ```bash
 python3 tests/eval/compare.py \
-  --all \
-  --samples 5 \
+  --experiment value \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
   --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium"
 ```
 
-Use repeatable `--comparison ID` instead of `--all` to select scenarios. The
-four current scenarios are `blocking-question`, `cross-cutting-change`,
-`intended-observed-conflict`, and `local-change`.
+Run the smaller projection ablation only after changing handoff format or
+selection (8 agent calls):
 
-Every sample uses the same frozen fixture and request across four arms, ordered
-from least to most supplied context:
+```bash
+python3 tests/eval/compare.py \
+  --experiment projection \
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
+  --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium"
+```
 
-1. `repository-only`: repository and request; no architecture files.
-2. `architecture-document`: repository, request, and one monolithic
-   `ARCHITECTURE.md`.
-3. `minimal-handoff`: repository, request, task-specific `HANDOFF.md`, and only
-   the SpecSpine files referenced by it.
-4. `full-spine`: repository, request, and the complete SpecSpine graph,
-   including deliberately unrelated specifications.
+Evaluate automatic handoff production independently (4 agent calls). The judge
+scores semantic handoff quality in addition to deterministic reference checks:
+
+```bash
+python3 tests/eval/compare.py \
+  --experiment handoff-production \
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
+  --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium"
+```
+
+Run the complete manifest-defined pilot (36 agent calls and up to 36 judge
+calls; identical judge inputs reuse one judgment):
+
+```bash
+python3 tests/eval/compare.py \
+  --all \
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
+  --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium"
+```
+
+Use a one-sample smoke run to verify live infrastructure at lower cost before
+the pilot. It makes 16 agent calls but is insufficient for product conclusions:
+
+```bash
+python3 tests/eval/compare.py \
+  --all \
+  --samples 1 \
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
+  --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium"
+```
+
+`--experiment` and `--comparison` are repeatable and may be combined. `--all`
+runs the complete 36-agent-call pilot budget. `--samples N` overrides the
+manifest counts and is intended for smoke verification or deliberate
+resampling, not for changing the recorded pilot design silently.
+
+The value experiment has two arms:
+
+1. `native-repository`: the frozen repository and all of its native README,
+   Swagger documentation, tests, comments, and configuration; no SpecSpine.
+2. `minimal-handoff`: the same repository plus a reviewed `HANDOFF.md` and only
+   the required SpecSpine files.
+
+The projection experiment reuses the same task definitions and compares:
+
+1. `full-spine`: native repository plus the complete reviewed Spine.
+2. `minimal-handoff`: native repository plus the reviewed projection.
+
+Handoff production supplies the full Spine and `specspine-grow`, prohibits
+repository inspection outside the Spine, and evaluates the returned handoff
+without running an implementation task.
+
+The repository fixture is a hash-verified archive of
+`hagopj13/node-express-boilerplate` commit
+`179ae84efec61b14206d0305d941daed6c6d07f9`. It is downloaded once to
+`~/.cache/specspine-eval/fixtures`; override this with
+`SPECSPINE_EVAL_FIXTURES_DIR`. Agent workspaces do not require network access.
 
 All agent runs finish before judging starts. A judge receives only the request,
 diff, final response and frozen rubric; it cannot see the arm or supplied
 context. Each rubric criterion is scored `0` (violated), `1` (partial/unclear),
-or `2` (fully satisfied). Identical judge inputs reuse one judgment.
+or `2` (fully satisfied). Identical judge inputs reuse one judgment. Prefer
+deterministic assertions; use a judge only for unique outputs with genuinely
+semantic criteria.
 
 The bundled Codex adapter uses an isolated named permission profile: only the
 current workspace is writable/readable beyond minimal operating-system files,

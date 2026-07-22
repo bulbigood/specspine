@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 PROJECT_ROOT = Path(__file__).parents[2]
@@ -16,428 +17,158 @@ SPEC.loader.exec_module(COMPARE)
 
 
 class ComparisonTests(unittest.TestCase):
-    def test_all_comparisons_define_valid_isolated_arms(self):
+    def test_inventory_defines_three_focused_experiments(self):
         comparisons = COMPARE.load_comparisons()
-        self.assertEqual(4, len(comparisons))
+        self.assertEqual(10, len(comparisons))
+        self.assertEqual(
+            {"value": 4, "projection": 2, "handoff-production": 4},
+            {
+                experiment: sum(item["experiment"] == experiment for item in comparisons)
+                for experiment in COMPARE.EXPERIMENT_ARMS
+            },
+        )
         for comparison in comparisons:
             self.assertEqual([], COMPARE.validate_comparison(comparison), comparison["id"])
-            arms = {arm["id"]: arm for arm in comparison["arms"]}
-            self.assertEqual(COMPARE.REQUIRED_ARMS, set(arms))
-            self.assertEqual({}, arms["repository-only"]["context_files"])
-
-    def test_all_arms_receive_the_same_prompt_without_arm_labels(self):
-        comparison = COMPARE.load_comparisons()[0]
-        prompts = [COMPARE.build_prompt(comparison) for _arm in comparison["arms"]]
-        self.assertEqual(1, len(set(prompts)))
-        for arm in COMPARE.REQUIRED_ARMS:
-            self.assertNotIn(arm, prompts[0])
-        self.assertNotIn("ARCHITECTURE.md", prompts[0])
-        self.assertNotIn("HANDOFF.md", prompts[0])
-        self.assertIn("complete and only authorized project", prompts[0])
-
-    def test_comparison_snapshot_excludes_python_cache_noise(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "src" / "__pycache__").mkdir(parents=True)
-            (root / "src" / "module.py").write_text("value = 1\n", encoding="utf-8")
-            (root / "src" / "__pycache__" / "module.pyc").write_bytes(b"cache")
             self.assertEqual(
-                {"src/module.py"}, set(COMPARE.comparison_snapshot(root))
+                COMPARE.EXPERIMENT_ARMS[comparison["experiment"]],
+                {arm["id"] for arm in comparison["arms"]},
             )
 
-    def test_git_baseline_is_excluded_from_snapshot(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "app.py").write_text("value = 1\n", encoding="utf-8")
-            COMPARE.RUNNER.initialize_git_workspace(root)
-            self.assertTrue((root / ".git").is_dir())
-            self.assertEqual({"app.py"}, set(COMPARE.comparison_snapshot(root)))
-
-    def test_identical_blind_judge_inputs_share_a_cache_key(self):
+    def test_value_baseline_preserves_native_documentation(self):
         comparison = next(
-            item for item in COMPARE.load_comparisons() if item["id"] == "blocking-question"
+            item for item in COMPARE.load_comparisons() if item["id"] == "value-auditor-role"
         )
-        first = {"arm": "repository-only", "diff": "", "response": "Blocked."}
-        second = {"arm": "full-spine", "diff": "", "response": "Blocked."}
+        native = next(arm for arm in comparison["arms"] if arm["id"] == "native-repository")
+        self.assertEqual({}, COMPARE.context_files(native))
+        self.assertEqual("node-express-boilerplate", comparison["repository"])
+
+    def test_reused_tasks_have_byte_identical_downstream_prompts(self):
+        comparisons = COMPARE.load_comparisons()
+        for task in ("auditor-role", "reset-revocation"):
+            selected = [
+                item
+                for item in comparisons
+                if item["task"] == task and item["experiment"] in {"value", "projection"}
+            ]
+            self.assertEqual(2, len(selected))
+            self.assertEqual(1, len({COMPARE.build_prompt(item) for item in selected}))
+
+    def test_context_bundles_keep_handoff_smaller_than_full_spine(self):
+        full = COMPARE.context_files({"context_bundle": "node-express/full-spine"})
+        handoff = COMPARE.context_files({"context_bundle": "node-express/auditor-role"})
+        self.assertIn("specspine/README.md", full)
+        self.assertIn("HANDOFF.md", handoff)
+        self.assertNotIn("specspine/email.md", handoff)
+        self.assertLess(sum(map(len, handoff.values())), sum(map(len, full.values())))
+
+    def test_production_prompt_enforces_spine_only_evidence(self):
+        comparison = next(
+            item
+            for item in COMPARE.load_comparisons()
+            if item["id"] == "production-reset-revocation"
+        )
+        prompt = COMPARE.build_prompt(comparison)
+        self.assertIn(".eval/skill/SKILL.md", prompt)
+        self.assertIn("Do not inspect source code", prompt)
+        self.assertNotIn("generated-handoff", prompt)
+
+    def test_repository_descriptor_is_commit_and_hash_pinned(self):
+        repository = COMPARE.load_repositories()["node-express-boilerplate"]
+        self.assertEqual(40, len(repository["commit"]))
+        self.assertEqual(64, len(repository["archive_sha256"]))
+        self.assertIn(repository["commit"], repository["archive_url"])
+
+    def test_run_arm_copies_native_repository_and_keeps_context_unchanged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory) / "repository"
+            (repository / "src" / "utils").mkdir(parents=True)
+            (repository / "README.md").write_text("native docs\n", encoding="utf-8")
+            (repository / "src" / "utils" / "pick.js").write_text(
+                "module.exports = () => ({});\n", encoding="utf-8"
+            )
+            comparison = {
+                "id": "synthetic",
+                "experiment": "value",
+                "repository": "synthetic",
+                "prompt": "Change pick.",
+                "architectural_rubric": {"scope": "local"},
+                "assertions": [{"type": "path_exists", "path": "README.md"}],
+                "irrelevant_read_patterns": [],
+            }
+            arm = {"id": "minimal-handoff", "context_files": {"HANDOFF.md": "reviewed\n"}}
+            command = [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; import json,sys; sys.stdin.read(); "
+                "Path('src/utils/pick.js').write_text('module.exports = x => x;\\n'); "
+                "Path('.eval/trace.json').write_text(json.dumps({'files_read':['README.md','HANDOFF.md'], 'token_usage':{'input_tokens':10}}))",
+            ]
+            with mock.patch.object(COMPARE, "materialize_repository", return_value=repository):
+                result = COMPARE.run_arm(comparison, arm, 1, command, False)
+            self.assertTrue(result["passed"], result["checks"])
+            self.assertEqual("value", result["experiment"])
+            self.assertEqual(2, result["files_read"])
+            self.assertEqual(10, result["input_tokens"])
+            self.assertNotIn("HANDOFF.md", result["changed_files"])
+
+    def test_judge_input_is_blind_to_experiment_and_arm(self):
+        comparison = next(
+            item for item in COMPARE.load_comparisons() if item["id"] == "value-local-utility"
+        )
+        first = {"arm": "native-repository", "experiment": "value", "diff": "", "response": "done"}
+        second = {"arm": "minimal-handoff", "experiment": "value", "diff": "", "response": "done"}
         self.assertEqual(
             COMPARE.judge_cache_key(first, comparison),
             COMPARE.judge_cache_key(second, comparison),
         )
-        second["response"] = "Implemented."
-        self.assertNotEqual(
-            COMPARE.judge_cache_key(first, comparison),
-            COMPARE.judge_cache_key(second, comparison),
-        )
 
-    def test_conflict_outcome_accepts_any_nonempty_provider_independent_session(self):
-        comparison = next(
-            item
-            for item in COMPARE.load_comparisons()
-            if item["id"] == "intended-observed-conflict"
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            workspace = Path(directory)
-            (workspace / "src").mkdir()
-            (workspace / "src" / "login.py").write_text(
-                "def provider_login(provider, provider_token):\n"
-                "    if provider in {'google', 'github'}:\n"
-                "        return 'opaque-local-session'\n"
-                "    raise ValueError('unsupported provider')\n",
-                encoding="utf-8",
+    def test_report_groups_rows_by_experiment(self):
+        results = []
+        for experiment, arm in (
+            ("value", "native-repository"),
+            ("projection", "full-spine"),
+            ("handoff-production", "generated-handoff"),
+        ):
+            results.append(
+                {
+                    "experiment": experiment,
+                    "comparison": f"{experiment}-example",
+                    "arm": arm,
+                    "sample": 1,
+                    "valid": True,
+                    "passed": True,
+                    "context_words": 0,
+                    "files_read": 1,
+                    "irrelevant_files_read": [],
+                    "input_tokens": 10,
+                    "duration_seconds": 1.0,
+                    "checks": [],
+                }
             )
-            result = COMPARE.RUNNER.evaluate_assertion(
-                comparison["assertions"][0], workspace, {}, {}, "", None
-            )
-            self.assertTrue(result.passed, result.message)
-
-    def test_cross_cutting_visible_test_accepts_package_imports_and_rejects_top_level_imports(self):
-        comparison = next(
-            item
-            for item in COMPARE.load_comparisons()
-            if item["id"] == "cross-cutting-change"
-        )
-        assertion = comparison["assertions"][0]
-        with tempfile.TemporaryDirectory() as directory:
-            workspace = Path(directory)
-            COMPARE.write_files(workspace, comparison["initial_files"])
-            (workspace / "src" / "auth.py").write_text(
-                "from .accounts import resolve_account\n"
-                "from .sessions import create_session\n\n"
-                "def login_external(provider_user_id, provider_token):\n"
-                "    account = resolve_account(provider_user_id)\n"
-                "    return create_session(account['user_id'])\n",
-                encoding="utf-8",
-            )
-            accepted = COMPARE.RUNNER.evaluate_assertion(
-                assertion, workspace, {}, {}, "", None
-            )
-            self.assertTrue(accepted.passed, accepted.message)
-            (workspace / "src" / "auth.py").write_text(
-                "import accounts\nimport sessions\n\n"
-                "def login_external(provider_user_id, provider_token):\n"
-                "    account = accounts.resolve_account(provider_user_id)\n"
-                "    return sessions.create_session(account['user_id'])\n",
-                encoding="utf-8",
-            )
-            rejected = COMPARE.RUNNER.evaluate_assertion(
-                assertion, workspace, {}, {}, "", None
-            )
-            self.assertFalse(rejected.passed, rejected.message)
+        markdown = COMPARE.markdown_report({"results": results})
+        self.assertIn("| Experiment | Arm |", markdown)
+        self.assertIn("| value | native-repository |", markdown)
+        self.assertIn("| projection | full-spine |", markdown)
+        self.assertIn("| handoff-production | generated-handoff |", markdown)
 
     def test_summary_keeps_outcome_and_cost_separate(self):
         results = [
             {
-                "arm": arm,
+                "experiment": "value",
                 "comparison": "example",
-                "passed": arm != "repository-only",
-                "context_words": index * 10,
+                "arm": arm,
+                "passed": True,
+                "context_words": index,
                 "files_read": index + 1,
-                "irrelevant_files_read": [] if index else ["src/unrelated.py"],
+                "irrelevant_files_read": [],
                 "input_tokens": 100 + index,
-                "duration_seconds": 1.0 + index,
-            }
-            for index, arm in enumerate(sorted(COMPARE.REQUIRED_ARMS))
-        ]
-        summary = COMPARE.summarize(results)
-        self.assertEqual({"example"}, set(summary))
-        self.assertEqual(4, len(summary["example"]))
-        self.assertIn("outcome_pass_rate", summary["example"]["repository-only"])
-        self.assertIn("median_input_tokens", summary["example"]["minimal-handoff"])
-
-    def test_markdown_report_contains_summary_table_and_failure_details(self):
-        result = {
-            "comparison": "example",
-            "arm": "repository-only",
-            "sample": 1,
-            "passed": False,
-            "files_read": 2,
-            "input_tokens": 123,
-            "duration_seconds": 4.25,
-            "checks": [{"passed": False, "message": "command failed | exit 1"}],
-            "judge": {
-                "valid": True,
-                "passed": False,
-                "total_score": 3,
-                "max_score": 4,
-                "violation_count": 1,
-                "scores": {
-                    "ownership": {"score": 1, "rationale": "Boundary is unclear."},
-                    "constraints": {"score": 2, "rationale": "Satisfied."},
-                },
-            },
-        }
-        report = {
-            "run": "007",
-            "model": "agent-model",
-            "reasoning": "medium",
-            "comparisons": ["example"],
-            "comparison_legend": {"example": "Tests an example change."},
-            "judge": {"model": "judge-model", "reasoning": "low", "calls": 1},
-            "results": [result],
-        }
-        markdown = COMPARE.markdown_report(report)
-        self.assertIn("Run: **007**", markdown)
-        self.assertIn("## Legend and methodology", markdown)
-        self.assertIn(
-            "| repository-only | Contents: frozen fixture repository and user request. No architectural context files. |",
-            markdown,
-        )
-        self.assertIn("`example` — Tests an example change.", markdown)
-        self.assertIn("### Testing process", markdown)
-        self.assertIn("same clean fixture", markdown)
-        self.assertIn("blind model judge", markdown)
-        self.assertIn("Valid samples: **1/1**", markdown)
-        self.assertIn("Outcome: **0/1 valid samples passed**", markdown)
-        self.assertIn("Architecture: **0/1 passed**", markdown)
-        self.assertIn("### Summary by arm", markdown)
-        self.assertIn("| repository-only | 1/1 | 0/1 (0%) | 0/1 (0%) | 0 | 3.0/4.0 |", markdown)
-        self.assertIn("### Individual results", markdown)
-        self.assertIn("| example | repository-only | 1 | VALID | FAIL | 3/4 | — |", markdown)
-        self.assertIn("command failed \\| exit 1", markdown)
-        self.assertIn("ownership (1/2): Boundary is unclear.", markdown)
-
-    def test_markdown_report_orders_arms_from_least_to_most_context(self):
-        results = [
-            {
-                "comparison": "example",
-                "arm": arm,
-                "sample": 1,
-                "passed": True,
-                "files_read": 1,
-                "input_tokens": 1,
                 "duration_seconds": 1.0,
-                "checks": [],
             }
-            for arm in reversed(COMPARE.ARM_ORDER)
+            for index, arm in enumerate(("native-repository", "minimal-handoff"))
         ]
-        markdown = COMPARE.markdown_report({"results": results})
-        positions = [markdown.index(f"| {arm} | Contents:") for arm in COMPARE.ARM_ORDER]
-        self.assertEqual(sorted(positions), positions)
-
-    def test_markdown_report_marks_outcome_judge_mismatch(self):
-        result = {
-            "comparison": "example",
-            "arm": "full-spine",
-            "sample": 1,
-            "passed": False,
-            "files_read": 3,
-            "input_tokens": 100,
-            "duration_seconds": 1.0,
-            "checks": [],
-            "judge": {
-                "valid": True,
-                "passed": True,
-                "total_score": 2,
-                "max_score": 2,
-                "violation_count": 0,
-                "scores": {"criterion": {"score": 2, "rationale": "Satisfied."}},
-            },
-        }
-        markdown = COMPARE.markdown_report({"results": [result]})
-        self.assertIn("| full-spine | 1/1 | 0/1 (0%) | 1/1 (100%) | 1 |", markdown)
-        self.assertIn("| example | full-spine | 1 | VALID | FAIL | 2/2 | YES |", markdown)
-
-    def test_markdown_report_excludes_invalid_samples(self):
-        result = {
-            "comparison": "example",
-            "arm": "repository-only",
-            "sample": 1,
-            "valid": False,
-            "invalid_reasons": ["workspace boundary violation"],
-            "passed": True,
-            "files_read": 1,
-            "input_tokens": 10,
-            "duration_seconds": 1.0,
-            "checks": [],
-        }
-        markdown = COMPARE.markdown_report({"results": [result]})
-        self.assertIn("Valid samples: **0/1**", markdown)
-        self.assertIn("| repository-only | 0/1 | — | — |", markdown)
-        self.assertIn("| example | repository-only | 1 | INVALID | — | — |", markdown)
-        self.assertIn("- Invalid: workspace boundary violation", markdown)
-
-    def test_allocate_run_directory_uses_sequential_numeric_names(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory) / "comparison-runs"
-            self.assertEqual("001", COMPARE.allocate_run_directory(root).name)
-            self.assertEqual("002", COMPARE.allocate_run_directory(root).name)
-            (root / "notes").mkdir()
-            self.assertEqual("003", COMPARE.allocate_run_directory(root).name)
-
-    def test_json_report_has_default_filename(self):
-        self.assertEqual(Path("comparison-results.json"), COMPARE.DEFAULT_JSON_OUTPUT)
-
-    def test_report_settings_come_from_complete_actual_traces(self):
-        results = [
-            {"actual_model": "fixed-model", "actual_reasoning": "medium"},
-            {"actual_model": "fixed-model", "actual_reasoning": "medium"},
-        ]
-        self.assertEqual(
-            {"model": "fixed-model", "reasoning": "medium"},
-            COMPARE.actual_settings(results),
-        )
-        results[1].pop("actual_model")
-        self.assertEqual(
-            {"model": "unknown", "reasoning": "unknown"},
-            COMPARE.actual_settings(results),
-        )
-
-    def test_report_rejects_conflicting_actual_settings(self):
-        with self.assertRaisesRegex(ValueError, "inconsistent actual models"):
-            COMPARE.actual_settings(
-                [
-                    {"actual_model": "model-a", "actual_reasoning": "medium"},
-                    {"actual_model": "model-b", "actual_reasoning": "medium"},
-                ]
-            )
-
-    def test_judge_response_is_strictly_scored_against_every_rubric_key(self):
-        rubric = {"ownership": "owner remains stable", "constraint": "token is hidden"}
-        response = json.dumps(
-            {
-                "scores": {
-                    "ownership": {"score": 2, "rationale": "Owner is unchanged."},
-                    "constraint": {"score": 1, "rationale": "Token handling is unclear."},
-                },
-                "summary": "One criterion is unclear.",
-            }
-        )
-        judgment = COMPARE.parse_judge_response(response, rubric)
-        self.assertEqual(3, judgment["total_score"])
-        self.assertEqual(4, judgment["max_score"])
-        self.assertEqual(1, judgment["violation_count"])
-        self.assertFalse(judgment["passed"])
-        with self.assertRaisesRegex(ValueError, "score keys differ"):
-            COMPARE.parse_judge_response(
-                '{"scores": {}, "summary": "missing"}', rubric
-            )
-
-    def test_run_judge_is_blind_and_records_model_metadata(self):
-        comparison = next(
-            item for item in COMPARE.load_comparisons() if item["id"] == "local-change"
-        )
-        scores = {
-            key: {"score": 2, "rationale": "The diff satisfies the criterion."}
-            for key in comparison["architectural_rubric"]
-        }
-        response = json.dumps({"scores": scores, "summary": "All criteria pass."})
-        command = [
-            sys.executable,
-            "-c",
-            "from pathlib import Path; import os, sys; prompt=sys.stdin.read(); "
-            "assert 'repository-only' not in prompt; "
-            "assert 'SPECSPINE_COMPARISON' not in os.environ; "
-            "Path('.eval/trace.json').write_text('{\"model\":\"judge-model\",\"reasoning_effort\":\"high\"}', encoding='utf-8'); "
-            "Path('.eval/codex-events.jsonl').write_text('{\"type\":\"turn.completed\"}\\n', encoding='utf-8'); "
-            f"print({response!r})",
-        ]
-        with tempfile.TemporaryDirectory() as directory:
-            result = {
-                "diff": "--- a/src/profile.py\n+++ b/src/profile.py\n",
-                "response": "Implementation complete.",
-                "artifacts": directory,
-            }
-            judgment = COMPARE.run_judge(result, comparison, command, False)
-            self.assertTrue(judgment["valid"], judgment)
-            self.assertTrue(judgment["passed"])
-            self.assertEqual("judge-model", judgment["actual_model"])
-            self.assertEqual("high", judgment["actual_reasoning"])
-            self.assertTrue((Path(directory) / "judge-prompt.md").is_file())
-            self.assertTrue((Path(directory) / "judge-response.json").is_file())
-            self.assertEqual(
-                '{"type":"turn.completed"}\n',
-                (Path(directory) / "judge" / "codex-events.jsonl").read_text(),
-            )
-
-    def test_run_arm_executes_downstream_assertions_in_isolation(self):
-        comparison = next(
-            item for item in COMPARE.load_comparisons() if item["id"] == "local-change"
-        )
-        arm = next(item for item in comparison["arms"] if item["id"] == "repository-only")
-        command = [
-            sys.executable,
-            "-c",
-            "from pathlib import Path; import os, sys; sys.stdin.read(); "
-            "assert 'SPECSPINE_COMPARISON_ARM' not in os.environ; "
-            "Path('src/profile.py').write_text(\"def profile_title():\\n    return 'Account profile'\\n\", encoding='utf-8'); "
-            "Path('.eval/trace.json').write_text(\"{\\\"files_read\\\": [\\\"src/profile.py\\\"], \\\"token_usage\\\": {\\\"input_tokens\\\": 12}}\", encoding='utf-8')",
-        ]
-        result = COMPARE.run_arm(comparison, arm, 1, command, False)
-        self.assertTrue(result["passed"], result["checks"])
-        self.assertEqual(["src/profile.py"], result["changed_files"])
-        self.assertEqual(1, result["files_read"])
-        self.assertEqual(12, result["input_tokens"])
-
-    def test_run_arm_rejects_supplied_context_changes(self):
-        comparison = next(
-            item for item in COMPARE.load_comparisons() if item["id"] == "local-change"
-        )
-        arm = next(
-            item for item in comparison["arms"] if item["id"] == "architecture-document"
-        )
-        command = [
-            sys.executable,
-            "-c",
-            "from pathlib import Path; import sys; sys.stdin.read(); "
-            "Path('ARCHITECTURE.md').write_text('changed', encoding='utf-8'); "
-            "Path('src/profile.py').write_text(\"def profile_title():\\n    return 'Account profile'\\n\", encoding='utf-8')",
-        ]
-        result = COMPARE.run_arm(comparison, arm, 1, command, False)
-        self.assertFalse(result["passed"])
-        self.assertTrue(
-            any("supplied context changed" in check["message"] for check in result["checks"])
-        )
-
-    def test_run_arm_marks_workspace_boundary_violation_invalid(self):
-        comparison = next(
-            item for item in COMPARE.load_comparisons() if item["id"] == "local-change"
-        )
-        arm = next(item for item in comparison["arms"] if item["id"] == "repository-only")
-        command = [
-            sys.executable,
-            "-c",
-            "from pathlib import Path; import json, sys; sys.stdin.read(); "
-            "Path('src/profile.py').write_text(\"def profile_title():\\n    return 'Account profile'\\n\", encoding='utf-8'); "
-            "Path('.eval/trace.json').write_text(json.dumps({'files_read': [], 'scope_violations': ['external temp scan']}), encoding='utf-8')",
-        ]
-        result = COMPARE.run_arm(comparison, arm, 1, command, False)
-        self.assertTrue(result["passed"])
-        self.assertFalse(result["valid"])
-        self.assertIn("external temp scan", result["invalid_reasons"][0])
-
-    def test_run_arm_archives_reproducible_and_blind_judge_artifacts(self):
-        comparison = next(
-            item for item in COMPARE.load_comparisons() if item["id"] == "local-change"
-        )
-        arm = next(item for item in comparison["arms"] if item["id"] == "minimal-handoff")
-        command = [
-            sys.executable,
-            "-c",
-            "from pathlib import Path; import os, sys; sys.stdin.read(); "
-            "assert 'minimal-handoff' not in str(Path.cwd()); "
-            "assert 'SPECSPINE_COMPARISON_ARM' not in os.environ; "
-            "Path('.eval/codex-events.jsonl').write_text('{\"type\":\"turn.completed\"}\\n', encoding='utf-8'); "
-            "Path('src/profile.py').write_text(\"def profile_title():\\n    return 'Account profile'\\n\", encoding='utf-8')",
-        ]
-        with tempfile.TemporaryDirectory() as directory:
-            result = COMPARE.run_arm(comparison, arm, 1, command, False, Path(directory))
-            artifact_path = Path(result["artifacts"])
-            self.assertTrue((artifact_path / "prompt.md").is_file())
-            self.assertTrue((artifact_path / "response.md").is_file())
-            self.assertTrue((artifact_path / "diff.patch").is_file())
-            self.assertTrue((artifact_path / "agent").is_dir())
-            self.assertEqual(
-                '{"type":"turn.completed"}\n',
-                (artifact_path / "agent" / "codex-events.jsonl").read_text(),
-            )
-            bundle = json.loads((artifact_path / "judge-input.json").read_text(encoding="utf-8"))
-            self.assertEqual({"request", "diff", "response", "rubric"}, set(bundle))
-            self.assertNotIn("minimal-handoff", json.dumps(bundle))
-            self.assertIn("src/profile.py", bundle["diff"])
-            self.assertEqual(result["response"], bundle["response"])
-            self.assertEqual(result["diff"], bundle["diff"])
-            self.assertEqual(64, len(result["fixture_sha256"]))
-            self.assertEqual(64, len(result["context_sha256"]))
+        summary = COMPARE.summarize(results)["example"]
+        self.assertEqual(1.0, summary["native-repository"]["outcome_pass_rate"])
+        self.assertEqual(101, summary["minimal-handoff"]["median_input_tokens"])
 
 
 if __name__ == "__main__":

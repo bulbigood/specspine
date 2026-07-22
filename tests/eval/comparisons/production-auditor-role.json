@@ -1,0 +1,11 @@
+{
+  "id": "production-auditor-role",
+  "description": "Checks primary-owner and required-context selection for a cross-cutting authorization handoff.",
+  "status": "executable",
+  "experiment": "handoff-production",
+  "task": "auditor-role",
+  "samples": 1,
+  "arms": [
+    {"id": "generated-handoff", "context_bundle": "node-express/full-spine"}
+  ]
+}

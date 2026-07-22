@@ -13,7 +13,10 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tarfile
+import tempfile
 import time
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from statistics import mean, median
@@ -22,19 +25,26 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPARISONS_DIR = Path(__file__).resolve().parent / "comparisons"
+TASKS_DIR = Path(__file__).resolve().parent / "tasks"
+REPOSITORIES_DIR = Path(__file__).resolve().parent / "repositories"
+CONTEXT_BUNDLES_DIR = Path(__file__).resolve().parent / "context-bundles"
 RUNNER_PATH = Path(__file__).resolve().parent / "run.py"
 ARM_ORDER = (
-    "repository-only",
-    "architecture-document",
+    "native-repository",
     "minimal-handoff",
     "full-spine",
+    "generated-handoff",
 )
-REQUIRED_ARMS = frozenset(ARM_ORDER)
+EXPERIMENT_ARMS = {
+    "value": frozenset({"native-repository", "minimal-handoff"}),
+    "projection": frozenset({"full-spine", "minimal-handoff"}),
+    "handoff-production": frozenset({"generated-handoff"}),
+}
 ARM_DESCRIPTIONS = {
-    "repository-only": "Contents: frozen fixture repository and user request. No architectural context files.",
-    "architecture-document": "Contents: frozen fixture repository, user request, and one conventional monolithic ARCHITECTURE.md. No SpecSpine files or task handoff.",
-    "minimal-handoff": "Contents: frozen fixture repository, user request, task-specific HANDOFF.md, and only the SpecSpine files referenced by that handoff.",
-    "full-spine": "Contents: frozen fixture repository, user request, and the complete SpecSpine graph, including both task-relevant and deliberately unrelated specifications. No task handoff.",
+    "native-repository": "Frozen repository with its native README, API documentation, tests, comments, and configuration; no SpecSpine.",
+    "minimal-handoff": "The same native repository plus a reviewed HANDOFF.md and only its required SpecSpine specifications.",
+    "full-spine": "The same native repository plus the complete reviewed SpecSpine; no task handoff.",
+    "generated-handoff": "The complete reviewed SpecSpine and specspine-grow skill; the agent produces a task-oriented handoff without implementing the change.",
 }
 JUDGE_SCORE_MIN = 0
 JUDGE_SCORE_MAX = 2
@@ -48,12 +58,26 @@ SPEC.loader.exec_module(RUNNER)
 
 
 def load_comparisons() -> list[dict[str, Any]]:
+    tasks = {
+        path.stem: json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted(TASKS_DIR.glob("*.json"))
+    }
     comparisons: list[dict[str, Any]] = []
     for path in sorted(COMPARISONS_DIR.glob("*.json")):
         data = json.loads(path.read_text(encoding="utf-8"))
+        task_id = data.get("task")
+        if task_id in tasks:
+            data = {**tasks[task_id], **data}
         data["_manifest"] = path
         comparisons.append(data)
     return comparisons
+
+
+def load_repositories() -> dict[str, dict[str, Any]]:
+    return {
+        path.stem: json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted(REPOSITORIES_DIR.glob("*.json"))
+    }
 
 
 def validate_comparison(comparison: dict[str, Any]) -> list[str]:
@@ -62,10 +86,11 @@ def validate_comparison(comparison: dict[str, Any]) -> list[str]:
         "id",
         "description",
         "status",
+        "experiment",
+        "task",
+        "repository",
         "prompt",
-        "initial_files",
         "arms",
-        "assertions",
         "architectural_rubric",
     }
     missing = sorted(required - comparison.keys())
@@ -73,18 +98,24 @@ def validate_comparison(comparison: dict[str, Any]) -> list[str]:
         return [f"missing fields: {', '.join(missing)}"]
     if comparison["status"] not in {"executable", "planned"}:
         errors.append("status must be executable or planned")
+    experiment = comparison.get("experiment")
+    if experiment not in EXPERIMENT_ARMS:
+        errors.append(f"experiment must be one of: {', '.join(sorted(EXPERIMENT_ARMS))}")
     if not isinstance(comparison["description"], str) or not comparison["description"].strip():
         errors.append("description must be a non-empty string")
     if not isinstance(comparison["prompt"], str) or not comparison["prompt"].strip():
         errors.append("prompt must be a non-empty string")
     if not isinstance(comparison.get("samples", 1), int) or comparison.get("samples", 1) < 1:
         errors.append("samples must be a positive integer")
-    if not isinstance(comparison["initial_files"], dict):
-        errors.append("initial_files must be an object")
+    initial_files = comparison.get("initial_files", {})
+    if not isinstance(initial_files, dict):
+        errors.append("initial_files must be an object when present")
     else:
-        for path in comparison["initial_files"]:
+        for path in initial_files:
             if not RUNNER.safe_relative_path(path):
                 errors.append(f"unsafe initial file path: {path}")
+    if comparison.get("repository") not in load_repositories():
+        errors.append(f"unknown repository fixture: {comparison.get('repository')}")
     rubric = comparison.get("architectural_rubric")
     if not isinstance(rubric, dict) or not rubric:
         errors.append("architectural_rubric must be a non-empty object")
@@ -92,8 +123,9 @@ def validate_comparison(comparison: dict[str, Any]) -> list[str]:
     if not isinstance(arms, list):
         return errors + ["arms must be a list"]
     arm_ids = [arm.get("id") for arm in arms if isinstance(arm, dict)]
-    missing_arms = sorted(REQUIRED_ARMS - set(arm_ids))
-    unexpected_arms = sorted(set(arm_ids) - REQUIRED_ARMS)
+    required_arms = EXPERIMENT_ARMS.get(experiment, frozenset())
+    missing_arms = sorted(required_arms - set(arm_ids))
+    unexpected_arms = sorted(set(arm_ids) - required_arms)
     if missing_arms:
         errors.append(f"missing comparison arms: {', '.join(missing_arms)}")
     if unexpected_arms:
@@ -111,6 +143,14 @@ def validate_comparison(comparison: dict[str, Any]) -> list[str]:
         for path in context_files:
             if not RUNNER.safe_relative_path(path):
                 errors.append(f"arm {index} has unsafe context path: {path}")
+        bundle = arm.get("context_bundle")
+        if bundle is not None and (
+            not RUNNER.safe_relative_path(bundle)
+            or not (CONTEXT_BUNDLES_DIR / bundle).is_dir()
+        ):
+            errors.append(f"arm {index} has unknown context bundle: {bundle}")
+        if arm.get("id") == "native-repository" and (context_files or bundle):
+            errors.append("native-repository must not add context")
     return errors
 
 
@@ -121,7 +161,78 @@ def write_files(workspace: Path, files: dict[str, str]) -> None:
         path.write_text(content, encoding="utf-8")
 
 
+def fixture_cache_root() -> Path:
+    configured = os.environ.get("SPECSPINE_EVAL_FIXTURES_DIR")
+    return Path(configured) if configured else Path.home() / ".cache" / "specspine-eval" / "fixtures"
+
+
+def _safe_extract(archive: tarfile.TarFile, target: Path) -> None:
+    target_resolved = target.resolve()
+    for member in archive.getmembers():
+        destination = (target / member.name).resolve()
+        if destination != target_resolved and target_resolved not in destination.parents:
+            raise ValueError(f"unsafe fixture archive member: {member.name}")
+        if member.issym() or member.islnk():
+            raise ValueError(f"fixture archive links are not allowed: {member.name}")
+    archive.extractall(target)
+
+
+def materialize_repository(repository_id: str) -> Path:
+    descriptor = load_repositories()[repository_id]
+    expected = descriptor["archive_sha256"]
+    cached = fixture_cache_root() / repository_id / expected
+    ready = cached / descriptor["archive_root"]
+    if ready.is_dir():
+        return ready
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f"specspine-fixture-{repository_id}-") as directory:
+        temporary = Path(directory)
+        archive_path = temporary / "repository.tar.gz"
+        urllib.request.urlretrieve(descriptor["archive_url"], archive_path)
+        actual = content_hash(archive_path.read_bytes())
+        if actual != expected:
+            raise ValueError(
+                f"fixture archive hash mismatch for {repository_id}: expected {expected}, got {actual}"
+            )
+        extracted = temporary / "extracted"
+        extracted.mkdir()
+        with tarfile.open(archive_path, "r:gz") as archive:
+            _safe_extract(archive, extracted)
+        source = extracted / descriptor["archive_root"]
+        if not source.is_dir():
+            raise ValueError(f"fixture archive root missing: {descriptor['archive_root']}")
+        staging = cached.parent / f".{expected}-{os.getpid()}"
+        if staging.exists():
+            shutil.rmtree(staging)
+        shutil.copytree(extracted, staging)
+        try:
+            staging.rename(cached)
+        except FileExistsError:
+            shutil.rmtree(staging)
+    return ready
+
+
+def context_files(arm: dict[str, Any]) -> dict[str, str]:
+    files = dict(arm.get("context_files", {}))
+    bundle = arm.get("context_bundle")
+    if bundle:
+        root = CONTEXT_BUNDLES_DIR / bundle
+        for path in root.rglob("*"):
+            if path.is_file():
+                files[path.relative_to(root).as_posix()] = path.read_text(encoding="utf-8")
+    return files
+
+
 def build_prompt(comparison: dict[str, Any]) -> str:
+    if comparison.get("experiment") == "handoff-production":
+        return (
+            "You are running a blinded SpecSpine handoff-production evaluation.\n"
+            + RUNNER.WORKSPACE_BOUNDARY_INSTRUCTIONS
+            + "Read .eval/skill/SKILL.md and every reference it requires for preparing a context handoff. "
+            "Use only the supplied SpecSpine as project-specific architectural evidence. Do not inspect source code, tests, or native repository documentation. "
+            "Prepare the smallest useful architecture context handoff for the request below. Return the handoff in the final response; do not modify any project file.\n\n"
+            + f"{comparison['prompt'].strip()}\n"
+        )
     return (
         "You are running a blinded downstream coding evaluation.\n"
         + RUNNER.WORKSPACE_BOUNDARY_INSTRUCTIONS
@@ -328,11 +439,16 @@ def run_arm(
     workspace = RUNNER.create_workspace(prefix=f"specspine-compare-{comparison['id']}-")
     retained = False
     try:
-        write_files(workspace, comparison["initial_files"])
-        write_files(workspace, arm.get("context_files", {}))
+        repository = materialize_repository(comparison["repository"])
+        shutil.copytree(repository, workspace, dirs_exist_ok=True)
+        write_files(workspace, comparison.get("initial_files", {}))
+        supplied_context = context_files(arm)
+        write_files(workspace, supplied_context)
         (workspace / ".eval").mkdir(exist_ok=True)
+        if comparison.get("experiment") == "handoff-production":
+            shutil.copytree(ROOT / "skills" / "specspine-grow", workspace / ".eval" / "skill")
         RUNNER.initialize_git_workspace(workspace)
-        context_paths = sorted(arm.get("context_files", {}))
+        context_paths = sorted(supplied_context)
         context_before = {
             path: (workspace / path).read_bytes()
             for path in context_paths
@@ -365,7 +481,12 @@ def run_arm(
         blind_judge_bundle = judge_bundle(
             {"diff": patch, "response": completed.stdout}, comparison
         )
-        assertions = comparison["assertions"] + arm.get("assertions", [])
+        assertion_key = (
+            "production_assertions"
+            if comparison.get("experiment") == "handoff-production"
+            else "assertions"
+        )
+        assertions = comparison.get(assertion_key, []) + arm.get("assertions", [])
         checks = [
             RUNNER.evaluate_assertion(item, workspace, before, after, completed.stdout, trace)
             for item in assertions
@@ -386,6 +507,7 @@ def run_arm(
         passed = completed.returncode == 0 and all(check.passed for check in checks)
         result = {
             "comparison": comparison["id"],
+            "experiment": comparison["experiment"],
             "arm": arm["id"],
             "sample": sample,
             "passed": passed,
@@ -394,13 +516,17 @@ def run_arm(
             "prompt": prompt,
             "prompt_sha256": content_hash(prompt.encode("utf-8")),
             "fixture_sha256": snapshot_hash(
-                {path: content.encode("utf-8") for path, content in comparison["initial_files"].items()}
+                {
+                    path: content
+                    for path, content in before.items()
+                    if path not in supplied_context
+                }
             ),
             "context_sha256": snapshot_hash(
-                {path: content.encode("utf-8") for path, content in arm.get("context_files", {}).items()}
+                {path: content.encode("utf-8") for path, content in supplied_context.items()}
             ),
             "context_words": sum(
-                len(content.split()) for content in arm.get("context_files", {}).values()
+                len(content.split()) for content in supplied_context.values()
             ),
             "changed_files": sorted(RUNNER.changed_paths(before, after)),
             "diff": patch,
@@ -708,7 +834,7 @@ def markdown_report(report: dict[str, Any]) -> str:
             "### Testing process",
             "",
             "1. Every arm/sample starts from the same clean fixture and receives the same user request; only the supplied architectural context differs.",
-            "2. A downstream coding agent works in an isolated temporary workspace, and deterministic checks measure executable outcome invariants.",
+            "2. Value and projection runs use a downstream coding agent; handoff-production runs use specspine-grow without implementation. All work occurs in isolated temporary workspaces.",
             "3. A blind model judge receives only the request, diff, final response, and frozen rubric—not the arm name or supplied context—and scores each rubric criterion from 0 to 2.",
             "4. Samples that violate the workspace boundary are marked invalid, excluded from aggregates, and not sent to the judge.",
             "5. Outcome, architectural scores, file reads, token usage, and duration are aggregated by arm with every valid sample weighted equally.",
@@ -717,22 +843,29 @@ def markdown_report(report: dict[str, Any]) -> str:
             "",
             "### Summary by arm",
             "",
-            "Each row averages valid results for that arm across comparisons and samples; each valid sample has equal weight.",
+            "Rows are grouped by experiment. Arms from different experiments are never interpreted as a direct comparison; each valid sample has equal weight within its row.",
             "",
             "A mismatch means deterministic outcome and architectural judgment disagree; it is a diagnostic signal, not an overwritten score.",
             "",
-            "| Arm | Valid/total | Outcome | Architecture | Mismatches | Avg judge | Avg violations | Avg files read | Avg total input | Avg cached | Avg uncached | Avg duration |",
-            "|---|---:|:---:|:---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            "| Experiment | Arm | Valid/total | Outcome | Architecture | Mismatches | Avg judge | Avg violations | Avg context words | Avg files read | Avg irrelevant reads | Avg total input | Avg cached | Avg uncached | Avg duration |",
+            "|---|---|---:|:---:|:---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
-    for arm in ARM_ORDER:
-        if arm not in present_arms:
+    experiment_order = ("value", "projection", "handoff-production")
+    for experiment, arm in (
+        (experiment, arm) for experiment in experiment_order for arm in ARM_ORDER
+    ):
+        all_arm_results = [
+            item
+            for item in results
+            if item["arm"] == arm and item.get("experiment", "value") == experiment
+        ]
+        if not all_arm_results:
             continue
-        all_arm_results = [item for item in results if item["arm"] == arm]
         arm_results = [item for item in all_arm_results if item.get("valid", True)]
         if not arm_results:
             lines.append(
-                f"| {arm} | 0/{len(all_arm_results)} | — | — | — | — | — | — | — | — | — | — |"
+                f"| {experiment} | {arm} | 0/{len(all_arm_results)} | — | — | — | — | — | — | — | — | — | — | — | — |"
             )
             continue
         arm_judges = [
@@ -767,6 +900,7 @@ def markdown_report(report: dict[str, Any]) -> str:
             + " | ".join(
                 markdown_cell(value)
                 for value in (
+                    experiment,
                     arm,
                     f"{len(arm_results)}/{len(all_arm_results)}",
                     format_rate(sum(bool(item["passed"]) for item in arm_results), len(arm_results)),
@@ -780,7 +914,9 @@ def markdown_report(report: dict[str, Any]) -> str:
                     f"{mean(item['violation_count'] for item in arm_judges):.1f}"
                     if arm_judges
                     else None,
+                    f"{mean(item['context_words'] for item in arm_results):.0f}",
                     f"{mean(item['files_read'] for item in arm_results):.1f}",
+                    f"{mean(len(item['irrelevant_files_read']) for item in arm_results):.1f}",
                     f"{mean(token_values):.0f}" if token_values else None,
                     f"{mean(cached_values):.0f}" if cached_values else None,
                     f"{mean(uncached_values):.0f}" if uncached_values else None,
@@ -794,8 +930,8 @@ def markdown_report(report: dict[str, Any]) -> str:
             "",
             "### Individual results",
             "",
-            "| Comparison | Arm | Sample | Validity | Outcome | Judge | Mismatch | Violations | Files read | Total input | Cached | Uncached | Duration |",
-            "|---|---|---:|:---:|:---:|:---:|:---:|---:|---:|---:|---:|---:|---:|",
+            "| Experiment | Comparison | Arm | Sample | Validity | Outcome | Judge | Mismatch | Violations | Context words | Files read | Irrelevant reads | Total input | Cached | Uncached | Duration |",
+            "|---|---|---|---:|:---:|:---:|:---:|:---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for item in results:
@@ -812,6 +948,7 @@ def markdown_report(report: dict[str, Any]) -> str:
             + " | ".join(
                 markdown_cell(value)
                 for value in (
+                    item.get("experiment", "value"),
                     item["comparison"],
                     item["arm"],
                     item["sample"],
@@ -825,7 +962,9 @@ def markdown_report(report: dict[str, Any]) -> str:
                     and item["passed"] != item_judge["passed"]
                     else "—",
                     item_judge.get("violation_count") if item_judge.get("valid") else None,
+                    item["context_words"],
                     item["files_read"],
+                    len(item["irrelevant_files_read"]),
                     item["input_tokens"],
                     item.get("cached_input_tokens"),
                     item["input_tokens"] - item["cached_input_tokens"]
@@ -922,6 +1061,13 @@ def main() -> int:
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--validate", action="store_true")
     parser.add_argument("--comparison", action="append", default=[])
+    parser.add_argument(
+        "--experiment",
+        action="append",
+        choices=sorted(EXPERIMENT_ARMS),
+        default=[],
+        help="select all executable comparisons in an experiment (repeatable)",
+    )
     parser.add_argument("--all", action="store_true", help="run every executable comparison")
     parser.add_argument("--agent-command")
     parser.add_argument("--judge-command")
@@ -957,8 +1103,8 @@ def main() -> int:
 
     if args.judge_command and not args.agent_command:
         parser.error("--judge-command requires --agent-command")
-    if args.all and args.comparison:
-        parser.error("use either --all or --comparison, not both")
+    if args.all and (args.comparison or args.experiment):
+        parser.error("use --all or explicit --comparison/--experiment selectors")
 
     comparisons = load_comparisons()
     known = {item["id"] for item in comparisons}
@@ -972,7 +1118,10 @@ def main() -> int:
     }
     if args.list:
         for item in comparisons:
-            print(f"{item['id']}: {item['status']} ({item.get('samples', 1)} sample(s) per arm)")
+            print(
+                f"{item['id']}: {item['status']} / {item['experiment']} "
+                f"({item.get('samples', 1)} sample(s) per arm)"
+            )
     if args.validate:
         for identifier, errors in validation.items():
             for error in errors:
@@ -982,15 +1131,19 @@ def main() -> int:
     if args.agent_command:
         if validation:
             return 2
-        if not (args.comparison or args.all):
-            parser.error("--agent-command requires --all or at least one --comparison")
+        if not (args.comparison or args.experiment or args.all):
+            parser.error("--agent-command requires --all, --experiment, or --comparison")
         selected = comparisons if args.all else [
-            item for item in comparisons if item["id"] in args.comparison
+            item
+            for item in comparisons
+            if item["id"] in args.comparison or item["experiment"] in args.experiment
         ]
         selected = [item for item in selected if item["status"] == "executable"]
         if not selected:
             print("No selected executable comparisons")
             return 2
+        for repository_id in sorted({item["repository"] for item in selected}):
+            materialize_repository(repository_id)
         command = shlex.split(args.agent_command)
         run_dir = allocate_run_directory(args.runs_dir)
         artifacts_dir = run_dir / args.artifacts_dir.name
@@ -1055,6 +1208,7 @@ def main() -> int:
             **settings,
             "run": run_dir.name,
             "comparisons": [item["id"] for item in selected],
+            "experiments": sorted({item["experiment"] for item in selected}),
             "comparison_legend": {
                 item["id"]: item["description"] for item in selected
             },

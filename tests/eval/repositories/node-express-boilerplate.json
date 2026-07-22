@@ -1,0 +1,9 @@
+{
+  "id": "node-express-boilerplate",
+  "source": "https://github.com/hagopj13/node-express-boilerplate",
+  "commit": "179ae84efec61b14206d0305d941daed6c6d07f9",
+  "archive_url": "https://github.com/hagopj13/node-express-boilerplate/archive/179ae84efec61b14206d0305d941daed6c6d07f9.tar.gz",
+  "archive_sha256": "6337d62bd0f50d249e4b330126019a66f1fb09adc6f19b19eea10455061f7280",
+  "archive_root": "node-express-boilerplate-179ae84efec61b14206d0305d941daed6c6d07f9",
+  "license": "MIT"
+}

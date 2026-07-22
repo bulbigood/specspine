@@ -1,0 +1,12 @@
+{
+  "id": "value-reset-revocation",
+  "description": "Measures whether a handoff preserves canonical token ownership when accepted intent conflicts with existing cleanup code.",
+  "status": "executable",
+  "experiment": "value",
+  "task": "reset-revocation",
+  "samples": 3,
+  "arms": [
+    {"id": "native-repository"},
+    {"id": "minimal-handoff", "context_bundle": "node-express/reset-revocation"}
+  ]
+}
