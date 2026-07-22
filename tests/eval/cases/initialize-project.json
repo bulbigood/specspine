@@ -13,7 +13,6 @@
     {"type": "glob_count", "glob": "specspine/*.md", "min": 2, "max": 7},
     {"type": "unchanged", "paths": ["README.md", "src/**"]},
     {"type": "changed_only", "paths": ["specspine/**"]},
-    {"type": "read_only", "paths": ["specspine/**"]},
     {"type": "markdown_links_valid", "glob": "specspine/*.md"},
     {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
   ]

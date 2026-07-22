@@ -32,8 +32,9 @@ Do not inspect project-specific code, configuration, tests, documentation, or
 external systems unless the user explicitly authorizes them. Authorized
 external evidence remains `Observed` or `Inferred` unless the user accepts it
 as architectural intent; it never silently overrides a decision or constraint.
-For an uninitialized Spine, derive only the smallest useful starting structure
-from the request.
+For an uninitialized Spine, do not list, search, or read any existing project
+file outside `<spine-root>`, including a root README, even to seek context.
+Derive only the smallest useful starting structure from the request.
 
 Grow owns organization and intentional evolution of the specification network.
 It does not:
@@ -49,10 +50,10 @@ must remain usable without those skills.
 
 ## Workflow
 
-1. Resolve `<spine-root>` as defined by `references/spec-format.md`. Read its
-   `README.md`, then follow only links relevant to the request. A missing index
-   means the Spine is uninitialized; do not search elsewhere for substitute
-   project context.
+1. Resolve `<spine-root>` as defined by `references/spec-format.md` and test for
+   its `README.md` without listing the project. If present, read it and follow
+   only relevant links. If absent, immediately initialize from the request;
+   do not run any other project discovery or read any other project path.
 2. Classify the operation: initialize, refine, split, merge, rename, or link.
    Identify the canonical owner, specifications whose architectural meaning or
    boundaries change, and context needed only for understanding.
@@ -78,15 +79,19 @@ must remain usable without those skills.
 
 Create the index and the smallest useful set of top-level concept
 specifications. Do not anticipate the full system or invent repository
-structure. Preserve important unknowns as open questions.
+structure. Preserve important unknowns as open questions. Omit semantic IDs
+unless the request already establishes a concrete cross-document or downstream
+reference that needs one.
 
 ### Refine
 
 Preserve an existing responsibility unless the user changes it. Record the
 smallest accepted architectural meaning and modify only owners whose behavior
-or boundaries change. Do not spread speculative implementation questions into
-related specifications; record only uncertainty that is architecturally
-relevant to the requested change.
+or boundaries change. Treat related specifications needed only for context as
+read-only. A dependency's participation, session use, or configuration need
+does not by itself change its specification. Modify a related owner only when
+the request supplies new durable architectural intent belonging there; report
+implementation prerequisites and speculative questions instead.
 
 Stop when the specification already captures the architectural detail defined
 by `references/spec-format.md` and the request adds no new intent. Do not add

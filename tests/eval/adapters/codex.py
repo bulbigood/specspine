@@ -399,18 +399,57 @@ def prepare_codex_home(runtime_root: Path) -> Path:
     return codex_home
 
 
+def has_inaccessible_macos_dependencies(executable: Path) -> bool:
+    """Return whether a copied Mach-O tool still needs non-system host files."""
+    if sys.platform != "darwin" or not shutil.which("otool"):
+        return False
+    try:
+        output = subprocess.check_output(
+            ["otool", "-L", str(executable)],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    dependencies = [
+        line.strip().split(" ", 1)[0]
+        for line in output.splitlines()[1:]
+        if line.strip()
+    ]
+    return any(
+        dependency.startswith("/")
+        and not dependency.startswith(("/usr/lib/", "/System/Library/"))
+        for dependency in dependencies
+    )
+
+
 def stage_runtime_tools(runtime_root: Path) -> None:
-    """Copy essential user-installed executables into the permitted ephemeral runtime."""
+    """Copy usable tools and shadow copies that cannot run sandboxed."""
     for name in ("node", "rg"):
         source = shutil.which(name)
         if not source:
             continue
         resolved = Path(source).resolve()
         if resolved.is_file():
+            if has_inaccessible_macos_dependencies(resolved):
+                shim = runtime_root / "bin" / name
+                shim.write_text(
+                    "#!/bin/sh\n"
+                    f"echo '{name} unavailable: sandbox-inaccessible dependencies' >&2\n"
+                    "exit 127\n",
+                    encoding="utf-8",
+                )
+                shim.chmod(0o755)
+                continue
             shutil.copy2(resolved, runtime_root / "bin" / name)
 
 
-def build_codex_command(model: str, reasoning_effort: str, root: Path, runtime_root: Path) -> list[str]:
+def build_codex_command(
+    model: str,
+    reasoning_effort: str,
+    root: Path,
+    runtime_root: Path,
+) -> list[str]:
     runtime_root = runtime_root.resolve()
     private_home = runtime_root / "home"
     private_cache = runtime_root / "cache"

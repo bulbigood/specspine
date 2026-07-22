@@ -17,7 +17,9 @@
     {"type": "path_absent", "path": "specspine/account-linking.md"},
     {"type": "file_contains", "path": "specspine/external-identity.md", "value": "Google"},
     {"type": "file_contains", "path": "specspine/users.md", "value": "Should verified external email addresses link automatically?"},
-    {"type": "unchanged", "paths": ["specspine/session-management.md", "specspine/users.md", "specspine/configuration.md"]},
+    {"type": "file_contains", "path": "specspine/session-management.md", "value": "Creates provider-independent application sessions."},
+    {"type": "file_contains", "path": "specspine/configuration.md", "value": "Owns runtime configuration."},
+    {"type": "max_changed_files", "max": 2},
     {"type": "changed_only", "paths": ["specspine/**"]},
     {"type": "response_not_contains", "value": "Proceed with these specification changes?"},
     {"type": "markdown_links_valid", "glob": "specspine/*.md"}

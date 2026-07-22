@@ -15,7 +15,9 @@
 ## User request
 
 ```text
-Add Google Sign-In.
+Add Google Sign-In to the existing external-provider authentication
+responsibility. Keep provider-independent session and runtime-configuration
+architecture unchanged. Preserve account linking as unresolved.
 ```
 
 ## Expected behavior
@@ -24,7 +26,8 @@ The impact proposal should distinguish:
 
 - the primary owner of external provider authentication;
 - specifications whose behavior actually changes;
-- related context that only needs to be read;
+- related context that usually only needs to be read, while allowing one
+  meaning-preserving relationship or navigation update when useful;
 - unresolved account-linking policy.
 
 The skill should avoid creating `google-sign-in.md` when Google is only one

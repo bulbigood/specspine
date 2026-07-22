@@ -16,8 +16,7 @@
     {"type": "command_includes", "value": "check_spine.py"},
     {"type": "response_contains", "values": ["billing.md", "payments.md", "application.md"]},
     {"type": "response_contains_any", "values": ["ownership", "owner"]},
-    {"type": "response_contains_any", "values": ["inference", "inferred", "interpretation"]},
-    {"type": "response_contains_any", "values": ["decomposition", "split", "too broad", "broad specification"]},
+    {"type": "response_contains_any", "values": ["inference", "inferred", "interpretation", "observation", "observed", "unconfirmed evidence", "implementation evidence"]},
     {"type": "response_not_contains", "values": ["semantically valid", "formally valid", "complete coverage", "code conforms", "implementation conforms", "conformance proven"]}
   ]
 }

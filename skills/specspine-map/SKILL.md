@@ -56,6 +56,9 @@ It does not:
    schemas, integrations, deployment configuration, and representative tests.
    For a selected area or refresh, start from the named specification and
    relevant changed paths; expand only for dependencies that affect the map.
+   Before recording an observation or refreshing its evidence baseline, inspect
+   every repository source cited for that claim during the current operation;
+   never cite unread evidence.
 4. Model stable responsibilities, boundaries, runtime and data-flow shape, and
    relationships rather than directories or implementation details. Classify
    claims with `references/spec-semantics.md`.

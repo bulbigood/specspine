@@ -42,7 +42,9 @@ cross the boundary.
 3. For semantic review, apply `references/review-method.md` to the inspected
    specifications. Treat risks as evidence-backed judgments, not pass/fail
    results. Do not turn missing detail or optional formatting into defects
-   unless the document's purpose and stopping rules require it.
+   unless the document's purpose and stopping rules require it. Check ownership,
+   claim classification, and decomposition independently so an obvious finding
+   in one dimension does not hide a material risk in another.
 4. Report reproducible checker findings separately from semantic risks. Include
    locations, evidence, impact, and a useful next action. State what was and was
    not inspected.

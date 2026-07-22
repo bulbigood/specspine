@@ -557,7 +557,9 @@ def build_prompt(case: dict[str, Any], stage: dict[str, Any] | None = None) -> s
     return (
         "You are running a repeatable SpecSpine evaluation.\n"
         + WORKSPACE_BOUNDARY_INSTRUCTIONS
-        + f"Read .eval/skill/{config.get('entrypoint', 'SKILL.md')} and all references it requires.\n"
+        + f"Before any project discovery, read .eval/skill/{config.get('entrypoint', 'SKILL.md')}. "
+        "Then read only the references it requires. Do not list `.eval` or combine "
+        "skill loading with project inspection.\n"
         "Installed companion skills, when configured, are under .eval/companions/.\n"
         "Treat the current directory as the project root.\n"
         f"For reproducibility, write the final response and newly created project documents in {eval_language}. "

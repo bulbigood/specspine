@@ -361,6 +361,28 @@ PATCH"""
         self.assertNotIn('.agents"="read', rendered)
         self.assertNotIn('.codex"="read', rendered)
 
+    def test_staging_shadows_tool_when_macos_dependencies_are_external(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "host-bin" / "rg"
+            runtime = root / "runtime"
+            source.parent.mkdir()
+            runtime.mkdir()
+            (runtime / "bin").mkdir()
+            source.write_text("binary", encoding="utf-8")
+
+            with mock.patch.object(
+                ADAPTER.shutil, "which", return_value=str(source)
+            ), mock.patch.object(
+                ADAPTER, "has_inaccessible_macos_dependencies", return_value=True
+            ):
+                ADAPTER.stage_runtime_tools(runtime)
+
+            shim = runtime / "bin" / "rg"
+            self.assertTrue(shim.is_file())
+            self.assertTrue(shim.stat().st_mode & 0o111)
+            self.assertIn("sandbox-inaccessible dependencies", shim.read_text())
+
     def test_main_uses_and_removes_external_private_runtime(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -393,6 +415,10 @@ PATCH"""
                 ADAPTER.subprocess,
                 "run",
                 side_effect=complete,
+            ), mock.patch.object(
+                ADAPTER,
+                "has_inaccessible_macos_dependencies",
+                return_value=False,
             ):
                 self.assertEqual(0, ADAPTER.main())
 
