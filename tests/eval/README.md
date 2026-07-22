@@ -237,8 +237,10 @@ samples are reported and excluded. Agent time comes from adapter traces rather
 than fixture setup or assertions. The Markdown is a compact median-first
 summary; means stay beside medians to expose outlier influence, and bootstrap
 intervals apply to median differences. It retains concise sample outcomes,
-retrieval/usefulness aggregates, failures, byte/cycle proxies, and observed
-concurrency. Detailed attempts and commands remain in the raw JSON. Normal A/B
+routing/usefulness aggregates, failures, byte/cycle proxies, agent-message
+events, and observed concurrency. Agent-message events are a better proxy for
+repeated model interaction than parallel shell-command count. Detailed attempts
+and commands remain in the raw JSON. Normal A/B
 runs omit retrieval telemetry and therefore execute the exact compact
 production command. For an instrumented A/B, add `--retrieval-telemetry
 minimal` to every adapter command. The adapter stages a repository-only tool

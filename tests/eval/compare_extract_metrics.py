@@ -32,6 +32,7 @@ METRICS = (
     "output_tokens",
     "reasoning_output_tokens",
     "files_read",
+    "agent_message_count",
     "command_count",
     "command_output_chars",
 )
@@ -226,7 +227,7 @@ def metric_value(sample: dict[str, Any], metric: str) -> float | None:
         values = [run.get("files_read") for run in agent_runs(sample)]
         numeric = [value for value in values if isinstance(value, int) and not isinstance(value, bool)]
         return float(sum(numeric)) if numeric else None
-    elif metric in {"command_count", "command_output_chars"}:
+    elif metric in {"agent_message_count", "command_count", "command_output_chars"}:
         values = [
             metrics.get(metric)
             for run in agent_runs(sample)
@@ -299,6 +300,7 @@ def format_number(value: float | None, metric: str, *, signed: bool = False) -> 
 def metric_label(metric: str) -> str:
     return {
         "files_read": "Inferred distinct files read",
+        "agent_message_count": "Agent message events",
         "command_count": "Command executions",
         "command_output_chars": "Command output characters",
         "prompt_utf8_bytes": "Prompt bytes",
@@ -535,7 +537,7 @@ def render_comparison(
         lines, valid_left, valid_right, metrics=COST_METRICS, show_uncertainty=False
     )
 
-    lines.extend(["", "## Sample outcomes", "", "| Mode | Sample | Passed | Retrieval | Files | Commands | Agent time | Total tokens | Outcome |", "|---|---:|---:|---|---:|---:|---:|---:|---|"])
+    lines.extend(["", "## Sample outcomes", "", "| Mode | Sample | Passed | Retrieval | Files | Agent messages | Agent time | Total tokens | Outcome |", "|---|---:|---:|---|---:|---:|---:|---:|---|"])
     for label, samples in (("fallback", left), ("accelerated", right)):
         for key, sample in sorted(samples.items()):
             found = attempts(sample)
@@ -543,7 +545,7 @@ def render_comparison(
             lines.append(
                 f"| {label} | {key[1]} | {bool(sample.get('passed'))} | "
                 f"{markdown_text(last.get('mode', 'unavailable'))} | "
-                f"{format_number(metric_value(sample, 'files_read'), 'files_read')} | {format_number(metric_value(sample, 'command_count'), 'command_count')} | "
+                f"{format_number(metric_value(sample, 'files_read'), 'files_read')} | {format_number(metric_value(sample, 'agent_message_count'), 'agent_message_count')} | "
                 f"{format_number(metric_value(sample, 'agent_duration_seconds'), 'agent_duration_seconds')} | "
                 f"{format_number(metric_value(sample, 'total_tokens'), 'total_tokens')} | {markdown_text(failure_summary(sample))} |"
             )

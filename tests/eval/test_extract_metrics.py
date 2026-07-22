@@ -47,6 +47,7 @@ def sample(number, mode, duration, tokens, passed, environment_valid=True):
                 "cache_profile": "isolated-cold",
                 "runtime": {"codex_cli": "codex-test"},
                 "event_metrics": {
+                    "agent_message_count": number + 1,
                     "command_count": number + 3,
                     "command_output_chars": tokens,
                     "command_metrics": [],
@@ -172,6 +173,11 @@ class ExtractMetricsTests(unittest.TestCase):
         )
 
         self.assertEqual(30.0, value)
+
+    def test_agent_message_events_are_read_from_event_metrics(self):
+        result = sample(2, "enabled", 5, 50, True)
+
+        self.assertEqual(3.0, METRICS.metric_value(result, "agent_message_count"))
 
     def test_retrieval_usefulness_aggregates_agent_runs(self):
         result = sample(1, "enabled", 5, 50, True)

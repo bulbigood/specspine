@@ -1012,10 +1012,17 @@ def search(
                 }
                 metadata_hits = len(query_stems & metadata_tokens)
                 rank_score = 40.0 / math.sqrt(document_rank + 1)
-                if len(query_tokens) >= 3 and token_hits < 2 and phrase_hits == 0:
+                if (
+                    len(query_tokens) >= 3
+                    and token_hits < 2
+                    and phrase_hits < 2
+                ):
                     rank_score *= 0.25
-                coverage_score = 20.0 * token_hits / max(1, len(query_tokens))
-                phrase_score = min(15.0, 5.0 * phrase_hits)
+                # Broad intent phrases often contain an entity name that also
+                # appears in adjacent-but-non-owning documents. Prefer coverage
+                # across distinct intent terms over one generic phrase match.
+                coverage_score = 30.0 * token_hits / max(1, len(query_tokens))
+                phrase_score = min(9.0, 3.0 * phrase_hits)
                 metadata_score = min(30.0, 20.0 * metadata_hits)
                 add(
                     row["path"],

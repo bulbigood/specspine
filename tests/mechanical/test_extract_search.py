@@ -115,6 +115,32 @@ class ExtractSearchTests(unittest.TestCase):
             set(payload["graph_neighbors"][0]["transitions"][0]),
         )
 
+    def test_default_result_caps_bound_direct_and_graph_routing(self):
+        links = []
+        for index in range(12):
+            owner = f"owner-{index}.md"
+            neighbor = f"neighbor-{index}.md"
+            links.append(f"[Owner {index}]({owner})")
+            (self.spine / owner).write_text(
+                f"# Owner {index}\n\nOwns sharedsignal secondsignal. "
+                f"Uses [Neighbor]({neighbor}).\n",
+                encoding="utf-8",
+            )
+            (self.spine / neighbor).write_text(
+                f"# Neighbor {index}\n\nProvides auxiliary boundary {index}.\n",
+                encoding="utf-8",
+            )
+        (self.spine / "README.md").write_text(
+            "# Root\n\n" + "\n".join(links) + "\n",
+            encoding="utf-8",
+        )
+
+        result, payload = self.run_default_search("sharedsignal secondsignal")
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(10, len(payload["direct_matches"]))
+        self.assertEqual(2, len(payload["graph_neighbors"]))
+
     def test_minimal_observer_preserves_production_stdout_and_writes_sidecar(self):
         (self.spine / "README.md").write_text(
             "# Root\n\n[Owner](owner.md)\n", encoding="utf-8"
@@ -468,6 +494,34 @@ class ExtractSearchTests(unittest.TestCase):
             payload["selection"]["direct_considered"],
             payload["selection"]["direct_returned"],
         )
+
+    def test_broad_query_prefers_multi_term_coverage_over_one_phrase(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Owner](owner.md)\n[Phrase](phrase.md)\n",
+            encoding="utf-8",
+        )
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns ownersignal secondsignal thirdsignal.\n",
+            encoding="utf-8",
+        )
+        (self.spine / "phrase.md").write_text(
+            "# Phrase\n\nMentions commonsignal phrasesignal.\n",
+            encoding="utf-8",
+        )
+        for index in range(4):
+            (self.spine / f"common-{index}.md").write_text(
+                f"# Common {index}\n\nMentions commonsignal.\n",
+                encoding="utf-8",
+            )
+
+        result, payload = self.run_search(
+            "commonsignal phrasesignal ownersignal secondsignal thirdsignal",
+            "--graph-depth",
+            "0",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("owner.md", payload["direct_matches"][0]["path"])
 
     def test_inline_code_identifiers_are_searchable_without_creating_links(self):
         (self.spine / "README.md").write_text(

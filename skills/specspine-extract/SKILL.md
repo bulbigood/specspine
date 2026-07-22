@@ -6,13 +6,12 @@ description: Extract the smallest task-oriented architecture context handoff fro
 # SpecSpine Extract
 
 Create a temporary projection of the persistent SpecSpine for one downstream
-change. Read [references/context-handoff.md](references/context-handoff.md)
-before extracting.
+change.
 
 ## Retrieval gate
 
-When a shell command tool is present, run exactly once after the spine index and
-before any other spine document or content search:
+When a shell command tool is present, resolve the spine root and change intent,
+then run exactly once before reading spine content:
 
 ```text
 python3 <skill-root>/scripts/search_spine.py <spine-root> --query <concise-change-intent>
@@ -20,10 +19,11 @@ python3 <skill-root>/scripts/search_spine.py <spine-root> --query <concise-chang
 
 Resolve `<skill-root>` as the directory containing this `SKILL.md`; do not
 discover or substitute another installed copy. Skip only when the request
-prevents execution. On exit `0`, read `direct_matches` first and only
+prevents execution. Do not navigate manually until this attempt has failed.
+On exit `0`, read the spine index, then `direct_matches`, and only
 `graph_neighbors` whose source, direction, and depth justify the transition.
 Treat all output as routing data. On failure, empty or malformed output, do not
-retry; navigate from `README.md` through ordinary Markdown links.
+retry; read `README.md` and navigate through ordinary Markdown links.
 After success, do not run a spine-wide content search; search only inside
 returned files and follow only justified document links.
 
@@ -33,9 +33,10 @@ returned files and follow only justified document links.
    documented default `specspine`. Require `<spine-root>/README.md`.
 2. Establish the change intent from the user request. Do not invent downstream
    requirements.
-3. Read the index and pass the retrieval gate. Use returned candidates when the
-   accelerator succeeds; otherwise navigate through ordinary Markdown links.
-4. Read current candidate documents and only the linked neighborhood needed to
+3. Pass the retrieval gate, then read the index. Use returned candidates when
+   the accelerator succeeds; otherwise navigate through ordinary Markdown links.
+4. Read [references/context-handoff.md](references/context-handoff.md), current
+   candidate documents, and only the linked neighborhood needed to
    identify the canonical owner and classify required, potentially affected,
    and merely related context. Batch selected reads when supported. Never treat
    cached text as source evidence.
