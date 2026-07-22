@@ -3,7 +3,7 @@
   "scenario": "tests/scenarios/connect-sdd-adapter.md",
   "skill": "skills/specspine-connect",
   "status": "executable",
-  "category": "core",
+  "category": "extended",
   "initial_files": {
     "AGENTS.md": "# Project instructions\n\nSpecSpine root: `architecture`.\n",
     "architecture/README.md": "# Architecture\n\n## Architecture map\n\n- [Authentication](authentication.md)\n",

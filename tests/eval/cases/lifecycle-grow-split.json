@@ -2,7 +2,7 @@
   "id": "lifecycle-grow-split",
   "scenario": "tests/scenarios/lifecycle-grow-split.md",
   "status": "executable",
-  "category": "core",
+  "category": "extended",
   "eval_language": "English",
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Payment processing](payment-processing.md)\n- [Checkout](checkout.md)\n",

@@ -1,0 +1,20 @@
+{
+  "id": "connect-generic-agent-idempotent",
+  "scenario": "tests/scenarios/connect-generic-agent-idempotent.md",
+  "skill": "skills/specspine-connect",
+  "status": "executable",
+  "category": "extended",
+  "initial_files": {
+    "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n\n<!-- specspine:begin -->\n## Architecture\n\nBefore planning, specifying, implementing, or reviewing a change, read\n`specspine/README.md` and follow only relevant links. `Decisions` and\n`Constraints` are accepted intent; `Observed`, `Inferred`, and `Open questions`\ndo not override it. Preserve conflicts instead of reconciling them silently.\nWrite all SpecSpine documentation in English.\n\n<!-- specspine:end -->\n",
+    "specspine/README.md": "# Project architecture\n\n## Architecture map\n\n- [Application](application.md)\n",
+    "specspine/application.md": "# Application\n\nOwns application behavior.\n",
+    "src/main.txt": "Existing implementation placeholder.\n"
+  },
+  "assertions": [
+    {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1},
+    {"type": "file_contains", "path": "AGENTS.md", "value": "Preserve this user-authored sentence."},
+    {"type": "path_absent", "path": ".specspine-integration.md"},
+    {"type": "max_changed_files", "max": 0},
+    {"type": "unchanged", "paths": ["AGENTS.md", "specspine/**", "src/**"]}
+  ]
+}

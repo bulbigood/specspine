@@ -4,7 +4,7 @@
   "skill": "skills/specspine-connect",
   "status": "executable",
   "category": "core",
-  "runs": 2,
+  "runs": 1,
   "initial_files": {
     "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n",
     "specspine/README.md": "# Project architecture\n\n## Architecture map\n\n- [Application](application.md)\n",

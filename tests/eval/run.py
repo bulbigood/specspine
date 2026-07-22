@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import io
 import json
 import os
 import re
@@ -13,10 +14,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -52,6 +54,73 @@ PREFLIGHT_ERROR_CODES = {"INDEX_MISSING", "READ_ERROR", "ROOT_MISSING"}
 class CheckResult:
     passed: bool
     message: str
+
+
+@dataclass(frozen=True)
+class CaseReport:
+    case_id: str
+    passed: bool
+    output: str
+    duration_seconds: float
+    token_usage: dict[str, int]
+
+
+TOKEN_FIELDS = (
+    "input_tokens",
+    "cached_input_tokens",
+    "output_tokens",
+    "reasoning_output_tokens",
+    "total_tokens",
+)
+
+
+def add_token_usage(total: dict[str, int], trace: dict[str, Any] | None) -> None:
+    """Add one agent invocation's cumulative Codex counters to a case total."""
+    usage = None if trace is None else trace.get("token_usage")
+    if not isinstance(usage, dict):
+        return
+    for field in TOKEN_FIELDS:
+        value = usage.get(field)
+        if isinstance(value, int) and not isinstance(value, bool):
+            total[field] = total.get(field, 0) + value
+
+
+def aggregate_token_usage(reports: list[CaseReport]) -> dict[str, int]:
+    total: dict[str, int] = {}
+    for report in reports:
+        for field, value in report.token_usage.items():
+            if field in TOKEN_FIELDS and isinstance(value, int) and not isinstance(value, bool):
+                total[field] = total.get(field, 0) + value
+    return total
+
+
+def format_token_usage(token_usage: dict[str, int]) -> str:
+    if not token_usage:
+        return "Codex tokens unavailable"
+    total = token_usage.get("total_tokens")
+    if total is None:
+        total = token_usage.get("input_tokens", 0) + token_usage.get("output_tokens", 0)
+    parts = [f"total {total}"]
+    if "input_tokens" in token_usage:
+        value = f"input {token_usage['input_tokens']}"
+        if "cached_input_tokens" in token_usage:
+            value += f" (cached {token_usage['cached_input_tokens']})"
+        parts.append(value)
+    if "output_tokens" in token_usage:
+        value = f"output {token_usage['output_tokens']}"
+        if "reasoning_output_tokens" in token_usage:
+            value += f" (reasoning {token_usage['reasoning_output_tokens']})"
+        parts.append(value)
+    return f"Codex tokens: {'; '.join(parts)}"
+
+
+def format_metrics(duration_seconds: float, token_usage: dict[str, int]) -> str:
+    return f"case time: {duration_seconds:.3f}s; {format_token_usage(token_usage)}"
+
+
+def summarized_values(values: list[str], maximum: int = 80) -> str:
+    rendered = ", ".join(repr(value) for value in values)
+    return rendered if len(rendered) <= maximum else rendered[: maximum - 3] + "..."
 
 
 def load_cases() -> list[dict[str, Any]]:
@@ -274,6 +343,8 @@ def check_doctor_findings(
     assertion: dict[str, Any],
     *,
     selected_codes: set[str] | None = None,
+    check_name: str = "spine_mechanical_valid",
+    success_message: str = "spine_mechanical_valid: no unexpected Doctor errors",
 ) -> CheckResult:
     spine_path = assertion.get("path")
     if spine_path is None:
@@ -295,7 +366,9 @@ def check_doctor_findings(
             unexpected.append(f"{code}:{item.get('path')}")
     return CheckResult(
         not unexpected,
-        f"unexpected Doctor findings: {unexpected}" if unexpected else "Doctor mechanical errors are absent",
+        f"{check_name}: unexpected Doctor findings: {unexpected}"
+        if unexpected
+        else success_message,
     )
 
 
@@ -351,18 +424,30 @@ def evaluate_assertion(
         missing = [needle for needle in needles if needle not in content]
         return CheckResult(
             not missing,
-            f"{assertion['glob']} missing: {missing}" if missing else f"content found in {assertion['glob']}",
+            f"glob_contains {assertion['glob']} missing: {summarized_values(missing)}"
+            if missing
+            else f"glob_contains {assertion['glob']}: found {summarized_values(needles)}",
         )
     if kind == "file_contains":
         content = path.read_text(encoding="utf-8") if path.is_file() else ""
         needles = assertion.get("values", [assertion.get("value", "")])
         missing = [needle for needle in needles if needle not in content]
-        return CheckResult(not missing, f"{assertion['path']} missing: {missing}" if missing else f"content found in {assertion['path']}")
+        return CheckResult(
+            not missing,
+            f"file_contains {assertion['path']} missing: {summarized_values(missing)}"
+            if missing
+            else f"file_contains {assertion['path']}: found {summarized_values(needles)}",
+        )
     if kind == "file_not_contains":
         content = path.read_text(encoding="utf-8") if path.is_file() else ""
         needles = assertion.get("values", [assertion.get("value", "")])
         found = [needle for needle in needles if needle in content]
-        return CheckResult(not found, f"{assertion['path']} contains forbidden: {found}" if found else f"forbidden content absent in {assertion['path']}")
+        return CheckResult(
+            not found,
+            f"file_not_contains {assertion['path']} found forbidden: {summarized_values(found)}"
+            if found
+            else f"file_not_contains {assertion['path']}: absent {summarized_values(needles)}",
+        )
     if kind == "response_contains":
         needles = assertion.get("values", [assertion.get("value", "")])
         missing = [needle for needle in needles if needle.lower() not in response.lower()]
@@ -427,14 +512,28 @@ def evaluate_assertion(
         for item in project_files(workspace, assertion["glob"]):
             if re.search(r"\{\{[^{}]+\}\}", item.read_text(encoding="utf-8")):
                 failures.append(str(item.relative_to(workspace)))
-        return CheckResult(not failures, f"unresolved placeholders: {failures}" if failures else "no unresolved placeholders")
+        target = assertion["glob"]
+        return CheckResult(
+            not failures,
+            f"{target} unresolved placeholders: {failures}"
+            if failures
+            else f"{target}: no unresolved placeholders",
+        )
     if kind == "markdown_links_valid":
         return check_doctor_findings(
-            workspace, assertion, selected_codes=PREFLIGHT_ERROR_CODES | {"BROKEN_LINK"}
+            workspace,
+            assertion,
+            selected_codes=PREFLIGHT_ERROR_CODES | {"BROKEN_LINK"},
+            check_name="markdown_links_valid",
+            success_message="markdown_links_valid: no broken links or preflight errors",
         )
     if kind == "semantic_ids_valid":
         return check_doctor_findings(
-            workspace, assertion, selected_codes=PREFLIGHT_ERROR_CODES | SEMANTIC_ID_ERROR_CODES
+            workspace,
+            assertion,
+            selected_codes=PREFLIGHT_ERROR_CODES | SEMANTIC_ID_ERROR_CODES,
+            check_name="semantic_ids_valid",
+            success_message="semantic_ids_valid: no semantic ID or preflight errors",
         )
     if kind == "spine_mechanical_valid":
         return check_doctor_findings(workspace, assertion)
@@ -521,9 +620,14 @@ def archive_stage(
         (target / "trace.json").write_text(json.dumps(trace, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def print_results(results: list[CheckResult], indent: str = "  ") -> None:
+def print_results(
+    results: list[CheckResult], indent: str = "  ", output: TextIO | None = None
+) -> None:
     for result in results:
-        print(f"{indent}{'ok' if result.passed else 'not ok'} - {result.message}")
+        print(
+            f"{indent}{'ok' if result.passed else 'not ok'} - {result.message}",
+            file=output,
+        )
 
 
 def workspace_boundary_check(trace: dict[str, Any] | None) -> CheckResult:
@@ -536,7 +640,15 @@ def workspace_boundary_check(trace: dict[str, Any] | None) -> CheckResult:
     )
 
 
-def run_staged_case(case: dict[str, Any], command: list[str], workspace: Path, env: dict[str, str]) -> bool:
+def run_staged_case(
+    case: dict[str, Any],
+    command: list[str],
+    workspace: Path,
+    env: dict[str, str],
+    token_usage: dict[str, int] | None = None,
+    output: TextIO | None = None,
+) -> bool:
+    token_usage = {} if token_usage is None else token_usage
     initial = snapshot(workspace)
     all_responses: list[str] = []
     last_trace: dict[str, Any] | None = None
@@ -574,6 +686,7 @@ def run_staged_case(case: dict[str, Any], command: list[str], workspace: Path, e
             stderr = completed.stderr
             returncode = completed.returncode
             trace = read_trace(workspace)
+            add_token_usage(token_usage, trace)
             last_trace = trace
             all_responses.append(response)
         after = snapshot(workspace)
@@ -584,11 +697,15 @@ def run_staged_case(case: dict[str, Any], command: list[str], workspace: Path, e
         if "fixture" not in stage:
             results.append(workspace_boundary_check(trace))
         stage_passed = returncode == 0 and all(result.passed for result in results)
-        print(f"  {'PASS' if stage_passed else 'FAIL'} stage {stage_number}: {stage_id} (agent exit {returncode})")
-        print_results(results, "    ")
+        stage_execution = "fixture" if "fixture" in stage else f"agent exit {returncode}"
+        print(
+            f"  {'PASS' if stage_passed else 'FAIL'} stage {stage_number}: {stage_id} ({stage_execution})",
+            file=output,
+        )
+        print_results(results, "    ", output)
         if stderr:
-            print("    agent stderr:")
-            print("      " + stderr.strip().replace("\n", "\n      "))
+            print("    agent stderr:", file=output)
+            print("      " + stderr.strip().replace("\n", "\n      "), file=output)
         archive_stage(workspace, stage_number, stage_id, response, stderr, trace)
         if not stage_passed:
             passed = False
@@ -599,8 +716,8 @@ def run_staged_case(case: dict[str, Any], command: list[str], workspace: Path, e
         for item in case.get("final_assertions", [])
     ]
     if final_results:
-        print("  final assertions:")
-        print_results(final_results, "    ")
+        print("  final assertions:", file=output)
+        print_results(final_results, "    ", output)
     return passed and all(result.passed for result in final_results)
 
 
@@ -611,7 +728,15 @@ def positive_int(value: str) -> int:
     return parsed
 
 
-def run_case(case: dict[str, Any], command: list[str], keep_workspace: bool) -> bool:
+def run_case(
+    case: dict[str, Any],
+    command: list[str],
+    keep_workspace: bool,
+    output: TextIO | None = None,
+    metrics: dict[str, Any] | None = None,
+) -> bool:
+    started = time.monotonic()
+    token_usage: dict[str, int] = {}
     temp = create_workspace(prefix=f"specspine-eval-{case['id']}-")
     try:
         write_fixture(case, temp)
@@ -621,18 +746,31 @@ def run_case(case: dict[str, Any], command: list[str], keep_workspace: bool) -> 
         env["SPECSPINE_EVAL_CASE"] = case["id"]
         env["SPECSPINE_EVAL_WORKSPACE"] = str(temp)
         if "stages" in case:
-            print(f"CASE {case['id']} ({len(case['stages'])} stages)")
-            passed = run_staged_case(case, command, temp, env)
-            print(f"{'PASS' if passed else 'FAIL'} {case['id']}")
+            stage_count = len(case["stages"])
+            stage_label = "stage" if stage_count == 1 else "stages"
+            print(f"CASE {case['id']} ({stage_count} {stage_label})", file=output)
+            passed = run_staged_case(case, command, temp, env, token_usage, output)
+            duration_seconds = time.monotonic() - started
+            if metrics is not None:
+                metrics.update(duration_seconds=duration_seconds, token_usage=dict(token_usage))
+            print(f"{'PASS' if passed else 'FAIL'} {case['id']}", file=output)
+            print(
+                f"  metrics: {format_metrics(duration_seconds, token_usage)}",
+                file=output,
+            )
             if not passed and keep_workspace:
-                print(f"  workspace: {temp}")
+                print(f"  workspace: {temp}", file=output)
                 temp = None  # type: ignore[assignment]
             return passed
         responses: list[str] = []
         errors: list[str] = []
         scope_checks: list[CheckResult] = []
         returncode = 0
+        completed_runs = 0
         for run_number in range(1, case.get("runs", 1) + 1):
+            trace_path = temp / ".eval" / "trace.json"
+            if trace_path.exists():
+                trace_path.unlink()
             completed = subprocess.run(
                 command,
                 cwd=temp,
@@ -644,9 +782,12 @@ def run_case(case: dict[str, Any], command: list[str], keep_workspace: bool) -> 
                 timeout=case.get("timeout_seconds", 600),
                 check=False,
             )
+            completed_runs += 1
             responses.append(completed.stdout)
             errors.append(completed.stderr)
-            scope_checks.append(workspace_boundary_check(read_trace(temp)))
+            run_trace = read_trace(temp)
+            add_token_usage(token_usage, run_trace)
+            scope_checks.append(workspace_boundary_check(run_trace))
             if completed.returncode:
                 returncode = completed.returncode
                 break
@@ -657,18 +798,44 @@ def run_case(case: dict[str, Any], command: list[str], keep_workspace: bool) -> 
         results = [evaluate_assertion(item, temp, before, after, response, trace) for item in case["assertions"]]
         results.extend(scope_checks)
         passed = returncode == 0 and all(result.passed for result in results)
-        print(f"{'PASS' if passed else 'FAIL'} {case['id']} ({case.get('runs', 1)} run(s), agent exit {returncode})")
-        print_results(results)
+        duration_seconds = time.monotonic() - started
+        if metrics is not None:
+            metrics.update(duration_seconds=duration_seconds, token_usage=dict(token_usage))
+        print(
+            f"{'PASS' if passed else 'FAIL'} {case['id']} "
+            f"({completed_runs} {'run' if completed_runs == 1 else 'runs'}, agent exit {returncode})",
+            file=output,
+        )
+        print(
+            f"  metrics: {format_metrics(duration_seconds, token_usage)}",
+            file=output,
+        )
+        print_results(results, output=output)
         if stderr:
-            print("  agent stderr:")
-            print("    " + stderr.strip().replace("\n", "\n    "))
+            print("  agent stderr:", file=output)
+            print("    " + stderr.strip().replace("\n", "\n    "), file=output)
         if not passed and keep_workspace:
-            print(f"  workspace: {temp}")
+            print(f"  workspace: {temp}", file=output)
             temp = None  # type: ignore[assignment]
         return passed
     finally:
         if temp is not None:
             shutil.rmtree(temp)
+
+
+def run_case_captured(
+    case: dict[str, Any], command: list[str], keep_workspace: bool
+) -> CaseReport:
+    output = io.StringIO()
+    metrics: dict[str, Any] = {}
+    passed = run_case(case, command, keep_workspace, output, metrics)
+    return CaseReport(
+        case_id=case["id"],
+        passed=passed,
+        output=output.getvalue(),
+        duration_seconds=float(metrics.get("duration_seconds", 0.0)),
+        token_usage=dict(metrics.get("token_usage", {})),
+    )
 
 
 def main() -> int:
@@ -755,19 +922,41 @@ def main() -> int:
             print("No selected executable cases", file=sys.stderr)
             return 2
         command = shlex.split(args.agent_command)
+        reports: list[CaseReport] = []
+        execution_started = time.monotonic()
+
+        def publish(report: CaseReport) -> None:
+            reports.append(report)
+            print(
+                f"[{len(reports)}/{len(executable)} completed]\n{report.output}",
+                end="",
+            )
+
         if args.jobs > 1 and len(executable) > 1:
             with ThreadPoolExecutor(max_workers=min(args.jobs, len(executable))) as executor:
-                results = list(
-                    executor.map(
-                        lambda case: run_case(case, command, args.keep_workspace),
-                        executable,
-                    )
-                )
+                futures = [
+                    executor.submit(run_case_captured, case, command, args.keep_workspace)
+                    for case in executable
+                ]
+                for future in as_completed(futures):
+                    publish(future.result())
         else:
-            results = [run_case(case, command, args.keep_workspace) for case in executable]
-        passed_count = sum(results)
-        print(f"SUMMARY: {passed_count}/{len(results)} tests passed")
-        return 0 if all(results) else 1
+            for case in executable:
+                publish(run_case_captured(case, command, args.keep_workspace))
+        wall_seconds = time.monotonic() - execution_started
+        passed_count = sum(report.passed for report in reports)
+        failed_ids = [report.case_id for report in reports if not report.passed]
+        summed_case_seconds = sum(report.duration_seconds for report in reports)
+        token_summary = format_token_usage(aggregate_token_usage(reports))
+        summary = (
+            f"SUMMARY: {passed_count}/{len(reports)} tests passed; "
+            f"wall time: {wall_seconds:.3f}s; summed case time: {summed_case_seconds:.3f}s; "
+            f"{token_summary}"
+        )
+        if failed_ids:
+            summary += f"; failed: {', '.join(failed_ids)}"
+        print(summary)
+        return 0 if not failed_ids else 1
 
     if not any((args.list, args.audit, args.validate)):
         parser.print_help()

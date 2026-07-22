@@ -268,6 +268,75 @@ class RunnerTests(unittest.TestCase):
             }
             self.assertTrue(RUNNER.run_case(case, [sys.executable, str(adapter)], False))
 
+    def test_aggregates_token_usage_across_agent_invocations(self):
+        total = {}
+        RUNNER.add_token_usage(
+            total,
+            {"token_usage": {"input_tokens": 100, "cached_input_tokens": 40, "output_tokens": 20}},
+        )
+        RUNNER.add_token_usage(
+            total,
+            {"token_usage": {"input_tokens": 70, "cached_input_tokens": 10, "output_tokens": 30}},
+        )
+        self.assertEqual(
+            {"input_tokens": 170, "cached_input_tokens": 50, "output_tokens": 50},
+            total,
+        )
+        self.assertEqual(
+            "case time: 1.250s; Codex tokens: total 220; input 170 (cached 50); output 50",
+            RUNNER.format_metrics(1.25, total),
+        )
+
+    def test_prefers_reported_total_tokens_and_handles_missing_usage(self):
+        self.assertEqual(
+            "case time: 2.000s; Codex tokens: total 42; input 30; output 12",
+            RUNNER.format_metrics(
+                2.0, {"total_tokens": 42, "input_tokens": 30, "output_tokens": 12}
+            ),
+        )
+        self.assertEqual(
+            "case time: 2.000s; Codex tokens unavailable",
+            RUNNER.format_metrics(2.0, {}),
+        )
+
+    def test_aggregates_structured_case_report_tokens_for_summary(self):
+        reports = [
+            RUNNER.CaseReport("first", True, "", 1.0, {"total_tokens": 15, "input_tokens": 10}),
+            RUNNER.CaseReport("second", False, "", 2.0, {"total_tokens": 25, "input_tokens": 20}),
+        ]
+        self.assertEqual(
+            {"total_tokens": 40, "input_tokens": 30},
+            RUNNER.aggregate_token_usage(reports),
+        )
+
+    def test_run_case_prints_tokens_summed_across_all_runs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            adapter = Path(directory) / "adapter.py"
+            adapter.write_text(
+                "import json, os, sys\n"
+                "from pathlib import Path\n"
+                "sys.stdin.read()\n"
+                "Path('.eval/trace.json').write_text(json.dumps({"
+                "'files_read': [], 'token_usage': {'input_tokens': 10, "
+                "'output_tokens': 5, 'total_tokens': 15}}))\n",
+                encoding="utf-8",
+            )
+            case = {
+                "id": "metrics-self-test",
+                "scenario": "tests/scenarios/initialize-project.md",
+                "skill": "skills/specspine-grow",
+                "runs": 2,
+                "initial_files": {},
+                "assertions": [{"type": "max_changed_files", "max": 0}],
+            }
+            output = io.StringIO()
+            with patch("sys.stdout", output):
+                self.assertTrue(RUNNER.run_case(case, [sys.executable, str(adapter)], False))
+            self.assertIn(
+                "Codex tokens: total 30; input 20; output 10",
+                output.getvalue(),
+            )
+
     def test_jobs_run_selected_cases_concurrently_and_queue_the_rest(self):
         cases = [
             {
@@ -282,27 +351,40 @@ class RunnerTests(unittest.TestCase):
             for case_id in ("parallel-a", "parallel-b", "parallel-c")
         ]
         barrier = threading.Barrier(2)
+        fast_finished = threading.Event()
         lock = threading.Lock()
         called: list[str] = []
 
-        def fake_run_case(case, command, keep_workspace):
+        def fake_run_case(case, command, keep_workspace, output=None, metrics=None):
             with lock:
                 called.append(case["id"])
                 call_number = len(called)
+            print(f"START {case['id']}", file=output)
             if call_number <= 2:
                 barrier.wait(timeout=2)
+            if case["id"] == "parallel-a":
+                fast_finished.wait(timeout=2)
+            elif case["id"] == "parallel-b":
+                fast_finished.set()
+            print(f"END {case['id']}", file=output)
             return True
 
         argv = ["run.py", "--category", "core", "--jobs", "2", "--agent-command", "fake-agent"]
+        stdout = io.StringIO()
         with (
             patch.object(RUNNER, "load_cases", return_value=cases),
             patch.object(RUNNER, "validate_collection", return_value=[]),
             patch.object(RUNNER, "validate_case", return_value=[]),
             patch.object(RUNNER, "run_case", side_effect=fake_run_case),
             patch.object(sys, "argv", argv),
+            patch("sys.stdout", stdout),
         ):
             self.assertEqual(0, RUNNER.main())
         self.assertCountEqual(["parallel-a", "parallel-b", "parallel-c"], called)
+        report = stdout.getvalue()
+        for case_id in ("parallel-a", "parallel-b", "parallel-c"):
+            self.assertIn(f"START {case_id}\nEND {case_id}\n", report)
+        self.assertLess(report.index("START parallel-b"), report.index("START parallel-a"))
 
     def test_default_runs_selected_cases_concurrently(self):
         cases = [
@@ -323,7 +405,7 @@ class RunnerTests(unittest.TestCase):
         worker_counts: list[int] = []
         real_executor = RUNNER.ThreadPoolExecutor
 
-        def fake_run_case(case, command, keep_workspace):
+        def fake_run_case(case, command, keep_workspace, output=None, metrics=None):
             nonlocal calls
             with lock:
                 calls += 1
@@ -363,7 +445,7 @@ class RunnerTests(unittest.TestCase):
         ]
         called: list[str] = []
 
-        def fake_run_case(case, command, keep_workspace):
+        def fake_run_case(case, command, keep_workspace, output=None, metrics=None):
             called.append(case["id"])
             return True
 
@@ -404,7 +486,14 @@ class RunnerTests(unittest.TestCase):
             patch("sys.stdout", output),
         ):
             self.assertEqual(1, RUNNER.main())
-        self.assertEqual("SUMMARY: 1/2 tests passed", output.getvalue().strip())
+        report = output.getvalue()
+        self.assertIn("[1/2 completed]", report)
+        self.assertIn("[2/2 completed]", report)
+        self.assertIn("SUMMARY: 1/2 tests passed", report)
+        self.assertIn("wall time:", report)
+        self.assertIn("summed case time:", report)
+        self.assertIn("Codex tokens unavailable", report)
+        self.assertIn("failed: failing", report)
 
     def test_jobs_must_be_positive(self):
         self.assertEqual(3, RUNNER.positive_int("3"))

@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import os
 import sys
 import tempfile
@@ -148,7 +149,14 @@ class LifecycleRunnerTests(unittest.TestCase):
                 "SPECSPINE_EVAL_CASE": case["id"],
                 "SPECSPINE_EVAL_WORKSPACE": str(workspace),
             }
-            self.assertTrue(RUNNER.run_staged_case(case, [sys.executable, str(adapter)], workspace, env))
+            output = io.StringIO()
+            self.assertTrue(
+                RUNNER.run_staged_case(
+                    case, [sys.executable, str(adapter)], workspace, env, output=output
+                )
+            )
+            self.assertIn("stage 2: external-change (fixture)", output.getvalue())
+            self.assertNotIn("stage 2: external-change (agent exit", output.getvalue())
             self.assertFalse((workspace / "seed.txt").exists())
             self.assertEqual("implemented\n", (workspace / "src/runtime.txt").read_text(encoding="utf-8"))
             self.assertTrue((workspace / ".eval/stages/01-grow/response.md").is_file())

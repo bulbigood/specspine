@@ -10,10 +10,10 @@ classified.
 |---|---:|---:|
 | `specspine-grow` | 8 | 6 |
 | `specspine-map` | 7 | 3 |
-| `specspine-connect` | 3 | 2 |
+| `specspine-connect` | 4 | 3 |
 | `specspine-doctor` | 3 | 2 |
 | package generator tooling | 1 | 0 |
-| Total | 22 | 13 |
+| Total | 23 | 14 |
 
 `traceable-visual-spec` is assigned to `specspine-map` because its expected
 result includes repository-backed observations.
@@ -22,8 +22,8 @@ The executable set is divided by resource cost and necessity:
 
 | Category | Manifests | Agent calls | Purpose |
 |---|---:|---:|---|
-| `core` | 9 | 11 | Minimum behavioral regression set |
-| `extended` | 4 | 7 | Rare merge, supersession, removal, bounded growth, and visualization behavior |
+| `core` | 6 | 6 | Minimum behavioral regression set |
+| `extended` | 8 | 12 | Lifecycle, idempotency, specialized integration, merge, removal, bounded growth, and visualization behavior |
 | `planned` | 9 | 0 | Documentation and future redesign only |
 
 Core and extended cases currently cover:
@@ -31,6 +31,7 @@ Core and extended cases currently cover:
 - greenfield initialization and source-file protection;
 - creation of a brownfield map from runtime evidence;
 - generic project-agent bootstrap boundaries;
+- idempotent reconnect and specialized downstream SDD integration;
 - semantic-ID references, evidence, and a Mermaid lifecycle view.
 - semantic Doctor diagnosis and bounded mechanical repair without runtime companions;
 - recursive Doctor link and marker-bounded semantic-ID validation across

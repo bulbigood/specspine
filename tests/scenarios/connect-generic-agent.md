@@ -27,7 +27,7 @@ The skill should:
 - distinguish Decisions and Constraints from Observed, Inferred, and Open
   questions;
 - avoid modifying SpecSpine documents, source code, or unrelated files;
-- produce no duplicate block on a second run.
+- produce exactly one managed block.
 
 ## Failure indicators
 
