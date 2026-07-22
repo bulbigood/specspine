@@ -399,10 +399,10 @@ def prepare_codex_home(runtime_root: Path) -> Path:
     return codex_home
 
 
-def has_inaccessible_macos_dependencies(executable: Path) -> bool:
-    """Return whether a copied Mach-O tool still needs non-system host files."""
+def macos_external_dependencies(executable: Path) -> list[Path]:
+    """Return absolute non-system dependencies of a Mach-O file."""
     if sys.platform != "darwin" or not shutil.which("otool"):
-        return False
+        return []
     try:
         output = subprocess.check_output(
             ["otool", "-L", str(executable)],
@@ -410,38 +410,99 @@ def has_inaccessible_macos_dependencies(executable: Path) -> bool:
             stderr=subprocess.DEVNULL,
         )
     except (OSError, subprocess.CalledProcessError):
-        return False
-    dependencies = [
-        line.strip().split(" ", 1)[0]
+        return []
+    return [
+        Path(dependency)
         for line in output.splitlines()[1:]
         if line.strip()
-    ]
-    return any(
-        dependency.startswith("/")
+        for dependency in [line.strip().split(" ", 1)[0]]
+        if dependency.startswith("/")
         and not dependency.startswith(("/usr/lib/", "/System/Library/"))
-        for dependency in dependencies
-    )
+    ]
+
+
+def bundle_macos_dependencies(executable: Path, runtime_root: Path) -> None:
+    """Copy external dylibs beside a tool and rewrite it to use the bundle."""
+    install_name_tool = shutil.which("install_name_tool")
+    codesign = shutil.which("codesign")
+    if not install_name_tool or not codesign:
+        raise RuntimeError("install_name_tool and codesign are required to bundle macOS tools")
+
+    library_dir = runtime_root / "lib"
+    library_dir.mkdir(exist_ok=True)
+    pending: list[tuple[Path, Path | None]] = [(executable, None)]
+    processed: set[Path] = set()
+    modified: list[Path] = []
+
+    while pending:
+        target, source = pending.pop()
+        if target in processed:
+            continue
+        processed.add(target)
+        for dependency in macos_external_dependencies(target):
+            if source is not None and dependency.resolve() == source.resolve():
+                continue
+            bundled = library_dir / dependency.name
+            if not bundled.exists():
+                shutil.copy2(dependency.resolve(), bundled)
+            replacement = (
+                f"@executable_path/../lib/{bundled.name}"
+                if source is None
+                else f"@loader_path/{bundled.name}"
+            )
+            subprocess.run(
+                [install_name_tool, "-change", str(dependency), replacement, str(target)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            pending.append((bundled, dependency))
+        if source is not None:
+            subprocess.run(
+                [install_name_tool, "-id", f"@loader_path/{target.name}", str(target)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        modified.append(target)
+
+    for target in reversed(modified):
+        subprocess.run(
+            [codesign, "--force", "--sign", "-", str(target)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    remaining = {
+        dependency
+        for target in modified
+        for dependency in macos_external_dependencies(target)
+    }
+    if remaining:
+        raise RuntimeError(f"unbundled macOS dependencies: {sorted(map(str, remaining))}")
 
 
 def stage_runtime_tools(runtime_root: Path) -> None:
-    """Copy usable tools and shadow copies that cannot run sandboxed."""
+    """Copy user-installed tools and bundle their non-system macOS libraries."""
     for name in ("node", "rg"):
         source = shutil.which(name)
         if not source:
             continue
         resolved = Path(source).resolve()
         if resolved.is_file():
-            if has_inaccessible_macos_dependencies(resolved):
-                shim = runtime_root / "bin" / name
-                shim.write_text(
-                    "#!/bin/sh\n"
-                    f"echo '{name} unavailable: sandbox-inaccessible dependencies' >&2\n"
-                    "exit 127\n",
-                    encoding="utf-8",
-                )
-                shim.chmod(0o755)
-                continue
-            shutil.copy2(resolved, runtime_root / "bin" / name)
+            staged = runtime_root / "bin" / name
+            shutil.copy2(resolved, staged)
+            if macos_external_dependencies(staged):
+                bundle_macos_dependencies(staged, runtime_root)
+            verified = subprocess.run(
+                [str(staged), "--version"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if verified.returncode:
+                raise RuntimeError(f"staged {name} failed startup verification: {verified.stderr.strip()}")
 
 
 def build_codex_command(

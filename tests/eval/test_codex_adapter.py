@@ -361,7 +361,7 @@ PATCH"""
         self.assertNotIn('.agents"="read', rendered)
         self.assertNotIn('.codex"="read', rendered)
 
-    def test_staging_shadows_tool_when_macos_dependencies_are_external(self):
+    def test_staging_bundles_external_macos_dependencies(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / "host-bin" / "rg"
@@ -371,17 +371,38 @@ PATCH"""
             (runtime / "bin").mkdir()
             source.write_text("binary", encoding="utf-8")
 
+            completed = ADAPTER.subprocess.CompletedProcess([], 0, "rg 1\n", "")
             with mock.patch.object(
-                ADAPTER.shutil, "which", return_value=str(source)
+                ADAPTER.shutil,
+                "which",
+                side_effect=lambda name: str(source) if name == "rg" else None,
             ), mock.patch.object(
-                ADAPTER, "has_inaccessible_macos_dependencies", return_value=True
+                ADAPTER, "macos_external_dependencies", return_value=[Path("/external/lib.dylib")]
+            ), mock.patch.object(
+                ADAPTER, "bundle_macos_dependencies"
+            ) as bundle, mock.patch.object(
+                ADAPTER.subprocess, "run", return_value=completed
             ):
                 ADAPTER.stage_runtime_tools(runtime)
 
-            shim = runtime / "bin" / "rg"
-            self.assertTrue(shim.is_file())
-            self.assertTrue(shim.stat().st_mode & 0o111)
-            self.assertIn("sandbox-inaccessible dependencies", shim.read_text())
+            staged = runtime / "bin" / "rg"
+            self.assertEqual("binary", staged.read_text())
+            bundle.assert_called_once_with(staged, runtime)
+
+    @unittest.skipUnless(sys.platform == "darwin" and ADAPTER.shutil.which("rg"), "requires macOS rg")
+    def test_staged_rg_has_no_external_dependencies_and_runs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = Path(directory)
+            (runtime / "bin").mkdir()
+            ADAPTER.stage_runtime_tools(runtime)
+
+            staged = runtime / "bin" / "rg"
+            completed = ADAPTER.subprocess.run(
+                [str(staged), "--version"], capture_output=True, text=True, check=False
+            )
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            self.assertIn("ripgrep", completed.stdout)
+            self.assertEqual([], ADAPTER.macos_external_dependencies(staged))
 
     def test_main_uses_and_removes_external_private_runtime(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -415,11 +436,7 @@ PATCH"""
                 ADAPTER.subprocess,
                 "run",
                 side_effect=complete,
-            ), mock.patch.object(
-                ADAPTER,
-                "has_inaccessible_macos_dependencies",
-                return_value=False,
-            ):
+            ), mock.patch.object(ADAPTER, "stage_runtime_tools"):
                 self.assertEqual(0, ADAPTER.main())
 
             self.assertIsNotNone(observed_runtime)
