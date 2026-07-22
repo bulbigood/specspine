@@ -204,6 +204,66 @@ def parse_events(stdout: str, candidates: list[str]) -> tuple[set[str], list[str
     return reads, commands, messages
 
 
+def command_option(command: str, option: str) -> str | None:
+    try:
+        tokens = shlex.split(shell_source(command))
+    except ValueError:
+        return None
+    for index, token in enumerate(tokens):
+        if token == option and index + 1 < len(tokens):
+            return tokens[index + 1]
+        if token.startswith(option + "="):
+            return token.split("=", 1)[1]
+    return None
+
+
+def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
+    attempts: list[dict[str, object]] = []
+    completed_item_ids: set[str] = set()
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") not in {None, "item.completed"}:
+            continue
+        item = event.get("item", {})
+        item_id = item.get("id")
+        if item_id is not None:
+            item_id = str(item_id)
+            if item_id in completed_item_ids:
+                continue
+            completed_item_ids.add(item_id)
+        command = str(item.get("command", ""))
+        if item.get("type") != "command_execution" or "search_spine.py" not in command:
+            continue
+        payload = None
+        for output_line in str(item.get("aggregated_output", "")).splitlines():
+            try:
+                candidate = json.loads(output_line.strip())
+            except json.JSONDecodeError:
+                continue
+            if isinstance(candidate, dict) and candidate.get("mode") in {
+                "sqlite-fts5", "fallback", "error"
+            }:
+                payload = candidate
+        documents = payload.get("candidates", []) if isinstance(payload, dict) else []
+        attempts.append(
+            {
+                "mode": payload.get("mode", "unknown") if isinstance(payload, dict) else "unknown",
+                "query": command_option(command, "--query"),
+                "candidate_count": len(documents) if isinstance(documents, list) else 0,
+                "candidate_paths": [
+                    candidate["path"]
+                    for candidate in documents
+                    if isinstance(candidate, dict) and isinstance(candidate.get("path"), str)
+                ],
+                "exit_code": item.get("exit_code"),
+            }
+        )
+    return attempts
+
+
 def parse_token_usage(stdout: str) -> dict[str, int]:
     """Return the latest cumulative token counters emitted by Codex."""
     known = {
@@ -693,6 +753,7 @@ def main() -> int:
         duration_seconds=duration_seconds,
     )
     reads, commands, messages = parse_events(completed.stdout, candidates)
+    retrieval_attempts = parse_retrieval_attempts(completed.stdout)
     token_usage = parse_token_usage(completed.stdout)
     execution_errors = environment_errors(completed.stdout, completed.stderr)
     boundary_violations = scope_violations(commands, root, (runtime_root,))
@@ -703,6 +764,8 @@ def main() -> int:
             {
                 "commands": commands,
                 "accelerator_mode": args.accelerator_mode,
+                "retrieval_attempts": retrieval_attempts,
+                "retrieval_mode": retrieval_attempts[-1]["mode"] if retrieval_attempts else None,
                 "duration_seconds": duration_seconds,
                 "eval_case": os.environ.get("SPECSPINE_EVAL_CASE", ""),
                 "eval_run": os.environ.get("SPECSPINE_EVAL_RUN", ""),

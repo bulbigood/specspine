@@ -44,6 +44,8 @@
     {"type": "max_changed_files", "max": 0},
     {"type": "read_only", "paths": ["specspine/**"]},
     {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payments/payment-processing.md", "specspine/payments/payment-settlement.md", "specspine/platform/job-processing.md"]},
+    {"type": "trace_equals", "field": "retrieval_mode", "value": "sqlite-fts5", "when_trace": {"accelerator_mode": "enabled"}},
+    {"type": "trace_equals", "field": "retrieval_mode", "value": "fallback", "when_trace": {"accelerator_mode": "fallback"}},
     {"type": "max_files_read", "max": 12, "when_trace": {"accelerator_mode": "enabled"}},
     {"type": "command_includes", "value": "search_spine.py"},
     {"type": "response_section_contains", "section": "Primary specification", "value": "specspine/payments/payment-settlement.md"},

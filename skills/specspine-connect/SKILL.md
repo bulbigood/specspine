@@ -5,9 +5,11 @@ description: Connect an existing SpecSpine to persistent project-agent instructi
 
 # SpecSpine Connect
 
-Install one small, framework-neutral discovery block in the project's persistent
-agent instructions. The block makes the architectural index visible to agents
-without copying architecture or prescribing a downstream workflow.
+Install one small, framework-neutral retrieval block in the project's persistent
+agent instructions. The block routes architecture-relevant downstream work
+through `specspine-extract` when installed and preserves linked Markdown
+navigation as fallback, without copying architecture or prescribing a
+downstream workflow.
 
 ## Resources
 

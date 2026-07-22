@@ -83,6 +83,15 @@ def trace_values(sample: dict[str, Any], field: str) -> set[str]:
     }
 
 
+def retrieval_summary(samples: Iterable[dict[str, Any]]) -> str:
+    counts: dict[str, int] = {}
+    for sample in samples:
+        modes = trace_values(sample, "retrieval_mode")
+        for mode in modes or {"unavailable"}:
+            counts[mode] = counts.get(mode, 0) + 1
+    return ", ".join(f"{mode}: {count}" for mode, count in sorted(counts.items()))
+
+
 def validate_comparable(
     fallback: dict[str, Any], accelerated: dict[str, Any]
 ) -> tuple[dict[tuple[str, int], dict[str, Any]], dict[tuple[str, int], dict[str, Any]]]:
@@ -237,13 +246,52 @@ def render_comparison(
             f"{percentage(delta, baseline)} | {len(fallback_values)} |"
         )
 
+    clean_keys = {
+        key
+        for key in left
+        if left[key].get("passed")
+        and right[key].get("passed")
+        and trace_values(left[key], "retrieval_mode") == {"fallback"}
+        and trace_values(right[key], "retrieval_mode") == {"sqlite-fts5"}
+    }
+    if clean_keys:
+        clean_left = {key: left[key] for key in clean_keys}
+        clean_right = {key: right[key] for key in clean_keys}
+        lines.extend(
+            [
+                "",
+                "## Successful retrieval paths",
+                "",
+                "Only pairs where both behaviors passed and the observed retrieval modes",
+                "were fallback and sqlite-fts5 respectively are included.",
+                "",
+                "| Metric | Forced fallback | SQLite FTS5 + graph | Accelerated delta | Delta % | Paired samples |",
+                "|---|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for label, metric, aggregation in metrics:
+            fallback_values, accelerated_values = paired_metric(clean_left, clean_right, metric)
+            if not fallback_values:
+                lines.append(f"| {label} | n/a | n/a | n/a | n/a | 0 |")
+                continue
+            reducer = statistics.median if aggregation == "median" else statistics.fmean
+            baseline = float(reducer(fallback_values))
+            treatment = float(reducer(accelerated_values))
+            delta = treatment - baseline
+            lines.append(
+                f"| {label} | {format_metric(baseline, metric)} | "
+                f"{format_metric(treatment, metric)} | "
+                f"{format_metric(delta, metric, signed=True)} | "
+                f"{percentage(delta, baseline)} | {len(fallback_values)} |"
+            )
+
     lines.extend(
         [
             "",
             "## Sample outcomes",
             "",
-            "| Mode | Samples | Valid | Passed | Failed | Environment-invalid |",
-            "|---|---:|---:|---:|---:|---:|",
+            "| Mode | Samples | Valid | Passed | Failed | Environment-invalid | Observed retrieval |",
+            "|---|---:|---:|---:|---:|---:|---|",
         ]
     )
     for label, samples in (("forced fallback", left), ("accelerated", right)):
@@ -252,8 +300,35 @@ def render_comparison(
         failed = len(valid) - passed
         invalid = len(samples) - len(valid)
         lines.append(
-            f"| {label} | {len(samples)} | {len(valid)} | {passed} | {failed} | {invalid} |"
+            f"| {label} | {len(samples)} | {len(valid)} | {passed} | {failed} | "
+            f"{invalid} | {retrieval_summary(valid)} |"
         )
+    failed_samples = [
+        (label, key, sample)
+        for label, samples in (("forced fallback", left), ("accelerated", right))
+        for key, sample in sorted(samples.items())
+        if sample.get("environment_valid") and not sample.get("passed")
+    ]
+    if failed_samples:
+        lines.extend(
+            [
+                "",
+                "## Failed samples",
+                "",
+                "| Mode | Case | Sample | Failed checks |",
+                "|---|---|---:|---|",
+            ]
+        )
+        for label, key, sample in failed_samples:
+            checks = sample.get("failed_checks")
+            kinds = [
+                str(check.get("type"))
+                for check in checks
+                if isinstance(check, dict) and check.get("type")
+            ] if isinstance(checks, list) else []
+            lines.append(
+                f"| {label} | {key[0]} | {key[1]} | {', '.join(kinds) or 'unavailable'} |"
+            )
     lines.extend(
         [
             "",

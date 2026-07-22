@@ -129,7 +129,7 @@ class AdapterGeneratorTests(unittest.TestCase):
         self.assertFalse((GENERATOR_ROOT / "assets" / "skill-sources").exists())
         self.assertEqual([], list((PROJECT_ROOT / "tools").glob("**/SKILL.md")))
 
-    def test_each_runtime_skill_is_standalone(self):
+    def test_each_runtime_skill_keeps_local_resources(self):
         link_re = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
         for name in GENERATOR.PACKAGES:
             root = PROJECT_ROOT / "skills" / name

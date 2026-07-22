@@ -175,12 +175,12 @@ Run both groups concurrently and save their per-sample reports:
 ```bash
 report_dir=$(mktemp -d)
 python3 tests/eval/run.py \
-  --case extract-accelerated-handoff --samples 3 \
+  --case extract-accelerated-handoff --samples 5 \
   --report-label forced-fallback --report-json "$report_dir/fallback.json" \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium --accelerator-mode fallback" &
 fallback_pid=$!
 python3 tests/eval/run.py \
-  --case extract-accelerated-handoff --samples 3 \
+  --case extract-accelerated-handoff --samples 5 \
   --report-label accelerated --report-json "$report_dir/accelerated.json" \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium --accelerator-mode enabled" &
 accelerated_pid=$!
@@ -199,8 +199,11 @@ fingerprints, models, reasoning effort, sample identities, or parallelism. Its
 paired averages include behavioral failures; environment-invalid samples are
 reported and excluded. Agent time comes from adapter traces rather than fixture
 setup or assertions. Token output separates total, cached, uncached input,
-output, and reasoning tokens. Treat the result as a measurement, not a stable
-CI pass/fail threshold.
+output, and reasoning tokens. Reports also distinguish the adapter's requested
+accelerator mode from the retrieval mode actually returned by
+`search_spine.py`, retain failed-check types, and show a diagnostic comparison
+for successful pairs with observed fallback and SQLite paths. Treat the result
+as a measurement, not a stable CI pass/fail threshold.
 
 Case manifests in `cases/*.json` define fixtures, prompts and deterministic
 assertions. A manifest may instead define ordered `stages`; agent stages run a
@@ -215,7 +218,7 @@ Supported assertions:
   `response_sections_only`, `response_word_budget`;
 - changes: `unchanged`, `changed_only`, `max_changed_files`;
 - execution: `command_succeeds`;
-- trace: `read_only`, `read_includes`, `max_files_read`;
+- trace: `read_only`, `read_includes`, `max_files_read`, `trace_equals`;
 - commands: `command_includes`, `command_excludes`;
 - structure: `balanced_markers`, `no_template_placeholders`,
   `markdown_links_valid`, `semantic_ids_valid`, `spine_mechanical_valid`.

@@ -5,7 +5,7 @@
   "status": "executable",
   "category": "extended",
   "initial_files": {
-    "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n\n<!-- specspine:begin -->\n## Architecture\n\nBefore planning, specifying, implementing, or reviewing a change, read\n`specspine/README.md` and follow only relevant links. `Decisions` and\n`Constraints` are accepted intent; `Observed`, `Inferred`, and `Open questions`\ndo not override it. Preserve conflicts instead of reconciling them silently.\nWrite all SpecSpine documentation in English.\n\n<!-- specspine:end -->\n",
+    "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n\n<!-- specspine:begin -->\n## Architecture\n\nFor architecture-relevant planning, specification, implementation, or review,\nuse installed `specspine-extract` for a minimal handoff instead of scanning the\nSpine. If unavailable, read `specspine/README.md` and follow relevant\nlinks. `Decisions` and `Constraints` are accepted intent; preserve conflicts\nwith `Observed`, `Inferred`, and `Open questions`. Write SpecSpine documentation\nin English.\n<!-- specspine:end -->\n",
     "specspine/README.md": "# Project architecture\n\n## Architecture map\n\n- [Application](application.md)\n",
     "specspine/application.md": "# Application\n\nOwns application behavior.\n",
     "src/main.txt": "Existing implementation placeholder.\n"

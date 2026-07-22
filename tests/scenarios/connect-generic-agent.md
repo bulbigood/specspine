@@ -24,6 +24,8 @@ The skill should:
 - persist English as the SpecSpine documentation language in that bootstrap;
 - create no additional artifact or project-local skill;
 - point the bootstrap to `specspine/README.md`;
+- prefer `specspine-extract` for architecture-relevant downstream retrieval and
+  retain index-and-link navigation as fallback;
 - distinguish Decisions and Constraints from Observed, Inferred, and Open
   questions;
 - avoid modifying SpecSpine documents, source code, or unrelated files;

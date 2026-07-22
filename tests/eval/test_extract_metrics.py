@@ -25,11 +25,13 @@ def report(mode, samples, fingerprint="fixture-1"):
 
 
 def sample(number, mode, duration, tokens, passed, environment_valid=True):
+    retrieval_mode = "sqlite-fts5" if mode == "enabled" else "fallback"
     return {
         "agent_duration_seconds": duration,
         "agent_runs": [
             {
                 "accelerator_mode": mode,
+                "retrieval_mode": retrieval_mode,
                 "duration_seconds": duration,
                 "environment_invalid": not environment_valid,
                 "files_read": number + 2,
@@ -133,6 +135,17 @@ class ExtractMetricsTests(unittest.TestCase):
         rendered = METRICS.render_comparison(fallback, accelerated, sources)
 
         self.assertTrue(all(str(source) in rendered for source in sources))
+
+    def test_markdown_reports_observed_retrieval_and_failed_checks(self):
+        fallback_sample = sample(1, "fallback", 10, 100, False)
+        fallback_sample["failed_checks"] = [{"type": "sentinel-check"}]
+        fallback = report("fallback", [fallback_sample])
+        accelerated = report("enabled", [sample(1, "enabled", 5, 50, True)])
+
+        rendered = METRICS.render_comparison(fallback, accelerated)
+
+        self.assertIn("sqlite-fts5", rendered)
+        self.assertIn("sentinel-check", rendered)
 
 
 if __name__ == "__main__":

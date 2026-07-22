@@ -8,7 +8,7 @@ templates, and agent metadata there.
 
 The maintainer tool must not contain copies or snapshots of those packages. It
 reads canonical skills directly and generates only resources that must be
-duplicated between independently published skills.
+duplicated between separately published members of the coordinated suite.
 
 ## Shared rules
 
@@ -18,9 +18,8 @@ duplicated between independently published skills.
 - `spec-semantics.md`.
 
 The generator synchronizes those files into `specspine-map` and
-`specspine-doctor`. These build-time copies keep every published skill
-independently installable without introducing another authoring source or a
-runtime companion dependency.
+`specspine-doctor`. These build-time copies keep package resources local without
+introducing another authoring source or a mandatory runtime file dependency.
 
 Selecting `--skill specspine-grow` synchronizes both consumers. Selecting a
 consumer synchronizes only that consumer. Run the full generator before a

@@ -253,6 +253,22 @@ class RunnerTests(unittest.TestCase):
         self.assertTrue(fallback.passed)
         self.assertFalse(missing_trace.passed)
 
+    def test_trace_equals_checks_observed_runtime_value(self):
+        assertion = {
+            "type": "trace_equals",
+            "field": "retrieval_mode",
+            "value": "sqlite-fts5",
+        }
+        passed = RUNNER.evaluate_assertion(
+            assertion, Path("."), {}, {}, "", {"retrieval_mode": "sqlite-fts5"}
+        )
+        failed = RUNNER.evaluate_assertion(
+            assertion, Path("."), {}, {}, "", {"retrieval_mode": "fallback"}
+        )
+
+        self.assertTrue(passed.passed)
+        self.assertFalse(failed.passed)
+
     def test_checks_structured_response_without_prose_contracts(self):
         response = (
             "# Handoff\n\n## Primary specification\n\n"
@@ -709,6 +725,7 @@ class RunnerTests(unittest.TestCase):
             agent_runs=(
                 {
                     "accelerator_mode": "enabled",
+                    "retrieval_mode": "sqlite-fts5",
                     "duration_seconds": 10.0,
                     "environment_invalid": False,
                     "files_read": 5,
@@ -717,6 +734,7 @@ class RunnerTests(unittest.TestCase):
                     "token_usage": {"input_tokens": 90, "total_tokens": 100},
                 },
             ),
+            failed_checks=({"type": "sentinel-check", "message": "sentinel"},),
         )
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "report.json"
@@ -732,6 +750,7 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(10.0, payload["samples"][0]["agent_duration_seconds"])
         self.assertEqual(100, payload["samples"][0]["token_usage"]["total_tokens"])
         self.assertTrue(payload["samples"][0]["environment_valid"])
+        self.assertEqual("sentinel-check", payload["samples"][0]["failed_checks"][0]["type"])
         self.assertEqual(64, len(payload["cases"][case["id"]]["fingerprint"]))
 
     def test_agent_execution_requires_case_or_category(self):

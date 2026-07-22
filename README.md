@@ -144,8 +144,10 @@ continues by navigating the same Markdown links directly.
 
 This does not create a SpecSpine. It connects an existing SpecSpine to the
 project's persistent agent instructions with one short, framework-neutral
-discovery block. It does not inspect or adapt SDD workflows and never generates
-bindings or other skills.
+retrieval block. Architecture-relevant downstream work is routed through
+`specspine-extract` when installed, with direct Markdown navigation as fallback.
+Connect does not inspect or adapt SDD workflows and never generates bindings or
+other skills.
 
 ### `specspine-grow`
 
@@ -188,25 +190,36 @@ index reduces irrelevant reading without being required for extraction.
 Checks reproducible mechanical integrity and performs a separate advisory
 semantic review without guessing architectural intent. Mechanical findings can
 produce PASS/FAIL; semantic findings describe evidence-backed risks and never
-certify architecture validity or completeness. It is independently installable
-and includes a deterministic checker for links, reachability, semantic IDs, and
-evidence baselines.
+certify architecture validity or completeness. It includes a deterministic
+checker for links, reachability, semantic IDs, and evidence baselines.
 
 For handoff diagnosis or repair, Doctor may directly invoke
-`specspine-extract`; other SpecSpine skills keep their own scope and do not
-orchestrate extraction.
+`specspine-extract`. Grow, Map, and Doctor retain their specialized operations
+over the Spine; Extract is the preferred retrieval gateway for downstream work,
+not a mandatory intermediary for every internal skill operation.
 
 ### Adapter generator
 
 The five publishable packages under `skills/` are the source of truth.
 Repository-only tooling under `tools/specspine-adapter-generator/` synchronizes
-references shared by independently installable packages and is the only place
+references shared by the coordinated packages and is the only place
 for generating framework-specific SDD adapters. Runtime skills remain
 framework-neutral. The tool contains no canonical skill copies, never generates
 canonical skills from files under `tools/`, and is intentionally not
 discoverable or installable through `npx skills`.
 
 ## Installation
+
+The recommended minimum for downstream use is `specspine-connect` plus
+`specspine-extract`:
+
+```bash
+npx skills add bulbigood/specspine --skill specspine-connect
+npx skills add bulbigood/specspine --skill specspine-extract
+```
+
+Connect installs the persistent retrieval route. If Extract is absent or
+cannot run, that route degrades to direct navigation from the Markdown index.
 
 Install `specspine-connect` from this repository:
 
@@ -220,19 +233,19 @@ Install `specspine-grow` from this repository:
 npx skills add bulbigood/specspine --skill specspine-grow
 ```
 
-Install `specspine-extract` independently:
+Install `specspine-extract` from this repository:
 
 ```bash
 npx skills add bulbigood/specspine --skill specspine-extract
 ```
 
-Install `specspine-map` independently:
+Install `specspine-map` from this repository:
 
 ```bash
 npx skills add bulbigood/specspine --skill specspine-map
 ```
 
-Install `specspine-doctor` independently:
+Install `specspine-doctor` from this repository:
 
 ```bash
 npx skills add bulbigood/specspine --skill specspine-doctor
@@ -289,8 +302,10 @@ Expose this project's SpecSpine to agents through persistent project instruction
 ```
 
 `specspine-connect` installs one managed bootstrap in the applicable persistent
-project-agent instructions. It creates no additional artifact, discovers no SDD
-framework, and persists the SpecSpine documentation language using existing
+project-agent instructions. The bootstrap prefers `specspine-extract` for
+architecture-relevant downstream retrieval and retains direct index-and-link
+navigation as fallback. Connect creates no additional artifact, discovers no
+SDD framework, and persists the SpecSpine documentation language using existing
 project context when unambiguous.
 
 ### Start a project
@@ -677,11 +692,13 @@ specspine/
     └── scenarios/
 ```
 
-The five runtime skills are canonical, self-contained, and independently
-installable. `specspine-adapter-generator` is maintainer-only tooling: it keeps
-shared rules synchronized and owns framework-specific adapter generation
-without adding environment knowledge or runtime dependencies to canonical
-skills.
+The five runtime skills form a coordinated suite with explicit scope and
+degraded-operation boundaries. Each package keeps its own required resources,
+while the connected downstream path prefers `specspine-extract` and falls back
+to the Markdown graph. `specspine-adapter-generator` is maintainer-only tooling:
+it keeps shared rules synchronized and owns framework-specific adapter
+generation without adding environment knowledge or mandatory runtime
+dependencies to canonical skills.
 
 ## What SpecSpine is not
 
@@ -751,7 +768,7 @@ The most important success criterion is:
 * [x] Add a repeatable evaluation harness
 * [x] Create `specspine-map` for brownfield projects
 * [x] Create `specspine-doctor` for integrity diagnosis and guarded repair
-* [x] Generate autonomous runtime skills from canonical build-time sources
+* [x] Coordinate canonical runtime skills through explicit handoff and fallback contracts
 * [x] Add optional mechanical integrity checks
 * [x] Add optional local retrieval acceleration with native link fallback
 * [ ] Add connectors to popular SDD frameworks

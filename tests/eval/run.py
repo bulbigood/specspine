@@ -66,6 +66,7 @@ class CaseReport:
     token_usage: dict[str, int]
     sample_number: int = 1
     agent_runs: tuple[dict[str, Any], ...] = ()
+    failed_checks: tuple[dict[str, str], ...] = ()
 
 
 TOKEN_FIELDS = (
@@ -103,11 +104,15 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
     duration = trace.get("duration_seconds")
     files_read = trace.get("files_read")
     usage = trace.get("token_usage")
+    attempts = trace.get("retrieval_attempts")
     return {
         "accelerator_mode": trace.get("accelerator_mode"),
+        "retrieval_mode": trace.get("retrieval_mode"),
+        "retrieval_attempts": attempts if isinstance(attempts, list) else [],
         "duration_seconds": duration if isinstance(duration, (int, float)) else None,
         "environment_invalid": bool(trace.get("environment_invalid", False)),
         "files_read": len(set(map(str, files_read))) if isinstance(files_read, list) else None,
+        "file_paths_read": sorted(set(map(str, files_read))) if isinstance(files_read, list) else [],
         "model": trace.get("model"),
         "reasoning_effort": trace.get("reasoning_effort"),
         "token_usage": {
@@ -173,6 +178,7 @@ def write_json_report(
                 "environment_valid": bool(report.agent_runs)
                 and not any(run.get("environment_invalid") for run in report.agent_runs),
                 "passed": report.passed,
+                "failed_checks": list(report.failed_checks),
                 "sample_number": report.sample_number,
                 "token_usage": report.token_usage,
             }
@@ -664,6 +670,13 @@ def evaluate_assertion(
         count = len(response.split())
         maximum = assertion["max"]
         return CheckResult(count <= maximum, f"response words: {count}, maximum: {maximum}")
+    if kind == "trace_equals":
+        if trace is None:
+            return CheckResult(False, "agent did not produce a trace")
+        field = assertion["field"]
+        expected = assertion["value"]
+        actual = trace.get(field)
+        return CheckResult(actual == expected, f"trace {field}: {actual!r}, expected: {expected!r}")
     if kind == "unchanged":
         patterns = assertion["paths"]
         violations = sorted(item for item in changed if matches_any(item, patterns))
@@ -1032,11 +1045,24 @@ def run_case(
         results = [evaluate_assertion(item, temp, before, after, response, trace) for item in case["assertions"]]
         results.extend(scope_checks)
         passed = returncode == 0 and all(result.passed for result in results)
+        failed_checks = [
+            {"type": assertion["type"], "message": result.message}
+            for assertion, result in zip(case["assertions"], results)
+            if not result.passed
+        ]
+        failed_checks.extend(
+            {"type": "workspace_boundary", "message": result.message}
+            for result in results[len(case["assertions"]):]
+            if not result.passed
+        )
+        if returncode:
+            failed_checks.append({"type": "agent_exit", "message": str(returncode)})
         duration_seconds = time.monotonic() - started
         if metrics is not None:
             metrics.update(
                 agent_runs=list(agent_runs),
                 duration_seconds=duration_seconds,
+                failed_checks=failed_checks,
                 token_usage=dict(token_usage),
             )
         print(
@@ -1078,6 +1104,7 @@ def run_case_captured(
         token_usage=dict(metrics.get("token_usage", {})),
         sample_number=sample_number,
         agent_runs=tuple(metrics.get("agent_runs", ())),
+        failed_checks=tuple(metrics.get("failed_checks", ())),
     )
 
 

@@ -126,6 +126,31 @@ class CodexAdapterTests(unittest.TestCase):
         )
         self.assertEqual([], messages)
 
+    def test_records_actual_retrieval_result(self):
+        payload = {
+            "mode": "sqlite-fts5",
+            "candidates": [{"path": "specspine/owner.md"}],
+        }
+        stdout = json.dumps(
+            {
+                "type": "item.completed",
+                "item": {
+                    "id": "retrieval-1",
+                    "type": "command_execution",
+                    "command": "python3 search_spine.py specspine --query 'rare intent'",
+                    "exit_code": 0,
+                    "aggregated_output": json.dumps(payload) + "\n",
+                },
+            }
+        )
+
+        attempts = ADAPTER.parse_retrieval_attempts(stdout)
+
+        self.assertEqual("sqlite-fts5", attempts[0]["mode"])
+        self.assertEqual("rare intent", attempts[0]["query"])
+        self.assertEqual(["specspine/owner.md"], attempts[0]["candidate_paths"])
+        self.assertEqual(1, attempts[0]["candidate_count"])
+
     def test_parses_latest_cumulative_token_usage(self):
         stdout = "\n".join(
             [

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import tempfile
@@ -606,11 +607,44 @@ def ensure_index(root: Path, path: Path, rebuild: bool) -> tuple[sqlite3.Connect
         raise AcceleratorUnavailable(f"cannot use derived index: {error}") from error
 
 
-def fts_query(query: str) -> str:
+def fts_query(query: str, connection: sqlite3.Connection | None = None) -> str:
+    raw_tokens = QUERY_TOKEN_RE.findall(query.casefold())[:32]
     tokens: list[str] = []
-    for token in QUERY_TOKEN_RE.findall(query.casefold()):
+    for token in raw_tokens:
         if token not in tokens:
             tokens.append(token)
+    if connection is not None and tokens:
+        document_count = connection.execute("SELECT count(*) FROM documents").fetchone()[0]
+        maximum_frequency = max(2, math.ceil(document_count * 0.25))
+        phrases = list(dict.fromkeys(
+            " ".join(raw_tokens[index:index + 2])
+            for index in range(len(raw_tokens) - 1)
+        ))
+        matching_phrases = [
+            phrase
+            for phrase in phrases
+            if 0 < connection.execute(
+                "SELECT count(DISTINCT path) FROM sections_fts WHERE sections_fts MATCH ?",
+                (f'"{phrase}"',),
+            ).fetchone()[0] <= maximum_frequency
+        ]
+        if matching_phrases:
+            return " OR ".join(f'"{phrase}"' for phrase in matching_phrases)
+        frequencies = [
+            (
+                token,
+                connection.execute(
+                    "SELECT count(DISTINCT path) FROM sections_fts WHERE sections_fts MATCH ?",
+                    (f'"{token.replace(chr(34), chr(34) * 2)}"',),
+                ).fetchone()[0],
+            )
+            for token in tokens[:32]
+        ]
+        present = [(token, frequency) for token, frequency in frequencies if frequency]
+        informative = [token for token, frequency in present if frequency <= maximum_frequency]
+        tokens = informative or [
+            token for token, _ in sorted(present, key=lambda item: (item[1], item[0]))[:8]
+        ]
     if not tokens:
         raise AcceleratorUnavailable("query has no searchable terms")
     return " OR ".join(f'"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens[:32])
@@ -646,7 +680,7 @@ def search(connection: sqlite3.Connection, query: str, limit: int, graph_depth: 
         ):
             add(row["path"], 120.0, f"semantic ID {token}", row["title"], row["summary"])
 
-    match_query = fts_query(query)
+    match_query = fts_query(query, connection)
     batch_size = max(limit * 10, 50)
     offset = 0
     document_ranks: dict[str, int] = {}

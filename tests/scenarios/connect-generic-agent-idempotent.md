@@ -20,6 +20,7 @@ The skill should:
 - recognize the existing managed bootstrap;
 - leave exactly one balanced managed block in `AGENTS.md`;
 - preserve the user-authored content and existing effective integration;
+- preserve the extract-first retrieval route and Markdown fallback;
 - create no additional artifact or project-local skill;
 - avoid changing SpecSpine documents, source code, or unrelated files;
 - make no file changes when the integration is already current.

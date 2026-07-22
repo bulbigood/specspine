@@ -35,7 +35,8 @@ framework knowledge into canonical runtime skills.
 
 ## Generation rules
 
-- Keep published skills self-contained and independently installable.
+- Keep required package resources local while preserving the suite's explicit
+  coordination and degraded-operation contracts.
 - Put reusable executable logic in skill `scripts/` directories.
 - Keep `SKILL.md` files concise and route conditional detail to references.
 - Prefer build-time shared copies over runtime skill dependencies.

@@ -11,6 +11,10 @@ before any content search beyond `README.md`:
 python3 <skill-root>/scripts/search_spine.py <spine-root> --query <change-intent>
 ```
 
+Keep `<change-intent>` concise and domain-specific. Exclude response-format,
+source-boundary, file-modification, and other workflow instructions from the
+query.
+
 Do not replace this first attempt with repository-wide `rg`, `grep`, or manual
 document scanning. Use those only after the command returns fallback or cannot
 be executed.

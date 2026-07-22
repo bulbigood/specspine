@@ -156,6 +156,24 @@ class ExtractSearchTests(unittest.TestCase):
         finally:
             connection.close()
 
+    def test_query_discards_terms_present_in_most_documents(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Target](target.md)\n", encoding="utf-8"
+        )
+        (self.spine / "target.md").write_text(
+            "# Target\n\ncommonterm raretarget\n", encoding="utf-8"
+        )
+        for index in range(10):
+            (self.spine / f"decoy-{index}.md").write_text(
+                f"# Decoy {index}\n\ncommonterm\n", encoding="utf-8"
+            )
+
+        result, payload = self.run_search("commonterm raretarget", "--graph-depth", "0")
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("target.md", payload["candidates"][0]["path"])
+        self.assertEqual(1, len(payload["candidates"]))
+
     def test_concurrent_cache_user_gets_fallback_instead_of_rebuild(self):
         (self.spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
         with patch.dict(os.environ, {"SPECSPINE_CACHE_DIR": str(self.cache)}):
