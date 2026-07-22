@@ -187,10 +187,14 @@ python3 tests/eval/run.py \
   --report-label accelerated --report-json "$report_dir/accelerated.json" \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium --accelerator-mode enabled" &
 accelerated_pid=$!
-wait "$fallback_pid" "$accelerated_pid"
+fallback_status=0
+accelerated_status=0
+wait "$fallback_pid" || fallback_status=$?
+wait "$accelerated_pid" || accelerated_status=$?
 python3 tests/eval/compare_extract_metrics.py \
   --fallback "$report_dir/fallback.json" \
   --accelerated "$report_dir/accelerated.json"
+test "$fallback_status" -eq 0 -a "$accelerated_status" -eq 0
 ```
 
 Each adapter invocation uses a private disposable runtime and cache, so this
@@ -211,10 +215,13 @@ configured parallelism. Sample numbers verify completeness but independent
 stochastic calls are not treated as statistical pairs. Environment-invalid
 samples are reported and excluded. Agent time comes from adapter traces rather
 than fixture setup or assertions. The Markdown preserves per-sample and
-per-retrieval-attempt diagnostics, independent cohort statistics, dispersion,
-runtime versions, timestamps, and observed combined concurrency. Raw JSON also
-retains bounded response/stderr diagnostics after workspaces are removed. Treat
-the result as a measurement, not a stable CI pass/fail threshold.
+per-retrieval-attempt diagnostics, all ranked candidates, concise command
+execution counts/output sizes, independent cohort statistics, dispersion,
+runtime versions, agent timestamps, and observed combined agent concurrency.
+Raw JSON also retains bounded response/stderr diagnostics after workspaces are
+removed. Token counters come only from the final top-level
+`turn.completed.usage` event; nested counters in tool payloads are ignored.
+Treat the result as a measurement, not a stable CI pass/fail threshold.
 
 Case manifests in `cases/*.json` define fixtures, prompts and deterministic
 assertions. A manifest may instead define ordered `stages`; agent stages run a
@@ -236,7 +243,10 @@ Supported assertions:
 
 Trace assertions require `.eval/trace.json`. The Codex adapter conservatively
 infers reads from completed command events; repository-wide content searches
-may count every candidate file as read.
+may count every candidate file as read. Reports therefore call this metric
+`inferred distinct files read`; it is a conservative scope/read-budget signal,
+not proof that every counted file contributed its full content to model
+context.
 
 Any assertion may use `"when_trace": {"field": "value"}` for exact trace
 conditions. A different trace value makes that assertion not applicable; a

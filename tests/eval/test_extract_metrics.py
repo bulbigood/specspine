@@ -46,12 +46,18 @@ def sample(number, mode, duration, tokens, passed, environment_valid=True):
                 "reasoning_effort": "medium",
                 "cache_profile": "isolated-cold",
                 "runtime": {"codex_cli": "codex-test"},
+                "event_metrics": {
+                    "command_count": number + 3,
+                    "command_output_chars": tokens,
+                    "command_metrics": [],
+                },
                 "retrieval_attempts": [
                     {
                         "attempt_number": 1,
                         "mode": retrieval_mode,
                         "exit_code": 2 if retrieval_mode == "fallback" else 0,
                         "failure_kind": None,
+                        "reason_code": "cache_unusable" if retrieval_mode == "fallback" else None,
                         "candidates": [],
                     }
                 ],
@@ -158,6 +164,41 @@ class ExtractMetricsTests(unittest.TestCase):
 
         self.assertEqual(2, METRICS.observed_concurrency(samples))
 
+    def test_observed_concurrency_prefers_agent_intervals(self):
+        samples = [
+            {
+                "started_at": "2026-07-22T10:00:00+00:00",
+                "finished_at": "2026-07-22T10:01:00+00:00",
+                "agent_runs": [
+                    {
+                        "started_at": "2026-07-22T10:00:01+00:00",
+                        "finished_at": "2026-07-22T10:00:02+00:00",
+                    }
+                ],
+            },
+            {
+                "started_at": "2026-07-22T10:00:00+00:00",
+                "finished_at": "2026-07-22T10:01:00+00:00",
+                "agent_runs": [
+                    {
+                        "started_at": "2026-07-22T10:00:03+00:00",
+                        "finished_at": "2026-07-22T10:00:04+00:00",
+                    }
+                ],
+            },
+        ]
+
+        self.assertEqual(1, METRICS.observed_concurrency(samples))
+
+    def test_single_expected_attempt_distinguishes_fallback_from_success(self):
+        fallback = sample(1, "fallback", 10, 100, True)
+        accelerated = sample(1, "enabled", 10, 100, True)
+
+        self.assertTrue(METRICS.single_expected_attempt(fallback, "fallback"))
+        self.assertTrue(METRICS.single_expected_attempt(accelerated, "sqlite-fts5"))
+        fallback["agent_runs"][0]["retrieval_attempts"][0]["reason_code"] = None
+        self.assertFalse(METRICS.single_expected_attempt(fallback, "fallback"))
+
     def test_markdown_writer_creates_requested_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "nested" / "metrics.md"
@@ -217,6 +258,33 @@ class ExtractMetricsTests(unittest.TestCase):
 
         self.assertIn("sqlite-fts5", rendered)
         self.assertIn("sentinel-check", rendered)
+
+    def test_markdown_keeps_all_ranked_candidates_and_command_metrics(self):
+        fallback = report("fallback", [sample(1, "fallback", 10, 100, True)])
+        accelerated_sample = sample(1, "enabled", 5, 50, True)
+        attempt = accelerated_sample["agent_runs"][0]["retrieval_attempts"][0]
+        attempt["query"] = "query-sentinel"
+        attempt["candidates"] = [
+            {"path": f"candidate-{index}.md", "score": index, "origins": ["fts"]}
+            for index in range(7)
+        ]
+        accelerated_sample["agent_runs"][0]["event_metrics"]["command_metrics"] = [
+            {
+                "number": 1,
+                "category": "retrieval",
+                "exit_code": 0,
+                "output_chars": 321,
+                "inferred_file_count": 0,
+                "command_excerpt": "command-sentinel",
+            }
+        ]
+        accelerated = report("enabled", [accelerated_sample])
+
+        rendered = METRICS.render_comparison(fallback, accelerated)
+
+        self.assertIn("candidate-6.md", rendered)
+        self.assertIn("query-sentinel", rendered)
+        self.assertIn("command-sentinel", rendered)
 
 
 if __name__ == "__main__":

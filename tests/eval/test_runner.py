@@ -731,6 +731,10 @@ class RunnerTests(unittest.TestCase):
                     "files_read": 5,
                     "model": "model-1",
                     "reasoning_effort": "medium",
+                    "event_metrics": {
+                        "command_count": 4,
+                        "command_output_chars": 321,
+                    },
                     "token_usage": {"input_tokens": 90, "total_tokens": 100},
                 },
             ),
@@ -754,6 +758,10 @@ class RunnerTests(unittest.TestCase):
         self.assertFalse(payload["samples"][0]["passed"])
         self.assertEqual(10.0, payload["samples"][0]["agent_duration_seconds"])
         self.assertEqual(100, payload["samples"][0]["token_usage"]["total_tokens"])
+        self.assertEqual(
+            4,
+            payload["samples"][0]["agent_runs"][0]["event_metrics"]["command_count"],
+        )
         self.assertTrue(payload["samples"][0]["environment_valid"])
         self.assertEqual("sentinel-check", payload["samples"][0]["failed_checks"][0]["type"])
         self.assertEqual(64, len(payload["cases"][case["id"]]["fingerprint"]))

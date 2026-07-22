@@ -113,6 +113,7 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
     files_read = trace.get("files_read")
     usage = trace.get("token_usage")
     attempts = trace.get("retrieval_attempts")
+    event_metrics = trace.get("event_metrics")
     return {
         "accelerator_mode": trace.get("accelerator_mode"),
         "retrieval_mode": trace.get("retrieval_mode"),
@@ -120,6 +121,7 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         "retrieval_attempt_count": trace.get("retrieval_attempt_count"),
         "unexpected_retry": bool(trace.get("unexpected_retry", False)),
         "unknown_attempt_count": trace.get("unknown_attempt_count"),
+        "event_metrics": event_metrics if isinstance(event_metrics, dict) else {},
         "duration_seconds": duration if isinstance(duration, (int, float)) else None,
         "started_at": trace.get("started_at"),
         "finished_at": trace.get("finished_at"),
@@ -849,6 +851,8 @@ def build_prompt(case: dict[str, Any], stage: dict[str, Any] | None = None) -> s
         + f"Before any project discovery, read .eval/skill/{config.get('entrypoint', 'SKILL.md')}. "
         "Then read only the references it requires. Do not list `.eval` or combine "
         "skill loading with project inspection.\n"
+        "For this evaluation, the loaded skill root is exactly `.eval/skill`; use "
+        "that literal path for bundled scripts and references.\n"
         "Installed companion skills, when configured, are under .eval/companions/.\n"
         "Treat the current directory as the project root.\n"
         f"For reproducibility, write the final response and newly created project documents in {eval_language}. "

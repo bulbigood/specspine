@@ -737,7 +737,9 @@ def ensure_index(
         ) from error
 
 
-def fts_query(query: str, connection: sqlite3.Connection | None = None) -> str:
+def fts_plan(
+    query: str, connection: sqlite3.Connection | None = None
+) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
     raw_tokens = QUERY_TOKEN_RE.findall(query.casefold())[:32]
     tokens: list[str] = []
     for token in raw_tokens:
@@ -779,18 +781,33 @@ def fts_query(query: str, connection: sqlite3.Connection | None = None) -> str:
             for token in tokens[: 32 - len(clauses)]
         )
         if clauses:
-            return " OR ".join(dict.fromkeys(clauses))
+            return (
+                " OR ".join(dict.fromkeys(clauses)),
+                tuple(tokens[:32]),
+                tuple(matching_phrases[:12]),
+            )
     if not tokens:
         raise AcceleratorUnavailable("query has no searchable terms", "invalid_query")
-    return " OR ".join(f'"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens[:32])
+    return (
+        " OR ".join(f'"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens[:32]),
+        tuple(tokens[:32]),
+        (),
+    )
+
+
+def fts_query(query: str, connection: sqlite3.Connection | None = None) -> str:
+    return fts_plan(query, connection)[0]
 
 
 def search(connection: sqlite3.Connection, query: str, limit: int, graph_depth: int) -> list[dict[str, object]]:
     candidates: dict[str, dict[str, object]] = {}
 
     def add(path: str, score: float, origin: str, reason: str, title: str | None = None, summary: str | None = None, heading: str | None = None) -> None:
-        item = candidates.setdefault(path, {"path": path, "score": 0.0, "origins": [], "reasons": [], "headings": []})
-        item["score"] = max(float(item["score"]), score)
+        item = candidates.setdefault(path, {"path": path, "score": 0.0, "_scores": {}, "origins": [], "reasons": [], "headings": []})
+        scores = item["_scores"]
+        assert isinstance(scores, dict)
+        scores[origin] = max(float(scores.get(origin, 0.0)), score)
+        item["score"] = sum(float(value) for value in scores.values())
         if origin not in item["origins"]:
             item["origins"].append(origin)
         if reason not in item["reasons"]:
@@ -817,10 +834,19 @@ def search(connection: sqlite3.Connection, query: str, limit: int, graph_depth: 
         ):
             add(row["path"], 120.0, "semantic_id", f"semantic ID {token}", row["title"], row["summary"])
 
-    match_query = fts_query(query, connection)
+    match_query, query_tokens, query_phrases = fts_plan(query, connection)
     batch_size = max(limit * 10, 50)
     offset = 0
     document_ranks: dict[str, int] = {}
+    document_signals: dict[str, tuple[int, int]] = {}
+
+    def path_matches(path: str, clause: str) -> bool:
+        escaped = clause.replace('"', '""')
+        return bool(connection.execute(
+            "SELECT 1 FROM sections_fts WHERE path = ? AND sections_fts MATCH ? LIMIT 1",
+            (path, f'"{escaped}"'),
+        ).fetchone())
+
     while len(document_ranks) < limit:
         rows = connection.execute(
             "SELECT path, title, summary, heading, bm25(sections_fts, 0.0, 10.0, 5.0, 3.0, 1.0) AS rank "
@@ -829,9 +855,20 @@ def search(connection: sqlite3.Connection, query: str, limit: int, graph_depth: 
         ).fetchall()
         for row in rows:
             document_rank = document_ranks.setdefault(row["path"], len(document_ranks))
+            if row["path"] not in document_signals:
+                document_signals[row["path"]] = (
+                    sum(path_matches(row["path"], token) for token in query_tokens),
+                    sum(path_matches(row["path"], phrase) for phrase in query_phrases),
+                )
+            token_hits, phrase_hits = document_signals[row["path"]]
+            rank_score = 60.0 / (document_rank + 1)
+            if len(query_tokens) >= 3 and token_hits < 2 and phrase_hits == 0:
+                rank_score *= 0.25
+            coverage_score = 20.0 * token_hits / max(1, len(query_tokens))
+            phrase_score = min(15.0, 5.0 * phrase_hits)
             add(
                 row["path"],
-                60.0 / (document_rank + 1),
+                rank_score + coverage_score + phrase_score,
                 "fts",
                 "full-text match",
                 row["title"],
@@ -867,10 +904,11 @@ def search(connection: sqlite3.Connection, query: str, limit: int, graph_depth: 
 
     ordered = sorted(candidates.values(), key=lambda item: (-float(item["score"]), str(item["path"])))[:limit]
     for item in ordered:
+        item.pop("_scores", None)
+        item.pop("summary", None)
+        item.pop("reasons", None)
         item["score"] = round(float(item["score"]), 3)
         item["headings"] = item["headings"][:4]
-        if len(str(item.get("summary", ""))) > 300:
-            item["summary"] = str(item["summary"])[:297] + "..."
     return ordered
 
 

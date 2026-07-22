@@ -121,7 +121,8 @@ class ExtractSearchTests(unittest.TestCase):
         by_path = {item["path"]: item for item in payload["candidates"]}
         owner = "platform/resilience/retry-policy.md"
         consumer = "domains/payments/processing.md"
-        self.assertEqual(120.0, by_path[owner]["score"])
+        self.assertEqual(owner, payload["candidates"][0]["path"])
+        self.assertIn("semantic_id", by_path[owner]["origins"])
 
         result, payload = self.run_search(
             "fiveattemptceiling", "--limit", "3", "--graph-depth", "0"
@@ -134,6 +135,56 @@ class ExtractSearchTests(unittest.TestCase):
         )
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn(consumer, {item["path"] for item in payload["candidates"]})
+
+    def test_graph_corroboration_outranks_single_term_matches(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Owner](owner.md)\n[Boundary](boundary.md)\n",
+            encoding="utf-8",
+        )
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns alphacontract betapolicy gammalimit. "
+            "Uses [Boundary](boundary.md).\n",
+            encoding="utf-8",
+        )
+        (self.spine / "boundary.md").write_text(
+            "# Boundary\n\nProvides alphacontract execution for [Owner](owner.md).\n",
+            encoding="utf-8",
+        )
+        for index, token in enumerate(("betapolicy", "gammalimit", "noisecontext")):
+            (self.spine / f"decoy-{index}.md").write_text(
+                f"# Decoy {index}\n\nUnrelated {token} material.\n",
+                encoding="utf-8",
+            )
+
+        result, payload = self.run_search(
+            "alphacontract betapolicy gammalimit noisecontext"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(
+            ["owner.md", "boundary.md"],
+            [candidate["path"] for candidate in payload["candidates"][:2]],
+        )
+        boundary = payload["candidates"][1]
+        self.assertEqual(
+            {"fts", "graph_outgoing", "graph_incoming"},
+            set(boundary["origins"]),
+        )
+
+    def test_candidate_payload_omits_cached_document_content(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Target](target.md)\n", encoding="utf-8"
+        )
+        (self.spine / "target.md").write_text(
+            "# Target\n\nOwns payloadsentinel routing.\n", encoding="utf-8"
+        )
+
+        result, payload = self.run_search("payloadsentinel")
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        candidate = payload["candidates"][0]
+        self.assertNotIn("summary", candidate)
+        self.assertNotIn("reasons", candidate)
 
     def test_fts_limit_counts_unique_documents_not_matching_sections(self):
         connection = SEARCH.sqlite3.connect(":memory:")

@@ -49,6 +49,12 @@ class CodexAdapterTests(unittest.TestCase):
         command = "sed -n '1,20p' .eval/skill/SKILL.md && rg --files -g 'README.md'"
         self.assertEqual(set(), ADAPTER.traced_files(command, candidates))
 
+    def test_does_not_treat_piped_file_listing_glob_as_content_read(self):
+        candidates = ["specspine/README.md", "specspine/payments.md"]
+        command = "rg --files -g 'specspine/**' | sed -n '1,160p'"
+
+        self.assertEqual(set(), ADAPTER.traced_files(command, candidates))
+
     def test_traces_files_read_through_shell_glob_loop(self):
         candidates = ["specspine/README.md", "specspine/payments.md", "README.md"]
         command = "for f in specspine/*.md; do sed -n '1,200p' \"$f\"; done"
@@ -184,6 +190,55 @@ class CodexAdapterTests(unittest.TestCase):
             {"input_tokens": 200, "cached_input_tokens": 80, "output_tokens": 50},
             ADAPTER.parse_token_usage(stdout),
         )
+
+    def test_token_usage_ignores_nested_non_turn_counters(self):
+        stdout = "\n".join(
+            [
+                '{"type":"item.completed","item":{"usage":{"input_tokens":999}}}',
+                '{"type":"turn.completed","usage":{"input_tokens":120,"output_tokens":30}}',
+            ]
+        )
+
+        self.assertEqual(
+            {"input_tokens": 120, "output_tokens": 30},
+            ADAPTER.parse_token_usage(stdout),
+        )
+
+    def test_event_metrics_preserve_compact_command_costs(self):
+        stdout = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "item.completed",
+                        "item": {
+                            "id": "item-1",
+                            "type": "command_execution",
+                            "command": "sed -n 1,20p specspine/owner.md",
+                            "status": "completed",
+                            "exit_code": 0,
+                            "aggregated_output": "sentinel-output\n",
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "item.completed",
+                        "item": {"id": "item-2", "type": "agent_message", "text": "done"},
+                    }
+                ),
+                '{"type":"turn.completed","usage":{"input_tokens":120}}',
+            ]
+        )
+
+        metrics = ADAPTER.parse_event_metrics(stdout, ["specspine/owner.md"])
+
+        self.assertEqual(1, metrics["command_count"])
+        self.assertEqual(len("sentinel-output\n"), metrics["command_output_chars"])
+        self.assertEqual(1, metrics["agent_message_count"])
+        self.assertEqual(1, metrics["turn_count"])
+        command = metrics["command_metrics"][0]
+        self.assertEqual("project_content", command["category"])
+        self.assertEqual(["specspine/owner.md"], command["inferred_file_paths"])
 
     def test_detects_bwrap_namespace_failure_as_environment_error(self):
         stdout = json.dumps(

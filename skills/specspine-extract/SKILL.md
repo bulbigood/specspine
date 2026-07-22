@@ -18,8 +18,9 @@ before any other spine document or content search:
 python3 <skill-root>/scripts/search_spine.py <spine-root> --query <concise-change-intent>
 ```
 
-Skip only when the request prevents execution. Do not retry failure; use native
-fallback. Read
+Resolve `<skill-root>` as the directory containing this `SKILL.md`; do not
+discover or substitute another installed copy. Skip only when the request
+prevents execution. Do not retry failure; use native fallback. Read
 [references/retrieval-accelerator.md](references/retrieval-accelerator.md) to
 interpret the result.
 

@@ -24,7 +24,13 @@ TOKEN_METRICS = (
     "output_tokens",
     "reasoning_output_tokens",
 )
-METRICS = ("agent_duration_seconds", *TOKEN_METRICS, "files_read")
+METRICS = (
+    "agent_duration_seconds",
+    *TOKEN_METRICS,
+    "files_read",
+    "command_count",
+    "command_output_chars",
+)
 
 
 class ComparisonError(ValueError):
@@ -177,6 +183,15 @@ def metric_value(sample: dict[str, Any], metric: str) -> float | None:
         values = [run.get("files_read") for run in agent_runs(sample)]
         numeric = [value for value in values if isinstance(value, int) and not isinstance(value, bool)]
         return float(sum(numeric)) if numeric else None
+    elif metric in {"command_count", "command_output_chars"}:
+        values = [
+            metrics.get(metric)
+            for run in agent_runs(sample)
+            for metrics in [run.get("event_metrics")]
+            if isinstance(metrics, dict)
+        ]
+        numeric = [value for value in values if isinstance(value, int) and not isinstance(value, bool)]
+        return float(sum(numeric)) if numeric else None
     else:
         usage = sample.get("token_usage")
         if not isinstance(usage, dict):
@@ -207,13 +222,19 @@ def expected_path(sample: dict[str, Any], expected_mode: str) -> bool:
     return bool(attempts(sample)) and attempts(sample)[-1].get("mode") == expected_mode
 
 
-def single_successful_attempt(sample: dict[str, Any], expected_mode: str) -> bool:
+def single_expected_attempt(sample: dict[str, Any], expected_mode: str) -> bool:
     found = attempts(sample)
+    expected_exit = 2 if expected_mode == "fallback" else 0
     return (
         len(found) == 1
         and found[0].get("mode") == expected_mode
         and found[0].get("failure_kind") is None
-        and found[0].get("exit_code") in {0, 2}
+        and found[0].get("exit_code") == expected_exit
+        and (
+            bool(found[0].get("reason_code"))
+            if expected_mode == "fallback"
+            else not found[0].get("reason_code")
+        )
     )
 
 
@@ -240,6 +261,14 @@ def format_number(value: float | None, metric: str, *, signed: bool = False) -> 
     return f"{value:+,.1f}" if signed else f"{value:,.1f}"
 
 
+def metric_label(metric: str) -> str:
+    return {
+        "files_read": "Inferred distinct files read",
+        "command_count": "Command executions",
+        "command_output_chars": "Command output characters",
+    }.get(metric, metric.replace("_", " ").capitalize())
+
+
 def range_text(values: list[float], metric: str) -> str:
     return "n/a" if not values else f"{format_number(min(values), metric)}–{format_number(max(values), metric)}"
 
@@ -257,7 +286,7 @@ def render_metric_table(
         right_mean = statistics.fmean(right) if right else None
         delta = None if left_mean is None or right_mean is None else right_mean - left_mean
         ratio = None if not left or not right or sum(left) == 0 else sum(right) / sum(left)
-        label = metric.replace("_", " ").capitalize()
+        label = metric_label(metric)
         lines.append(
             f"| {label} | {format_number(left_mean, metric)} | {format_number(right_mean, metric)} | "
             f"{('n/a' if delta is None or left_mean is None else percentage(delta, left_mean))} | "
@@ -280,10 +309,13 @@ def parse_time(value: Any) -> datetime.datetime | None:
 def observed_concurrency(samples: Iterable[dict[str, Any]]) -> int | None:
     events: list[tuple[datetime.datetime, int]] = []
     for sample in samples:
-        started, finished = parse_time(sample.get("started_at")), parse_time(sample.get("finished_at"))
-        if started is None or finished is None:
-            continue
-        events.extend(((started, 1), (finished, -1)))
+        intervals = [
+            (parse_time(run.get("started_at")), parse_time(run.get("finished_at")))
+            for run in agent_runs(sample)
+        ] or [(parse_time(sample.get("started_at")), parse_time(sample.get("finished_at")))]
+        for started, finished in intervals:
+            if started is not None and finished is not None:
+                events.extend(((started, 1), (finished, -1)))
     if not events:
         return None
     active = maximum = 0
@@ -306,6 +338,13 @@ def failure_summary(sample: dict[str, Any]) -> str:
     return ", ".join(dict.fromkeys(kinds)) or "—"
 
 
+def cache_profile_text(run: dict[str, Any]) -> str:
+    value = run.get("cache_profile")
+    if isinstance(value, list):
+        return ", ".join(map(str, value)) or "unavailable"
+    return str(value) if value else "unavailable"
+
+
 def render_comparison(
     fallback: dict[str, Any], accelerated: dict[str, Any], source_directories: tuple[Path, ...] = ()
 ) -> str:
@@ -319,7 +358,7 @@ def render_comparison(
         f"| Run ID | {markdown_text(run_left.get('run_id', 'unavailable'))} | {markdown_text(run_right.get('run_id', 'unavailable'))} |",
         f"| Started | {markdown_text(run_left.get('started_at', 'unavailable'))} | {markdown_text(run_right.get('started_at', 'unavailable'))} |",
         f"| Finished | {markdown_text(run_left.get('finished_at', 'unavailable'))} | {markdown_text(run_right.get('finished_at', 'unavailable'))} |",
-        f"| Cache profile | {markdown_text(run_left.get('cache_profile', []))} | {markdown_text(run_right.get('cache_profile', []))} |",
+        f"| Cache profile | {markdown_text(cache_profile_text(run_left))} | {markdown_text(cache_profile_text(run_right))} |",
         f"| Configured jobs | {fallback.get('jobs')} | {accelerated.get('jobs')} |",
         f"| Samples | {len(left)} | {len(right)} |",
         f"| Model | {all_trace_values(left.values(), 'model')} | {all_trace_values(right.values(), 'model')} |",
@@ -340,7 +379,7 @@ def render_comparison(
         ("Environment-valid", lambda sample, mode: bool(sample.get("environment_valid"))),
         ("Behavior-passed", lambda sample, mode: bool(sample.get("environment_valid")) and bool(sample.get("passed"))),
         ("Expected retrieval path", lambda sample, mode: bool(sample.get("environment_valid")) and expected_path(sample, mode)),
-        ("Single successful retrieval attempt", lambda sample, mode: bool(sample.get("environment_valid")) and single_successful_attempt(sample, mode)),
+        ("Single expected retrieval attempt", lambda sample, mode: bool(sample.get("environment_valid")) and single_expected_attempt(sample, mode)),
     )
     for title, predicate in cohorts:
         left_samples = cohort(left, lambda sample, p=predicate: p(sample, "fallback"))
@@ -348,7 +387,7 @@ def render_comparison(
         lines.extend(["", f"## {title}", "", f"Fallback n={len(left_samples)}; accelerated n={len(right_samples)}.", ""])
         render_metric_table(lines, left_samples, right_samples)
 
-    lines.extend(["", "## Sample outcomes", "", "| Mode | Sample | Valid | Passed | Retrieval | Attempts | Index state | Files | Agent time | Total tokens | Queue | Failure |", "|---|---:|---:|---:|---|---:|---|---:|---:|---:|---:|---|"])
+    lines.extend(["", "## Sample outcomes", "", "| Mode | Sample | Valid | Passed | Retrieval | Attempts | Index state | Inferred files | Commands | Tool output chars | Agent time | Total tokens | Queue | Outcome/reason |", "|---|---:|---:|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---|"])
     for label, samples in (("fallback", left), ("accelerated", right)):
         for key, sample in sorted(samples.items()):
             found = attempts(sample)
@@ -356,27 +395,46 @@ def render_comparison(
             lines.append(
                 f"| {label} | {key[1]} | {bool(sample.get('environment_valid'))} | {bool(sample.get('passed'))} | "
                 f"{markdown_text(last.get('mode', 'unavailable'))} | {len(found)} | {markdown_text(last.get('index_state') or '—')} | "
-                f"{format_number(metric_value(sample, 'files_read'), 'files_read')} | {format_number(metric_value(sample, 'agent_duration_seconds'), 'agent_duration_seconds')} | "
+                f"{format_number(metric_value(sample, 'files_read'), 'files_read')} | {format_number(metric_value(sample, 'command_count'), 'command_count')} | "
+                f"{format_number(metric_value(sample, 'command_output_chars'), 'command_output_chars')} | {format_number(metric_value(sample, 'agent_duration_seconds'), 'agent_duration_seconds')} | "
                 f"{format_number(metric_value(sample, 'total_tokens'), 'total_tokens')} | {float(sample.get('queue_seconds') or 0):.3f} | {markdown_text(failure_summary(sample))} |"
             )
 
-    lines.extend(["", "## Retrieval attempts", "", "| Mode | Sample | Attempt | Result | Exit | Failure/reason | Index | Documents | Refreshed | Total/Search (s) | Candidates |", "|---|---:|---:|---|---:|---|---|---:|---:|---:|---|"])
+    lines.extend(["", "## Retrieval attempts", "", "| Mode | Sample | Attempt | Query | Result | Exit | Failure/reason | Index | Documents | Refreshed | Total/Search (s) | Candidates |", "|---|---:|---:|---|---|---:|---|---|---:|---:|---:|---|"])
     for label, samples in (("fallback", left), ("accelerated", right)):
         for key, sample in sorted(samples.items()):
             for attempt in attempts(sample):
                 timings = attempt.get("timings") if isinstance(attempt.get("timings"), dict) else {}
                 candidate_text = "; ".join(
                     f"{candidate.get('path')} ({candidate.get('score', 'n/a')}; {','.join(map(str, candidate.get('origins', [])))})"
-                    for candidate in attempt.get("candidates", [])[:5]
+                    for candidate in attempt.get("candidates", [])
                     if isinstance(candidate, dict)
                 ) or "—"
                 failure = attempt.get("failure_kind") or attempt.get("reason_code") or "—"
                 lines.append(
-                    f"| {label} | {key[1]} | {attempt.get('attempt_number', '?')} | {markdown_text(attempt.get('mode', 'unknown'))} | "
+                    f"| {label} | {key[1]} | {attempt.get('attempt_number', '?')} | {markdown_text(attempt.get('query') or '—')} | {markdown_text(attempt.get('mode', 'unknown'))} | "
                     f"{attempt.get('exit_code', 'n/a')} | {markdown_text(failure)} | {markdown_text(attempt.get('index_state') or '—')} | "
                     f"{attempt.get('documents') if attempt.get('documents') is not None else 'n/a'} | {attempt.get('refreshed') if attempt.get('refreshed') is not None else 'n/a'} | "
                     f"{timings.get('total_seconds', 'n/a')}/{timings.get('search_seconds', 'n/a')} | {markdown_text(candidate_text)} |"
                 )
+
+    command_rows: list[str] = []
+    for label, samples in (("fallback", left), ("accelerated", right)):
+        for key, sample in sorted(samples.items()):
+            for run in agent_runs(sample):
+                event_metrics = run.get("event_metrics")
+                commands = event_metrics.get("command_metrics", []) if isinstance(event_metrics, dict) else []
+                for command in commands if isinstance(commands, list) else []:
+                    if not isinstance(command, dict):
+                        continue
+                    command_rows.append(
+                        f"| {label} | {key[1]} | {command.get('number', '?')} | {markdown_text(command.get('category', 'unknown'))} | "
+                        f"{command.get('exit_code', 'n/a')} | {command.get('output_chars', 'n/a')} | {command.get('inferred_file_count', 'n/a')} | "
+                        f"{markdown_text(command.get('command_excerpt', ''))} |"
+                    )
+    if command_rows:
+        lines.extend(["", "## Command executions", "", "| Mode | Sample | Command | Category | Exit | Output chars | Inferred files | Command |", "|---|---:|---:|---|---:|---:|---:|---|"])
+        lines.extend(command_rows)
 
     diagnostic_rows: list[tuple[str, int, str, str]] = []
     for label, samples in (("fallback", left), ("accelerated", right)):

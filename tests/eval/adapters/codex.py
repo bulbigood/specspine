@@ -156,20 +156,25 @@ def indirect_reads(command: str, candidates: list[str]) -> set[str]:
         if root and not root.startswith("-"):
             found.update(path for path in candidates if path == root or path.startswith(root + "/"))
 
-    content_reader = re.search(r"(?:^|[\s;|])(?:cat|sed|head|tail|awk)\b", command)
-    if not content_reader:
-        return found
-
-    for pattern in re.findall(r"(?:[\w.-]+/)+[^\s;'\"]*[*?][^\s;'\"]*", command):
-        cleaned = pattern.rstrip(");}")
-        found.update(path for path in candidates if fnmatch_path(path, cleaned))
-
     if re.search(r"\bfor\b", command):
+        content_reader = re.search(r"(?:^|[\s;|])(?:cat|sed|head|tail|awk)\b", command)
+        if content_reader:
+            for pattern in re.findall(r"(?:[\w.-]+/)+[^\s;'\"]*[*?][^\s;'\"]*", command):
+                cleaned = pattern.rstrip(");}")
+                found.update(path for path in candidates if fnmatch_path(path, cleaned))
         for match in re.finditer(r"\brg\s+--files\s+([^;&|)$]+)", command):
             for root in match.group(1).split():
                 root = root.strip("'\"").rstrip("/")
                 if root and not root.startswith("-"):
                     found.update(path for path in candidates if path == root or path.startswith(root + "/"))
+        return found
+
+    for segment in shell_segments(command):
+        if not re.search(r"(?:^|\s)(?:cat|sed|head|tail|awk)\b", segment):
+            continue
+        for pattern in re.findall(r"(?:[\w.-]+/)+[^\s;'\"]*[*?][^\s;'\"]*", segment):
+            cleaned = pattern.rstrip(");}")
+            found.update(path for path in candidates if fnmatch_path(path, cleaned))
     return found
 
 
@@ -205,6 +210,86 @@ def parse_events(stdout: str, candidates: list[str]) -> tuple[set[str], list[str
         elif item.get("type") == "agent_message" and item.get("text"):
             messages.append(str(item["text"]))
     return reads, commands, messages
+
+
+def command_category(command: str, inferred_reads: set[str]) -> str:
+    source = shell_source(command)
+    if "search_spine.py" in source:
+        return "retrieval"
+    if ".eval/skill/" in source or ".eval/companions/" in source:
+        return "skill_context"
+    if inferred_reads:
+        return "project_content"
+    if re.search(r"\brg\b[^;&|]*\s--files(?:\s|$)", source) or re.search(
+        r"(?:^|\s)find\s", source
+    ):
+        return "discovery"
+    return "other"
+
+
+def parse_event_metrics(stdout: str, candidates: list[str]) -> dict[str, object]:
+    """Preserve compact tool-cycle diagnostics without retaining tool output."""
+    event_counts: dict[str, int] = {}
+    item_counts: dict[str, int] = {}
+    command_metrics: list[dict[str, object]] = []
+    completed_item_ids: set[str] = set()
+    agent_message_count = 0
+    turn_count = 0
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        event_type = str(event.get("type") or "legacy")
+        event_counts[event_type] = event_counts.get(event_type, 0) + 1
+        if event_type == "turn.completed":
+            turn_count += 1
+        if event.get("type") not in {None, "item.completed"}:
+            continue
+        item = event.get("item", {})
+        if not isinstance(item, dict):
+            continue
+        item_id = item.get("id")
+        if item_id is not None:
+            item_id = str(item_id)
+            if item_id in completed_item_ids:
+                continue
+            completed_item_ids.add(item_id)
+        item_type = str(item.get("type") or "unknown")
+        item_counts[item_type] = item_counts.get(item_type, 0) + 1
+        if item_type == "agent_message":
+            agent_message_count += 1
+            continue
+        if item_type != "command_execution":
+            continue
+        command = str(item.get("command", ""))
+        output = str(item.get("aggregated_output", ""))
+        inferred_reads = traced_files(command, candidates)
+        command_metrics.append(
+            {
+                "number": len(command_metrics) + 1,
+                "event_id": item_id,
+                "category": command_category(command, inferred_reads),
+                "status": item.get("status"),
+                "exit_code": item.get("exit_code"),
+                "output_chars": len(output),
+                "output_lines": len(output.splitlines()),
+                "inferred_file_count": len(inferred_reads),
+                "inferred_file_paths": sorted(inferred_reads),
+                "command_excerpt": shell_source(command)[:1000],
+            }
+        )
+    return {
+        "event_counts": event_counts,
+        "item_counts": item_counts,
+        "command_count": len(command_metrics),
+        "command_output_chars": sum(
+            int(item["output_chars"]) for item in command_metrics
+        ),
+        "command_metrics": command_metrics,
+        "agent_message_count": agent_message_count,
+        "turn_count": turn_count,
+    }
 
 
 def command_option(command: str, option: str) -> str | None:
@@ -317,7 +402,7 @@ def command_version(command: str) -> str | None:
 
 
 def parse_token_usage(stdout: str) -> dict[str, int]:
-    """Return the latest cumulative token counters emitted by Codex."""
+    """Return the latest top-level cumulative turn counters emitted by Codex."""
     known = {
         "input_tokens",
         "cached_input_tokens",
@@ -331,20 +416,18 @@ def parse_token_usage(stdout: str) -> dict[str, int]:
             event = json.loads(line)
         except json.JSONDecodeError:
             continue
-        stack = [event]
-        while stack:
-            value = stack.pop()
-            if isinstance(value, dict):
-                counters = {
-                    key: count
-                    for key, count in value.items()
-                    if key in known and isinstance(count, int) and not isinstance(count, bool)
-                }
-                if counters:
-                    usage.update(counters)
-                stack.extend(value.values())
-            elif isinstance(value, list):
-                stack.extend(value)
+        if event.get("type") != "turn.completed":
+            continue
+        value = event.get("usage")
+        if not isinstance(value, dict):
+            continue
+        counters = {
+            key: count
+            for key, count in value.items()
+            if key in known and isinstance(count, int) and not isinstance(count, bool)
+        }
+        if counters:
+            usage = counters
     return usage
 
 
@@ -809,6 +892,7 @@ def main() -> int:
     )
     reads, commands, messages = parse_events(completed.stdout, candidates)
     retrieval_attempts = parse_retrieval_attempts(completed.stdout)
+    event_metrics = parse_event_metrics(completed.stdout, candidates)
     token_usage = parse_token_usage(completed.stdout)
     execution_errors = environment_errors(completed.stdout, completed.stderr)
     boundary_violations = scope_violations(commands, root, (runtime_root,))
@@ -826,6 +910,7 @@ def main() -> int:
                 "unknown_attempt_count": sum(
                     attempt.get("mode") == "unknown" for attempt in retrieval_attempts
                 ),
+                "event_metrics": event_metrics,
                 "duration_seconds": duration_seconds,
                 "started_at": started_at,
                 "finished_at": finished_at,

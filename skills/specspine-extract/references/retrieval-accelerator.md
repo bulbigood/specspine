@@ -14,8 +14,8 @@ document scanning. Use those only after the command returns fallback or cannot
 be executed.
 
 Exit `0` returns JSON candidates. Read the current Markdown index, candidate
-documents, and justified linked neighbors before extracting any claims. Cached
-summaries and scores select sources; they are not handoff evidence. Candidate
+documents, and justified linked neighbors before extracting any claims. Scores,
+origins, and headings select sources; they are not handoff evidence. Candidate
 paths are relative to `<spine-root>`; render handoff addresses using the
 repository-root-relative form required by the handoff contract.
 
