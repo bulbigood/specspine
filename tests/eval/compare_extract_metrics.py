@@ -71,9 +71,9 @@ def normalized_command(value: Any) -> list[str]:
         if skip:
             skip = False
             continue
-        if part == "--accelerator-mode":
+        if part in {"--accelerator-mode", "--cache-profile"}:
             skip = True
-        elif not part.startswith("--accelerator-mode="):
+        elif not part.startswith(("--accelerator-mode=", "--cache-profile=")):
             normalized.append(part)
     return normalized
 
@@ -130,7 +130,12 @@ def report_fingerprint(report: dict[str, Any], key: str) -> Any:
 
 
 def validate_comparable(
-    fallback: dict[str, Any], accelerated: dict[str, Any]
+    fallback: dict[str, Any],
+    accelerated: dict[str, Any],
+    *,
+    compare_cache_profile: bool = True,
+    left_mode: str = "fallback",
+    right_mode: str = "enabled",
 ) -> tuple[dict[tuple[str, int], dict[str, Any]], dict[tuple[str, int], dict[str, Any]]]:
     if fallback.get("cases") != accelerated.get("cases"):
         raise ComparisonError("case/skill fingerprints differ")
@@ -154,12 +159,15 @@ def validate_comparable(
     if set(left) != set(right):
         raise ComparisonError("matched sample identities differ")
     for key in sorted(left):
-        if left[key].get("environment_valid") and trace_values(left[key], "accelerator_mode") != {"fallback"}:
-            raise ComparisonError(f"fallback mode is not recorded for {key}")
-        if right[key].get("environment_valid") and trace_values(right[key], "accelerator_mode") != {"enabled"}:
-            raise ComparisonError(f"enabled mode is not recorded for {key}")
+        if left[key].get("environment_valid") and trace_values(left[key], "accelerator_mode") != {left_mode}:
+            raise ComparisonError(f"{left_mode} mode is not recorded for {key}")
+        if right[key].get("environment_valid") and trace_values(right[key], "accelerator_mode") != {right_mode}:
+            raise ComparisonError(f"{right_mode} mode is not recorded for {key}")
         if left[key].get("environment_valid") and right[key].get("environment_valid"):
-            for field in ("model", "reasoning_effort", "cache_profile"):
+            fields = ["model", "reasoning_effort"]
+            if compare_cache_profile:
+                fields.append("cache_profile")
+            for field in fields:
                 if trace_values(left[key], field) != trace_values(right[key], field):
                     raise ComparisonError(f"{field} differs for {key}")
             if runtime_values(left[key], "codex_cli") != runtime_values(right[key], "codex_cli"):
@@ -274,10 +282,14 @@ def range_text(values: list[float], metric: str) -> str:
 
 
 def render_metric_table(
-    lines: list[str], fallback_samples: list[dict[str, Any]], accelerated_samples: list[dict[str, Any]]
+    lines: list[str],
+    fallback_samples: list[dict[str, Any]],
+    accelerated_samples: list[dict[str, Any]],
+    left_label: str = "F",
+    right_label: str = "A",
 ) -> None:
     lines.extend([
-        "| Metric | F mean | A mean | Δ mean | F median | A median | F min–max | A min–max | F SD | A SD | Totals ratio A/F | n F/A |",
+        f"| Metric | {left_label} mean | {right_label} mean | Δ mean | {left_label} median | {right_label} median | {left_label} min–max | {right_label} min–max | {left_label} SD | {right_label} SD | Totals ratio {right_label}/{left_label} | n {left_label}/{right_label} |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ])
     for metric in METRICS:
@@ -345,10 +357,27 @@ def cache_profile_text(run: dict[str, Any]) -> str:
     return str(value) if value else "unavailable"
 
 
+def prewarm_seconds(sample: dict[str, Any]) -> float:
+    return sum(
+        float(value)
+        for run in agent_runs(sample)
+        for value in [run.get("prewarm_seconds")]
+        if isinstance(value, (int, float)) and not isinstance(value, bool)
+    )
+
+
 def render_comparison(
-    fallback: dict[str, Any], accelerated: dict[str, Any], source_directories: tuple[Path, ...] = ()
+    fallback: dict[str, Any],
+    accelerated: dict[str, Any],
+    source_directories: tuple[Path, ...] = (),
+    *,
+    compare_cache_profile: bool = True,
 ) -> str:
-    left, right = validate_comparable(fallback, accelerated)
+    left, right = validate_comparable(
+        fallback,
+        accelerated,
+        compare_cache_profile=compare_cache_profile,
+    )
     all_samples = [*left.values(), *right.values()]
     run_left, run_right = fallback.get("run", {}), accelerated.get("run", {})
     lines = [
@@ -387,7 +416,7 @@ def render_comparison(
         lines.extend(["", f"## {title}", "", f"Fallback n={len(left_samples)}; accelerated n={len(right_samples)}.", ""])
         render_metric_table(lines, left_samples, right_samples)
 
-    lines.extend(["", "## Sample outcomes", "", "| Mode | Sample | Valid | Passed | Retrieval | Attempts | Index state | Inferred files | Commands | Tool output chars | Agent time | Total tokens | Queue | Outcome/reason |", "|---|---:|---:|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---|"])
+    lines.extend(["", "## Sample outcomes", "", "| Mode | Sample | Valid | Passed | Retrieval | Attempts | Index state | Inferred files | Commands | Tool output chars | Prewarm | Agent time | Total tokens | Queue | Outcome/reason |", "|---|---:|---:|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|"])
     for label, samples in (("fallback", left), ("accelerated", right)):
         for key, sample in sorted(samples.items()):
             found = attempts(sample)
@@ -396,25 +425,41 @@ def render_comparison(
                 f"| {label} | {key[1]} | {bool(sample.get('environment_valid'))} | {bool(sample.get('passed'))} | "
                 f"{markdown_text(last.get('mode', 'unavailable'))} | {len(found)} | {markdown_text(last.get('index_state') or '—')} | "
                 f"{format_number(metric_value(sample, 'files_read'), 'files_read')} | {format_number(metric_value(sample, 'command_count'), 'command_count')} | "
-                f"{format_number(metric_value(sample, 'command_output_chars'), 'command_output_chars')} | {format_number(metric_value(sample, 'agent_duration_seconds'), 'agent_duration_seconds')} | "
+                f"{format_number(metric_value(sample, 'command_output_chars'), 'command_output_chars')} | {prewarm_seconds(sample):.3f} | {format_number(metric_value(sample, 'agent_duration_seconds'), 'agent_duration_seconds')} | "
                 f"{format_number(metric_value(sample, 'total_tokens'), 'total_tokens')} | {float(sample.get('queue_seconds') or 0):.3f} | {markdown_text(failure_summary(sample))} |"
             )
 
-    lines.extend(["", "## Retrieval attempts", "", "| Mode | Sample | Attempt | Query | Result | Exit | Failure/reason | Index | Documents | Refreshed | Total/Search (s) | Candidates |", "|---|---:|---:|---|---|---:|---|---|---:|---:|---:|---|"])
+    lines.extend(["", "## Retrieval attempts", "", "| Mode | Sample | Attempt | Query | Result | Exit | Failure/reason | Index | Documents | Refreshed | Direct/graph | Total/Search (s) | Candidates |", "|---|---:|---:|---|---|---:|---|---|---:|---:|---:|---:|---|"])
     for label, samples in (("fallback", left), ("accelerated", right)):
         for key, sample in sorted(samples.items()):
             for attempt in attempts(sample):
                 timings = attempt.get("timings") if isinstance(attempt.get("timings"), dict) else {}
-                candidate_text = "; ".join(
-                    f"{candidate.get('path')} ({candidate.get('score', 'n/a')}; {','.join(map(str, candidate.get('origins', [])))})"
-                    for candidate in attempt.get("candidates", [])
-                    if isinstance(candidate, dict)
-                ) or "—"
+                direct = attempt.get("direct_matches")
+                graph = attempt.get("graph_neighbors")
+                if isinstance(direct, list) or isinstance(graph, list):
+                    rendered_candidates = [
+                        f"D:{candidate.get('path')} ({candidate.get('score', 'n/a')}; {','.join(map(str, candidate.get('origins', [])))})"
+                        for candidate in direct or []
+                        if isinstance(candidate, dict)
+                    ]
+                    rendered_candidates.extend(
+                        f"G:{candidate.get('path')} via {candidate.get('source_path', '?')} {candidate.get('direction', '?')} d{candidate.get('depth', '?')} ({candidate.get('score', 'n/a')})"
+                        for candidate in graph or []
+                        if isinstance(candidate, dict)
+                    )
+                else:
+                    rendered_candidates = [
+                        f"{candidate.get('path')} ({candidate.get('score', 'n/a')}; {','.join(map(str, candidate.get('origins', [])))})"
+                        for candidate in attempt.get("candidates", [])
+                        if isinstance(candidate, dict)
+                    ]
+                candidate_text = "; ".join(rendered_candidates) or "—"
                 failure = attempt.get("failure_kind") or attempt.get("reason_code") or "—"
                 lines.append(
                     f"| {label} | {key[1]} | {attempt.get('attempt_number', '?')} | {markdown_text(attempt.get('query') or '—')} | {markdown_text(attempt.get('mode', 'unknown'))} | "
                     f"{attempt.get('exit_code', 'n/a')} | {markdown_text(failure)} | {markdown_text(attempt.get('index_state') or '—')} | "
                     f"{attempt.get('documents') if attempt.get('documents') is not None else 'n/a'} | {attempt.get('refreshed') if attempt.get('refreshed') is not None else 'n/a'} | "
+                    f"{attempt.get('direct_count', 'n/a')}/{attempt.get('graph_count', 'n/a')} | "
                     f"{timings.get('total_seconds', 'n/a')}/{timings.get('search_seconds', 'n/a')} | {markdown_text(candidate_text)} |"
                 )
 
@@ -463,6 +508,61 @@ def render_comparison(
     return "\n".join(lines)
 
 
+def demote_report(report: str, title: str) -> str:
+    lines = [("#" + line) if line.startswith("#") else line for line in report.splitlines()]
+    lines[0] = f"## {title}"
+    return "\n".join(lines)
+
+
+def render_three_way(
+    fallback: dict[str, Any],
+    cold: dict[str, Any],
+    warm: dict[str, Any],
+    source_directories: tuple[Path, ...] = (),
+) -> str:
+    cold_report = render_comparison(fallback, cold, source_directories)
+    warm_report = render_comparison(
+        fallback,
+        warm,
+        source_directories,
+        compare_cache_profile=False,
+    )
+    cold_samples, warm_samples = validate_comparable(
+        cold,
+        warm,
+        compare_cache_profile=False,
+        left_mode="enabled",
+        right_mode="enabled",
+    )
+    direct_lines = [
+        "## Cold vs prewarmed accelerator",
+        "",
+        "Both profiles return the same routing contract; this comparison isolates cache-state effects.",
+        "",
+    ]
+    render_metric_table(
+        direct_lines,
+        cohort(cold_samples, lambda sample: bool(sample.get("environment_valid"))),
+        cohort(warm_samples, lambda sample: bool(sample.get("environment_valid"))),
+        "C",
+        "W",
+    )
+    all_samples = [
+        *fallback.get("samples", []),
+        *cold.get("samples", []),
+        *warm.get("samples", []),
+    ]
+    return "\n\n".join(
+        (
+            "# Extract retrieval performance: cold and prewarmed\n\n"
+            f"Observed concurrency across all three groups: {observed_concurrency(all_samples) or 'unavailable'}.",
+            "\n".join(direct_lines),
+            demote_report(cold_report, "Cold accelerator vs fallback"),
+            demote_report(warm_report, "Prewarmed accelerator vs fallback"),
+        )
+    )
+
+
 def default_output_path(now: datetime.datetime | None = None) -> Path:
     instant = now or datetime.datetime.now(datetime.timezone.utc)
     timestamp = instant.astimezone(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
@@ -494,12 +594,27 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fallback", type=Path, required=True)
     parser.add_argument("--accelerated", type=Path, required=True)
+    parser.add_argument("--warm", type=Path, help="optional prewarmed accelerator report")
     parser.add_argument("--output", type=Path, help="preferred Markdown path; an existing file is never overwritten")
     args = parser.parse_args()
-    directories = report_directories((args.fallback, args.accelerated))
+    report_paths = tuple(
+        path for path in (args.fallback, args.accelerated, args.warm) if path is not None
+    )
+    directories = report_directories(report_paths)
     print("Source report directories: " + ", ".join(str(path) for path in directories))
     try:
-        rendered = render_comparison(load_report(args.fallback), load_report(args.accelerated), directories)
+        fallback = load_report(args.fallback)
+        accelerated = load_report(args.accelerated)
+        rendered = (
+            render_three_way(
+                fallback,
+                accelerated,
+                load_report(args.warm),
+                directories,
+            )
+            if args.warm
+            else render_comparison(fallback, accelerated, directories)
+        )
         output_path = write_markdown(args.output or default_output_path(), rendered)
     except ComparisonError as error:
         print(f"cannot compare reports: {error}", file=sys.stderr)

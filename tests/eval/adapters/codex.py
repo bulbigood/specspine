@@ -338,7 +338,14 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
                 "sqlite-fts5", "fallback", "error"
             }:
                 payload = candidate
-        documents = payload.get("candidates", []) if isinstance(payload, dict) else []
+        direct_documents = (
+            payload.get("direct_matches", [])
+            if isinstance(payload, dict)
+            else []
+        )
+        graph_documents = (
+            payload.get("graph_neighbors", []) if isinstance(payload, dict) else []
+        )
         if payload is not None:
             failure_kind = None
         elif not raw_output.strip():
@@ -347,17 +354,37 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
             failure_kind = "invalid_payload"
         else:
             failure_kind = "malformed_output"
-        candidates = []
-        for candidate in documents if isinstance(documents, list) else []:
+        direct_matches = []
+        for candidate in direct_documents if isinstance(direct_documents, list) else []:
             if not isinstance(candidate, dict) or not isinstance(candidate.get("path"), str):
                 continue
-            candidates.append(
+            direct_matches.append(
                 {
                     key: candidate[key]
                     for key in ("path", "score", "origins", "reasons", "headings", "title")
                     if key in candidate
                 }
             )
+        graph_neighbors = []
+        for candidate in graph_documents if isinstance(graph_documents, list) else []:
+            if not isinstance(candidate, dict) or not isinstance(candidate.get("path"), str):
+                continue
+            graph_neighbors.append(
+                {
+                    key: candidate[key]
+                    for key in (
+                        "path",
+                        "score",
+                        "origins",
+                        "title",
+                        "source_path",
+                        "direction",
+                        "depth",
+                    )
+                    if key in candidate
+                }
+            )
+        candidates = direct_matches + graph_neighbors
         attempts.append(
             {
                 "attempt_number": len(attempts) + 1,
@@ -367,6 +394,10 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
                 "candidate_count": len(candidates),
                 "candidate_paths": [candidate["path"] for candidate in candidates],
                 "candidates": candidates,
+                "direct_count": len(direct_matches),
+                "graph_count": len(graph_neighbors),
+                "direct_matches": direct_matches,
+                "graph_neighbors": graph_neighbors,
                 "exit_code": item.get("exit_code"),
                 "failure_kind": failure_kind,
                 "reason_code": payload.get("reason_code") if isinstance(payload, dict) else None,
@@ -765,6 +796,8 @@ def build_codex_command(
     }
     if accelerator_mode == "fallback":
         environment["SPECSPINE_CACHE_DIR"] = str(runtime_root / "accelerator-unavailable")
+    else:
+        environment["SPECSPINE_CACHE_DIR"] = str(runtime_root / "accelerator-cache")
     environment_config = "{" + ",".join(
         f"{key}={json.dumps(value)}" for key, value in environment.items()
     ) + "}"
@@ -805,6 +838,35 @@ def build_codex_command(
     ]
 
 
+def prewarm_accelerator(root: Path, runtime_root: Path) -> None:
+    script = root / ".eval" / "skill" / "scripts" / "search_spine.py"
+    python = shutil.which("python3", path=sandbox_path(runtime_root))
+    if not python:
+        raise RuntimeError("python3 is unavailable for accelerator prewarm")
+    environment = os.environ.copy()
+    environment["SPECSPINE_CACHE_DIR"] = str(runtime_root / "accelerator-cache")
+    environment["TMPDIR"] = str(runtime_root / "tmp")
+    completed = subprocess.run(
+        [
+            python,
+            str(script),
+            str(root / "specspine"),
+            "--query=README.md",
+            "--limit=1",
+            "--graph-depth=0",
+            "--graph-limit=0",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=environment,
+        timeout=60,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise RuntimeError(f"accelerator prewarm failed: {detail}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="gpt-5.6-luna")
@@ -815,7 +877,15 @@ def main() -> int:
         default="enabled",
         help="make the optional retrieval cache available or force its normal fallback",
     )
+    parser.add_argument(
+        "--cache-profile",
+        choices=("isolated-cold", "prewarmed"),
+        default="isolated-cold",
+        help="start with a private empty cache or prebuild the private index before the agent",
+    )
     args = parser.parse_args()
+    if args.accelerator_mode == "fallback" and args.cache_profile != "isolated-cold":
+        parser.error("fallback mode supports only isolated-cold cache profile")
 
     root = Path.cwd()
     prompt = sys.stdin.read()
@@ -826,6 +896,7 @@ def main() -> int:
     runtime_parent.mkdir(parents=True, exist_ok=True)
     runtime_root = Path(tempfile.mkdtemp(prefix="specspine-runtime-", dir=runtime_parent))
     workspace_mountpoints: list[Path] = []
+    prewarm_seconds = 0.0
     try:
         for directory in (
             runtime_root / "bin",
@@ -856,6 +927,10 @@ def main() -> int:
                 (runtime_root / "bin" / name).symlink_to(target)
         if args.accelerator_mode == "fallback":
             (runtime_root / "accelerator-unavailable").touch()
+        elif args.cache_profile == "prewarmed":
+            prewarm_started = time.monotonic()
+            prewarm_accelerator(root, runtime_root)
+            prewarm_seconds = time.monotonic() - prewarm_started
         command = build_codex_command(
             args.model,
             args.reasoning_effort,
@@ -922,7 +997,8 @@ def main() -> int:
                 "scope_violations": boundary_violations,
                 "model": args.model,
                 "reasoning_effort": args.reasoning_effort,
-                "cache_profile": "isolated-cold",
+                "cache_profile": args.cache_profile,
+                "prewarm_seconds": round(prewarm_seconds, 6),
                 "runtime": {
                     "adapter_sha256": file_sha256(Path(__file__)),
                     "codex_cli": codex_version,

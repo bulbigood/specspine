@@ -18,6 +18,14 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class RunnerTests(unittest.TestCase):
+    def test_compact_trace_preserves_cache_profile_timing(self):
+        compact = RUNNER.compact_agent_trace(
+            {"cache_profile": "prewarmed", "prewarm_seconds": 0.125}
+        )
+
+        self.assertEqual("prewarmed", compact["cache_profile"])
+        self.assertEqual(0.125, compact["prewarm_seconds"])
+
     def test_all_documented_scenarios_are_registered(self):
         documented, registered, _ = RUNNER.scenario_coverage(RUNNER.load_cases())
         self.assertEqual(documented, registered)

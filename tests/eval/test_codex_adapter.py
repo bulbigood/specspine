@@ -135,7 +135,15 @@ class CodexAdapterTests(unittest.TestCase):
     def test_records_actual_retrieval_result(self):
         payload = {
             "mode": "sqlite-fts5",
-            "candidates": [{"path": "specspine/owner.md"}],
+            "direct_matches": [{"path": "specspine/owner.md"}],
+            "graph_neighbors": [
+                {
+                    "path": "specspine/worker.md",
+                    "source_path": "specspine/owner.md",
+                    "direction": "outgoing",
+                    "depth": 1,
+                }
+            ],
         }
         stdout = json.dumps(
             {
@@ -154,8 +162,13 @@ class CodexAdapterTests(unittest.TestCase):
 
         self.assertEqual("sqlite-fts5", attempts[0]["mode"])
         self.assertEqual("rare intent", attempts[0]["query"])
-        self.assertEqual(["specspine/owner.md"], attempts[0]["candidate_paths"])
-        self.assertEqual(1, attempts[0]["candidate_count"])
+        self.assertEqual(
+            ["specspine/owner.md", "specspine/worker.md"],
+            attempts[0]["candidate_paths"],
+        )
+        self.assertEqual(2, attempts[0]["candidate_count"])
+        self.assertEqual(1, attempts[0]["direct_count"])
+        self.assertEqual(1, attempts[0]["graph_count"])
         self.assertEqual(1, attempts[0]["attempt_number"])
         self.assertIsNone(attempts[0]["failure_kind"])
 
@@ -496,6 +509,32 @@ PATCH"""
             'SPECSPINE_CACHE_DIR="/runtime/accelerator-unavailable"',
             environment_argument,
         )
+
+    def test_codex_command_uses_private_accelerator_cache(self):
+        command = ADAPTER.build_codex_command(
+            "agent-model", "medium", Path("/workspace"), Path("/runtime")
+        )
+        environment_argument = next(
+            item for item in command if item.startswith("shell_environment_policy.set=")
+        )
+
+        self.assertIn(
+            'SPECSPINE_CACHE_DIR="/runtime/accelerator-cache"',
+            environment_argument,
+        )
+
+    def test_prewarm_uses_workspace_spine_and_private_cache(self):
+        completed = ADAPTER.subprocess.CompletedProcess([], 0, "{}\n", "")
+        with mock.patch.object(
+            ADAPTER.subprocess, "run", return_value=completed
+        ) as run:
+            ADAPTER.prewarm_accelerator(Path("/workspace"), Path("/runtime"))
+
+        command = run.call_args.args[0]
+        environment = run.call_args.kwargs["env"]
+        self.assertIn("/workspace/.eval/skill/scripts/search_spine.py", command)
+        self.assertIn("/workspace/specspine", command)
+        self.assertEqual("/runtime/accelerator-cache", environment["SPECSPINE_CACHE_DIR"])
 
     def test_staging_bundles_external_macos_dependencies(self):
         with tempfile.TemporaryDirectory() as directory:

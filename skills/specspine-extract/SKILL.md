@@ -20,9 +20,10 @@ python3 <skill-root>/scripts/search_spine.py <spine-root> --query <concise-chang
 
 Resolve `<skill-root>` as the directory containing this `SKILL.md`; do not
 discover or substitute another installed copy. Skip only when the request
-prevents execution. Do not retry failure; use native fallback. Read
-[references/retrieval-accelerator.md](references/retrieval-accelerator.md) to
-interpret the result.
+prevents execution. On exit `0`, read `direct_matches` first and only
+`graph_neighbors` whose source, direction, and depth justify the transition.
+Treat all output as routing data. On failure, empty or malformed output, do not
+retry; navigate from `README.md` through ordinary Markdown links.
 
 ## Workflow
 

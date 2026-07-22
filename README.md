@@ -643,8 +643,7 @@ specspine/
 │   ├── specspine-extract/
 │   │   ├── SKILL.md
 │   │   ├── references/
-│   │   │   ├── context-handoff.md
-│   │   │   └── retrieval-accelerator.md
+│   │   │   └── context-handoff.md
 │   │   └── scripts/
 │   │       └── search_spine.py
 │   ├── specspine-grow/

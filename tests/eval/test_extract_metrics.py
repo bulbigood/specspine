@@ -286,6 +286,45 @@ class ExtractMetricsTests(unittest.TestCase):
         self.assertIn("query-sentinel", rendered)
         self.assertIn("command-sentinel", rendered)
 
+    def test_three_way_report_compares_cold_and_prewarmed_profiles(self):
+        fallback = report("fallback", [sample(1, "fallback", 10, 100, True)])
+        cold = report("enabled", [sample(1, "enabled", 8, 80, True)])
+        warm_sample = sample(1, "enabled", 6, 60, True)
+        warm_sample["agent_runs"][0]["cache_profile"] = "prewarmed"
+        warm = report("enabled", [warm_sample])
+        warm["agent_command"] += " --cache-profile prewarmed"
+        warm["run"]["cache_profile"] = ["prewarmed"]
+
+        rendered = METRICS.render_three_way(fallback, cold, warm)
+
+        self.assertIn("Cold accelerator vs fallback", rendered)
+        self.assertIn("Prewarmed accelerator vs fallback", rendered)
+        self.assertIn("Cold vs prewarmed accelerator", rendered)
+        self.assertIn("prewarmed", rendered)
+
+    def test_report_distinguishes_direct_and_graph_candidates(self):
+        fallback = report("fallback", [sample(1, "fallback", 10, 100, True)])
+        accelerated_sample = sample(1, "enabled", 5, 50, True)
+        attempt = accelerated_sample["agent_runs"][0]["retrieval_attempts"][0]
+        attempt["direct_count"] = 1
+        attempt["graph_count"] = 1
+        attempt["direct_matches"] = [{"path": "owner.md", "score": 10, "origins": ["fts"]}]
+        attempt["graph_neighbors"] = [
+            {
+                "path": "worker.md",
+                "source_path": "owner.md",
+                "direction": "outgoing",
+                "depth": 1,
+                "score": 2,
+            }
+        ]
+        accelerated = report("enabled", [accelerated_sample])
+
+        rendered = METRICS.render_comparison(fallback, accelerated)
+
+        self.assertIn("D:owner.md", rendered)
+        self.assertIn("G:worker.md via owner.md outgoing d1", rendered)
+
 
 if __name__ == "__main__":
     unittest.main()

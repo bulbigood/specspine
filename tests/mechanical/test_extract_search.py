@@ -9,7 +9,8 @@ import threading
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 
 PROJECT_ROOT = Path(__file__).parents[2]
@@ -69,11 +70,11 @@ class ExtractSearchTests(unittest.TestCase):
 
         result, payload = self.run_search("authentication token")
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual("identity.md", payload["candidates"][0]["path"])
+        self.assertEqual("identity.md", payload["direct_matches"][0]["path"])
         self.assertEqual(2, payload["documents"])
         self.assertEqual("cold_build", payload["index_state"])
-        self.assertEqual(1, payload["schema_version"])
-        self.assertIn("fts", payload["candidates"][0]["origins"])
+        self.assertEqual(2, payload["schema_version"])
+        self.assertIn("fts", payload["direct_matches"][0]["origins"])
         self.assertGreaterEqual(payload["timings"]["total_seconds"], 0)
         self.assertTrue(payload["runtime"]["fts5"])
         self.assertEqual([], list(self.spine.rglob("*.sqlite*")))
@@ -86,7 +87,7 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertEqual("incremental_refresh", payload["index_state"])
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(1, payload["refreshed"])
-        self.assertEqual("identity.md", payload["candidates"][0]["path"])
+        self.assertEqual("identity.md", payload["direct_matches"][0]["path"])
 
         identity.unlink()
         result, payload = self.run_search("architecture")
@@ -118,23 +119,23 @@ class ExtractSearchTests(unittest.TestCase):
             "CON-retry-limit", "--limit", "3", "--graph-depth", "0"
         )
         self.assertEqual(0, result.returncode, result.stderr)
-        by_path = {item["path"]: item for item in payload["candidates"]}
+        by_path = {item["path"]: item for item in payload["direct_matches"]}
         owner = "platform/resilience/retry-policy.md"
         consumer = "domains/payments/processing.md"
-        self.assertEqual(owner, payload["candidates"][0]["path"])
+        self.assertEqual(owner, payload["direct_matches"][0]["path"])
         self.assertIn("semantic_id", by_path[owner]["origins"])
 
         result, payload = self.run_search(
             "fiveattemptceiling", "--limit", "3", "--graph-depth", "0"
         )
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertNotIn(consumer, {item["path"] for item in payload["candidates"]})
+        self.assertNotIn(consumer, {item["path"] for item in payload["direct_matches"]})
 
         result, payload = self.run_search(
             "fiveattemptceiling", "--limit", "3", "--graph-depth", "1"
         )
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn(consumer, {item["path"] for item in payload["candidates"]})
+        self.assertIn(consumer, {item["path"] for item in payload["graph_neighbors"]})
 
     def test_graph_corroboration_outranks_single_term_matches(self):
         (self.spine / "README.md").write_text(
@@ -163,9 +164,9 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(
             ["owner.md", "boundary.md"],
-            [candidate["path"] for candidate in payload["candidates"][:2]],
+            [candidate["path"] for candidate in payload["direct_matches"][:2]],
         )
-        boundary = payload["candidates"][1]
+        boundary = payload["direct_matches"][1]
         self.assertEqual(
             {"fts", "graph_outgoing", "graph_incoming"},
             set(boundary["origins"]),
@@ -182,9 +183,75 @@ class ExtractSearchTests(unittest.TestCase):
         result, payload = self.run_search("payloadsentinel")
 
         self.assertEqual(0, result.returncode, result.stderr)
-        candidate = payload["candidates"][0]
+        candidate = payload["direct_matches"][0]
         self.assertNotIn("summary", candidate)
         self.assertNotIn("reasons", candidate)
+
+    def test_direct_matches_and_graph_neighbors_have_independent_contracts(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Owner](owner.md)\n", encoding="utf-8"
+        )
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns directsentinel. Uses [Worker](worker.md).\n",
+            encoding="utf-8",
+        )
+        (self.spine / "worker.md").write_text(
+            "# Worker\n\nProvides execution mechanics.\n", encoding="utf-8"
+        )
+
+        result, payload = self.run_search(
+            "directsentinel", "--limit", "1", "--graph-limit", "1"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["owner.md"], [item["path"] for item in payload["direct_matches"]])
+        self.assertEqual(["worker.md"], [item["path"] for item in payload["graph_neighbors"]])
+        neighbor = payload["graph_neighbors"][0]
+        self.assertEqual("owner.md", neighbor["source_path"])
+        self.assertEqual("outgoing", neighbor["direction"])
+        self.assertEqual(1, neighbor["depth"])
+
+    def test_inline_code_identifiers_are_searchable_without_creating_links(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Owner](owner.md)\n", encoding="utf-8"
+        )
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nUses `RetryEnvelopeV2` and `[not-a-link](missing.md)`.\n",
+            encoding="utf-8",
+        )
+
+        result, payload = self.run_search("RetryEnvelopeV2")
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("owner.md", payload["direct_matches"][0]["path"])
+        self.assertNotIn(
+            "missing.md", {item["path"] for item in payload["graph_neighbors"]}
+        )
+
+    def test_stable_read_retries_a_file_changed_during_read(self):
+        first = SimpleNamespace(st_size=3, st_mtime_ns=1, st_ctime_ns=1)
+        second = SimpleNamespace(st_size=4, st_mtime_ns=2, st_ctime_ns=2)
+        source = Mock()
+        source.read_bytes.side_effect = [b"old", b"new!"]
+        source.stat.side_effect = [second, second]
+
+        raw, observed = SEARCH.stable_read(source, first)
+
+        self.assertEqual(b"new!", raw)
+        self.assertIs(second, observed)
+
+    def test_stable_read_falls_back_when_source_keeps_changing(self):
+        first = SimpleNamespace(st_size=1, st_mtime_ns=1, st_ctime_ns=1)
+        second = SimpleNamespace(st_size=2, st_mtime_ns=2, st_ctime_ns=2)
+        third = SimpleNamespace(st_size=3, st_mtime_ns=3, st_ctime_ns=3)
+        source = Mock()
+        source.read_bytes.side_effect = [b"a", b"bb"]
+        source.stat.side_effect = [second, third]
+
+        with self.assertRaises(SEARCH.AcceleratorUnavailable) as raised:
+            SEARCH.stable_read(source, first)
+
+        self.assertEqual("source_changed_during_index", raised.exception.reason_code)
 
     def test_fts_limit_counts_unique_documents_not_matching_sections(self):
         connection = SEARCH.sqlite3.connect(":memory:")
@@ -208,11 +275,12 @@ class ExtractSearchTests(unittest.TestCase):
                 ("small.md", "small.md", "", "Only section", "needle"),
             )
 
-            candidates = SEARCH.search(connection, "needle", 2, 0)
+            direct, graph = SEARCH.search(connection, "needle", 2, 0, 2)
             self.assertEqual(
                 ["large.md", "small.md"],
-                [candidate["path"] for candidate in candidates],
+                [candidate["path"] for candidate in direct],
             )
+            self.assertEqual([], graph)
         finally:
             connection.close()
 
@@ -231,8 +299,8 @@ class ExtractSearchTests(unittest.TestCase):
         result, payload = self.run_search("commonterm raretarget", "--graph-depth", "0")
 
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual("target.md", payload["candidates"][0]["path"])
-        self.assertEqual(1, len(payload["candidates"]))
+        self.assertEqual("target.md", payload["direct_matches"][0]["path"])
+        self.assertEqual(1, len(payload["direct_matches"]))
 
     def test_query_keeps_informative_terms_when_a_phrase_matches_elsewhere(self):
         (self.spine / "README.md").write_text(
@@ -251,7 +319,7 @@ class ExtractSearchTests(unittest.TestCase):
         )
 
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("timeout.md", {item["path"] for item in payload["candidates"]})
+        self.assertIn("timeout.md", {item["path"] for item in payload["direct_matches"]})
 
     def test_cold_cache_waits_for_current_builder(self):
         (self.spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
@@ -312,7 +380,7 @@ class ExtractSearchTests(unittest.TestCase):
             (self.spine / f"decoy-{index}.md").write_text(
                 f"# Decoy {index}\n\nUnrelated content.\n", encoding="utf-8"
             )
-        workers = 6
+        workers = 8
         barrier = threading.Barrier(workers)
 
         def search():
@@ -325,10 +393,78 @@ class ExtractSearchTests(unittest.TestCase):
         for result, payload in results:
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual("sqlite-fts5", payload["mode"])
-            self.assertEqual("target.md", payload["candidates"][0]["path"])
+            self.assertEqual("target.md", payload["direct_matches"][0]["path"])
         states = {payload["index_state"] for _, payload in results}
         self.assertIn("cold_build", states)
         self.assertLessEqual(states, {"cold_build", "waited_for_builder", "warm"})
+
+    def test_parallel_warm_searches_do_not_fallback(self):
+        (self.spine / "README.md").write_text(
+            "# Architecture\n\nOwns warm parallel retrieval.\n", encoding="utf-8"
+        )
+        result, _ = self.run_search("parallel retrieval")
+        self.assertEqual(0, result.returncode, result.stderr)
+        workers = 8
+        barrier = threading.Barrier(workers)
+
+        def search():
+            barrier.wait()
+            return self.run_search("parallel retrieval", "--graph-depth", "0")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            results = list(executor.map(lambda _: search(), range(workers)))
+
+        for result, payload in results:
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("sqlite-fts5", payload["mode"])
+            self.assertEqual("warm", payload["index_state"])
+
+    def test_parallel_incremental_refreshes_remain_available(self):
+        target = self.spine / "target.md"
+        (self.spine / "README.md").write_text(
+            "# Architecture\n\n[Target](target.md)\n", encoding="utf-8"
+        )
+        target.write_text("# Target\n\nOwns oldsentinel.\n", encoding="utf-8")
+        result, _ = self.run_search("oldsentinel")
+        self.assertEqual(0, result.returncode, result.stderr)
+        target.write_text("# Target\n\nOwns newsentinel.\n", encoding="utf-8")
+        workers = 8
+        barrier = threading.Barrier(workers)
+
+        def search():
+            barrier.wait()
+            return self.run_search("newsentinel", "--graph-depth", "0")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            results = list(executor.map(lambda _: search(), range(workers)))
+
+        for result, payload in results:
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("target.md", payload["direct_matches"][0]["path"])
+        result, payload = self.run_search("newsentinel", "--graph-depth", "0")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(0, payload["refreshed"])
+
+    def test_rebuild_and_parallel_readers_remain_available(self):
+        (self.spine / "README.md").write_text(
+            "# Architecture\n\nOwns rebuildsentinel.\n", encoding="utf-8"
+        )
+        result, _ = self.run_search("rebuildsentinel")
+        self.assertEqual(0, result.returncode, result.stderr)
+        workers = 8
+        barrier = threading.Barrier(workers)
+
+        def search(index):
+            barrier.wait()
+            arguments = ("--rebuild",) if index == 0 else ()
+            return self.run_search("rebuildsentinel", *arguments)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            results = list(executor.map(search, range(workers)))
+
+        for result, payload in results:
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("sqlite-fts5", payload["mode"])
 
     def test_corrupt_index_is_rebuilt_under_cache_lock(self):
         (self.spine / "README.md").write_text(

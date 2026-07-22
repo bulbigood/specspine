@@ -166,11 +166,12 @@ lifecycle behavior.
 ### Compare extract retrieval cost
 
 Do not create another eval case for performance comparison. Run the existing
-`extract-accelerated-handoff` case against the same fixture and prompt in two
-modes. The adapter's `fallback` mode makes only the disposable cache
+`extract-accelerated-handoff` case against the same fixture and prompt in three
+profiles: forced fallback, isolated cold, and prewarmed. The adapter's
+`fallback` mode makes only the disposable cache
 unavailable, so the skill exercises its normal Markdown-link fallback.
 
-Run both groups concurrently and save their per-sample reports:
+Run all groups concurrently and save their per-sample reports:
 
 ```bash
 report_dir=$(mktemp -d -t specspine-extract-eval.XXXXXX)
@@ -183,23 +184,40 @@ python3 tests/eval/run.py \
 fallback_pid=$!
 python3 tests/eval/run.py \
   --case extract-accelerated-handoff --samples 5 \
-  --run-id "$run_id-accelerated" \
-  --report-label accelerated --report-json "$report_dir/accelerated.json" \
+  --run-id "$run_id-cold" \
+  --report-label accelerated-cold --report-json "$report_dir/cold.json" \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium --accelerator-mode enabled" &
-accelerated_pid=$!
+cold_pid=$!
+python3 tests/eval/run.py \
+  --case extract-accelerated-handoff --samples 5 \
+  --run-id "$run_id-warm" \
+  --report-label accelerated-prewarmed --report-json "$report_dir/warm.json" \
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium --accelerator-mode enabled --cache-profile prewarmed" &
+warm_pid=$!
 fallback_status=0
-accelerated_status=0
+cold_status=0
+warm_status=0
 wait "$fallback_pid" || fallback_status=$?
-wait "$accelerated_pid" || accelerated_status=$?
+wait "$cold_pid" || cold_status=$?
+wait "$warm_pid" || warm_status=$?
 python3 tests/eval/compare_extract_metrics.py \
   --fallback "$report_dir/fallback.json" \
-  --accelerated "$report_dir/accelerated.json"
-test "$fallback_status" -eq 0 -a "$accelerated_status" -eq 0
+  --accelerated "$report_dir/cold.json" \
+  --warm "$report_dir/warm.json"
+test "$fallback_status" -eq 0 -a "$cold_status" -eq 0 -a "$warm_status" -eq 0
 ```
 
-Each adapter invocation uses a private disposable runtime and cache, so this
-procedure measures isolated cold accelerator startup. The report records that
-cache profile explicitly; do not interpret it as a warm-cache benchmark.
+Each adapter invocation uses a private disposable runtime and cache. The cold
+group leaves that cache empty; the prewarmed group builds the exact workspace
+index before starting the agent. Sharing one cache directory between samples
+would not create a warm index because production cache keys include each
+workspace's absolute Spine path. The report records both profiles explicitly.
+Prewarm setup is excluded from agent duration and shown separately per sample.
+Cold and prewarmed samples are also compared directly, independently of their
+comparisons against fallback.
+Use the prewarmed group when cache lifecycle, locking, refresh, or index startup
+changes. For routine retrieval-quality A/B runs, omit that group and `--warm`;
+warm state should not change agent tokens when routing output is identical.
 
 The analyzer prints the absolute source-report directory and records it in the
 generated Markdown, so every snapshot can be traced back to its JSON inputs.
@@ -210,8 +228,10 @@ reports stay in the unique system temporary directory created by `mktemp`; the
 runner and analyzer do not remove them, leaving eventual cleanup to the
 operating system. It performs no agent calls. It
 rejects reports with incompatible case/skill or adapter fingerprints, models,
-reasoning effort, Codex CLI versions, cache profiles, sample identities, or
-configured parallelism. Sample numbers verify completeness but independent
+reasoning effort, Codex CLI versions, sample identities, or configured
+parallelism. Pairwise cold comparisons also require identical cache profiles;
+the explicit prewarmed comparison permits only that intentional difference.
+Sample numbers verify completeness but independent
 stochastic calls are not treated as statistical pairs. Environment-invalid
 samples are reported and excluded. Agent time comes from adapter traces rather
 than fixture setup or assertions. The Markdown preserves per-sample and

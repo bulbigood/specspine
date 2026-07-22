@@ -20,7 +20,7 @@ try:
     import sqlite3
 except ImportError as error:
     print(json.dumps({
-        "schema_version": 1,
+        "schema_version": 2,
         "mode": "fallback",
         "reason_code": "sqlite_unavailable",
         "reason": f"sqlite3 is unavailable: {error}",
@@ -28,7 +28,7 @@ except ImportError as error:
     raise SystemExit(2) from error
 
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 FALLBACK_EXIT = 2
 BUILD_LOCK_TIMEOUT_MS = 10_000
 SQLITE_BUSY_TIMEOUT_MS = 10_000
@@ -204,7 +204,12 @@ def mask_code_spans(line: str, delimiter: int) -> tuple[str, int]:
     cursor = 0
     while cursor < len(line):
         if line[cursor] != "`":
-            output.append(" " if delimiter else line[cursor])
+            char = line[cursor]
+            output.append(
+                char
+                if not delimiter or char.isalnum() or char in "_-."
+                else " "
+            )
             cursor += 1
             continue
         end = cursor
@@ -287,8 +292,26 @@ def visible_lines(text: str) -> list[str]:
     return visible
 
 
+def stat_signature(stat: os.stat_result) -> tuple[int, int, int]:
+    return stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns
+
+
+def stable_read(path: Path, expected: os.stat_result) -> tuple[bytes, os.stat_result]:
+    current = expected
+    for _ in range(2):
+        raw = path.read_bytes()
+        observed = path.stat()
+        if len(raw) == observed.st_size and stat_signature(current) == stat_signature(observed):
+            return raw, observed
+        current = observed
+    raise AcceleratorUnavailable(
+        f"source changed while it was being indexed: {path}",
+        "source_changed_during_index",
+    )
+
+
 def parse_document(path: Path, root: Path, stat: os.stat_result) -> Document:
-    raw = path.read_bytes()
+    raw, stat = stable_read(path, stat)
     text = raw.decode("utf-8")
     lines = visible_lines(text)
     title = path.stem.replace("-", " ")
@@ -799,7 +822,13 @@ def fts_query(query: str, connection: sqlite3.Connection | None = None) -> str:
     return fts_plan(query, connection)[0]
 
 
-def search(connection: sqlite3.Connection, query: str, limit: int, graph_depth: int) -> list[dict[str, object]]:
+def search(
+    connection: sqlite3.Connection,
+    query: str,
+    limit: int,
+    graph_depth: int,
+    graph_limit: int,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     candidates: dict[str, dict[str, object]] = {}
 
     def add(path: str, score: float, origin: str, reason: str, title: str | None = None, summary: str | None = None, heading: str | None = None) -> None:
@@ -879,37 +908,94 @@ def search(connection: sqlite3.Connection, query: str, limit: int, graph_depth: 
             break
         offset += batch_size
 
-    frontier = sorted(candidates, key=lambda path: float(candidates[path]["score"]), reverse=True)[:limit]
+    direct_paths = set(candidates)
+    frontier = sorted(
+        direct_paths,
+        key=lambda path: float(candidates[path]["score"]),
+        reverse=True,
+    )[:limit]
     visited = set(frontier)
+    graph_candidates: dict[str, dict[str, object]] = {}
     for depth in range(graph_depth):
         next_frontier: list[str] = []
         for source in frontier:
-            base = float(candidates[source]["score"])
+            source_candidate = candidates.get(source) or graph_candidates[source]
+            base = float(source_candidate["score"])
             outgoing = connection.execute("SELECT target_path FROM links WHERE source_path = ?", (source,)).fetchall()
             incoming = connection.execute("SELECT source_path FROM links WHERE target_path = ?", (source,)).fetchall()
             for neighbor, direction in [(row[0], "linked from candidate") for row in outgoing] + [
                 (row[0], "links to candidate") for row in incoming
             ]:
+                if neighbor == "README.md":
+                    continue
                 document = connection.execute(
                     "SELECT title, summary FROM documents WHERE path = ?", (neighbor,)
                 ).fetchone()
                 if document is None:
                     continue
                 origin = "graph_outgoing" if direction == "linked from candidate" else "graph_incoming"
-                add(neighbor, base * (0.25 ** (depth + 1)), origin, direction, document["title"], document["summary"])
+                score = base * 0.25
+                if neighbor in direct_paths:
+                    add(
+                        neighbor,
+                        score,
+                        origin,
+                        direction,
+                        document["title"],
+                        document["summary"],
+                    )
+                else:
+                    graph = graph_candidates.setdefault(
+                        neighbor,
+                        {
+                            "path": neighbor,
+                            "score": 0.0,
+                            "_scores": {},
+                            "origins": [],
+                            "source_path": source,
+                            "direction": "outgoing" if origin == "graph_outgoing" else "incoming",
+                            "depth": depth + 1,
+                            "title": document["title"],
+                        },
+                    )
+                    scores = graph["_scores"]
+                    assert isinstance(scores, dict)
+                    signal = f"{source}:{origin}"
+                    scores[signal] = max(float(scores.get(signal, 0.0)), score)
+                    graph["score"] = sum(float(value) for value in scores.values())
+                    if origin not in graph["origins"]:
+                        graph["origins"].append(origin)
+                    if score > float(graph.get("_best_score", -1.0)):
+                        graph["_best_score"] = score
+                        graph["source_path"] = source
+                        graph["direction"] = (
+                            "outgoing" if origin == "graph_outgoing" else "incoming"
+                        )
+                        graph["depth"] = depth + 1
                 if neighbor not in visited:
                     visited.add(neighbor)
                     next_frontier.append(neighbor)
         frontier = next_frontier
 
-    ordered = sorted(candidates.values(), key=lambda item: (-float(item["score"]), str(item["path"])))[:limit]
-    for item in ordered:
+    direct = sorted(
+        candidates.values(),
+        key=lambda item: (-float(item["score"]), str(item["path"])),
+    )[:limit]
+    graph = sorted(
+        graph_candidates.values(),
+        key=lambda item: (-float(item["score"]), str(item["path"])),
+    )[:graph_limit]
+    for item in direct:
         item.pop("_scores", None)
         item.pop("summary", None)
         item.pop("reasons", None)
         item["score"] = round(float(item["score"]), 3)
         item["headings"] = item["headings"][:4]
-    return ordered
+    for item in graph:
+        item.pop("_scores", None)
+        item.pop("_best_score", None)
+        item["score"] = round(float(item["score"]), 3)
+    return direct, graph
 
 
 def main() -> int:
@@ -917,16 +1003,20 @@ def main() -> int:
     parser.add_argument("spine_root", type=Path)
     parser.add_argument("--query", required=True)
     parser.add_argument("--limit", type=int, default=12)
+    parser.add_argument("--graph-limit", type=int, default=6)
     parser.add_argument("--graph-depth", type=int, choices=(0, 1, 2), default=1)
     parser.add_argument("--rebuild", action="store_true")
     args = parser.parse_args()
 
     root = args.spine_root.resolve()
     if not root.is_dir() or not (root / "README.md").is_file():
-        print(json.dumps({"schema_version": 1, "mode": "error", "reason_code": "invalid_root", "reason": "SpecSpine root or README.md is missing"}))
+        print(json.dumps({"schema_version": 2, "mode": "error", "reason_code": "invalid_root", "reason": "SpecSpine root or README.md is missing"}))
         return 3
     if args.limit < 1 or args.limit > 50:
-        print(json.dumps({"schema_version": 1, "mode": "error", "reason_code": "invalid_limit", "reason": "limit must be between 1 and 50"}))
+        print(json.dumps({"schema_version": 2, "mode": "error", "reason_code": "invalid_limit", "reason": "limit must be between 1 and 50"}))
+        return 3
+    if args.graph_limit < 0 or args.graph_limit > 50:
+        print(json.dumps({"schema_version": 2, "mode": "error", "reason_code": "invalid_graph_limit", "reason": "graph-limit must be between 0 and 50"}))
         return 3
 
     connection: sqlite3.Connection | None = None
@@ -936,12 +1026,18 @@ def main() -> int:
         index_path = cache_path(root)
         connection, changed, timings = ensure_index(root, index_path, args.rebuild)
         search_started = time.perf_counter()
-        candidates = search(connection, args.query, args.limit, args.graph_depth)
+        direct_matches, graph_neighbors = search(
+            connection,
+            args.query,
+            args.limit,
+            args.graph_depth,
+            args.graph_limit,
+        )
         timings["search_seconds"] = time.perf_counter() - search_started
         timings["total_seconds"] = time.perf_counter() - total_started
         count = connection.execute("SELECT count(*) FROM documents").fetchone()[0]
         print(json.dumps({
-            "schema_version": 1,
+            "schema_version": 2,
             "mode": "sqlite-fts5",
             "runtime": {
                 "python": platform.python_version(),
@@ -952,12 +1048,13 @@ def main() -> int:
             "refreshed": changed,
             "index_state": timings.pop("index_state"),
             "timings": {key: round(float(value), 6) for key, value in timings.items()},
-            "candidates": candidates,
+            "direct_matches": direct_matches,
+            "graph_neighbors": graph_neighbors,
         }, ensure_ascii=False))
-        return 0 if candidates else FALLBACK_EXIT
+        return 0 if direct_matches else FALLBACK_EXIT
     except AcceleratorUnavailable as error:
         print(json.dumps({
-            "schema_version": 1,
+            "schema_version": 2,
             "mode": "fallback",
             "reason_code": error.reason_code,
             "reason": str(error),
@@ -966,7 +1063,7 @@ def main() -> int:
         return FALLBACK_EXIT
     except Exception as error:
         print(json.dumps({
-            "schema_version": 1,
+            "schema_version": 2,
             "mode": "fallback",
             "reason_code": "unexpected_error",
             "reason": f"accelerator failed: {error}",

@@ -131,6 +131,7 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         "model": trace.get("model"),
         "reasoning_effort": trace.get("reasoning_effort"),
         "cache_profile": trace.get("cache_profile"),
+        "prewarm_seconds": trace.get("prewarm_seconds"),
         "runtime": trace.get("runtime") if isinstance(trace.get("runtime"), dict) else {},
         "environment_errors": trace.get("environment_errors", []),
         "scope_violations": trace.get("scope_violations", []),
