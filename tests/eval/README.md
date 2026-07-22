@@ -58,6 +58,11 @@ default; change it with `--jobs N`. Workspaces default to
 `SPECSPINE_EVAL_WORKSPACES_DIR`. Failed workspaces are retained only with
 `--keep-workspace`.
 
+Use `--samples N` to run each selected case independently in `N` fresh
+workspaces and report its success rate. This differs from a manifest's `runs`:
+those are sequential agent calls inside one workspace and test repeated or
+lifecycle behavior.
+
 Case manifests in `cases/*.json` define fixtures, prompts and deterministic
 assertions. A manifest may instead define ordered `stages`; agent stages run a
 prompt and assertions, while fixture stages model external changes.
@@ -66,7 +71,8 @@ Supported assertions:
 
 - paths/content: `path_exists`, `path_absent`, `glob_count`, `glob_contains`,
   `file_contains`, `file_not_contains`, `word_budget`;
-- response: `response_contains`, `response_not_contains`;
+- response: `response_contains`, `response_contains_any`,
+  `response_not_contains`;
 - changes: `unchanged`, `changed_only`, `max_changed_files`;
 - execution: `command_succeeds`;
 - trace: `read_only`, `read_includes`, `max_files_read`;
@@ -76,6 +82,20 @@ Supported assertions:
 Trace assertions require `.eval/trace.json`. The Codex adapter conservatively
 infers reads from completed command events; repository-wide content searches
 may count every candidate file as read.
+
+### Do not design skills around eval assertions
+
+Never complicate a skill, prescribe extra response structure, or add mandatory
+output phrases merely to make an eval pass. SpecSpine skills intentionally use
+a relatively free response format so their instructions and validation remain
+small, readable, and adaptable to the task.
+
+Eval assertions must follow the behavioral contract rather than create a new
+one. Prefer observable file, scope, and command outcomes. When response text is
+necessary, accept concise semantically equivalent wording, for example with
+`response_contains_any`, instead of forcing a schema, template, heading set, or
+test-specific vocabulary into the skill. Change a skill only when an eval has
+exposed a genuine product-behavior gap independent of the assertion wording.
 
 ## Comparative evaluation
 

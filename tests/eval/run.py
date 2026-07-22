@@ -63,6 +63,7 @@ class CaseReport:
     output: str
     duration_seconds: float
     token_usage: dict[str, int]
+    sample_number: int = 1
 
 
 TOKEN_FIELDS = (
@@ -259,9 +260,7 @@ def write_fixture(case: dict[str, Any], workspace: Path) -> None:
         path = workspace / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
-    scenario_source = ROOT / case["scenario"]
     (workspace / ".eval").mkdir(exist_ok=True)
-    shutil.copy2(scenario_source, workspace / ".eval" / "scenario.md")
     if "stages" not in case:
         install_stage_skill(case, workspace)
 
@@ -452,6 +451,15 @@ def evaluate_assertion(
         needles = assertion.get("values", [assertion.get("value", "")])
         missing = [needle for needle in needles if needle.lower() not in response.lower()]
         return CheckResult(not missing, f"response missing: {missing}" if missing else "response contains required text")
+    if kind == "response_contains_any":
+        needles = assertion["values"]
+        found = [needle for needle in needles if needle.lower() in response.lower()]
+        return CheckResult(
+            bool(found),
+            f"response missing every alternative: {needles}"
+            if not found
+            else f"response contains alternative: {found[0]!r}",
+        )
     if kind == "response_not_contains":
         needles = assertion.get("values", [assertion.get("value", "")])
         found = [needle for needle in needles if needle.lower() in response.lower()]
@@ -734,6 +742,7 @@ def run_case(
     keep_workspace: bool,
     output: TextIO | None = None,
     metrics: dict[str, Any] | None = None,
+    sample_number: int = 1,
 ) -> bool:
     started = time.monotonic()
     token_usage: dict[str, int] = {}
@@ -744,6 +753,7 @@ def run_case(
         before = snapshot(temp)
         env = os.environ.copy()
         env["SPECSPINE_EVAL_CASE"] = case["id"]
+        env["SPECSPINE_EVAL_SAMPLE"] = str(sample_number)
         env["SPECSPINE_EVAL_WORKSPACE"] = str(temp)
         if "stages" in case:
             stage_count = len(case["stages"])
@@ -824,17 +834,21 @@ def run_case(
 
 
 def run_case_captured(
-    case: dict[str, Any], command: list[str], keep_workspace: bool
+    case: dict[str, Any],
+    command: list[str],
+    keep_workspace: bool,
+    sample_number: int = 1,
 ) -> CaseReport:
     output = io.StringIO()
     metrics: dict[str, Any] = {}
-    passed = run_case(case, command, keep_workspace, output, metrics)
+    passed = run_case(case, command, keep_workspace, output, metrics, sample_number)
     return CaseReport(
         case_id=case["id"],
         passed=passed,
         output=output.getvalue(),
         duration_seconds=float(metrics.get("duration_seconds", 0.0)),
         token_usage=dict(metrics.get("token_usage", {})),
+        sample_number=sample_number,
     )
 
 
@@ -857,6 +871,12 @@ def main() -> int:
         type=positive_int,
         default=8,
         help="maximum concurrent cases; use 1 for sequential execution (default: 8)",
+    )
+    parser.add_argument(
+        "--samples",
+        type=positive_int,
+        default=1,
+        help="independent fresh-workspace samples per selected case (default: 1)",
     )
     parser.add_argument("--keep-workspace", action="store_true", help="keep failed workspaces")
     args = parser.parse_args()
@@ -923,39 +943,73 @@ def main() -> int:
             return 2
         command = shlex.split(args.agent_command)
         reports: list[CaseReport] = []
+        work_items = [
+            (case, sample_number)
+            for case in executable
+            for sample_number in range(1, args.samples + 1)
+        ]
         execution_started = time.monotonic()
 
         def publish(report: CaseReport) -> None:
             reports.append(report)
+            sample_label = (
+                f" [{report.case_id} sample {report.sample_number}/{args.samples}]"
+                if args.samples > 1
+                else ""
+            )
             print(
-                f"[{len(reports)}/{len(executable)} completed]\n{report.output}",
+                f"[{len(reports)}/{len(work_items)} completed]{sample_label}\n{report.output}",
                 end="",
             )
 
-        if args.jobs > 1 and len(executable) > 1:
-            with ThreadPoolExecutor(max_workers=min(args.jobs, len(executable))) as executor:
+        if args.jobs > 1 and len(work_items) > 1:
+            with ThreadPoolExecutor(max_workers=min(args.jobs, len(work_items))) as executor:
                 futures = [
-                    executor.submit(run_case_captured, case, command, args.keep_workspace)
-                    for case in executable
+                    executor.submit(
+                        run_case_captured,
+                        case,
+                        command,
+                        args.keep_workspace,
+                        sample_number,
+                    )
+                    for case, sample_number in work_items
                 ]
                 for future in as_completed(futures):
                     publish(future.result())
         else:
-            for case in executable:
-                publish(run_case_captured(case, command, args.keep_workspace))
+            for case, sample_number in work_items:
+                publish(
+                    run_case_captured(
+                        case, command, args.keep_workspace, sample_number
+                    )
+                )
         wall_seconds = time.monotonic() - execution_started
         passed_count = sum(report.passed for report in reports)
-        failed_ids = [report.case_id for report in reports if not report.passed]
+        failed_ids = [
+            f"{report.case_id}#{report.sample_number}"
+            if args.samples > 1
+            else report.case_id
+            for report in reports
+            if not report.passed
+        ]
         summed_case_seconds = sum(report.duration_seconds for report in reports)
         token_summary = format_token_usage(aggregate_token_usage(reports))
+        result_unit = "samples" if args.samples > 1 else "tests"
         summary = (
-            f"SUMMARY: {passed_count}/{len(reports)} tests passed; "
+            f"SUMMARY: {passed_count}/{len(reports)} {result_unit} passed; "
             f"wall time: {wall_seconds:.3f}s; summed case time: {summed_case_seconds:.3f}s; "
             f"{token_summary}"
         )
         if failed_ids:
             summary += f"; failed: {', '.join(failed_ids)}"
         print(summary)
+        if args.samples > 1:
+            print("SUCCESS RATE:")
+            for case in executable:
+                case_reports = [report for report in reports if report.case_id == case["id"]]
+                case_passed = sum(report.passed for report in case_reports)
+                rate = 100.0 * case_passed / len(case_reports)
+                print(f"  {case['id']}: {case_passed}/{len(case_reports)} ({rate:.1f}%)")
         return 0 if not failed_ids else 1
 
     if not any((args.list, args.audit, args.validate)):

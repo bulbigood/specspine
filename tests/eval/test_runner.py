@@ -203,6 +203,19 @@ class RunnerTests(unittest.TestCase):
         )
         self.assertTrue(result.passed, result.message)
 
+    def test_response_contains_any_accepts_each_alternative(self):
+        assertion = {"type": "response_contains_any", "values": ["inference", "inferred"]}
+        for response in ("This is an inference.", "This is inferred from repetition."):
+            with self.subTest(response=response):
+                result = RUNNER.evaluate_assertion(
+                    assertion, Path("."), {}, {}, response, None
+                )
+                self.assertTrue(result.passed, result.message)
+        missing = RUNNER.evaluate_assertion(
+            assertion, Path("."), {}, {}, "This is uncertain.", None
+        )
+        self.assertFalse(missing.passed)
+
     def test_prompt_declares_eval_language(self):
         case = {
             "scenario": "tests/scenarios/initialize-project.md",
@@ -223,6 +236,14 @@ class RunnerTests(unittest.TestCase):
                 prompt = RUNNER.build_prompt(case)
                 self.assertNotIn("Expected behavior", prompt)
                 self.assertNotIn("Failure indicators", prompt)
+
+    def test_workspace_does_not_expose_hidden_scenario(self):
+        case = next(case for case in RUNNER.load_cases() if case["id"] == "doctor-semantic-health")
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            RUNNER.write_fixture(case, workspace)
+            self.assertFalse((workspace / ".eval/scenario.md").exists())
+            self.assertTrue((workspace / ".eval/skill/SKILL.md").is_file())
 
     def test_runs_agent_in_isolated_workspace(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -356,7 +377,9 @@ class RunnerTests(unittest.TestCase):
         called: list[str] = []
         roles: dict[str, str] = {}
 
-        def fake_run_case(case, command, keep_workspace, output=None, metrics=None):
+        def fake_run_case(
+            case, command, keep_workspace, output=None, metrics=None, sample_number=1
+        ):
             with lock:
                 called.append(case["id"])
                 call_number = len(called)
@@ -413,7 +436,9 @@ class RunnerTests(unittest.TestCase):
         worker_counts: list[int] = []
         real_executor = RUNNER.ThreadPoolExecutor
 
-        def fake_run_case(case, command, keep_workspace, output=None, metrics=None):
+        def fake_run_case(
+            case, command, keep_workspace, output=None, metrics=None, sample_number=1
+        ):
             nonlocal calls
             with lock:
                 calls += 1
@@ -453,7 +478,9 @@ class RunnerTests(unittest.TestCase):
         ]
         called: list[str] = []
 
-        def fake_run_case(case, command, keep_workspace, output=None, metrics=None):
+        def fake_run_case(
+            case, command, keep_workspace, output=None, metrics=None, sample_number=1
+        ):
             called.append(case["id"])
             return True
 
@@ -502,6 +529,53 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("summed case time:", report)
         self.assertIn("Codex tokens unavailable", report)
         self.assertIn("failed: failing", report)
+
+    def test_samples_report_independent_success_rate(self):
+        cases = [
+            {
+                "id": "sampled",
+                "scenario": "tests/scenarios/initialize-project.md",
+                "skill": "skills/specspine-grow",
+                "status": "executable",
+                "category": "core",
+                "initial_files": {},
+                "assertions": [],
+            }
+        ]
+        seen_samples = []
+
+        def fake_run_case(
+            case, command, keep_workspace, output=None, metrics=None, sample_number=1
+        ):
+            seen_samples.append(sample_number)
+            metrics.update(
+                duration_seconds=float(sample_number),
+                token_usage={"total_tokens": sample_number * 10},
+            )
+            print(f"sample {sample_number}", file=output)
+            return sample_number != 2
+
+        output = io.StringIO()
+        argv = [
+            "run.py", "--case", "sampled", "--samples", "3", "--jobs", "1",
+            "--agent-command", "fake-agent",
+        ]
+        with (
+            patch.object(RUNNER, "load_cases", return_value=cases),
+            patch.object(RUNNER, "validate_collection", return_value=[]),
+            patch.object(RUNNER, "validate_case", return_value=[]),
+            patch.object(RUNNER, "run_case", side_effect=fake_run_case),
+            patch.object(sys, "argv", argv),
+            patch("sys.stdout", output),
+        ):
+            self.assertEqual(1, RUNNER.main())
+        report = output.getvalue()
+        self.assertEqual([1, 2, 3], seen_samples)
+        self.assertIn("SUMMARY: 2/3 samples passed", report)
+        self.assertIn("summed case time: 6.000s", report)
+        self.assertIn("Codex tokens: total 60", report)
+        self.assertIn("failed: sampled#2", report)
+        self.assertIn("sampled: 2/3 (66.7%)", report)
 
     def test_jobs_must_be_positive(self):
         self.assertEqual(3, RUNNER.positive_int("3"))
