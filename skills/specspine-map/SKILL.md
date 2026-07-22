@@ -68,7 +68,11 @@ It does not:
 6. Modify only files under `<spine-root>`. Apply the smallest coherent change;
    preserve unrelated content, accepted intent, useful links, and reachability
    from the index. Follow `references/spec-format.md` instead of duplicating
-   its document and semantic-ID rules here.
+   its document and semantic-ID rules here. Before reporting, verify changed
+   relative links and semantic-ID definitions and references against that
+   format. A semantic-ID reference uses the plain ID as the complete link label
+   and the owning Markdown file as its destination; do not add emphasis or a
+   URL fragment.
 7. Report evidence inspected, files changed, mapped or deepened areas,
    unconfirmed inferences, unresolved drift, and qualitative remaining
    coverage.

@@ -63,12 +63,13 @@ must remain usable without those skills.
 3. Reuse an existing owner when possible. Create or extract a specification
    only for an independently meaningful or evolving responsibility, boundary,
    behavior, or decision set; never because a file is long or a feature is new.
-4. Treat an explicit requested operation or architectural decision as approval.
-   Apply navigation, evidence-only, and clearly meaning-preserving edits
-   directly. Ask the user only before introducing unapproved normative intent,
-   resolving a conflict or blocking question, choosing among plausible owners,
-   or making an ambiguous agent-initiated restructure. State the affected files,
-   reason, and unresolved choice without prescribing a rigid response format.
+4. Treat an explicit in-scope operation or architectural decision as approval.
+   Approval does not override Grow's scope or terminal-detail boundary. Apply
+   navigation, evidence-only, and clearly meaning-preserving edits directly.
+   Ask the user only before introducing unapproved normative intent, resolving
+   a conflict or blocking question, choosing among plausible owners, or making
+   an ambiguous agent-initiated restructure. State the affected files, reason,
+   and unresolved choice without prescribing a rigid response format.
 5. Apply the smallest coherent change. Preserve unrelated content, useful
    relative links, reachability from the index, and one canonical home per
    concept. Use summaries and links instead of duplicate definitions. Update
@@ -98,8 +99,10 @@ implementation prerequisites and speculative questions instead.
 
 Stop when the specification already captures the architectural detail defined
 by `references/spec-format.md` and the request adds no new intent. Do not add
-coding-manual material merely to make the document deeper. Make no changes and
-explain which requested detail belongs downstream.
+coding-manual material merely to make the document deeper. An explicit request
+for implementation-level content does not turn that content into architectural
+intent or authorize storing it in the Spine. Make no changes and explain which
+requested detail belongs downstream.
 
 ### Split, merge, or rename
 

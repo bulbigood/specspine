@@ -263,6 +263,7 @@ PATCH"""
             "grep -RIn --exclude-dir=.eval TODO .",
             "grep -RIn --exclude-dir '.eval' TODO .",
             "find . -path './.eval' -prune -o -type f -print",
+            "find . -maxdepth 1 -type d -not -name .eval -print",
             "rg --files -g '!.eval/**'",
             "rg --files -g '! .eval/**'",
             (
@@ -307,11 +308,16 @@ PATCH"""
         commands = [
             "cat .eval/trace.json",
             "find .eval -type f",
+            "find . -type f -not -name .eval -print",
+            (
+                "find . -type f -not -name .eval -print\n"
+                "find . -maxdepth 1 -type d -not -name .eval -print"
+            ),
             "rg secret .eval",
             "sed -n '1,20p' .eval/codex-events.jsonl",
         ]
         violations = ADAPTER.scope_violations(commands, root)
-        self.assertEqual(4, len(violations))
+        self.assertEqual(6, len(violations))
         self.assertTrue(all("evaluator internals" in item for item in violations))
 
     def test_private_codex_home_copies_only_authentication(self):

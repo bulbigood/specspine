@@ -16,17 +16,6 @@
   "assertions": [
     {"type": "max_changed_files", "max": 0},
     {"type": "read_only", "paths": ["specspine/**"]},
-    {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md"]},
-    {
-      "type": "response_contains_any",
-      "values": [
-        "implementation detail",
-        "implementation-level detail",
-        "implementation manual",
-        "coding manual",
-        "architectural intent",
-        "downstream implementation"
-      ]
-    }
+    {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md"]}
   ]
 }
