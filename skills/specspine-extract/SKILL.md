@@ -7,9 +7,16 @@ description: Extract the smallest task-oriented architecture context handoff fro
 
 Create a temporary projection of the persistent SpecSpine for one downstream
 change. Read [references/context-handoff.md](references/context-handoff.md)
-before extracting. Read
-[references/retrieval-accelerator.md](references/retrieval-accelerator.md) when
-command execution may accelerate source selection.
+before extracting.
+
+## Retrieval gate
+
+When a shell command tool is present, read
+[references/retrieval-accelerator.md](references/retrieval-accelerator.md) and
+attempt its command immediately after the spine index, before any other spine
+document or content search. Skip the attempt only when the request explicitly
+prevents execution. A failed attempt selects native fallback and never blocks
+extraction.
 
 ## Workflow
 
@@ -17,9 +24,8 @@ command execution may accelerate source selection.
    documented default `specspine`. Require `<spine-root>/README.md`.
 2. Establish the change intent from the user request. Do not invent downstream
    requirements.
-3. Read the index. When available, use the bundled retrieval accelerator to
-   select candidates; otherwise navigate from the index through ordinary
-   Markdown links. Accelerator failure is a silent fallback, not a blocker.
+3. Read the index and pass the retrieval gate. Use returned candidates when the
+   accelerator succeeds; otherwise navigate through ordinary Markdown links.
 4. Read current candidate documents and only the linked neighborhood needed to
    identify the canonical owner and classify required, potentially affected,
    and merely related context. Never treat cached text as source evidence.

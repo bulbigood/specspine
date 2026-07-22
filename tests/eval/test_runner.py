@@ -203,6 +203,60 @@ class RunnerTests(unittest.TestCase):
         )
         self.assertTrue(result.passed, result.message)
 
+        excluded = RUNNER.evaluate_assertion(
+            {"type": "command_excludes", "value": "search_spine.py"},
+            Path("."),
+            {},
+            {},
+            "",
+            {"commands": ["sed -n 1,80p specspine/README.md"]},
+        )
+        forbidden = RUNNER.evaluate_assertion(
+            {"type": "command_excludes", "value": "search_spine.py"},
+            Path("."),
+            {},
+            {},
+            "",
+            {"commands": ["python3 .eval/skill/scripts/search_spine.py specspine --query retry"]},
+        )
+        self.assertTrue(excluded.passed, excluded.message)
+        self.assertFalse(forbidden.passed)
+
+    def test_checks_structured_response_without_prose_contracts(self):
+        response = (
+            "# Handoff\n\n## Primary specification\n\n"
+            "- `specspine/retry-policy.md`\n\n"
+            "```markdown\n## Ignored example\n```\n\n"
+            "## Blocking questions\n\n- `OQ-retry-policy`\n"
+        )
+        section = RUNNER.evaluate_assertion(
+            {
+                "type": "response_section_contains",
+                "section": "Primary specification",
+                "value": "specspine/retry-policy.md",
+            },
+            Path("."), {}, {}, response, None,
+        )
+        sections = RUNNER.evaluate_assertion(
+            {
+                "type": "response_sections_only",
+                "sections": ["Primary specification", "Blocking questions"],
+            },
+            Path("."), {}, {}, response, None,
+        )
+        budget = RUNNER.evaluate_assertion(
+            {"type": "response_word_budget", "max": 20},
+            Path("."), {}, {}, response, None,
+        )
+        too_small = RUNNER.evaluate_assertion(
+            {"type": "response_word_budget", "max": 2},
+            Path("."), {}, {}, response, None,
+        )
+        self.assertTrue(section.passed, section.message)
+        self.assertTrue(sections.passed, sections.message)
+        self.assertTrue(budget.passed, budget.message)
+        self.assertFalse(too_small.passed)
+
     def test_response_contains_any_accepts_each_alternative(self):
         assertion = {"type": "response_contains_any", "values": ["inference", "inferred"]}
         for response in ("This is an inference.", "This is inferred from repetition."):
@@ -406,9 +460,9 @@ class RunnerTests(unittest.TestCase):
         ]
         barrier = threading.Barrier(2)
         fast_finished = threading.Event()
+        queued_started_after_fast = threading.Event()
         lock = threading.Lock()
         called: list[str] = []
-        roles: dict[str, str] = {}
 
         def fake_run_case(
             case, command, keep_workspace, output=None, metrics=None, sample_number=1
@@ -416,10 +470,8 @@ class RunnerTests(unittest.TestCase):
             with lock:
                 called.append(case["id"])
                 call_number = len(called)
-                if call_number == 1:
-                    roles["slow"] = case["id"]
-                elif call_number == 2:
-                    roles["fast"] = case["id"]
+                if call_number == 3 and fast_finished.is_set():
+                    queued_started_after_fast.set()
             print(f"START {case['id']}", file=output)
             if call_number <= 2:
                 barrier.wait(timeout=2)
@@ -445,10 +497,7 @@ class RunnerTests(unittest.TestCase):
         report = stdout.getvalue()
         for case_id in ("parallel-a", "parallel-b", "parallel-c"):
             self.assertIn(f"START {case_id}\nEND {case_id}\n", report)
-        self.assertLess(
-            report.index(f"START {roles['fast']}"),
-            report.index(f"START {roles['slow']}"),
-        )
+        self.assertTrue(queued_started_after_fast.is_set())
 
     def test_default_runs_selected_cases_concurrently(self):
         cases = [

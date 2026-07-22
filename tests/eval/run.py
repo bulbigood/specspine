@@ -322,6 +322,31 @@ def matches_any(path: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatch(path, pattern) for pattern in patterns)
 
 
+def markdown_h2_sections(text: str) -> dict[str, str]:
+    sections: dict[str, list[str]] = {}
+    current: str | None = None
+    fence: str | None = None
+    for line in text.splitlines():
+        fence_match = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
+        if fence_match:
+            marker = fence_match.group(1)
+            if fence is None:
+                fence = marker
+            elif marker[0] == fence[0] and len(marker) >= len(fence):
+                fence = None
+            continue
+        if fence is not None:
+            continue
+        heading = re.match(r"^ {0,3}##(?:[ \t]+(.*)|[ \t]*)$", line)
+        if heading:
+            value = re.sub(r"[ \t]+#+[ \t]*$", "", heading.group(1) or "").strip()
+            current = value.casefold()
+            sections.setdefault(current, [])
+        elif current is not None:
+            sections[current].append(line)
+    return {heading: "\n".join(lines).strip() for heading, lines in sections.items()}
+
+
 def markdown_files(workspace: Path, glob: str = "**/*.md") -> list[Path]:
     return [path for path in workspace.glob(glob) if path.is_file() and ".eval" not in path.parts]
 
@@ -489,6 +514,33 @@ def evaluate_assertion(
         needles = assertion.get("values", [assertion.get("value", "")])
         found = [needle for needle in needles if needle.lower() in response.lower()]
         return CheckResult(not found, f"response contains forbidden text: {found}" if found else "forbidden response text absent")
+    if kind == "response_section_contains":
+        section = assertion["section"]
+        content = markdown_h2_sections(response).get(section.casefold())
+        if content is None:
+            return CheckResult(False, f"response section missing: {section}")
+        needles = assertion.get("values", [assertion.get("value", "")])
+        missing = [needle for needle in needles if needle.casefold() not in content.casefold()]
+        return CheckResult(
+            not missing,
+            f"response section {section} missing: {missing}"
+            if missing
+            else f"response section {section} contains required values",
+        )
+    if kind == "response_sections_only":
+        headings = set(markdown_h2_sections(response))
+        allowed = {heading.casefold() for heading in assertion["sections"]}
+        unexpected = sorted(headings - allowed)
+        return CheckResult(
+            not unexpected,
+            f"unexpected response sections: {unexpected}"
+            if unexpected
+            else "response sections stay within the contract",
+        )
+    if kind == "response_word_budget":
+        count = len(response.split())
+        maximum = assertion["max"]
+        return CheckResult(count <= maximum, f"response words: {count}, maximum: {maximum}")
     if kind == "unchanged":
         patterns = assertion["paths"]
         violations = sorted(item for item in changed if matches_any(item, patterns))
@@ -535,6 +587,13 @@ def evaluate_assertion(
         needles = assertion.get("values", [assertion.get("value", "")])
         missing = [needle for needle in needles if not any(needle in command for command in commands)]
         return CheckResult(not missing, f"command text missing: {missing}" if missing else "required command text found")
+    if kind == "command_excludes":
+        if trace is None or not isinstance(trace.get("commands"), list):
+            return CheckResult(False, "agent did not produce .eval/trace.json with commands")
+        commands = [str(item) for item in trace["commands"]]
+        needles = assertion.get("values", [assertion.get("value", "")])
+        found = [needle for needle in needles if any(needle in command for command in commands)]
+        return CheckResult(not found, f"forbidden command text found: {found}" if found else "forbidden command text absent")
     if kind == "balanced_markers":
         content = path.read_text(encoding="utf-8") if path.is_file() else ""
         begin, end = assertion["begin"], assertion["end"]

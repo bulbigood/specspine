@@ -149,7 +149,7 @@ python3 tests/eval/run.py \
 
 `--case` and `--category` are repeatable and may be combined. There is no
 implicit run-all mode. Planned cases are never executed. Categories are
-disjoint: `core` has 6 executable cases, `extended` has 8, and `planned` has
+disjoint: `core` has 8 executable cases, `extended` has 8, and `planned` has
 8 documented non-executable cases.
 
 Each case gets a clean temporary workspace. Cases run with concurrency 8 by
@@ -172,10 +172,12 @@ Supported assertions:
 - paths/content: `path_exists`, `path_absent`, `glob_count`, `glob_contains`,
   `file_contains`, `file_contains_any`, `file_not_contains`, `word_budget`;
 - response: `response_contains`, `response_contains_any`,
-  `response_not_contains`;
+  `response_not_contains`, `response_section_contains`,
+  `response_sections_only`, `response_word_budget`;
 - changes: `unchanged`, `changed_only`, `max_changed_files`;
 - execution: `command_succeeds`;
 - trace: `read_only`, `read_includes`, `max_files_read`;
+- commands: `command_includes`, `command_excludes`;
 - structure: `balanced_markers`, `no_template_placeholders`,
   `markdown_links_valid`, `semantic_ids_valid`, `spine_mechanical_valid`.
 

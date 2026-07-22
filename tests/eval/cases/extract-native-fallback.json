@@ -1,0 +1,29 @@
+{
+  "id": "extract-native-fallback",
+  "scenario": "tests/scenarios/extract-native-fallback.md",
+  "skill": "skills/specspine-extract",
+  "status": "executable",
+  "category": "core",
+  "runs": 1,
+  "initial_files": {
+    "specspine/README.md": "# Project architecture\n\n## Architecture map\n\n- [Payments](payments.md)\n- [Unrelated analytics](analytics.md)\n",
+    "specspine/payments.md": "# Payments\n\nPayment navigation. [Settlement](settlement.md) owns settlement outcomes.\n",
+    "specspine/settlement.md": "# Settlement\n\nOwns provider settlement boundaries. [Retry policy](retry-policy.md) canonically owns provider-timeout retry delay.\n",
+    "specspine/retry-policy.md": "# Retry policy\n\nCanonically owns retry delay after provider timeouts.\n\n<!-- specspine:semantic-ids:begin -->\n## Constraints\n\n- **CON-provider-timeout-delay** — Provider-timeout retries must remain delayed rather than immediate.\n\n## Open questions\n\n- **OQ-provider-timeout-delay-duration** — The accepted delay duration remains unresolved.\n<!-- specspine:semantic-ids:end -->\n",
+    "specspine/analytics.md": "# Analytics\n\nOwns business metrics and exports.\n",
+    "src/retry-worker.js": "// implementation is outside the authorized architecture source boundary\n"
+  },
+  "assertions": [
+    {"type": "max_changed_files", "max": 0},
+    {"type": "read_only", "paths": ["specspine/**"]},
+    {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payments.md", "specspine/settlement.md", "specspine/retry-policy.md"]},
+    {"type": "max_files_read", "max": 4},
+    {"type": "command_excludes", "value": "search_spine.py"},
+    {"type": "response_section_contains", "section": "Primary specification", "value": "specspine/retry-policy.md"},
+    {"type": "response_contains", "value": "CON-provider-timeout-delay"},
+    {"type": "response_section_contains", "section": "Blocking questions", "value": "OQ-provider-timeout-delay-duration"},
+    {"type": "response_sections_only", "sections": ["Change intent", "Primary specification", "Required specifications", "Potentially affected specifications", "Architectural decisions and constraints", "Decision sources", "Relevant observations", "Unconfirmed inferences", "Blocking questions", "Expected architectural outcome"]},
+    {"type": "response_not_contains", "value": "specspine/analytics.md"},
+    {"type": "response_word_budget", "max": 300}
+  ]
+}

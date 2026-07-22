@@ -1,0 +1,41 @@
+{
+  "id": "extract-accelerated-handoff",
+  "scenario": "tests/scenarios/extract-accelerated-handoff.md",
+  "skill": "skills/specspine-extract",
+  "status": "executable",
+  "category": "core",
+  "runs": 1,
+  "initial_files": {
+    "specspine/README.md": "# Project architecture\n\nA commerce platform with independently owned architecture areas.\n\n## Architecture map\n\n- [Application](application.md)\n- [Identity](identity.md)\n- [Catalog](catalog.md)\n- [Checkout](checkout.md)\n- [Payment processing](payments/payment-processing.md)\n- [Job processing](platform/job-processing.md)\n- [Inventory](inventory.md)\n- [Notifications](notifications.md)\n- [Reporting](reporting.md)\n- [Security](security.md)\n- [Operations](operations.md)\n",
+    "specspine/application.md": "# Application\n\nOwns customer-facing commerce workflows.\n",
+    "specspine/identity.md": "# Identity\n\nOwns authentication and organization context.\n",
+    "specspine/catalog.md": "# Catalog\n\nOwns product descriptions, prices, and search metadata.\n",
+    "specspine/checkout.md": "# Checkout\n\nOwns purchase orchestration before payment settlement.\n",
+    "specspine/payments/payment-processing.md": "# Payment processing\n\nProvides payment navigation and provider boundaries.\n\n## Boundaries\n\n- [Payment settlement](payment-settlement.md) owns settlement outcomes and retry intent.\n- [Provider webhooks](provider-webhooks.md) delivers provider results without owning retry policy.\n",
+    "specspine/payments/payment-settlement.md": "# Payment settlement\n\nCanonically owns settlement outcomes and delayed retry intent after settlement-provider timeouts.\n\n[Job processing](../platform/job-processing.md) provides delayed execution without deciding settlement policy.\n\n<!-- specspine:semantic-ids:begin -->\n## Decisions\n\n- **DEC-settlement-retry-owner** — Payment settlement owns whether a timed-out provider operation may retry.\n\n## Constraints\n\n- **CON-settlement-stable-idempotency-key** — One settlement attempt keeps the same idempotency key across retries.\n\n## Observed\n\n<!-- specspine:evidence-baseline source=incident-42; inspected=2026-07-20 -->\n- **OBS-settlement-timeout-worker** — A worker currently receives timed-out settlement attempts.\n\n## Inferred\n\n- **INF-settlement-load-pressure** — Delayed retries may reduce synchronized provider pressure, but this is unconfirmed.\n\n## Open questions\n\n- **OQ-settlement-retry-delay** — The accepted retry delay and attempt limit remain unresolved.\n<!-- specspine:semantic-ids:end -->\n",
+    "specspine/payments/provider-webhooks.md": "# Provider webhooks\n\nDelivers provider results to [payment settlement](payment-settlement.md).\n",
+    "specspine/platform/job-processing.md": "# Job processing\n\nProvides delayed execution for architecture owners such as [payment settlement](../payments/payment-settlement.md).\n\n<!-- specspine:semantic-ids:begin -->\n## Decisions\n\n- **DEC-job-scheduling-boundary** — Job processing owns scheduling mechanics while callers own retry policy.\n<!-- specspine:semantic-ids:end -->\n",
+    "specspine/inventory.md": "# Inventory\n\nOwns stock availability and reservations.\n",
+    "specspine/notifications.md": "# Notifications\n\nOwns customer and operator message delivery.\n",
+    "specspine/reporting.md": "# Reporting\n\nOwns analytical projections and exports.\n",
+    "specspine/security.md": "# Security\n\nOwns platform-wide security boundaries.\n",
+    "specspine/operations.md": "# Operations\n\nOwns deployment, configuration, and runtime observability.\n",
+    "src/payment-worker.js": "// implementation is outside the authorized architecture source boundary\n"
+  },
+  "assertions": [
+    {"type": "max_changed_files", "max": 0},
+    {"type": "read_only", "paths": ["specspine/**"]},
+    {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payments/payment-processing.md", "specspine/payments/payment-settlement.md", "specspine/platform/job-processing.md"]},
+    {"type": "max_files_read", "max": 7},
+    {"type": "command_includes", "value": "search_spine.py"},
+    {"type": "response_section_contains", "section": "Primary specification", "value": "specspine/payments/payment-settlement.md"},
+    {"type": "response_section_contains", "section": "Required specifications", "value": "specspine/platform/job-processing.md"},
+    {"type": "response_contains", "values": ["DEC-settlement-retry-owner", "CON-settlement-stable-idempotency-key", "DEC-job-scheduling-boundary"]},
+    {"type": "response_section_contains", "section": "Relevant observations", "values": ["OBS-settlement-timeout-worker", "incident-42"]},
+    {"type": "response_section_contains", "section": "Unconfirmed inferences", "value": "INF-settlement-load-pressure"},
+    {"type": "response_section_contains", "section": "Blocking questions", "value": "OQ-settlement-retry-delay"},
+    {"type": "response_sections_only", "sections": ["Change intent", "Primary specification", "Required specifications", "Potentially affected specifications", "Architectural decisions and constraints", "Decision sources", "Relevant observations", "Unconfirmed inferences", "Blocking questions", "Expected architectural outcome"]},
+    {"type": "response_not_contains", "values": ["specspine/catalog.md", "specspine/reporting.md"]},
+    {"type": "response_word_budget", "max": 450}
+  ]
+}

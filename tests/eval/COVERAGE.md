@@ -11,9 +11,10 @@ classified.
 | `specspine-grow` | 9 | 7 |
 | `specspine-map` | 7 | 3 |
 | `specspine-connect` | 2 | 2 |
+| `specspine-extract` | 2 | 2 |
 | `specspine-doctor` | 3 | 2 |
 | package generator tooling | 1 | 0 |
-| Total | 22 | 14 |
+| Total | 24 | 16 |
 
 `traceable-rule` is assigned to `specspine-map` because its expected result
 includes repository-backed observations.
@@ -22,7 +23,7 @@ The executable set is divided by resource cost and necessity:
 
 | Category | Manifests | Agent calls | Purpose |
 |---|---:|---:|---|
-| `core` | 6 | 6 | Minimum behavioral regression set |
+| `core` | 8 | 8 | Minimum behavioral regression set |
 | `extended` | 8 | 11 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, and traceability behavior |
 | `planned` | 8 | 0 | Documentation and future redesign only |
 
@@ -32,6 +33,8 @@ Core and extended cases currently cover:
 - creation of a brownfield map from runtime evidence;
 - generic project-agent bootstrap boundaries;
 - idempotent reconnect of the project-agent bootstrap;
+- accelerated extraction of a bounded architecture handoff and native
+  Markdown fallback when acceleration is unavailable;
 - semantic-ID references and representative repository evidence;
 - semantic Doctor diagnosis and bounded mechanical repair without runtime companions;
 - recursive Doctor link and marker-bounded semantic-ID validation across

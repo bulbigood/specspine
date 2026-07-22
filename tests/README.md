@@ -56,6 +56,20 @@ alternatives instead of one mandatory phrase.
 Never expose hidden rubrics to the evaluated agent or edit a skill around an
 eval assertion. See [eval/README.md](eval/README.md) for harness-specific rules.
 
+## Execution speed
+
+Run independent tests, cases, and eval samples concurrently, bounded by the
+available CPU, memory, and external-service capacity. Prefer each harness's
+parallel default; do not pass `--jobs 1` for routine runs or qualification.
+Use sequential execution only for an unavoidable shared-state or ordering
+constraint, or while isolating a diagnosed failure. State that reason and
+restore parallel execution for final verification.
+
+Design tests for safe parallel execution: use isolated temporary workspaces,
+unique cache paths, no fixed shared mutable files, and no dependence on global
+execution order. Independent deterministic gates may also run concurrently
+after the focused test passes.
+
 ## Required checks
 
 Run the relevant focused test first, then the complete deterministic gates:

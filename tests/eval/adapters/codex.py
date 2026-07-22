@@ -264,15 +264,27 @@ def environment_errors(stdout: str, stderr: str = "") -> list[str]:
     return [f"Codex command sandbox unavailable: {detail}" for detail in dict.fromkeys(evidence)]
 
 
-def scope_violations(commands: list[str], root: Path) -> list[str]:
-    root_text = str(root.resolve()).rstrip("/")
+def scope_violations(
+    commands: list[str], root: Path, allowed_roots: tuple[Path, ...] = ()
+) -> list[str]:
+    authorized_roots = sorted(
+        {str(path.resolve()).rstrip("/") for path in (root, *allowed_roots)},
+        key=len,
+        reverse=True,
+    )
     violations: list[str] = []
     for command in commands:
         # Codex serializes shell invocations as `/bin/sh -c <source>`. Audit
         # the decoded source, otherwise quoting inserted by the event stream
         # can split a harmless negative glob around `.eval` and look like a
         # direct path operand.
-        inspected = shell_source(command).replace(root_text, "<WORKSPACE>")
+        inspected = shell_source(command)
+        for authorized_root in authorized_roots:
+            inspected = re.sub(
+                rf"{re.escape(authorized_root)}(?=$|[/\s'\";&|)])",
+                "<AUTHORIZED_ROOT>",
+                inspected,
+            )
         markers = [marker for marker in FORBIDDEN_SCOPE_MARKERS if marker in inspected]
         audit_text = inspected
         if re.search(
@@ -666,7 +678,7 @@ def main() -> int:
     reads, commands, messages = parse_events(completed.stdout, candidates)
     token_usage = parse_token_usage(completed.stdout)
     execution_errors = environment_errors(completed.stdout, completed.stderr)
-    boundary_violations = scope_violations(commands, root)
+    boundary_violations = scope_violations(commands, root, (runtime_root,))
     final_response = messages[-1] if messages else ""
     trace_path = eval_dir / "trace.json"
     trace_path.write_text(

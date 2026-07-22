@@ -245,6 +245,21 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertIn("filesystem-root traversal", violations[1])
         self.assertIn("evaluator internals", violations[2])
 
+    def test_scope_audit_allows_private_runtime_only(self):
+        root = Path("/Users/example/.cache/specspine-eval/workspaces/run-1")
+        runtime = Path("/Users/example/.cache/specspine-eval/workspaces/runtime-1")
+        commands = [
+            f"python3 {runtime}/codex-home/skills/extract/scripts/search_spine.py",
+            f"cat {runtime}-foreign/private.md",
+            "cat /Users/example/private.md",
+        ]
+
+        violations = ADAPTER.scope_violations(commands, root, (runtime,))
+
+        self.assertEqual(2, len(violations))
+        self.assertIn(f"{runtime}-foreign/private.md", violations[0])
+        self.assertIn("/Users/example/private.md", violations[1])
+
     def test_scope_audit_does_not_parse_patch_content_as_path_access(self):
         root = Path("/workspace")
         command = """/usr/bin/bash -c "apply_patch <<'PATCH'
