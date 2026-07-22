@@ -828,32 +828,82 @@ def search(
     limit: int,
     graph_depth: int,
     graph_limit: int,
-) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+) -> tuple[list[dict[str, object]], list[dict[str, object]], str, dict[str, object]]:
     candidates: dict[str, dict[str, object]] = {}
 
-    def add(path: str, score: float, origin: str, reason: str, title: str | None = None, summary: str | None = None, heading: str | None = None) -> None:
-        item = candidates.setdefault(path, {"path": path, "score": 0.0, "_scores": {}, "origins": [], "reasons": [], "headings": []})
+    def add(
+        path: str,
+        score: float,
+        origin: str,
+        title: str | None = None,
+        summary: str | None = None,
+        heading: str | None = None,
+        signals: dict[str, object] | None = None,
+    ) -> None:
+        item = candidates.setdefault(
+            path,
+            {
+                "path": path,
+                "score": 0.0,
+                "_scores": {},
+                "origins": [],
+                "headings": [],
+                "signals": {
+                    "exact": False,
+                    "semantic_ids": [],
+                    "token_hits": 0,
+                    "query_tokens": 0,
+                    "phrase_hits": 0,
+                    "fts_rank": None,
+                    "graph_support": 0,
+                },
+            },
+        )
         scores = item["_scores"]
         assert isinstance(scores, dict)
         scores[origin] = max(float(scores.get(origin, 0.0)), score)
         item["score"] = sum(float(value) for value in scores.values())
         if origin not in item["origins"]:
             item["origins"].append(origin)
-        if reason not in item["reasons"]:
-            item["reasons"].append(reason)
         if heading and heading not in item["headings"]:
             item["headings"].append(heading)
         if title is not None:
             item["title"] = title
         if summary is not None:
             item["summary"] = summary
+        if signals:
+            stored = item["signals"]
+            assert isinstance(stored, dict)
+            for key, value in signals.items():
+                if key == "semantic_ids" and isinstance(value, list):
+                    identifiers = stored[key]
+                    assert isinstance(identifiers, list)
+                    identifiers.extend(
+                        identifier for identifier in value if identifier not in identifiers
+                    )
+                elif key == "graph_support":
+                    stored[key] = int(stored.get(key) or 0) + int(value)
+                elif key in {"token_hits", "query_tokens", "phrase_hits"}:
+                    stored[key] = max(int(stored.get(key) or 0), int(value))
+                elif key == "fts_rank":
+                    current = stored.get(key)
+                    stored[key] = int(value) if current is None else min(int(current), int(value))
+                else:
+                    stored[key] = value
 
     normalized = query.strip().casefold()
     for row in connection.execute(
         "SELECT path, title, summary FROM documents WHERE lower(path) = ? OR lower(title) = ?",
         (normalized, normalized),
     ):
-        add(row["path"], 100.0, "exact", "exact document match", row["title"], row["summary"])
+        add(
+            row["path"],
+            100.0,
+            "exact",
+            row["title"],
+            row["summary"],
+            signals={"exact": True},
+        )
     for token in QUERY_TOKEN_RE.findall(normalized):
         if not ID_QUERY_RE.fullmatch(token):
             continue
@@ -861,71 +911,115 @@ def search(
             "SELECT d.path, d.title, d.summary FROM semantic_ids s JOIN documents d ON d.path = s.document_path WHERE lower(s.semantic_id) = ?",
             (token,),
         ):
-            add(row["path"], 120.0, "semantic_id", f"semantic ID {token}", row["title"], row["summary"])
-
-    match_query, query_tokens, query_phrases = fts_plan(query, connection)
-    batch_size = max(limit * 10, 50)
-    offset = 0
-    document_ranks: dict[str, int] = {}
-    document_signals: dict[str, tuple[int, int]] = {}
-
-    def path_matches(path: str, clause: str) -> bool:
-        escaped = clause.replace('"', '""')
-        return bool(connection.execute(
-            "SELECT 1 FROM sections_fts WHERE path = ? AND sections_fts MATCH ? LIMIT 1",
-            (path, f'"{escaped}"'),
-        ).fetchone())
-
-    while len(document_ranks) < limit:
-        rows = connection.execute(
-            "SELECT path, title, summary, heading, bm25(sections_fts, 0.0, 10.0, 5.0, 3.0, 1.0) AS rank "
-            "FROM sections_fts WHERE sections_fts MATCH ? ORDER BY rank LIMIT ? OFFSET ?",
-            (match_query, batch_size, offset),
-        ).fetchall()
-        for row in rows:
-            document_rank = document_ranks.setdefault(row["path"], len(document_ranks))
-            if row["path"] not in document_signals:
-                document_signals[row["path"]] = (
-                    sum(path_matches(row["path"], token) for token in query_tokens),
-                    sum(path_matches(row["path"], phrase) for phrase in query_phrases),
-                )
-            token_hits, phrase_hits = document_signals[row["path"]]
-            rank_score = 60.0 / (document_rank + 1)
-            if len(query_tokens) >= 3 and token_hits < 2 and phrase_hits == 0:
-                rank_score *= 0.25
-            coverage_score = 20.0 * token_hits / max(1, len(query_tokens))
-            phrase_score = min(15.0, 5.0 * phrase_hits)
             add(
                 row["path"],
-                rank_score + coverage_score + phrase_score,
-                "fts",
-                "full-text match",
+                120.0,
+                "semantic_id",
                 row["title"],
                 row["summary"],
-                row["heading"],
+                signals={"semantic_ids": [token.upper()]},
             )
-        if len(rows) < batch_size:
-            break
-        offset += batch_size
+
+    strong_match = bool(candidates)
+    retrieval_strategy = "strong-match" if strong_match else "hybrid-fts"
+    if not strong_match:
+        match_query, query_tokens, query_phrases = fts_plan(query, connection)
+        batch_size = max(limit * 10, 50)
+        offset = 0
+        document_ranks: dict[str, int] = {}
+        document_signals: dict[str, tuple[int, int]] = {}
+
+        def path_matches(path: str, clause: str) -> bool:
+            escaped = clause.replace('"', '""')
+            return bool(connection.execute(
+                "SELECT 1 FROM sections_fts WHERE path = ? AND sections_fts MATCH ? LIMIT 1",
+                (path, f'"{escaped}"'),
+            ).fetchone())
+
+        while len(document_ranks) < limit:
+            rows = connection.execute(
+                "SELECT path, title, summary, heading, bm25(sections_fts, 0.0, 10.0, 5.0, 3.0, 1.0) AS rank "
+                "FROM sections_fts WHERE sections_fts MATCH ? ORDER BY rank LIMIT ? OFFSET ?",
+                (match_query, batch_size, offset),
+            ).fetchall()
+            for row in rows:
+                document_rank = document_ranks.setdefault(row["path"], len(document_ranks))
+                if row["path"] not in document_signals:
+                    document_signals[row["path"]] = (
+                        sum(path_matches(row["path"], token) for token in query_tokens),
+                        sum(path_matches(row["path"], phrase) for phrase in query_phrases),
+                    )
+                token_hits, phrase_hits = document_signals[row["path"]]
+                rank_score = 60.0 / (document_rank + 1)
+                if len(query_tokens) >= 3 and token_hits < 2 and phrase_hits == 0:
+                    rank_score *= 0.25
+                coverage_score = 20.0 * token_hits / max(1, len(query_tokens))
+                phrase_score = min(15.0, 5.0 * phrase_hits)
+                add(
+                    row["path"],
+                    rank_score + coverage_score + phrase_score,
+                    "fts",
+                    row["title"],
+                    row["summary"],
+                    row["heading"],
+                    signals={
+                        "token_hits": token_hits,
+                        "query_tokens": len(query_tokens),
+                        "phrase_hits": phrase_hits,
+                        "fts_rank": document_rank + 1,
+                    },
+                )
+            if len(rows) < batch_size:
+                break
+            offset += batch_size
+        # README is already required source context, so returning it as FTS routing
+        # would only encourage a redundant read. Exact README queries remain valid.
+        if len(candidates) > 1:
+            candidates.pop("README.md", None)
+
+    def adaptive_direct(items: list[dict[str, object]]) -> list[dict[str, object]]:
+        if not items:
+            return []
+        # Keep weak-but-distinct recall signals while dropping the long tail.
+        # Exact/semantic queries bypass this heuristic entirely.
+        threshold = max(5.0, float(items[0]["score"]) * 0.1)
+        return [
+            item for item in items
+            if strong_match or float(item["score"]) >= threshold
+        ][:limit]
 
     direct_paths = set(candidates)
-    frontier = sorted(
-        direct_paths,
-        key=lambda path: float(candidates[path]["score"]),
-        reverse=True,
-    )[:limit]
+    preliminary_direct = adaptive_direct(sorted(
+        candidates.values(),
+        key=lambda item: (-float(item["score"]), str(item["path"])),
+    ))
+    frontier = [str(item["path"]) for item in preliminary_direct]
     visited = set(frontier)
     graph_candidates: dict[str, dict[str, object]] = {}
     for depth in range(graph_depth):
         next_frontier: list[str] = []
         for source in frontier:
             source_candidate = candidates.get(source) or graph_candidates[source]
+            root_path = (
+                source
+                if source in candidates
+                else str(source_candidate.get("_root_path", source))
+            )
             base = float(source_candidate["score"])
-            outgoing = connection.execute("SELECT target_path FROM links WHERE source_path = ?", (source,)).fetchall()
-            incoming = connection.execute("SELECT source_path FROM links WHERE target_path = ?", (source,)).fetchall()
-            for neighbor, direction in [(row[0], "linked from candidate") for row in outgoing] + [
-                (row[0], "links to candidate") for row in incoming
-            ]:
+            outgoing = connection.execute(
+                "SELECT target_path, label, semantic_id FROM links WHERE source_path = ?",
+                (source,),
+            ).fetchall()
+            incoming = connection.execute(
+                "SELECT source_path, label, semantic_id FROM links WHERE target_path = ?",
+                (source,),
+            ).fetchall()
+            transitions = [
+                (row[0], "outgoing", row[1], row[2]) for row in outgoing
+            ] + [
+                (row[0], "incoming", row[1], row[2]) for row in incoming
+            ]
+            for neighbor, direction, edge_label, semantic_id in transitions:
                 if neighbor == "README.md":
                     continue
                 document = connection.execute(
@@ -933,16 +1027,16 @@ def search(
                 ).fetchone()
                 if document is None:
                     continue
-                origin = "graph_outgoing" if direction == "linked from candidate" else "graph_incoming"
+                origin = f"graph_{direction}"
                 score = base * 0.25
                 if neighbor in direct_paths:
                     add(
                         neighbor,
                         score,
                         origin,
-                        direction,
                         document["title"],
                         document["summary"],
+                        signals={"graph_support": 1},
                     )
                 else:
                     graph = graph_candidates.setdefault(
@@ -952,9 +1046,8 @@ def search(
                             "score": 0.0,
                             "_scores": {},
                             "origins": [],
-                            "source_path": source,
-                            "direction": "outgoing" if origin == "graph_outgoing" else "incoming",
-                            "depth": depth + 1,
+                            "_transitions": {},
+                            "_root_path": root_path,
                             "title": document["title"],
                         },
                     )
@@ -962,40 +1055,113 @@ def search(
                     assert isinstance(scores, dict)
                     signal = f"{source}:{origin}"
                     scores[signal] = max(float(scores.get(signal, 0.0)), score)
-                    graph["score"] = sum(float(value) for value in scores.values())
+                    strongest = max(float(value) for value in scores.values())
+                    graph["score"] = min(
+                        sum(float(value) for value in scores.values()),
+                        strongest * 2.0,
+                    )
                     if origin not in graph["origins"]:
                         graph["origins"].append(origin)
-                    if score > float(graph.get("_best_score", -1.0)):
-                        graph["_best_score"] = score
-                        graph["source_path"] = source
-                        graph["direction"] = (
-                            "outgoing" if origin == "graph_outgoing" else "incoming"
-                        )
-                        graph["depth"] = depth + 1
+                    stored_transitions = graph["_transitions"]
+                    assert isinstance(stored_transitions, dict)
+                    transition_key = (
+                        root_path,
+                        source,
+                        direction,
+                        edge_label,
+                        semantic_id,
+                        depth + 1,
+                    )
+                    stored_transitions[transition_key] = max(
+                        score, float(stored_transitions.get(transition_key, 0.0))
+                    )
+                    if score >= strongest:
+                        graph["_root_path"] = root_path
                 if neighbor not in visited:
                     visited.add(neighbor)
                     next_frontier.append(neighbor)
         frontier = next_frontier
 
-    direct = sorted(
+    ranked_direct = sorted(
         candidates.values(),
         key=lambda item: (-float(item["score"]), str(item["path"])),
-    )[:limit]
-    graph = sorted(
-        graph_candidates.values(),
+    )
+    direct = adaptive_direct(ranked_direct)
+    direct_cutoff_score = (
+        None
+        if strong_match or not ranked_direct
+        else max(5.0, float(ranked_direct[0]["score"]) * 0.1)
+    )
+    returned_direct_paths = {str(item["path"]) for item in direct}
+    usable_graph: list[dict[str, object]] = []
+    for item in graph_candidates.values():
+        stored_transitions = item["_transitions"]
+        assert isinstance(stored_transitions, dict)
+        retained = {
+            key: value for key, value in stored_transitions.items()
+            if key[0] in returned_direct_paths
+        }
+        if not retained:
+            continue
+        strongest = max(float(value) for value in retained.values())
+        item["_transitions"] = retained
+        item["score"] = min(
+            sum(float(value) for value in retained.values()),
+            strongest * 2.0,
+        )
+        usable_graph.append(item)
+    ranked_graph = sorted(
+        usable_graph,
         key=lambda item: (-float(item["score"]), str(item["path"])),
-    )[:graph_limit]
+    )
+    if ranked_graph and graph_limit:
+        graph_threshold = max(5.0, float(ranked_graph[0]["score"]) * 0.4)
+        adaptive_graph_limit = min(graph_limit, max(2, len(direct)))
+        graph = [
+            item for item in ranked_graph if float(item["score"]) >= graph_threshold
+        ][:adaptive_graph_limit]
+    else:
+        graph_threshold = None
+        graph = []
     for item in direct:
         item.pop("_scores", None)
         item.pop("summary", None)
-        item.pop("reasons", None)
         item["score"] = round(float(item["score"]), 3)
         item["headings"] = item["headings"][:4]
     for item in graph:
         item.pop("_scores", None)
-        item.pop("_best_score", None)
+        item.pop("_root_path", None)
+        stored_transitions = item.pop("_transitions", {})
+        assert isinstance(stored_transitions, dict)
+        item["transitions"] = [
+            {
+                "root_path": key[0],
+                "source_path": key[1],
+                "direction": key[2],
+                "edge_label": key[3],
+                **({"semantic_id": key[4]} if key[4] else {}),
+                "depth": key[5],
+                "score": round(float(value), 3),
+            }
+            for key, value in sorted(
+                stored_transitions.items(),
+                key=lambda entry: (-float(entry[1]), entry[0]),
+            )[:3]
+        ]
         item["score"] = round(float(item["score"]), 3)
-    return direct, graph
+    selection = {
+        "direct_considered": len(ranked_direct),
+        "direct_returned": len(direct),
+        "direct_cutoff_score": (
+            round(direct_cutoff_score, 3) if direct_cutoff_score is not None else None
+        ),
+        "graph_considered": len(ranked_graph),
+        "graph_returned": len(graph),
+        "graph_cutoff_score": (
+            round(graph_threshold, 3) if graph_threshold is not None else None
+        ),
+    }
+    return direct, graph, retrieval_strategy, selection
 
 
 def main() -> int:
@@ -1026,7 +1192,7 @@ def main() -> int:
         index_path = cache_path(root)
         connection, changed, timings = ensure_index(root, index_path, args.rebuild)
         search_started = time.perf_counter()
-        direct_matches, graph_neighbors = search(
+        direct_matches, graph_neighbors, retrieval_strategy, selection = search(
             connection,
             args.query,
             args.limit,
@@ -1047,6 +1213,8 @@ def main() -> int:
             "documents": count,
             "refreshed": changed,
             "index_state": timings.pop("index_state"),
+            "retrieval_strategy": retrieval_strategy,
+            "selection": selection,
             "timings": {key: round(float(value), 6) for key, value in timings.items()},
             "direct_matches": direct_matches,
             "graph_neighbors": graph_neighbors,

@@ -114,6 +114,8 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
     usage = trace.get("token_usage")
     attempts = trace.get("retrieval_attempts")
     event_metrics = trace.get("event_metrics")
+    cost_ledger = trace.get("cost_ledger")
+    usefulness = trace.get("retrieval_usefulness")
     return {
         "accelerator_mode": trace.get("accelerator_mode"),
         "retrieval_mode": trace.get("retrieval_mode"),
@@ -122,6 +124,8 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         "unexpected_retry": bool(trace.get("unexpected_retry", False)),
         "unknown_attempt_count": trace.get("unknown_attempt_count"),
         "event_metrics": event_metrics if isinstance(event_metrics, dict) else {},
+        "cost_ledger": cost_ledger if isinstance(cost_ledger, dict) else {},
+        "retrieval_usefulness": usefulness if isinstance(usefulness, dict) else {},
         "duration_seconds": duration if isinstance(duration, (int, float)) else None,
         "started_at": trace.get("started_at"),
         "finished_at": trace.get("finished_at"),

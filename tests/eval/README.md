@@ -238,6 +238,10 @@ than fixture setup or assertions. The Markdown preserves per-sample and
 per-retrieval-attempt diagnostics, all ranked candidates, concise command
 execution counts/output sizes, independent cohort statistics, dispersion,
 runtime versions, agent timestamps, and observed combined agent concurrency.
+It also keeps a deterministic byte/cycle cost ledger and relates returned
+direct/graph candidates to conservatively inferred subsequent document reads.
+These proxies explain context growth but are not model tokens.
+Ledger rows overlap and must not be summed into a synthetic total.
 Raw JSON also retains bounded response/stderr diagnostics after workspaces are
 removed. Token counters come only from the final top-level
 `turn.completed.usage` event; nested counters in tool payloads are ignored.

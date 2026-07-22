@@ -31,6 +31,15 @@ METRICS = (
     "command_count",
     "command_output_chars",
 )
+COST_METRICS = (
+    "prompt_utf8_bytes",
+    "declared_skill_context_utf8_bytes",
+    "retrieval_output_utf8_bytes",
+    "project_source_file_bytes",
+    "command_output_utf8_bytes",
+    "final_response_utf8_bytes",
+    "tool_cycles",
+)
 
 
 class ComparisonError(ValueError):
@@ -185,6 +194,18 @@ def compatibility_warnings(fallback: dict[str, Any], accelerated: dict[str, Any]
 
 
 def metric_value(sample: dict[str, Any], metric: str) -> float | None:
+    if metric in COST_METRICS:
+        values = [
+            ledger.get(metric)
+            for run in agent_runs(sample)
+            for ledger in [run.get("cost_ledger")]
+            if isinstance(ledger, dict)
+        ]
+        numeric = [
+            value for value in values
+            if isinstance(value, int) and not isinstance(value, bool)
+        ]
+        return float(sum(numeric)) if numeric else None
     if metric == "agent_duration_seconds":
         value = sample.get(metric)
     elif metric == "files_read":
@@ -274,6 +295,13 @@ def metric_label(metric: str) -> str:
         "files_read": "Inferred distinct files read",
         "command_count": "Command executions",
         "command_output_chars": "Command output characters",
+        "prompt_utf8_bytes": "Prompt bytes",
+        "declared_skill_context_utf8_bytes": "Declared skill context bytes",
+        "retrieval_output_utf8_bytes": "Retrieval output bytes",
+        "project_source_file_bytes": "Inferred project source bytes",
+        "command_output_utf8_bytes": "Command output bytes",
+        "final_response_utf8_bytes": "Final response bytes",
+        "tool_cycles": "Tool cycles",
     }.get(metric, metric.replace("_", " ").capitalize())
 
 
@@ -287,12 +315,13 @@ def render_metric_table(
     accelerated_samples: list[dict[str, Any]],
     left_label: str = "F",
     right_label: str = "A",
+    metrics: tuple[str, ...] = METRICS,
 ) -> None:
     lines.extend([
         f"| Metric | {left_label} mean | {right_label} mean | Δ mean | {left_label} median | {right_label} median | {left_label} min–max | {right_label} min–max | {left_label} SD | {right_label} SD | Totals ratio {right_label}/{left_label} | n {left_label}/{right_label} |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ])
-    for metric in METRICS:
+    for metric in metrics:
         left, right = metric_values(fallback_samples, metric), metric_values(accelerated_samples, metric)
         left_mean = statistics.fmean(left) if left else None
         right_mean = statistics.fmean(right) if right else None
@@ -366,6 +395,37 @@ def prewarm_seconds(sample: dict[str, Any]) -> float:
     )
 
 
+def aggregate_usefulness(sample: dict[str, Any]) -> dict[str, object]:
+    ledgers = [
+        run.get("retrieval_usefulness")
+        for run in agent_runs(sample)
+        if isinstance(run.get("retrieval_usefulness"), dict)
+    ]
+    fields = (
+        "returned_direct",
+        "returned_graph",
+        "read_returned_direct",
+        "read_returned_graph",
+        "read_outside_results",
+        "unread_returned_direct",
+        "unread_returned_graph",
+    )
+    result: dict[str, object] = {
+        field: sum(
+            int(ledger[field])
+            for ledger in ledgers
+            if isinstance(ledger.get(field), int) and not isinstance(ledger.get(field), bool)
+        )
+        for field in fields
+    }
+    result["read_outside_result_paths"] = sorted({
+        str(path)
+        for ledger in ledgers
+        for path in ledger.get("read_outside_result_paths", [])
+    })
+    return result if ledgers else {}
+
+
 def render_comparison(
     fallback: dict[str, Any],
     accelerated: dict[str, Any],
@@ -416,6 +476,17 @@ def render_comparison(
         lines.extend(["", f"## {title}", "", f"Fallback n={len(left_samples)}; accelerated n={len(right_samples)}.", ""])
         render_metric_table(lines, left_samples, right_samples)
 
+    valid_left = cohort(left, lambda sample: bool(sample.get("environment_valid")))
+    valid_right = cohort(right, lambda sample: bool(sample.get("environment_valid")))
+    lines.extend([
+        "",
+        "## Deterministic cost ledger",
+        "",
+        "Byte and cycle proxies are measured independently from stochastic model token counters.",
+        "",
+    ])
+    render_metric_table(lines, valid_left, valid_right, metrics=COST_METRICS)
+
     lines.extend(["", "## Sample outcomes", "", "| Mode | Sample | Valid | Passed | Retrieval | Attempts | Index state | Inferred files | Commands | Tool output chars | Prewarm | Agent time | Total tokens | Queue | Outcome/reason |", "|---|---:|---:|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|"])
     for label, samples in (("fallback", left), ("accelerated", right)):
         for key, sample in sorted(samples.items()):
@@ -429,7 +500,7 @@ def render_comparison(
                 f"{format_number(metric_value(sample, 'total_tokens'), 'total_tokens')} | {float(sample.get('queue_seconds') or 0):.3f} | {markdown_text(failure_summary(sample))} |"
             )
 
-    lines.extend(["", "## Retrieval attempts", "", "| Mode | Sample | Attempt | Query | Result | Exit | Failure/reason | Index | Documents | Refreshed | Direct/graph | Total/Search (s) | Candidates |", "|---|---:|---:|---|---|---:|---|---|---:|---:|---:|---:|---|"])
+    lines.extend(["", "## Retrieval attempts", "", "| Mode | Sample | Attempt | Query | Result | Strategy | Exit | Failure/reason | Index | Documents | Refreshed | Direct/graph | Total/Search (s) | Candidates |", "|---|---:|---:|---|---|---|---:|---|---|---:|---:|---:|---:|---|"])
     for label, samples in (("fallback", left), ("accelerated", right)):
         for key, sample in sorted(samples.items()):
             for attempt in attempts(sample):
@@ -438,12 +509,12 @@ def render_comparison(
                 graph = attempt.get("graph_neighbors")
                 if isinstance(direct, list) or isinstance(graph, list):
                     rendered_candidates = [
-                        f"D:{candidate.get('path')} ({candidate.get('score', 'n/a')}; {','.join(map(str, candidate.get('origins', [])))})"
+                        f"D:{candidate.get('path')} ({candidate.get('score', 'n/a')}; {','.join(map(str, candidate.get('origins', [])))}; signals={json.dumps(candidate.get('signals', {}), ensure_ascii=False, sort_keys=True)})"
                         for candidate in direct or []
                         if isinstance(candidate, dict)
                     ]
                     rendered_candidates.extend(
-                        f"G:{candidate.get('path')} via {candidate.get('source_path', '?')} {candidate.get('direction', '?')} d{candidate.get('depth', '?')} ({candidate.get('score', 'n/a')})"
+                        f"G:{candidate.get('path')} ({candidate.get('score', 'n/a')}; transitions={json.dumps(candidate.get('transitions', []), ensure_ascii=False, sort_keys=True)})"
                         for candidate in graph or []
                         if isinstance(candidate, dict)
                     )
@@ -455,13 +526,35 @@ def render_comparison(
                     ]
                 candidate_text = "; ".join(rendered_candidates) or "—"
                 failure = attempt.get("failure_kind") or attempt.get("reason_code") or "—"
+                selection = attempt.get("selection") if isinstance(attempt.get("selection"), dict) else {}
                 lines.append(
-                    f"| {label} | {key[1]} | {attempt.get('attempt_number', '?')} | {markdown_text(attempt.get('query') or '—')} | {markdown_text(attempt.get('mode', 'unknown'))} | "
+                    f"| {label} | {key[1]} | {attempt.get('attempt_number', '?')} | {markdown_text(attempt.get('query') or '—')} | {markdown_text(attempt.get('mode', 'unknown'))} | {markdown_text(attempt.get('retrieval_strategy') or '—')} | "
                     f"{attempt.get('exit_code', 'n/a')} | {markdown_text(failure)} | {markdown_text(attempt.get('index_state') or '—')} | "
                     f"{attempt.get('documents') if attempt.get('documents') is not None else 'n/a'} | {attempt.get('refreshed') if attempt.get('refreshed') is not None else 'n/a'} | "
                     f"{attempt.get('direct_count', 'n/a')}/{attempt.get('graph_count', 'n/a')} | "
-                    f"{timings.get('total_seconds', 'n/a')}/{timings.get('search_seconds', 'n/a')} | {markdown_text(candidate_text)} |"
+                    f"{timings.get('total_seconds', 'n/a')}/{timings.get('search_seconds', 'n/a')} | "
+                    f"{markdown_text(candidate_text)} [selected {selection.get('direct_returned', 'n/a')}/{selection.get('direct_considered', 'n/a')} direct; {selection.get('graph_returned', 'n/a')}/{selection.get('graph_considered', 'n/a')} graph] |"
                 )
+
+    lines.extend([
+        "",
+        "## Retrieval usefulness",
+        "",
+        "README.md is excluded because the skill reads it independently of accelerator routing.",
+        "",
+        "| Mode | Sample | Returned direct | Returned graph | Read direct | Read graph | Read outside | Unread direct | Unread graph | Outside paths |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+    ])
+    for label, samples in (("fallback", left), ("accelerated", right)):
+        for key, sample in sorted(samples.items()):
+            usefulness = aggregate_usefulness(sample)
+            lines.append(
+                f"| {label} | {key[1]} | {usefulness.get('returned_direct', 'n/a')} | "
+                f"{usefulness.get('returned_graph', 'n/a')} | {usefulness.get('read_returned_direct', 'n/a')} | "
+                f"{usefulness.get('read_returned_graph', 'n/a')} | {usefulness.get('read_outside_results', 'n/a')} | "
+                f"{usefulness.get('unread_returned_direct', 'n/a')} | {usefulness.get('unread_returned_graph', 'n/a')} | "
+                f"{markdown_text(', '.join(map(str, usefulness.get('read_outside_result_paths', []))) or '—')} |"
+            )
 
     command_rows: list[str] = []
     for label, samples in (("fallback", left), ("accelerated", right)):

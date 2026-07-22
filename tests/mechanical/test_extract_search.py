@@ -75,6 +75,7 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertEqual("cold_build", payload["index_state"])
         self.assertEqual(2, payload["schema_version"])
         self.assertIn("fts", payload["direct_matches"][0]["origins"])
+        self.assertEqual(1, payload["selection"]["direct_returned"])
         self.assertGreaterEqual(payload["timings"]["total_seconds"], 0)
         self.assertTrue(payload["runtime"]["fts5"])
         self.assertEqual([], list(self.spine.rglob("*.sqlite*")))
@@ -136,6 +137,10 @@ class ExtractSearchTests(unittest.TestCase):
         )
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn(consumer, {item["path"] for item in payload["graph_neighbors"]})
+        transition = next(
+            item for item in payload["graph_neighbors"] if item["path"] == consumer
+        )["transitions"][0]
+        self.assertEqual("CON-retry-limit", transition["semantic_id"])
 
     def test_graph_corroboration_outranks_single_term_matches(self):
         (self.spine / "README.md").write_text(
@@ -186,6 +191,18 @@ class ExtractSearchTests(unittest.TestCase):
         candidate = payload["direct_matches"][0]
         self.assertNotIn("summary", candidate)
         self.assertNotIn("reasons", candidate)
+        self.assertEqual(
+            {
+                "exact",
+                "semantic_ids",
+                "token_hits",
+                "query_tokens",
+                "phrase_hits",
+                "fts_rank",
+                "graph_support",
+            },
+            set(candidate["signals"]),
+        )
 
     def test_direct_matches_and_graph_neighbors_have_independent_contracts(self):
         (self.spine / "README.md").write_text(
@@ -207,9 +224,69 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertEqual(["owner.md"], [item["path"] for item in payload["direct_matches"]])
         self.assertEqual(["worker.md"], [item["path"] for item in payload["graph_neighbors"]])
         neighbor = payload["graph_neighbors"][0]
-        self.assertEqual("owner.md", neighbor["source_path"])
-        self.assertEqual("outgoing", neighbor["direction"])
-        self.assertEqual(1, neighbor["depth"])
+        self.assertEqual("owner.md", neighbor["transitions"][0]["root_path"])
+        self.assertEqual("owner.md", neighbor["transitions"][0]["source_path"])
+        self.assertEqual("outgoing", neighbor["transitions"][0]["direction"])
+        self.assertEqual(1, neighbor["transitions"][0]["depth"])
+        self.assertEqual("Worker", neighbor["transitions"][0]["edge_label"])
+
+    def test_semantic_id_uses_strong_match_without_fts_tail(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Owner](owner.md)\n", encoding="utf-8"
+        )
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\n## Constraints\n\n"
+            "- **CON-addressed-owner** — Owns repeated common material.\n",
+            encoding="utf-8",
+        )
+        for index in range(8):
+            (self.spine / f"decoy-{index}.md").write_text(
+                f"# Decoy {index}\n\nCON-addressed-owner repeated common material.\n",
+                encoding="utf-8",
+            )
+
+        result, payload = self.run_search(
+            "CON-addressed-owner", "--graph-depth", "0"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("strong-match", payload["retrieval_strategy"])
+        self.assertIsNone(payload["selection"]["direct_cutoff_score"])
+        self.assertEqual(["owner.md"], [item["path"] for item in payload["direct_matches"]])
+        self.assertEqual(
+            ["CON-ADDRESSED-OWNER"],
+            payload["direct_matches"][0]["signals"]["semantic_ids"],
+        )
+
+    def test_hybrid_search_adaptively_drops_weak_tail_and_readme(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Owner](owner.md)\n",
+            encoding="utf-8",
+        )
+        terms = [f"targetsignal{index}" for index in range(8)]
+        (self.spine / "owner.md").write_text(
+            f"# Owner\n\nOwns {' '.join(terms)}.\n",
+            encoding="utf-8",
+        )
+        for index, term in enumerate(terms):
+            (self.spine / f"decoy-{index}.md").write_text(
+                f"# Decoy {index}\n\nGeneric {term} material.\n", encoding="utf-8"
+            )
+
+        result, payload = self.run_search(
+            " ".join(terms), "--limit", "12", "--graph-depth", "0"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("hybrid-fts", payload["retrieval_strategy"])
+        self.assertEqual("owner.md", payload["direct_matches"][0]["path"])
+        self.assertNotIn(
+            "README.md", {item["path"] for item in payload["direct_matches"]}
+        )
+        self.assertGreater(
+            payload["selection"]["direct_considered"],
+            payload["selection"]["direct_returned"],
+        )
 
     def test_inline_code_identifiers_are_searchable_without_creating_links(self):
         (self.spine / "README.md").write_text(
@@ -275,12 +352,16 @@ class ExtractSearchTests(unittest.TestCase):
                 ("small.md", "small.md", "", "Only section", "needle"),
             )
 
-            direct, graph = SEARCH.search(connection, "needle", 2, 0, 2)
+            direct, graph, strategy, selection = SEARCH.search(
+                connection, "needle", 2, 0, 2
+            )
             self.assertEqual(
                 ["large.md", "small.md"],
                 [candidate["path"] for candidate in direct],
             )
             self.assertEqual([], graph)
+            self.assertEqual("hybrid-fts", strategy)
+            self.assertEqual(2, selection["direct_returned"])
         finally:
             connection.close()
 

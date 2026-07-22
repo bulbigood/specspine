@@ -51,6 +51,25 @@ def sample(number, mode, duration, tokens, passed, environment_valid=True):
                     "command_output_chars": tokens,
                     "command_metrics": [],
                 },
+                "cost_ledger": {
+                    "prompt_utf8_bytes": 100,
+                    "declared_skill_context_utf8_bytes": 200,
+                    "retrieval_output_utf8_bytes": 30 if mode == "enabled" else 10,
+                    "project_source_file_bytes": tokens,
+                    "command_output_utf8_bytes": tokens,
+                    "final_response_utf8_bytes": 20,
+                    "tool_cycles": number + 3,
+                },
+                "retrieval_usefulness": {
+                    "returned_direct": 2 if mode == "enabled" else 0,
+                    "returned_graph": 1 if mode == "enabled" else 0,
+                    "read_returned_direct": 1 if mode == "enabled" else 0,
+                    "read_returned_graph": 1 if mode == "enabled" else 0,
+                    "read_outside_results": 0 if mode == "enabled" else 2,
+                    "unread_returned_direct": 1 if mode == "enabled" else 0,
+                    "unread_returned_graph": 0,
+                    "read_outside_result_paths": [],
+                },
                 "retrieval_attempts": [
                     {
                         "attempt_number": 1,
@@ -135,6 +154,34 @@ class ExtractMetricsTests(unittest.TestCase):
         del without_total["token_usage"]["total_tokens"]
 
         self.assertEqual(value, METRICS.metric_value(without_total, "total_tokens"))
+
+    def test_cost_metrics_are_read_from_deterministic_ledger(self):
+        value = METRICS.metric_value(
+            sample(1, "enabled", 5, 50, True), "retrieval_output_utf8_bytes"
+        )
+
+        self.assertEqual(30.0, value)
+
+    def test_retrieval_usefulness_aggregates_agent_runs(self):
+        result = sample(1, "enabled", 5, 50, True)
+        second = dict(result["agent_runs"][0])
+        second["retrieval_usefulness"] = {
+            "returned_direct": 1,
+            "returned_graph": 0,
+            "read_returned_direct": 1,
+            "read_returned_graph": 0,
+            "read_outside_results": 1,
+            "unread_returned_direct": 0,
+            "unread_returned_graph": 0,
+            "read_outside_result_paths": ["specspine/extra.md"],
+        }
+        result["agent_runs"].append(second)
+
+        usefulness = METRICS.aggregate_usefulness(result)
+
+        self.assertEqual(3, usefulness["returned_direct"])
+        self.assertEqual(1, usefulness["read_outside_results"])
+        self.assertEqual(["specspine/extra.md"], usefulness["read_outside_result_paths"])
 
     def test_rejects_different_case_fingerprints(self):
         fallback = report("fallback", [sample(1, "fallback", 10, 100, True)])
@@ -312,10 +359,14 @@ class ExtractMetricsTests(unittest.TestCase):
         attempt["graph_neighbors"] = [
             {
                 "path": "worker.md",
-                "source_path": "owner.md",
-                "direction": "outgoing",
-                "depth": 1,
                 "score": 2,
+                "transitions": [
+                    {
+                        "source_path": "owner.md",
+                        "direction": "outgoing",
+                        "depth": 1,
+                    }
+                ],
             }
         ]
         accelerated = report("enabled", [accelerated_sample])
@@ -323,7 +374,10 @@ class ExtractMetricsTests(unittest.TestCase):
         rendered = METRICS.render_comparison(fallback, accelerated)
 
         self.assertIn("D:owner.md", rendered)
-        self.assertIn("G:worker.md via owner.md outgoing d1", rendered)
+        self.assertIn("G:worker.md", rendered)
+        self.assertIn("owner.md", rendered)
+        self.assertIn("Deterministic cost ledger", rendered)
+        self.assertIn("Retrieval usefulness", rendered)
 
 
 if __name__ == "__main__":

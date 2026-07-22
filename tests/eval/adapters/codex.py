@@ -273,6 +273,7 @@ def parse_event_metrics(stdout: str, candidates: list[str]) -> dict[str, object]
                 "status": item.get("status"),
                 "exit_code": item.get("exit_code"),
                 "output_chars": len(output),
+                "output_utf8_bytes": len(output.encode("utf-8")),
                 "output_lines": len(output.splitlines()),
                 "inferred_file_count": len(inferred_reads),
                 "inferred_file_paths": sorted(inferred_reads),
@@ -285,6 +286,9 @@ def parse_event_metrics(stdout: str, candidates: list[str]) -> dict[str, object]
         "command_count": len(command_metrics),
         "command_output_chars": sum(
             int(item["output_chars"]) for item in command_metrics
+        ),
+        "command_output_utf8_bytes": sum(
+            int(item["output_utf8_bytes"]) for item in command_metrics
         ),
         "command_metrics": command_metrics,
         "agent_message_count": agent_message_count,
@@ -361,7 +365,7 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
             direct_matches.append(
                 {
                     key: candidate[key]
-                    for key in ("path", "score", "origins", "reasons", "headings", "title")
+                    for key in ("path", "score", "origins", "signals", "headings", "title")
                     if key in candidate
                 }
             )
@@ -377,9 +381,7 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
                         "score",
                         "origins",
                         "title",
-                        "source_path",
-                        "direction",
-                        "depth",
+                        "transitions",
                     )
                     if key in candidate
                 }
@@ -405,12 +407,89 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
                 "documents": payload.get("documents") if isinstance(payload, dict) else None,
                 "refreshed": payload.get("refreshed") if isinstance(payload, dict) else None,
                 "index_state": payload.get("index_state") if isinstance(payload, dict) else None,
+                "retrieval_strategy": payload.get("retrieval_strategy") if isinstance(payload, dict) else None,
+                "selection": payload.get("selection", {}) if isinstance(payload, dict) else {},
                 "timings": payload.get("timings", {}) if isinstance(payload, dict) else {},
                 "runtime": payload.get("runtime", {}) if isinstance(payload, dict) else {},
+                "output_chars": len(raw_output),
+                "output_utf8_bytes": len(raw_output.encode("utf-8")),
                 "output_excerpt": raw_output.strip()[:1000] if payload is None else None,
             }
         )
     return attempts
+
+
+def deterministic_cost_ledger(
+    root: Path,
+    prompt: str,
+    response: str,
+    reads: set[str],
+    event_metrics: dict[str, object],
+    retrieval_attempts: list[dict[str, object]],
+) -> dict[str, int]:
+    """Record stable byte/cycle proxies separately from stochastic token counters."""
+    declared_context = [
+        root / ".eval" / "skill" / "SKILL.md",
+        root / ".eval" / "skill" / "references" / "context-handoff.md",
+    ]
+    project_source_bytes = 0
+    for relative in reads:
+        source = root / relative
+        try:
+            if source.is_file():
+                project_source_bytes += source.stat().st_size
+        except OSError:
+            continue
+    command_count = event_metrics.get("command_count")
+    command_output = event_metrics.get("command_output_utf8_bytes")
+    return {
+        "prompt_utf8_bytes": len(prompt.encode("utf-8")),
+        "declared_skill_context_utf8_bytes": sum(
+            path.stat().st_size for path in declared_context if path.is_file()
+        ),
+        "retrieval_output_utf8_bytes": sum(
+            int(attempt.get("output_utf8_bytes", 0)) for attempt in retrieval_attempts
+        ),
+        "project_source_file_bytes": project_source_bytes,
+        "command_output_utf8_bytes": int(command_output or 0),
+        "final_response_utf8_bytes": len(response.encode("utf-8")),
+        "tool_cycles": int(command_count or 0),
+    }
+
+
+def retrieval_usefulness(
+    reads: set[str], retrieval_attempts: list[dict[str, object]]
+) -> dict[str, object]:
+    """Relate routed documents to conservatively inferred project reads."""
+    direct = {
+        f"specspine/{candidate['path']}"
+        for attempt in retrieval_attempts
+        for candidate in attempt.get("direct_matches", [])
+        if isinstance(candidate, dict) and isinstance(candidate.get("path"), str)
+    }
+    graph = {
+        f"specspine/{candidate['path']}"
+        for attempt in retrieval_attempts
+        for candidate in attempt.get("graph_neighbors", [])
+        if isinstance(candidate, dict) and isinstance(candidate.get("path"), str)
+    } - direct
+    relevant_reads = {
+        path for path in reads
+        if path.startswith("specspine/") and path != "specspine/README.md"
+    }
+    read_direct = relevant_reads & direct
+    read_graph = relevant_reads & graph
+    outside = relevant_reads - direct - graph
+    return {
+        "returned_direct": len(direct),
+        "returned_graph": len(graph),
+        "read_returned_direct": len(read_direct),
+        "read_returned_graph": len(read_graph),
+        "read_outside_results": len(outside),
+        "unread_returned_direct": len(direct - relevant_reads),
+        "unread_returned_graph": len(graph - relevant_reads),
+        "read_outside_result_paths": sorted(outside),
+    }
 
 
 def utc_now() -> str:
@@ -972,6 +1051,15 @@ def main() -> int:
     execution_errors = environment_errors(completed.stdout, completed.stderr)
     boundary_violations = scope_violations(commands, root, (runtime_root,))
     final_response = messages[-1] if messages else ""
+    cost_ledger = deterministic_cost_ledger(
+        root,
+        prompt,
+        final_response,
+        reads,
+        event_metrics,
+        retrieval_attempts,
+    )
+    usefulness = retrieval_usefulness(reads, retrieval_attempts)
     trace_path = eval_dir / "trace.json"
     trace_path.write_text(
         json.dumps(
@@ -986,6 +1074,8 @@ def main() -> int:
                     attempt.get("mode") == "unknown" for attempt in retrieval_attempts
                 ),
                 "event_metrics": event_metrics,
+                "cost_ledger": cost_ledger,
+                "retrieval_usefulness": usefulness,
                 "duration_seconds": duration_seconds,
                 "started_at": started_at,
                 "finished_at": finished_at,

@@ -135,13 +135,24 @@ class CodexAdapterTests(unittest.TestCase):
     def test_records_actual_retrieval_result(self):
         payload = {
             "mode": "sqlite-fts5",
-            "direct_matches": [{"path": "specspine/owner.md"}],
+            "retrieval_strategy": "hybrid-fts",
+            "selection": {"direct_considered": 4, "direct_returned": 1},
+            "direct_matches": [
+                {
+                    "path": "specspine/owner.md",
+                    "signals": {"token_hits": 2, "query_tokens": 2},
+                }
+            ],
             "graph_neighbors": [
                 {
                     "path": "specspine/worker.md",
-                    "source_path": "specspine/owner.md",
-                    "direction": "outgoing",
-                    "depth": 1,
+                    "transitions": [
+                        {
+                            "source_path": "specspine/owner.md",
+                            "direction": "outgoing",
+                            "depth": 1,
+                        }
+                    ],
                 }
             ],
         }
@@ -171,6 +182,14 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertEqual(1, attempts[0]["graph_count"])
         self.assertEqual(1, attempts[0]["attempt_number"])
         self.assertIsNone(attempts[0]["failure_kind"])
+        self.assertEqual("hybrid-fts", attempts[0]["retrieval_strategy"])
+        self.assertEqual(4, attempts[0]["selection"]["direct_considered"])
+        self.assertEqual(2, attempts[0]["direct_matches"][0]["signals"]["token_hits"])
+        self.assertEqual(
+            "specspine/owner.md",
+            attempts[0]["graph_neighbors"][0]["transitions"][0]["source_path"],
+        )
+        self.assertGreater(attempts[0]["output_utf8_bytes"], 0)
 
     def test_classifies_malformed_retrieval_output(self):
         stdout = json.dumps(
@@ -247,11 +266,60 @@ class CodexAdapterTests(unittest.TestCase):
 
         self.assertEqual(1, metrics["command_count"])
         self.assertEqual(len("sentinel-output\n"), metrics["command_output_chars"])
+        self.assertEqual(len("sentinel-output\n".encode()), metrics["command_output_utf8_bytes"])
         self.assertEqual(1, metrics["agent_message_count"])
         self.assertEqual(1, metrics["turn_count"])
         command = metrics["command_metrics"][0]
         self.assertEqual("project_content", command["category"])
         self.assertEqual(["specspine/owner.md"], command["inferred_file_paths"])
+
+    def test_cost_ledger_records_stable_byte_proxies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".eval/skill/references").mkdir(parents=True)
+            (root / ".eval/skill/SKILL.md").write_text("skill", encoding="utf-8")
+            (root / ".eval/skill/references/context-handoff.md").write_text(
+                "contract", encoding="utf-8"
+            )
+            (root / "specspine").mkdir()
+            (root / "specspine/owner.md").write_text("source", encoding="utf-8")
+
+            ledger = ADAPTER.deterministic_cost_ledger(
+                root,
+                "промпт",
+                "response",
+                {"specspine/owner.md"},
+                {"command_count": 2, "command_output_utf8_bytes": 17},
+                [{"output_utf8_bytes": 11}],
+            )
+
+        self.assertEqual(len("промпт".encode()), ledger["prompt_utf8_bytes"])
+        self.assertEqual(13, ledger["declared_skill_context_utf8_bytes"])
+        self.assertEqual(6, ledger["project_source_file_bytes"])
+        self.assertEqual(11, ledger["retrieval_output_utf8_bytes"])
+        self.assertEqual(2, ledger["tool_cycles"])
+
+    def test_retrieval_usefulness_separates_routed_and_outside_reads(self):
+        usefulness = ADAPTER.retrieval_usefulness(
+            {
+                "specspine/README.md",
+                "specspine/owner.md",
+                "specspine/worker.md",
+                "specspine/outside.md",
+            },
+            [
+                {
+                    "direct_matches": [{"path": "owner.md"}],
+                    "graph_neighbors": [{"path": "worker.md"}, {"path": "unused.md"}],
+                }
+            ],
+        )
+
+        self.assertEqual(1, usefulness["read_returned_direct"])
+        self.assertEqual(1, usefulness["read_returned_graph"])
+        self.assertEqual(1, usefulness["read_outside_results"])
+        self.assertEqual(["specspine/outside.md"], usefulness["read_outside_result_paths"])
+        self.assertEqual(1, usefulness["unread_returned_graph"])
 
     def test_detects_bwrap_namespace_failure_as_environment_error(self):
         stdout = json.dumps(

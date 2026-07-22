@@ -45,6 +45,11 @@ Mechanical tests must:
   fallback rather than fail unrelated functionality;
 - avoid changing skill wording merely to satisfy a test.
 
+Performance benchmarks must keep correctness metrics separate from timings.
+Use deterministic synthetic inputs and fixed ground truth; never turn host-time
+measurements into CI thresholds. Run the Extract retrieval benchmark without an
+agent using `python3 tests/mechanical/benchmark_extract_search.py`.
+
 ## Eval tests
 
 Use eval cases to verify whether an agent locates context, preserves semantics,
