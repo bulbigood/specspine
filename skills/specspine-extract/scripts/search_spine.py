@@ -8,7 +8,6 @@ import hashlib
 import json
 import math
 import os
-import platform
 import re
 import tempfile
 import time
@@ -19,12 +18,7 @@ from urllib.parse import unquote, urlsplit
 try:
     import sqlite3
 except ImportError as error:
-    print(json.dumps({
-        "schema_version": 2,
-        "mode": "fallback",
-        "reason_code": "sqlite_unavailable",
-        "reason": f"sqlite3 is unavailable: {error}",
-    }))
+    print(json.dumps({"schema_version": 2, "mode": "fallback"}))
     raise SystemExit(2) from error
 
 
@@ -101,6 +95,22 @@ class Document:
     sections: tuple[Section, ...]
     links: tuple[Link, ...]
     semantic_ids: tuple[SemanticId, ...]
+
+
+@dataclass(frozen=True)
+class SearchOutcome:
+    exit_code: int
+    mode: str
+    direct_matches: tuple[dict[str, object], ...] = ()
+    graph_neighbors: tuple[dict[str, object], ...] = ()
+    documents: int | None = None
+    refreshed: int | None = None
+    index_state: str | None = None
+    retrieval_strategy: str | None = None
+    selection: dict[str, object] | None = None
+    timings: dict[str, float] | None = None
+    reason_code: str | None = None
+    reason: str | None = None
 
 
 def within(path: Path, root: Path) -> bool:
@@ -822,6 +832,21 @@ def fts_query(query: str, connection: sqlite3.Connection | None = None) -> str:
     return fts_plan(query, connection)[0]
 
 
+def routing_stem(token: str) -> str:
+    """Normalize common English inflections for metadata reranking only."""
+    value = token.casefold()
+    if len(value) > 4 and value.endswith("ies"):
+        return value[:-3] + "y"
+    if len(value) > 4 and value.endswith("ing"):
+        value = value[:-3]
+        return value[:-1] if len(value) > 2 and value[-1:] == value[-2:-1] else value
+    if len(value) > 3 and value.endswith("ed"):
+        return value[:-2]
+    if len(value) > 3 and value.endswith("s") and not value.endswith("ss"):
+        return value[:-1]
+    return value
+
+
 def search(
     connection: sqlite3.Connection,
     query: str,
@@ -854,6 +879,7 @@ def search(
                     "token_hits": 0,
                     "query_tokens": 0,
                     "phrase_hits": 0,
+                    "metadata_hits": 0,
                     "fts_rank": None,
                     "graph_support": 0,
                 },
@@ -883,7 +909,12 @@ def search(
                     )
                 elif key == "graph_support":
                     stored[key] = int(stored.get(key) or 0) + int(value)
-                elif key in {"token_hits", "query_tokens", "phrase_hits"}:
+                elif key in {
+                    "token_hits",
+                    "query_tokens",
+                    "phrase_hits",
+                    "metadata_hits",
+                }:
                     stored[key] = max(int(stored.get(key) or 0), int(value))
                 elif key == "fts_rank":
                     current = stored.get(key)
@@ -942,6 +973,7 @@ def search(
         offset = 0
         document_ranks: dict[str, int] = {}
         document_signals: dict[str, tuple[int, int, int]] = {}
+        query_stems = {routing_stem(token) for token in query_tokens}
 
         def path_matches(path: str, clause: str) -> bool:
             escaped = clause.replace('"', '""')
@@ -972,14 +1004,22 @@ def search(
                         ),
                     )
                 token_hits, phrase_hits, rare_token_hits = document_signals[row["path"]]
-                rank_score = 60.0 / (document_rank + 1)
+                metadata_tokens = {
+                    routing_stem(token)
+                    for token in QUERY_TOKEN_RE.findall(
+                        f"{row['path']} {row['title']}".casefold()
+                    )
+                }
+                metadata_hits = len(query_stems & metadata_tokens)
+                rank_score = 40.0 / math.sqrt(document_rank + 1)
                 if len(query_tokens) >= 3 and token_hits < 2 and phrase_hits == 0:
                     rank_score *= 0.25
                 coverage_score = 20.0 * token_hits / max(1, len(query_tokens))
                 phrase_score = min(15.0, 5.0 * phrase_hits)
+                metadata_score = min(30.0, 20.0 * metadata_hits)
                 add(
                     row["path"],
-                    rank_score + coverage_score + phrase_score,
+                    rank_score + coverage_score + phrase_score + metadata_score,
                     "fts",
                     row["title"],
                     row["summary"],
@@ -989,6 +1029,7 @@ def search(
                         "query_tokens": len(query_tokens),
                         "phrase_hits": phrase_hits,
                         "rare_token_hits": rare_token_hits,
+                        "metadata_hits": metadata_hits,
                         "fts_rank": document_rank + 1,
                     },
                 )
@@ -1090,7 +1131,7 @@ def search(
                 if neighbor in direct_paths:
                     add(
                         neighbor,
-                        score,
+                        min(5.0, score),
                         origin,
                         document["title"],
                         document["summary"],
@@ -1245,125 +1286,135 @@ def search(
     return direct, graph, retrieval_strategy, selection
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("spine_root", type=Path)
-    parser.add_argument("--query", required=True, nargs="+")
-    parser.add_argument("--limit", type=int, default=12)
-    parser.add_argument("--graph-limit", type=int, default=6)
-    parser.add_argument("--graph-depth", type=int, choices=(0, 1, 2), default=1)
-    parser.add_argument("--rebuild", action="store_true")
-    parser.add_argument(
-        "--diagnostics",
-        action="store_true",
-        help="include ranking, index, runtime, and timing diagnostics",
-    )
-    args = parser.parse_args()
-    query = " ".join(args.query)
-
+def execute_search(
+    spine_root: Path,
+    query: str,
+    *,
+    limit: int = 10,
+    graph_limit: int = 2,
+    graph_depth: int = 1,
+    rebuild: bool = False,
+) -> SearchOutcome:
     total_started = time.perf_counter()
-
-    def failure_payload(mode: str, reason_code: str, reason: str) -> dict[str, object]:
-        payload: dict[str, object] = {"schema_version": 2, "mode": mode}
-        if args.diagnostics:
-            payload.update({
-                "reason_code": reason_code,
-                "reason": reason,
-                "timings": {
-                    "total_seconds": round(time.perf_counter() - total_started, 6)
-                },
-            })
-        return payload
-
-    root = args.spine_root.resolve()
+    root = spine_root.resolve()
     if not root.is_dir() or not (root / "README.md").is_file():
-        print(json.dumps(failure_payload(
-            "error", "invalid_root", "SpecSpine root or README.md is missing"
-        )))
-        return 3
-    if args.limit < 1 or args.limit > 50:
-        print(json.dumps(failure_payload(
-            "error", "invalid_limit", "limit must be between 1 and 50"
-        )))
-        return 3
-    if args.graph_limit < 0 or args.graph_limit > 50:
-        print(json.dumps(failure_payload(
-            "error", "invalid_graph_limit", "graph-limit must be between 0 and 50"
-        )))
-        return 3
+        return SearchOutcome(
+            3, "error", reason_code="invalid_root",
+            reason="SpecSpine root or README.md is missing",
+            timings={"total_seconds": time.perf_counter() - total_started},
+        )
+    if limit < 1 or limit > 50:
+        return SearchOutcome(
+            3, "error", reason_code="invalid_limit",
+            reason="limit must be between 1 and 50",
+            timings={"total_seconds": time.perf_counter() - total_started},
+        )
+    if graph_limit < 0 or graph_limit > 50:
+        return SearchOutcome(
+            3, "error", reason_code="invalid_graph_limit",
+            reason="graph-limit must be between 0 and 50",
+            timings={"total_seconds": time.perf_counter() - total_started},
+        )
+    if graph_depth not in {0, 1, 2}:
+        return SearchOutcome(
+            3, "error", reason_code="invalid_graph_depth",
+            reason="graph-depth must be 0, 1, or 2",
+            timings={"total_seconds": time.perf_counter() - total_started},
+        )
 
     connection: sqlite3.Connection | None = None
     try:
         probe_fts5()
         index_path = cache_path(root)
-        connection, changed, timings = ensure_index(root, index_path, args.rebuild)
+        connection, changed, timings = ensure_index(root, index_path, rebuild)
         search_started = time.perf_counter()
         direct_matches, graph_neighbors, retrieval_strategy, selection = search(
             connection,
             query,
-            args.limit,
-            args.graph_depth,
-            args.graph_limit,
+            limit,
+            graph_depth,
+            graph_limit,
         )
         timings["search_seconds"] = time.perf_counter() - search_started
         timings["total_seconds"] = time.perf_counter() - total_started
         count = connection.execute("SELECT count(*) FROM documents").fetchone()[0]
-        payload: dict[str, object] = {
-            "schema_version": 2,
-            "mode": "sqlite-fts5",
-            "direct_matches": [{"path": item["path"]} for item in direct_matches],
-            "graph_neighbors": [
-                {
-                    "path": item["path"],
-                    "transitions": [
-                        {
-                            key: transition[key]
-                            for key in ("root_path", "source_path", "direction", "depth")
-                            if key in transition
-                        }
-                        for transition in item["transitions"]
-                    ],
-                }
-                for item in graph_neighbors
-            ],
-        }
-        if args.diagnostics:
-            payload.update({
-                "runtime": {
-                    "python": platform.python_version(),
-                    "sqlite": sqlite3.sqlite_version,
-                    "fts5": True,
-                },
-                "documents": count,
-                "refreshed": changed,
-                "index_state": timings.pop("index_state"),
-                "retrieval_strategy": retrieval_strategy,
-                "selection": selection,
-                "timings": {
-                    key: round(float(value), 6) for key, value in timings.items()
-                },
-                "direct_matches": direct_matches,
-                "graph_neighbors": graph_neighbors,
-            })
-        print(json.dumps(payload, ensure_ascii=False))
-        return 0 if direct_matches else FALLBACK_EXIT
+        index_state = str(timings.pop("index_state"))
+        return SearchOutcome(
+            0 if direct_matches else FALLBACK_EXIT,
+            "sqlite-fts5",
+            tuple(direct_matches),
+            tuple(graph_neighbors),
+            count,
+            changed,
+            index_state,
+            retrieval_strategy,
+            selection,
+            {key: float(value) for key, value in timings.items()},
+        )
     except AcceleratorUnavailable as error:
-        print(json.dumps(
-            failure_payload("fallback", error.reason_code, str(error)),
-            ensure_ascii=False,
-        ))
-        return FALLBACK_EXIT
+        return SearchOutcome(
+            FALLBACK_EXIT,
+            "fallback",
+            reason_code=error.reason_code,
+            reason=str(error),
+            timings={"total_seconds": time.perf_counter() - total_started},
+        )
     except Exception as error:
-        print(json.dumps(
-            failure_payload(
-                "fallback", "unexpected_error", f"accelerator failed: {error}"
-            ),
-            ensure_ascii=False,
-        ))
-        return FALLBACK_EXIT
+        return SearchOutcome(
+            FALLBACK_EXIT,
+            "fallback",
+            reason_code="unexpected_error",
+            reason=f"accelerator failed: {error}",
+            timings={"total_seconds": time.perf_counter() - total_started},
+        )
     finally:
         if connection is not None:
             connection.close()
+
+
+def compact_payload(outcome: SearchOutcome) -> dict[str, object]:
+    payload: dict[str, object] = {"schema_version": 2, "mode": outcome.mode}
+    if outcome.mode != "sqlite-fts5":
+        return payload
+    payload["direct_matches"] = [
+        {"path": item["path"]} for item in outcome.direct_matches
+    ]
+    payload["graph_neighbors"] = [
+        {
+            "path": item["path"],
+            "transitions": [
+                {
+                    key: transition[key]
+                    for key in ("root_path", "source_path", "direction", "depth")
+                    if key in transition
+                }
+                for transition in item["transitions"]
+            ],
+        }
+        for item in outcome.graph_neighbors
+    ]
+    return payload
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("spine_root", type=Path)
+    parser.add_argument("--query", required=True, nargs="+")
+    parser.add_argument("--limit", type=int, default=10)
+    parser.add_argument("--graph-limit", type=int, default=2)
+    parser.add_argument("--graph-depth", type=int, choices=(0, 1, 2), default=1)
+    parser.add_argument("--rebuild", action="store_true")
+    args = parser.parse_args()
+    outcome = execute_search(
+        args.spine_root,
+        " ".join(args.query),
+        limit=args.limit,
+        graph_limit=args.graph_limit,
+        graph_depth=args.graph_depth,
+        rebuild=args.rebuild,
+    )
+    print(json.dumps(compact_payload(outcome), ensure_ascii=False))
+    return outcome.exit_code
 
 
 if __name__ == "__main__":

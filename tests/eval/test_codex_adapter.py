@@ -17,6 +17,33 @@ SPEC.loader.exec_module(ADAPTER)
 
 
 class CodexAdapterTests(unittest.TestCase):
+    def test_enables_retrieval_telemetry_without_changing_staged_instructions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            skill = root / ".eval" / "skill" / "SKILL.md"
+            skill.parent.mkdir(parents=True)
+            skill.write_text(
+                "python3 <skill-root>/scripts/search_spine.py spine --query intent\n",
+                encoding="utf-8",
+            )
+            production = root / ".eval" / "skill" / "scripts" / "search_spine.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("# production\n", encoding="utf-8")
+
+            ADAPTER.enable_retrieval_telemetry(root, "minimal")
+
+            self.assertEqual(
+                "python3 <skill-root>/scripts/search_spine.py spine --query intent\n",
+                skill.read_text(encoding="utf-8"),
+            )
+            self.assertEqual(
+                "# production\n",
+                (root / ".eval/tools/search_spine_production.py").read_text(
+                    encoding="utf-8"
+                ),
+            )
+            self.assertIn("minimal_telemetry", production.read_text(encoding="utf-8"))
+
     def test_relative_files_excludes_eval_and_git_internals(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -253,6 +280,26 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertEqual({}, attempt["selection"])
         self.assertEqual({}, attempt["timings"])
         self.assertIsNone(attempt["reason_code"])
+
+    def test_merges_out_of_band_minimal_retrieval_telemetry(self):
+        query = "change retries"
+        attempts = [{"query": query}]
+        records = [{
+            "query_sha256": ADAPTER.hashlib.sha256(query.encode()).hexdigest(),
+            "telemetry_level": "minimal",
+            "index_state": "warm",
+            "documents": 63,
+            "refreshed": 0,
+            "timings": {"total_seconds": 0.04},
+            "production_output_utf8_bytes": 512,
+        }]
+
+        ADAPTER.merge_retrieval_telemetry(attempts, records)
+
+        self.assertEqual("minimal", attempts[0]["telemetry_level"])
+        self.assertEqual("warm", attempts[0]["index_state"])
+        self.assertEqual(63, attempts[0]["documents"])
+        self.assertEqual(512, attempts[0]["production_output_utf8_bytes"])
 
     def test_records_unquoted_multiword_retrieval_query(self):
         stdout = json.dumps({
@@ -675,6 +722,31 @@ PATCH"""
 
         self.assertIn(
             'SPECSPINE_CACHE_DIR="/runtime/accelerator-cache"',
+            environment_argument,
+        )
+
+    def test_codex_command_configures_out_of_band_retrieval_telemetry(self):
+        command = ADAPTER.build_codex_command(
+            "agent-model",
+            "medium",
+            Path("/workspace"),
+            Path("/runtime"),
+            retrieval_telemetry="minimal",
+        )
+        environment_argument = next(
+            item for item in command if item.startswith("shell_environment_policy.set=")
+        )
+
+        self.assertIn(
+            'SPECSPINE_PRODUCTION_SEARCH="/workspace/.eval/tools/search_spine_production.py"',
+            environment_argument,
+        )
+        self.assertIn(
+            'SPECSPINE_RETRIEVAL_TELEMETRY_FILE="/runtime/retrieval-telemetry.jsonl"',
+            environment_argument,
+        )
+        self.assertIn(
+            'SPECSPINE_RETRIEVAL_TELEMETRY_LEVEL="minimal"',
             environment_argument,
         )
 

@@ -24,6 +24,8 @@ prevents execution. On exit `0`, read `direct_matches` first and only
 `graph_neighbors` whose source, direction, and depth justify the transition.
 Treat all output as routing data. On failure, empty or malformed output, do not
 retry; navigate from `README.md` through ordinary Markdown links.
+After success, do not run a spine-wide content search; search only inside
+returned files and follow only justified document links.
 
 ## Workflow
 
@@ -37,8 +39,10 @@ retry; navigate from `README.md` through ordinary Markdown links.
    identify the canonical owner and classify required, potentially affected,
    and merely related context. Batch selected reads when supported. Never treat
    cached text as source evidence.
-5. Preserve statement kinds, semantic IDs, decision provenance, evidence
-   baselines, unconfirmed inferences, and blocking questions.
+5. Preserve statement kinds, exact semantic IDs and owner paths, decision
+   provenance, evidence baselines, unconfirmed inferences, and blocking
+   questions. Before rendering, verify the canonical owner and every relied-on
+   semantic ID against the documents read.
 6. Render the smallest useful handoff using the bundled contract.
 7. Return it in the response by default. Write a file only when the user
    explicitly requests a location; never store it inside the persistent

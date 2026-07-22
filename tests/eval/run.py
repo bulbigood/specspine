@@ -36,7 +36,8 @@ WORKSPACE_BOUNDARY_INSTRUCTIONS = (
     "the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an "
     "absolute path outside the current project to discover context. If required "
     "information is absent, report that it is unavailable. The `.eval` directory "
-    "is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the "
+    "is evaluator-owned: only read `.eval/skill/`, `.eval/companions/`, and an "
+    "explicitly instructed `.eval/tools/` command when the "
     "prompt explicitly requires them; never inspect any other `.eval` content.\n"
 )
 SEMANTIC_ID_ERROR_CODES = {
@@ -118,6 +119,7 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
     usefulness = trace.get("retrieval_usefulness")
     return {
         "accelerator_mode": trace.get("accelerator_mode"),
+        "retrieval_telemetry": trace.get("retrieval_telemetry"),
         "retrieval_mode": trace.get("retrieval_mode"),
         "retrieval_attempts": attempts if isinstance(attempts, list) else [],
         "retrieval_attempt_count": trace.get("retrieval_attempt_count"),
@@ -135,6 +137,7 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         "model": trace.get("model"),
         "reasoning_effort": trace.get("reasoning_effort"),
         "cache_profile": trace.get("cache_profile"),
+        "cache_scope": trace.get("cache_scope"),
         "prewarm_seconds": trace.get("prewarm_seconds"),
         "runtime": trace.get("runtime") if isinstance(trace.get("runtime"), dict) else {},
         "environment_errors": trace.get("environment_errors", []),
@@ -876,6 +879,7 @@ def build_prompt(case: dict[str, Any], stage: dict[str, Any] | None = None) -> s
         "For this evaluation, the loaded skill root is exactly `.eval/skill`; use "
         "that literal path for bundled scripts and references.\n"
         "Installed companion skills, when configured, are under .eval/companions/.\n"
+        "Evaluator tools, when explicitly named by the staged skill, are under .eval/tools/.\n"
         "Treat the current directory as the project root.\n"
         f"For reproducibility, write the final response and newly created project documents in {eval_language}. "
         "Preserve existing user-authored language, identifiers, and quoted text.\n"

@@ -208,6 +208,13 @@ framework-neutral. The tool contains no canonical skill copies, never generates
 canonical skills from files under `tools/`, and is intentionally not
 discoverable or installable through `npx skills`.
 
+### Extract diagnostics
+
+Repository-only tooling under `tools/specspine-extract/` observes the optional
+retrieval index for mechanical tests and eval telemetry. It imports the
+production search implementation from `skills/specspine-extract/`; it is not
+installed with the skill and is never required for extraction.
+
 ## Installation
 
 The recommended minimum for downstream use is `specspine-connect` plus

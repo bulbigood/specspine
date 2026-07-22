@@ -237,7 +237,7 @@ def command_category(command: str, inferred_reads: set[str]) -> str:
     source = shell_source(command)
     if "search_spine.py" in source:
         return "retrieval"
-    if ".eval/skill/" in source or ".eval/companions/" in source:
+    if any(marker in source for marker in (".eval/skill/", ".eval/companions/", ".eval/tools/")):
         return "skill_context"
     if inferred_reads:
         return "project_content"
@@ -446,6 +446,48 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
     return attempts
 
 
+def read_retrieval_telemetry(path: Path) -> list[dict[str, object]]:
+    if not path.is_file():
+        return []
+    records: list[dict[str, object]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            records.append(value)
+    return records
+
+
+def merge_retrieval_telemetry(
+    attempts: list[dict[str, object]], records: list[dict[str, object]]
+) -> None:
+    for attempt, record in zip(attempts, records):
+        query = attempt.get("query")
+        expected_hash = (
+            hashlib.sha256(str(query).encode("utf-8")).hexdigest() if query else None
+        )
+        if expected_hash and record.get("query_sha256") != expected_hash:
+            attempt["telemetry_mismatch"] = True
+            continue
+        for key in (
+            "reason_code",
+            "reason",
+            "documents",
+            "refreshed",
+            "index_state",
+            "retrieval_strategy",
+            "selection",
+            "timings",
+            "runtime",
+            "production_output_utf8_bytes",
+        ):
+            if key in record:
+                attempt[key] = record[key]
+        attempt["telemetry_level"] = record.get("telemetry_level")
+
+
 def deterministic_cost_ledger(
     root: Path,
     prompt: str,
@@ -525,6 +567,10 @@ def utc_now() -> str:
 
 def file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def optional_file_sha256(path: Path) -> str | None:
+    return file_sha256(path) if path.is_file() else None
 
 
 def command_version(command: str) -> str | None:
@@ -625,7 +671,7 @@ def scope_violations(
         ):
             markers.append("filesystem-root traversal (`/`)")
         allowed_eval = re.sub(
-            r"(?:\./)?\.eval/(?:skill|companions)(?:/[^\s'\"]*)?",
+            r"(?:\./)?\.eval/(?:skill|companions|tools)(?:/[^\s'\"]*)?",
             "<ALLOWED_EVAL_CONTEXT>",
             audit_text,
         )
@@ -870,6 +916,7 @@ def build_codex_command(
     root: Path,
     runtime_root: Path,
     accelerator_mode: str = "enabled",
+    retrieval_telemetry: str | None = None,
 ) -> list[str]:
     runtime_root = runtime_root.resolve()
     private_home = runtime_root / "home"
@@ -904,6 +951,14 @@ def build_codex_command(
         environment["SPECSPINE_CACHE_DIR"] = str(runtime_root / "accelerator-unavailable")
     else:
         environment["SPECSPINE_CACHE_DIR"] = str(runtime_root / "accelerator-cache")
+    if retrieval_telemetry:
+        environment["SPECSPINE_PRODUCTION_SEARCH"] = str(
+            root / ".eval" / "tools" / "search_spine_production.py"
+        )
+        environment["SPECSPINE_RETRIEVAL_TELEMETRY_FILE"] = str(
+            runtime_root / "retrieval-telemetry.jsonl"
+        )
+        environment["SPECSPINE_RETRIEVAL_TELEMETRY_LEVEL"] = retrieval_telemetry
     environment_config = "{" + ",".join(
         f"{key}={json.dumps(value)}" for key, value in environment.items()
     ) + "}"
@@ -973,6 +1028,28 @@ def prewarm_accelerator(root: Path, runtime_root: Path) -> None:
         raise RuntimeError(f"accelerator prewarm failed: {detail}")
 
 
+def enable_retrieval_telemetry(root: Path, level: str) -> None:
+    """Observe the disposable staged script without changing agent instructions."""
+    skill = root / ".eval" / "skill" / "SKILL.md"
+    marker = "python3 <skill-root>/scripts/search_spine.py"
+    content = skill.read_text(encoding="utf-8")
+    if content.count(marker) != 1:
+        raise RuntimeError(
+            "cannot enable retrieval telemetry: retrieval command is ambiguous"
+        )
+    source = (
+        Path(__file__).resolve().parents[3]
+        / "tools"
+        / "specspine-extract"
+        / "search_spine_diagnostics.py"
+    )
+    production = root / ".eval" / "skill" / "scripts" / "search_spine.py"
+    preserved = root / ".eval" / "tools" / "search_spine_production.py"
+    preserved.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(production, preserved)
+    shutil.copy2(source, production)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="gpt-5.6-luna")
@@ -989,6 +1066,11 @@ def main() -> int:
         default="isolated-cold",
         help="start with a private empty cache or prebuild the private index before the agent",
     )
+    parser.add_argument(
+        "--retrieval-telemetry",
+        choices=("minimal", "full"),
+        help="observe staged retrieval out of band; omitted matches production",
+    )
     args = parser.parse_args()
     if args.accelerator_mode == "fallback" and args.cache_profile != "isolated-cold":
         parser.error("fallback mode supports only isolated-cold cache profile")
@@ -1003,6 +1085,7 @@ def main() -> int:
     runtime_root = Path(tempfile.mkdtemp(prefix="specspine-runtime-", dir=runtime_parent))
     workspace_mountpoints: list[Path] = []
     prewarm_seconds = 0.0
+    retrieval_telemetry: list[dict[str, object]] = []
     try:
         for directory in (
             runtime_root / "bin",
@@ -1037,12 +1120,15 @@ def main() -> int:
             prewarm_started = time.monotonic()
             prewarm_accelerator(root, runtime_root)
             prewarm_seconds = time.monotonic() - prewarm_started
+        if args.retrieval_telemetry:
+            enable_retrieval_telemetry(root, args.retrieval_telemetry)
         command = build_codex_command(
             args.model,
             args.reasoning_effort,
             root,
             runtime_root,
             args.accelerator_mode,
+            args.retrieval_telemetry,
         )
         process_environment = os.environ.copy()
         process_environment["CODEX_HOME"] = str(codex_home)
@@ -1056,6 +1142,9 @@ def main() -> int:
             capture_output=True,
             check=False,
             env=process_environment,
+        )
+        retrieval_telemetry = read_retrieval_telemetry(
+            runtime_root / "retrieval-telemetry.jsonl"
         )
     finally:
         remove_empty_mountpoints(workspace_mountpoints)
@@ -1073,6 +1162,7 @@ def main() -> int:
     )
     reads, commands, messages = parse_events(completed.stdout, candidates)
     retrieval_attempts = parse_retrieval_attempts(completed.stdout)
+    merge_retrieval_telemetry(retrieval_attempts, retrieval_telemetry)
     event_metrics = parse_event_metrics(completed.stdout, candidates)
     token_usage = parse_token_usage(completed.stdout)
     execution_errors = environment_errors(completed.stdout, completed.stderr)
@@ -1093,6 +1183,7 @@ def main() -> int:
             {
                 "commands": commands,
                 "accelerator_mode": args.accelerator_mode,
+                "retrieval_telemetry": args.retrieval_telemetry,
                 "retrieval_attempts": retrieval_attempts,
                 "retrieval_mode": retrieval_attempts[-1]["mode"] if retrieval_attempts else None,
                 "retrieval_attempt_count": len(retrieval_attempts),
@@ -1115,9 +1206,20 @@ def main() -> int:
                 "model": args.model,
                 "reasoning_effort": args.reasoning_effort,
                 "cache_profile": args.cache_profile,
+                "cache_scope": "private-per-sample",
                 "prewarm_seconds": round(prewarm_seconds, 6),
                 "runtime": {
                     "adapter_sha256": file_sha256(Path(__file__)),
+                    "effective_skill_sha256": optional_file_sha256(
+                        root / ".eval" / "skill" / "SKILL.md"
+                    ),
+                    "retrieval_tool_sha256": (
+                        optional_file_sha256(
+                            root / ".eval" / "skill" / "scripts" / "search_spine.py"
+                        )
+                        if args.retrieval_telemetry
+                        else None
+                    ),
                     "codex_cli": codex_version,
                     "python": platform.python_version(),
                     "platform": sys.platform,

@@ -34,6 +34,9 @@ Use this shape and omit empty sections:
 Name one canonical primary owner when one exists. Separate specifications that
 must be read from those that may require an architectural update; omit merely
 related context unless it is needed for navigation.
+`Required` means required to understand the change safely, not necessarily a
+file expected to change. Use `Potentially affected` only when the specification
+is not needed to establish the handoff but may need later review or revision.
 
 Write specification addresses as repository-root-relative paths including the
 resolved spine root. Do not use absolute paths, leading `/`, or paths relative

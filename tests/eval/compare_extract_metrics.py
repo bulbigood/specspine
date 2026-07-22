@@ -490,6 +490,8 @@ def render_comparison(
         "## Configuration", "", "| Setting | Forced fallback | SQLite FTS5 + graph |", "|---|---|---|",
         f"| Run ID | {markdown_text(run_left.get('run_id', 'unavailable'))} | {markdown_text(run_right.get('run_id', 'unavailable'))} |",
         f"| Cache profile | {markdown_text(cache_profile_text(run_left))} | {markdown_text(cache_profile_text(run_right))} |",
+        f"| Cache scope | {all_trace_values(left.values(), 'cache_scope')} | {all_trace_values(right.values(), 'cache_scope')} |",
+        f"| Retrieval telemetry | {all_trace_values(left.values(), 'retrieval_telemetry')} | {all_trace_values(right.values(), 'retrieval_telemetry')} |",
         f"| Configured jobs | {fallback.get('jobs')} | {accelerated.get('jobs')} |",
         f"| Samples | {len(left)} | {len(right)} |",
         f"| Model | {all_trace_values(left.values(), 'model')} | {all_trace_values(right.values(), 'model')} |",
@@ -550,7 +552,7 @@ def render_comparison(
         "",
         "## Retrieval summary",
         "",
-        "| Mode | Expected single attempt | Direct median | Graph median | Retrieval bytes median | Sample failures |",
+        "| Mode | Expected single attempt | Direct median | Graph median | Retrieval bytes median | Behavior failures |",
         "|---|---:|---:|---:|---:|---:|",
     ])
     for label, samples, expected_mode in (
@@ -576,7 +578,7 @@ def render_comparison(
             f"{format_number(statistics.median(direct_counts) if direct_counts else None, 'files_read')} | "
             f"{format_number(statistics.median(graph_counts) if graph_counts else None, 'files_read')} | "
             f"{format_number(statistics.median(retrieval_bytes) if retrieval_bytes else None, 'retrieval_output_utf8_bytes')} | "
-            f"{sum(bool(failure_summary(sample) != '—') for sample in sample_values)} |"
+            f"{sum(not bool(sample.get('passed')) for sample in sample_values)} |"
         )
 
     lines.extend([

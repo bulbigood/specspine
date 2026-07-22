@@ -239,10 +239,16 @@ summary; means stay beside medians to expose outlier influence, and bootstrap
 intervals apply to median differences. It retains concise sample outcomes,
 retrieval/usefulness aggregates, failures, byte/cycle proxies, and observed
 concurrency. Detailed attempts and commands remain in the raw JSON. Normal A/B
-runs intentionally exercise the accelerator's compact production output. Add
-`--diagnostics` to a direct `search_spine.py` invocation only when ranking
-signals, all candidate details, index state, runtime versions, or timings are
-needed for investigation.
+runs omit retrieval telemetry and therefore execute the exact compact
+production command. For an instrumented A/B, add `--retrieval-telemetry
+minimal` to every adapter command. The adapter stages a repository-only tool
+that transparently observes the disposable production script without changing
+the staged `SKILL.md` command. It writes compact cache state and timings to a
+sidecar while preserving production stdout byte-for-byte; telemetry does not
+enter model context. Use
+`tools/specspine-extract/search_spine_diagnostics.py --telemetry full` only in
+mechanical tests or direct investigations that need ranking signals, candidate
+details, runtime versions, and failure reasons.
 It also keeps a deterministic byte/cycle cost ledger and relates returned
 direct/graph candidates to conservatively inferred subsequent document reads.
 These proxies explain context growth but are not model tokens.

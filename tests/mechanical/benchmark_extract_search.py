@@ -16,7 +16,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SEARCH = ROOT / "skills" / "specspine-extract" / "scripts" / "search_spine.py"
+DIAGNOSTIC_SEARCH = ROOT / "tools" / "specspine-extract" / "search_spine_diagnostics.py"
 
 
 def write_corpus(root: Path, document_count: int, query_count: int) -> list[dict[str, str]]:
@@ -69,10 +69,11 @@ def invoke(root: Path, cache: Path, query: str) -> tuple[dict[str, Any], int]:
     completed = subprocess.run(
         [
             sys.executable,
-            str(SEARCH),
+            str(DIAGNOSTIC_SEARCH),
+            "--telemetry",
+            "full",
             str(root),
             f"--query={query}",
-            "--diagnostics",
             "--graph-depth=0",
             "--graph-limit=0",
         ],

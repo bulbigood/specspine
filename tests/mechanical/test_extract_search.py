@@ -15,6 +15,7 @@ from unittest.mock import Mock, patch
 
 PROJECT_ROOT = Path(__file__).parents[2]
 MODULE_PATH = PROJECT_ROOT / "skills/specspine-extract/scripts/search_spine.py"
+DIAGNOSTIC_PATH = PROJECT_ROOT / "tools/specspine-extract/search_spine_diagnostics.py"
 SPEC = importlib.util.spec_from_file_location("specspine_extract_search", MODULE_PATH)
 assert SPEC and SPEC.loader
 SEARCH = importlib.util.module_from_spec(SPEC)
@@ -49,10 +50,11 @@ class ExtractSearchTests(unittest.TestCase):
         result = subprocess.run(
             [
                 sys.executable,
-                str(MODULE_PATH),
+                str(DIAGNOSTIC_PATH),
+                "--telemetry",
+                "full",
                 str(self.spine),
                 *query_arguments,
-                "--diagnostics",
                 *arguments,
             ],
             check=False,
@@ -112,6 +114,49 @@ class ExtractSearchTests(unittest.TestCase):
             {"root_path", "source_path", "direction", "depth"},
             set(payload["graph_neighbors"][0]["transitions"][0]),
         )
+
+    def test_minimal_observer_preserves_production_stdout_and_writes_sidecar(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Owner](owner.md)\n", encoding="utf-8"
+        )
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns telemetrysentinel.\n", encoding="utf-8"
+        )
+        environment = os.environ.copy()
+        environment["SPECSPINE_CACHE_DIR"] = str(self.cache)
+        production = subprocess.run(
+            [sys.executable, str(MODULE_PATH), str(self.spine), "--query=telemetrysentinel"],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=environment,
+            timeout=5,
+        )
+        sidecar = self.base / "retrieval.jsonl"
+        environment["SPECSPINE_RETRIEVAL_TELEMETRY_FILE"] = str(sidecar)
+        environment["SPECSPINE_RETRIEVAL_TELEMETRY_LEVEL"] = "minimal"
+        observed = subprocess.run(
+            [
+                sys.executable,
+                str(DIAGNOSTIC_PATH),
+                str(self.spine),
+                "--query=telemetrysentinel",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=environment,
+            timeout=5,
+        )
+
+        self.assertEqual(0, production.returncode, production.stderr)
+        self.assertEqual(0, observed.returncode, observed.stderr)
+        self.assertEqual(production.stdout, observed.stdout)
+        telemetry = json.loads(sidecar.read_text(encoding="utf-8"))
+        self.assertEqual("minimal", telemetry["telemetry_level"])
+        self.assertEqual("warm", telemetry["index_state"])
+        self.assertEqual(len(observed.stdout.encode()), telemetry["production_output_utf8_bytes"])
+        self.assertNotIn("direct_matches", telemetry)
 
     def test_default_fallback_payload_omits_diagnostics(self):
         (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
