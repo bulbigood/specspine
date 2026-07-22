@@ -178,7 +178,7 @@ def _safe_extract(archive: tarfile.TarFile, target: Path) -> None:
             raise ValueError(f"unsafe fixture archive member: {member.name}")
         if member.issym() or member.islnk():
             raise ValueError(f"fixture archive links are not allowed: {member.name}")
-    archive.extractall(target)
+    archive.extractall(target, filter="data")
 
 
 def materialize_repository(repository_id: str) -> Path:

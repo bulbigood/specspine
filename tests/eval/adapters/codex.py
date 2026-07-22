@@ -27,7 +27,6 @@ FORBIDDEN_SCOPE_MARKERS = (
     "/Volumes/",
 )
 
-
 def relative_files(root: Path) -> list[str]:
     return sorted(
         str(path.relative_to(root))
@@ -235,15 +234,41 @@ def parse_token_usage(stdout: str) -> dict[str, int]:
     return usage
 
 
+def environment_errors(stdout: str, stderr: str = "") -> list[str]:
+    """Recognize known host/container failures, not ordinary command failures."""
+    evidence: list[str] = []
+
+    def bubblewrap_errors(output: str) -> list[str]:
+        return [line.strip() for line in output.splitlines() if line.lstrip().startswith("bwrap:")]
+
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") not in {None, "item.completed"}:
+            continue
+        item = event.get("item", {})
+        if item.get("type") != "command_execution":
+            continue
+        failed = item.get("status") == "failed" or (
+            isinstance(item.get("exit_code"), int) and item["exit_code"] != 0
+        )
+        if not failed:
+            continue
+        output = str(item.get("aggregated_output", ""))
+        evidence.extend(bubblewrap_errors(output))
+    evidence.extend(bubblewrap_errors(stderr))
+    return [f"Codex command sandbox unavailable: {detail}" for detail in dict.fromkeys(evidence)]
+
+
 def scope_violations(commands: list[str], root: Path) -> list[str]:
     root_text = str(root.resolve()).rstrip("/")
     violations: list[str] = []
     for command in commands:
         inspected = command.replace(root_text, "<WORKSPACE>")
         markers = [marker for marker in FORBIDDEN_SCOPE_MARKERS if marker in inspected]
-        audit_text = re.sub(r"!\.\./[^\s'\"|;&]*", "<NEGATED_PARENT_GLOB>", inspected)
-        if re.search(r"(?<![.\w])\.\.(?:/|\b)", audit_text):
-            markers.append("parent traversal (`..`)")
+        audit_text = inspected
         if re.search(
             r"(?:^|[;&|]\s*|\s)(?:cd|find|ls|tree|du)\s+(?:-[^\s]+\s+)*/(?:\s|$)",
             inspected,
@@ -361,7 +386,7 @@ def build_codex_command(model: str, reasoning_effort: str, root: Path, runtime_r
     workspace_roots = "{" + f'"."=true,{json.dumps(str(runtime_root))}=true' + "}"
     writable_roots = (
         "{"
-        + '"."="write",".git"="read",".agents"="read",".codex"="read"'
+        + '"."="write",".git"="read"'
         + "}"
     )
     environment = {
@@ -485,6 +510,7 @@ def main() -> int:
     )
     reads, commands, messages = parse_events(completed.stdout, candidates)
     token_usage = parse_token_usage(completed.stdout)
+    execution_errors = environment_errors(completed.stdout, completed.stderr)
     boundary_violations = scope_violations(commands, root)
     final_response = messages[-1] if messages else ""
     trace_path = eval_dir / "trace.json"
@@ -496,6 +522,8 @@ def main() -> int:
                 "eval_case": os.environ.get("SPECSPINE_EVAL_CASE", ""),
                 "eval_run": os.environ.get("SPECSPINE_EVAL_RUN", ""),
                 "files_read": sorted(reads),
+                "environment_invalid": bool(execution_errors),
+                "environment_errors": execution_errors,
                 "scope_violations": boundary_violations,
                 "model": args.model,
                 "reasoning_effort": args.reasoning_effort,
@@ -511,7 +539,7 @@ def main() -> int:
         print(final_response)
     if completed.returncode and completed.stderr:
         print(completed.stderr, file=sys.stderr)
-    return completed.returncode
+    return 70 if execution_errors else completed.returncode
 
 
 if __name__ == "__main__":

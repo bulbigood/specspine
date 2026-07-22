@@ -26,6 +26,7 @@ class DockerAdapterTests(unittest.TestCase):
         rendered = " ".join(arguments)
         self.assertIn("--read-only", arguments)
         self.assertIn("--cap-drop=ALL", rendered)
+        self.assertIn("--security-opt=seccomp=unconfined", arguments)
         self.assertIn("no-new-privileges", rendered)
         self.assertIn("/runtime:rw,nosuid,nodev", rendered)
         self.assertIn("uid=123,gid=456", rendered)

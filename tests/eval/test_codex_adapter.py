@@ -138,6 +138,76 @@ class CodexAdapterTests(unittest.TestCase):
             ADAPTER.parse_token_usage(stdout),
         )
 
+    def test_detects_bwrap_namespace_failure_as_environment_error(self):
+        stdout = json.dumps(
+            {
+                "type": "item.completed",
+                "item": {
+                    "type": "command_execution",
+                    "status": "failed",
+                    "exit_code": 1,
+                    "aggregated_output": (
+                        "bwrap: No permissions to create a new namespace, likely because "
+                        "the kernel does not allow non-privileged user namespaces.\n"
+                    ),
+                },
+            }
+        )
+        self.assertEqual(
+            [
+                "Codex command sandbox unavailable: "
+                "bwrap: No permissions to create a new namespace, likely because "
+                "the kernel does not allow non-privileged user namespaces."
+            ],
+            ADAPTER.environment_errors(stdout),
+        )
+
+    def test_detects_bwrap_mount_failures_from_run_005(self):
+        for output in (
+            "bwrap: Can't find source path /runtime/specspine-runtime-x/.agents: No such file or directory\n",
+            'bwrap: Can\'t remount readonly on /newroot/workspace/.codex: Unable to find "..." in mount table\n',
+        ):
+            stdout = json.dumps(
+                {
+                    "type": "item.completed",
+                    "item": {
+                        "type": "command_execution",
+                        "status": "failed",
+                        "exit_code": 1,
+                        "aggregated_output": output,
+                    },
+                }
+            )
+            self.assertEqual(1, len(ADAPTER.environment_errors(stdout)))
+
+    def test_does_not_classify_ordinary_command_failure_as_environment_error(self):
+        stdout = json.dumps(
+            {
+                "type": "item.completed",
+                "item": {
+                    "type": "command_execution",
+                    "status": "failed",
+                    "exit_code": 1,
+                    "aggregated_output": "AssertionError: expected auditor role\n",
+                },
+            }
+        )
+        self.assertEqual([], ADAPTER.environment_errors(stdout))
+
+    def test_does_not_classify_successful_output_mention_as_environment_error(self):
+        stdout = json.dumps(
+            {
+                "type": "item.completed",
+                "item": {
+                    "type": "command_execution",
+                    "status": "completed",
+                    "exit_code": 0,
+                    "aggregated_output": "bwrap: No permissions to create a new namespace\n",
+                },
+            }
+        )
+        self.assertEqual([], ADAPTER.environment_errors(stdout))
+
     def test_archives_unfiltered_codex_streams_and_invocation(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
@@ -170,11 +240,20 @@ class CodexAdapterTests(unittest.TestCase):
             "cat .eval/skill/SKILL.md",
         ]
         violations = ADAPTER.scope_violations(commands, root)
-        self.assertEqual(4, len(violations))
+        self.assertEqual(3, len(violations))
         self.assertIn("/private/var/", violations[0])
-        self.assertIn("parent traversal", violations[1])
-        self.assertIn("filesystem-root traversal", violations[2])
-        self.assertIn("evaluator internals", violations[3])
+        self.assertIn("filesystem-root traversal", violations[1])
+        self.assertIn("evaluator internals", violations[2])
+
+    def test_scope_audit_does_not_parse_patch_content_as_path_access(self):
+        root = Path("/workspace")
+        command = """/usr/bin/bash -c "apply_patch <<'PATCH'
+*** Begin Patch
+*** Update File: src/validations/user.validation.js
++const { roles } = require('../config/roles');
+*** End Patch
+PATCH"""
+        self.assertEqual([], ADAPTER.scope_violations([command], root))
 
     def test_scope_audit_allows_eval_exclusion_filters(self):
         root = Path("/Users/example/.cache/specspine-eval/workspaces/run-1")
@@ -250,6 +329,8 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertIn("--ignore-rules", command)
         self.assertIn("allow_login_shell=false", command)
         self.assertNotIn("workspace-write", rendered)
+        self.assertNotIn('.agents"="read', rendered)
+        self.assertNotIn('.codex"="read', rendered)
 
     def test_main_uses_and_removes_external_private_runtime(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -289,6 +370,34 @@ class CodexAdapterTests(unittest.TestCase):
             self.assertIsNotNone(observed_runtime)
             self.assertFalse(observed_runtime.exists())
             self.assertTrue((root / ".eval" / "trace.json").is_file())
+
+    def test_main_returns_environment_failure_for_bwrap_error(self):
+        event = json.dumps(
+            {
+                "type": "item.completed",
+                "item": {
+                    "id": "command-1",
+                    "type": "command_execution",
+                    "command": "/usr/bin/bash -c pwd",
+                    "status": "failed",
+                    "exit_code": 1,
+                    "aggregated_output": "bwrap: No permissions to create a new namespace\n",
+                },
+            }
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            completed = ADAPTER.subprocess.CompletedProcess([], 0, event + "\n", "")
+            with mock.patch.object(Path, "cwd", return_value=root), mock.patch.object(
+                sys, "argv", ["codex.py"]
+            ), mock.patch("sys.stdin.read", return_value="prompt"), mock.patch.object(
+                ADAPTER.subprocess, "run", return_value=completed
+            ):
+                self.assertEqual(70, ADAPTER.main())
+
+            trace = json.loads((root / ".eval" / "trace.json").read_text())
+            self.assertTrue(trace["environment_invalid"])
+            self.assertEqual(1, len(trace["environment_errors"]))
 
 
 if __name__ == "__main__":

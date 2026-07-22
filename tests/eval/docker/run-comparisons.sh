@@ -85,9 +85,10 @@ docker_args+=(--group-add 0)
 compare_args=("$@")
 if [[ "$#" -eq 1 && "$1" == "--preflight" ]]; then
   exec docker "${docker_args[@]}" \
-    --entrypoint python3 \
+    --entrypoint /bin/sh \
     "$controller_image" \
-    "$project_root/tests/eval/adapters/docker.py" --preflight
+    -c 'node --version >/dev/null && git --version >/dev/null && exec python3 "$1" --preflight' \
+    sh "$project_root/tests/eval/adapters/docker.py"
 fi
 if [[ "$run_requested" == true && "$has_agent_command" == false ]]; then
   compare_args+=(--agent-command "$agent_command")

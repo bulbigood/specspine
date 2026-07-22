@@ -87,6 +87,11 @@ def common_security_args(uid: int, gid: int) -> list[str]:
         "--user", f"{uid}:{gid}",
         "--read-only",
         "--cap-drop=ALL",
+        # Codex sandboxes tool commands with bundled bubblewrap. Docker's
+        # default seccomp profile blocks the unprivileged user namespace that
+        # bubblewrap needs; capabilities remain dropped and bwrap provides the
+        # inner per-command filesystem/network sandbox.
+        "--security-opt=seccomp=unconfined",
         "--security-opt=no-new-privileges",
         "--pids-limit=256",
         "--memory", os.environ.get("SPECSPINE_EVAL_DOCKER_MEMORY", "2g"),
@@ -256,6 +261,10 @@ def main() -> int:
         if completed.stderr:
             sys.stderr.write(completed.stderr)
         if completed.returncode:
+            trace_path = root / ".eval" / "trace.json"
+            if trace_path.is_file():
+                enrich_trace(root, reference, image_id)
+                return completed.returncode
             raise EnvironmentFailure(f"agent container exited with {completed.returncode}")
         enrich_trace(root, reference, image_id)
         return 0

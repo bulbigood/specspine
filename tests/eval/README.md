@@ -184,14 +184,20 @@ preflight script. An exact image is built and preflighted once, then reused.
 Every model invocation still gets a new `--rm` container, read-only root
 filesystem, dropped capabilities, `no-new-privileges`, resource limits, private
 tmpfs home/runtime, and only the current workspace plus read-only authentication
-mounted. Thus tools are cached but sample state is not.
+mounted. Docker's default seccomp profile is disabled because it blocks the
+unprivileged user namespace required by Codex's bundled `bwrap`; capabilities
+remain dropped and `bwrap` supplies the stricter per-command filesystem and
+network sandbox. The cached preflight executes both `bwrap` and a local
+`codex sandbox` read/write probe with the evaluation permission profile; it
+does not make a model call. Thus tools are cached but sample state is not.
 
 Persistent launcher state lives in `.eval-runtime/` and is ignored by Git:
 fixture archives, prepared workspaces, Docker preflight markers, and controller
 home. Override authentication with `SPECSPINE_EVAL_AUTH_FILE`. The launcher
 currently requires a local Unix Docker socket. Docker build or preflight
 failures produce `environment_invalid` traces, invalidate the affected sample,
-and are never counted as product failures. Reports record the exact agent image
+as do recognized command-sandbox failures even when Codex returns exit code 0;
+they are never counted as product failures. Reports record the exact agent image
 name and immutable image ID; mixed or missing metadata on valid Docker samples
 invalidates a run.
 
