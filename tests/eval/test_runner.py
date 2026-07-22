@@ -394,6 +394,52 @@ class RunnerTests(unittest.TestCase):
             self.assertFalse((workspace / ".eval/scenario.md").exists())
             self.assertTrue((workspace / ".eval/skill/SKILL.md").is_file())
 
+    def test_external_initial_tree_is_copied_and_fingerprinted(self):
+        case = {"initial_tree": "fixture", "skill": "skill", "prompt": "Extract."}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "fixture/specspine").mkdir(parents=True)
+            source = root / "fixture/specspine/README.md"
+            source.write_text("# First\n", encoding="utf-8")
+            (root / "skill").mkdir()
+            (root / "skill/SKILL.md").write_text("# Skill\n", encoding="utf-8")
+            workspace = root / "workspace"
+            workspace.mkdir()
+            with patch.object(RUNNER, "ROOT", root):
+                RUNNER.write_fixture(case, workspace)
+                first = RUNNER.case_fingerprint(case)
+                source.write_text("# Second\n", encoding="utf-8")
+                second = RUNNER.case_fingerprint(case)
+            self.assertEqual(
+                "# First\n",
+                (workspace / "specspine/README.md").read_text(encoding="utf-8"),
+            )
+            self.assertNotEqual(first, second)
+
+    def test_initial_tree_validation_rejects_missing_and_ambiguous_sources(self):
+        base = {
+            "id": "fixture-source",
+            "scenario": "tests/scenarios/initialize-project.md",
+            "status": "executable",
+            "category": "core",
+            "skill": "skills/specspine-grow",
+            "assertions": [{"type": "max_changed_files", "max": 0}],
+        }
+        self.assertIn(
+            "case requires exactly one of initial_files or initial_tree",
+            RUNNER.validate_case(base),
+        )
+        ambiguous = {**base, "initial_files": {}, "initial_tree": "tests/eval"}
+        self.assertIn(
+            "case requires exactly one of initial_files or initial_tree",
+            RUNNER.validate_case(ambiguous),
+        )
+        missing = {**base, "initial_tree": "tests/eval/context-bundles/missing"}
+        self.assertIn(
+            "initial tree does not exist: tests/eval/context-bundles/missing",
+            RUNNER.validate_case(missing),
+        )
+
     def test_runs_agent_in_isolated_workspace(self):
         with tempfile.TemporaryDirectory() as directory:
             adapter = Path(directory) / "adapter.py"

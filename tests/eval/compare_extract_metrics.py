@@ -118,6 +118,16 @@ def trace_values(sample: dict[str, Any], field: str) -> set[str]:
     }
 
 
+def retrieval_queries(samples: dict[tuple[str, int], dict[str, Any]]) -> list[str]:
+    return sorted({
+        str(attempt["query"])
+        for sample in samples.values()
+        if sample.get("environment_valid")
+        for attempt in attempts(sample)
+        if isinstance(attempt.get("query"), str) and attempt["query"].strip()
+    })
+
+
 def runtime_values(sample: dict[str, Any], field: str) -> set[str]:
     return {
         str(runtime[field])
@@ -730,10 +740,25 @@ def render_three_way(
         left_mode="enabled",
         right_mode="enabled",
     )
+    cold_queries = retrieval_queries(cold_samples)
+    warm_queries = retrieval_queries(warm_samples)
+    queries_match = bool(cold_queries) and cold_queries == warm_queries
     direct_lines = [
         "## Cold vs prewarmed accelerator",
         "",
-        "Both profiles return the same routing contract; this comparison isolates cache-state effects.",
+        (
+            "Exact retrieval queries match across profiles; routing differences can be "
+            "attributed to cache state, while agent metrics remain stochastic."
+            if queries_match
+            else "Agent-generated retrieval queries differ across profiles; this comparison "
+            "is confounded by model stochasticity and does not isolate cache-state effects."
+        ),
+        "",
+        "| Cold retrieval queries | Prewarmed retrieval queries | Exact sets match |",
+        "|---|---|---|",
+        f"| {markdown_text(' ; '.join(cold_queries) or 'unavailable')} | "
+        f"{markdown_text(' ; '.join(warm_queries) or 'unavailable')} | "
+        f"{'yes' if queries_match else 'no'} |",
         "",
     ]
     render_metric_table(

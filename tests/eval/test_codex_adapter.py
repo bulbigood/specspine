@@ -63,6 +63,26 @@ class CodexAdapterTests(unittest.TestCase):
             ADAPTER.traced_files(command, candidates),
         )
 
+    def test_traces_files_read_through_literal_variable_loop(self):
+        candidates = [
+            "specspine/idempotency.md",
+            "specspine/execution-retries.md",
+            "specspine/unrelated.md",
+        ]
+        command = (
+            "for f in idempotency.md execution-retries.md; do "
+            "echo \"--- specspine/$f\"; sed -n '1,280p' \"specspine/$f\"; done"
+        )
+        self.assertEqual(
+            {"specspine/idempotency.md", "specspine/execution-retries.md"},
+            ADAPTER.traced_files(command, candidates),
+        )
+
+    def test_literal_variable_loop_does_not_count_echo_as_a_read(self):
+        candidates = ["specspine/idempotency.md"]
+        command = "for f in idempotency.md; do echo \"specspine/$f\"; done"
+        self.assertEqual(set(), ADAPTER.traced_files(command, candidates))
+
     def test_traces_files_read_from_rg_listing_loop(self):
         candidates = ["src/api.ts", "src/payments/settlement.ts", "README.md"]
         command = "for f in $(rg --files src | sort); do sed -n '1,200p' \"$f\"; done"

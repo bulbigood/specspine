@@ -256,6 +256,12 @@ Case manifests in `cases/*.json` define fixtures, prompts and deterministic
 assertions. A manifest may instead define ordered `stages`; agent stages run a
 prompt and assertions, while fixture stages model external changes.
 
+Keep small fixtures inline in `initial_files`. Put large reusable repository
+fixtures under `context-bundles/` and reference them with `initial_tree`; the
+runner copies the tree into each clean workspace and includes its contents in
+the case fingerprint. Use exactly one fixture source per case so the benchmark
+corpus remains a single source of truth.
+
 Supported assertions:
 
 - paths/content: `path_exists`, `path_absent`, `glob_count`, `glob_contains`,

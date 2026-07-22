@@ -322,7 +322,9 @@ class ExtractMetricsTests(unittest.TestCase):
     def test_three_way_report_compares_cold_and_prewarmed_profiles(self):
         fallback = report("fallback", [sample(1, "fallback", 10, 100, True)])
         cold = report("enabled", [sample(1, "enabled", 8, 80, True)])
+        cold["samples"][0]["agent_runs"][0]["retrieval_attempts"][0]["query"] = "cold query"
         warm_sample = sample(1, "enabled", 6, 60, True)
+        warm_sample["agent_runs"][0]["retrieval_attempts"][0]["query"] = "warm query"
         warm_sample["agent_runs"][0]["cache_profile"] = "prewarmed"
         warm = report("enabled", [warm_sample])
         warm["agent_command"] += " --cache-profile prewarmed"
@@ -334,6 +336,9 @@ class ExtractMetricsTests(unittest.TestCase):
         self.assertIn("Prewarmed accelerator vs fallback", rendered)
         self.assertIn("Cold vs prewarmed accelerator", rendered)
         self.assertIn("prewarmed", rendered)
+        self.assertIn("cold query", rendered)
+        self.assertIn("warm query", rendered)
+        self.assertIn("does not isolate cache-state effects", rendered)
 
     def test_report_aggregates_direct_and_graph_candidates(self):
         fallback = report("fallback", [sample(1, "fallback", 10, 100, True)])

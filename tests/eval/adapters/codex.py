@@ -157,6 +157,27 @@ def indirect_reads(command: str, candidates: list[str]) -> set[str]:
             found.update(path for path in candidates if path == root or path.startswith(root + "/"))
 
     if re.search(r"\bfor\b", command):
+        for loop in re.finditer(
+            r"\bfor\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+([^;]+);\s*do\b(.*?)\bdone\b",
+            command,
+            re.DOTALL,
+        ):
+            variable, raw_values, body = loop.groups()
+            if "$(" in raw_values or "`" in raw_values:
+                continue
+            try:
+                values = shlex.split(raw_values)
+            except ValueError:
+                continue
+            for value in values:
+                if not value or any(marker in value for marker in ("$", "*", "?")):
+                    continue
+                expanded = re.sub(
+                    rf"\$(?:\{{{re.escape(variable)}\}}|{re.escape(variable)}\b)",
+                    value,
+                    body,
+                )
+                found.update(traced_files(expanded, candidates))
         content_reader = re.search(r"(?:^|[\s;|])(?:cat|sed|head|tail|awk)\b", command)
         if content_reader:
             for pattern in re.findall(r"(?:[\w.-]+/)+[^\s;'\"]*[*?][^\s;'\"]*", command):

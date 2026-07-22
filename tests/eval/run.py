@@ -178,6 +178,11 @@ def case_fingerprint(case: dict[str, Any]) -> str:
     payload = {
         "manifest": manifest,
         "prompts": prompts,
+        "initial_tree": (
+            directory_digest(ROOT / case["initial_tree"])
+            if case.get("initial_tree")
+            else None
+        ),
         "skills": {path: directory_digest(ROOT / path) for path in sorted(skill_paths)},
         "companions": {
             path: directory_digest(ROOT / path) for path in sorted(companion_paths)
@@ -330,11 +335,14 @@ def load_cases() -> list[dict[str, Any]]:
 
 def validate_case(case: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    required = {"id", "scenario", "status", "category", "initial_files"}
+    required = {"id", "scenario", "status", "category"}
     missing = sorted(required - case.keys())
     if missing:
         errors.append(f"missing fields: {', '.join(missing)}")
         return errors
+    fixture_fields = [field for field in ("initial_files", "initial_tree") if field in case]
+    if len(fixture_fields) != 1:
+        errors.append("case requires exactly one of initial_files or initial_tree")
     if case["status"] not in {"executable", "planned"}:
         errors.append("status must be executable or planned")
     if case.get("category") not in CASE_CATEGORIES:
@@ -388,9 +396,15 @@ def validate_case(case: dict[str, Any]) -> list[str]:
         condition = assertion.get("when_trace") if isinstance(assertion, dict) else None
         if condition is not None and (not isinstance(condition, dict) or not condition):
             errors.append(f"assertion {index} when_trace must be a non-empty object")
-    for rel in case["initial_files"]:
+    for rel in case.get("initial_files", {}):
         if not safe_relative_path(rel):
             errors.append(f"unsafe initial file path: {rel}")
+    initial_tree = case.get("initial_tree")
+    if initial_tree is not None:
+        if not isinstance(initial_tree, str) or not safe_relative_path(initial_tree):
+            errors.append(f"unsafe initial tree path: {initial_tree}")
+        elif not (ROOT / initial_tree).is_dir():
+            errors.append(f"initial tree does not exist: {initial_tree}")
     return errors
 
 
@@ -463,7 +477,10 @@ def scenario_coverage(cases: list[dict[str, Any]]) -> tuple[set[str], set[str], 
 
 
 def write_fixture(case: dict[str, Any], workspace: Path) -> None:
-    for rel, content in case["initial_files"].items():
+    initial_tree = case.get("initial_tree")
+    if initial_tree:
+        shutil.copytree(ROOT / initial_tree, workspace, dirs_exist_ok=True)
+    for rel, content in case.get("initial_files", {}).items():
         path = workspace / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
