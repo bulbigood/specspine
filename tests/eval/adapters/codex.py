@@ -386,6 +386,7 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
                         "score",
                         "origins",
                         "title",
+                        "relevance",
                         "transitions",
                     )
                     if key in candidate

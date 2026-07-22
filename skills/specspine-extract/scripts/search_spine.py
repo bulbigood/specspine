@@ -892,6 +892,11 @@ def search(
                     stored[key] = value
 
     normalized = query.strip().casefold()
+    routing_tokens = tuple(dict.fromkeys(
+        part
+        for token in QUERY_TOKEN_RE.findall(normalized)
+        for part in (token, *token.split("-"))
+    ))
     for row in connection.execute(
         "SELECT path, title, summary FROM documents WHERE lower(path) = ? OR lower(title) = ?",
         (normalized, normalized),
@@ -924,10 +929,19 @@ def search(
     retrieval_strategy = "strong-match" if strong_match else "hybrid-fts"
     if not strong_match:
         match_query, query_tokens, query_phrases = fts_plan(query, connection)
+        rare_frequency = 1
+        token_frequencies = {
+            token: connection.execute(
+                "SELECT count(DISTINCT path) FROM sections_fts "
+                "WHERE sections_fts MATCH ? AND path != 'README.md'",
+                (f'"{token.replace(chr(34), chr(34) * 2)}"',),
+            ).fetchone()[0]
+            for token in query_tokens
+        }
         batch_size = max(limit * 10, 50)
         offset = 0
         document_ranks: dict[str, int] = {}
-        document_signals: dict[str, tuple[int, int]] = {}
+        document_signals: dict[str, tuple[int, int, int]] = {}
 
         def path_matches(path: str, clause: str) -> bool:
             escaped = clause.replace('"', '""')
@@ -945,11 +959,19 @@ def search(
             for row in rows:
                 document_rank = document_ranks.setdefault(row["path"], len(document_ranks))
                 if row["path"] not in document_signals:
+                    matched_tokens = [
+                        token for token in query_tokens
+                        if path_matches(row["path"], token)
+                    ]
                     document_signals[row["path"]] = (
-                        sum(path_matches(row["path"], token) for token in query_tokens),
+                        len(matched_tokens),
                         sum(path_matches(row["path"], phrase) for phrase in query_phrases),
+                        sum(
+                            token_frequencies[token] <= rare_frequency
+                            for token in matched_tokens
+                        ),
                     )
-                token_hits, phrase_hits = document_signals[row["path"]]
+                token_hits, phrase_hits, rare_token_hits = document_signals[row["path"]]
                 rank_score = 60.0 / (document_rank + 1)
                 if len(query_tokens) >= 3 and token_hits < 2 and phrase_hits == 0:
                     rank_score *= 0.25
@@ -966,6 +988,7 @@ def search(
                         "token_hits": token_hits,
                         "query_tokens": len(query_tokens),
                         "phrase_hits": phrase_hits,
+                        "rare_token_hits": rare_token_hits,
                         "fts_rank": document_rank + 1,
                     },
                 )
@@ -984,6 +1007,7 @@ def search(
             signals.get("exact")
             or signals.get("semantic_ids")
             or int(signals.get("token_hits") or 0) >= 2
+            or int(signals.get("rare_token_hits") or 0) >= 1
             or int(signals.get("phrase_hits") or 0) >= 1
             or int(signals.get("graph_support") or 0) >= 1
         )
@@ -1009,6 +1033,18 @@ def search(
             if len(selected) >= limit:
                 break
         return selected
+
+    def graph_relevance(path: str, title: str) -> int:
+        if strong_match:
+            return 0
+        metadata_tokens = {
+            part
+            for token in QUERY_TOKEN_RE.findall(f"{path} {title}".casefold())
+            for part in (token, *token.split("-"))
+        }
+        metadata_hits = sum(token in metadata_tokens for token in routing_tokens)
+        document_hits = sum(path_matches(path, token) for token in routing_tokens)
+        return metadata_hits * 3 + document_hits
 
     direct_paths = set(candidates)
     preliminary_direct = adaptive_direct(sorted(
@@ -1070,6 +1106,9 @@ def search(
                             "origins": [],
                             "_transitions": {},
                             "_root_path": root_path,
+                            "_relevance": graph_relevance(
+                                neighbor, str(document["title"])
+                            ),
                             "title": document["title"],
                         },
                     )
@@ -1108,7 +1147,7 @@ def search(
         candidates.values(),
         key=lambda item: (-float(item["score"]), str(item["path"])),
     )
-    direct = adaptive_direct(ranked_direct, weak_limit=1)
+    direct = adaptive_direct(ranked_direct, weak_limit=0)
     direct_cutoff_score = (
         None
         if strong_match or not ranked_direct
@@ -1134,11 +1173,21 @@ def search(
         usable_graph.append(item)
     ranked_graph = sorted(
         usable_graph,
-        key=lambda item: (-float(item["score"]), str(item["path"])),
+        key=lambda item: (
+            -int(item.get("_relevance") or 0),
+            -float(item["score"]),
+            str(item["path"]),
+        ),
     )
     if ranked_graph and graph_limit:
         graph_threshold = max(5.0, float(ranked_graph[0]["score"]) * 0.4)
         adaptive_graph_limit = min(graph_limit, max(2, len(direct)))
+        if (
+            len(ranked_graph) > 1
+            and int(ranked_graph[0].get("_relevance") or 0)
+            >= int(ranked_graph[1].get("_relevance") or 0) + 3
+        ):
+            adaptive_graph_limit = 1
         graph = [
             item for item in ranked_graph if float(item["score"]) >= graph_threshold
         ][:adaptive_graph_limit]
@@ -1160,6 +1209,7 @@ def search(
     for item in graph:
         item.pop("_scores", None)
         item.pop("_root_path", None)
+        item["relevance"] = item.pop("_relevance", 0)
         stored_transitions = item.pop("_transitions", {})
         assert isinstance(stored_transitions, dict)
         item["transitions"] = [

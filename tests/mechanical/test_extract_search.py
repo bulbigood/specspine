@@ -253,6 +253,74 @@ class ExtractSearchTests(unittest.TestCase):
             set(boundary["origins"]),
         )
 
+    def test_final_direct_results_drop_single_term_tail(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Owner](owner.md)\n[Weak](weak.md)\n", encoding="utf-8"
+        )
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns alphacontract betapolicy.\n", encoding="utf-8"
+        )
+        for index in range(2):
+            (self.spine / f"weak-{index}.md").write_text(
+                f"# Weak {index}\n\nMentions gammalimit.\n", encoding="utf-8"
+            )
+
+        result, payload = self.run_search(
+            "alphacontract betapolicy gammalimit", "--graph-depth", "0"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["owner.md"], [item["path"] for item in payload["direct_matches"]])
+        self.assertEqual(0, payload["selection"]["direct_weak_returned"])
+
+    def test_graph_prunes_only_when_one_neighbor_is_more_relevant(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Owner](owner.md)\n", encoding="utf-8"
+        )
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns ownerterm timeout provider handling. "
+            "Links [Navigation](navigation.md) and [Provider](provider-webhooks.md).\n",
+            encoding="utf-8",
+        )
+        (self.spine / "navigation.md").write_text(
+            "# Navigation\n\nGeneral boundary.\n", encoding="utf-8"
+        )
+        (self.spine / "provider-webhooks.md").write_text(
+            "# Webhooks\n\nProvider boundary.\n", encoding="utf-8"
+        )
+        for index in range(3):
+            (self.spine / f"common-{index}.md").write_text(
+                f"# Common {index}\n\nProvider reference.\n", encoding="utf-8"
+            )
+
+        result, payload = self.run_search("ownerterm timeout provider")
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["owner.md"], [item["path"] for item in payload["direct_matches"]])
+        self.assertEqual(
+            ["provider-webhooks.md"],
+            [item["path"] for item in payload["graph_neighbors"]],
+        )
+
+    def test_graph_preserves_tied_neighbors(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Owner](owner.md)\n", encoding="utf-8"
+        )
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns ownerterm timeout. Links [A](a.md) and [B](b.md).\n",
+            encoding="utf-8",
+        )
+        for path in ("a.md", "b.md"):
+            (self.spine / path).write_text("# Neighbor\n\nGeneral boundary.\n", encoding="utf-8")
+
+        result, payload = self.run_search("ownerterm timeout")
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(
+            ["a.md", "b.md"],
+            [item["path"] for item in payload["graph_neighbors"]],
+        )
+
     def test_candidate_payload_omits_cached_document_content(self):
         (self.spine / "README.md").write_text(
             "# Root\n\n[Target](target.md)\n", encoding="utf-8"
@@ -268,7 +336,7 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertNotIn("summary", candidate)
         self.assertNotIn("reasons", candidate)
         self.assertEqual(
-            {"token_hits", "query_tokens", "fts_rank"},
+            {"token_hits", "query_tokens", "rare_token_hits", "fts_rank"},
             set(candidate["signals"]),
         )
 

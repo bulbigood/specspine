@@ -146,6 +146,7 @@ class CodexAdapterTests(unittest.TestCase):
             "graph_neighbors": [
                 {
                     "path": "specspine/worker.md",
+                    "relevance": 5,
                     "transitions": [
                         {
                             "source_path": "specspine/owner.md",
@@ -189,6 +190,7 @@ class CodexAdapterTests(unittest.TestCase):
             "specspine/owner.md",
             attempts[0]["graph_neighbors"][0]["transitions"][0]["source_path"],
         )
+        self.assertEqual(5, attempts[0]["graph_neighbors"][0]["relevance"])
         self.assertGreater(attempts[0]["output_utf8_bytes"], 0)
 
     def test_records_compact_retrieval_result_without_diagnostics(self):
