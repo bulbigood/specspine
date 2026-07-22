@@ -1,9 +1,12 @@
+import concurrent.futures
 import importlib.util
 import json
 import os
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -174,18 +177,97 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertEqual("target.md", payload["candidates"][0]["path"])
         self.assertEqual(1, len(payload["candidates"]))
 
-    def test_concurrent_cache_user_gets_fallback_instead_of_rebuild(self):
+    def test_query_keeps_informative_terms_when_a_phrase_matches_elsewhere(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Account](account.md)\n[Timeout](timeout.md)\n",
+            encoding="utf-8",
+        )
+        (self.spine / "account.md").write_text(
+            "# Account\n\nChange account ownership.\n", encoding="utf-8"
+        )
+        (self.spine / "timeout.md").write_text(
+            "# Timeout\n\nTimeout policy belongs here.\n", encoding="utf-8"
+        )
+
+        result, payload = self.run_search(
+            "change account investigate timeout", "--graph-depth", "0"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("timeout.md", {item["path"] for item in payload["candidates"]})
+
+    def test_cold_cache_waits_for_current_builder(self):
         (self.spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
         with patch.dict(os.environ, {"SPECSPINE_CACHE_DIR": str(self.cache)}):
             lock = SEARCH.acquire_cache_lock(SEARCH.cache_path(self.spine.resolve()))
+        environment = os.environ.copy()
+        environment["SPECSPINE_CACHE_DIR"] = str(self.cache)
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                str(MODULE_PATH),
+                str(self.spine),
+                "--query=architecture",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=environment,
+        )
         try:
-            result, payload = self.run_search("architecture")
+            time.sleep(0.2)
+            self.assertIsNone(process.poll())
+        finally:
+            lock.rollback()
+            lock.close()
+        stdout, stderr = process.communicate(timeout=5)
+        payload = json.loads(stdout)
+
+        self.assertEqual(0, process.returncode, stderr)
+        self.assertEqual("sqlite-fts5", payload["mode"])
+
+    def test_warm_search_does_not_take_build_lock(self):
+        (self.spine / "README.md").write_text(
+            "# Architecture\n\nOwns routing.\n", encoding="utf-8"
+        )
+        result, _ = self.run_search("routing")
+        self.assertEqual(0, result.returncode, result.stderr)
+        with patch.dict(os.environ, {"SPECSPINE_CACHE_DIR": str(self.cache)}):
+            lock = SEARCH.acquire_cache_lock(SEARCH.cache_path(self.spine.resolve()))
+        try:
+            result, payload = self.run_search("routing")
         finally:
             lock.rollback()
             lock.close()
 
-        self.assertEqual(SEARCH.FALLBACK_EXIT, result.returncode)
-        self.assertEqual("fallback", payload["mode"])
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("sqlite-fts5", payload["mode"])
+
+    def test_parallel_cold_searches_share_the_built_index(self):
+        (self.spine / "README.md").write_text(
+            "# Architecture\n\n[Target](target.md)\n", encoding="utf-8"
+        )
+        (self.spine / "target.md").write_text(
+            "# Target\n\nOwns parallel retrieval.\n", encoding="utf-8"
+        )
+        for index in range(200):
+            (self.spine / f"decoy-{index}.md").write_text(
+                f"# Decoy {index}\n\nUnrelated content.\n", encoding="utf-8"
+            )
+        workers = 6
+        barrier = threading.Barrier(workers)
+
+        def search():
+            barrier.wait()
+            return self.run_search("parallel retrieval", "--graph-depth", "0")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            results = list(executor.map(lambda _: search(), range(workers)))
+
+        for result, payload in results:
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("sqlite-fts5", payload["mode"])
+            self.assertEqual("target.md", payload["candidates"][0]["path"])
 
     def test_corrupt_index_is_rebuilt_under_cache_lock(self):
         (self.spine / "README.md").write_text(

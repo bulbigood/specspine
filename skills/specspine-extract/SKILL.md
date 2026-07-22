@@ -11,12 +11,17 @@ before extracting.
 
 ## Retrieval gate
 
-When a shell command tool is present, read
-[references/retrieval-accelerator.md](references/retrieval-accelerator.md) and
-attempt its command immediately after the spine index, before any other spine
-document or content search. Skip the attempt only when the request explicitly
-prevents execution. A failed attempt selects native fallback and never blocks
-extraction.
+When a shell command tool is present, run exactly once after the spine index and
+before any other spine document or content search:
+
+```text
+python3 <skill-root>/scripts/search_spine.py <spine-root> --query <concise-change-intent>
+```
+
+Skip only when the request prevents execution. Do not retry failure; use native
+fallback. Read
+[references/retrieval-accelerator.md](references/retrieval-accelerator.md) to
+interpret the result.
 
 ## Workflow
 

@@ -4,14 +4,8 @@
 the Markdown files under `<spine-root>`. The Markdown network remains the only
 architecture source; the index is disposable routing data.
 
-Unless the request or environment explicitly prevents execution, run this once
-before any content search beyond `README.md`:
-
-```text
-python3 <skill-root>/scripts/search_spine.py <spine-root> --query <change-intent>
-```
-
-Keep `<change-intent>` concise and domain-specific. Exclude response-format,
+For the retrieval-gate command in `SKILL.md`, keep `<change-intent>` concise and
+domain-specific. Exclude response-format,
 source-boundary, file-modification, and other workflow instructions from the
 query.
 

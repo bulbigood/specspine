@@ -23,6 +23,8 @@ except ImportError as error:
 
 SCHEMA_VERSION = "1"
 FALLBACK_EXIT = 2
+BUILD_LOCK_TIMEOUT_MS = 10_000
+SQLITE_BUSY_TIMEOUT_MS = 10_000
 FENCE_RE = re.compile(r"^ {0,3}(?:>\s*)?(`{3,}|~{3,})")
 HEADING_RE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$")
 DEFINITION_RE = re.compile(r"^ {0,3}[-+*]\s+\*\*((?:DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*)\*\*\s+—\s+(.*)")
@@ -422,19 +424,22 @@ def cache_path(root: Path) -> Path:
 
 
 def connect(path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(path, timeout=3)
+    connection = sqlite3.connect(path, timeout=SQLITE_BUSY_TIMEOUT_MS / 1000)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
-    connection.execute("PRAGMA busy_timeout = 3000")
+    connection.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
     return connection
 
 
 def acquire_cache_lock(index_path: Path) -> sqlite3.Connection:
-    """Serialize cache access so an index is never replaced under another process."""
+    """Serialize index creation or replacement without blocking normal readers."""
     connection: sqlite3.Connection | None = None
     try:
-        connection = sqlite3.connect(index_path.with_suffix(".lock.sqlite"), timeout=0.1)
-        connection.execute("PRAGMA busy_timeout = 100")
+        connection = sqlite3.connect(
+            index_path.with_suffix(".lock.sqlite"),
+            timeout=BUILD_LOCK_TIMEOUT_MS / 1000,
+        )
+        connection.execute(f"PRAGMA busy_timeout = {BUILD_LOCK_TIMEOUT_MS}")
         connection.execute("CREATE TABLE IF NOT EXISTS cache_lock (id INTEGER PRIMARY KEY)")
         connection.commit()
         connection.execute("BEGIN IMMEDIATE")
@@ -572,19 +577,72 @@ def refresh_index(connection: sqlite3.Connection, root: Path, files: dict[str, t
     return len(removed) + len(parsed)
 
 
+def release_cache_lock(connection: sqlite3.Connection) -> None:
+    connection.rollback()
+    connection.close()
+
+
+def create_index_under_lock(
+    path: Path,
+    root: Path,
+    files: dict[str, tuple[Path, os.stat_result]],
+    *,
+    force: bool,
+) -> None:
+    lock = acquire_cache_lock(path)
+    try:
+        if force or not path.is_file():
+            create_index(path, root, files)
+    finally:
+        release_cache_lock(lock)
+
+
+def index_metadata_is_current(connection: sqlite3.Connection, root: Path) -> bool:
+    version = connection.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()
+    root_hash = connection.execute("SELECT value FROM meta WHERE key = 'root_hash'").fetchone()
+    expected_root = hashlib.sha256(str(root).encode()).hexdigest()
+    return bool(
+        version is not None
+        and version[0] == SCHEMA_VERSION
+        and root_hash is not None
+        and root_hash[0] == expected_root
+    )
+
+
+def rebuild_invalid_index(
+    path: Path,
+    root: Path,
+    files: dict[str, tuple[Path, os.stat_result]],
+) -> None:
+    lock = acquire_cache_lock(path)
+    connection: sqlite3.Connection | None = None
+    try:
+        try:
+            connection = connect(path)
+            if index_metadata_is_current(connection, root):
+                return
+        except sqlite3.Error:
+            pass
+        finally:
+            if connection is not None:
+                connection.close()
+        create_index(path, root, files)
+    finally:
+        release_cache_lock(lock)
+
+
 def ensure_index(root: Path, path: Path, rebuild: bool) -> tuple[sqlite3.Connection, int]:
     files = discover(root)
-    if rebuild or not path.is_file():
-        create_index(path, root, files)
+    if rebuild:
+        create_index_under_lock(path, root, files, force=True)
+    elif not path.is_file():
+        create_index_under_lock(path, root, files, force=False)
     connection: sqlite3.Connection | None = None
     try:
         connection = connect(path)
-        version = connection.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()
-        root_hash = connection.execute("SELECT value FROM meta WHERE key = 'root_hash'").fetchone()
-        expected_root = hashlib.sha256(str(root).encode()).hexdigest()
-        if version is None or version[0] != SCHEMA_VERSION or root_hash is None or root_hash[0] != expected_root:
+        if not index_metadata_is_current(connection, root):
             connection.close()
-            create_index(path, root, files)
+            rebuild_invalid_index(path, root, files)
             connection = connect(path)
         connection.execute("PRAGMA journal_mode = WAL")
         changed = refresh_index(connection, root, files)
@@ -595,7 +653,7 @@ def ensure_index(root: Path, path: Path, rebuild: bool) -> tuple[sqlite3.Connect
         if is_lock_error(error) or not is_rebuildable_error(error):
             raise AcceleratorUnavailable(f"cannot use derived index: {error}") from error
         try:
-            create_index(path, root, files)
+            rebuild_invalid_index(path, root, files)
             connection = connect(path)
             connection.execute("PRAGMA journal_mode = WAL")
             return connection, len(files)
@@ -628,8 +686,6 @@ def fts_query(query: str, connection: sqlite3.Connection | None = None) -> str:
                 (f'"{phrase}"',),
             ).fetchone()[0] <= maximum_frequency
         ]
-        if matching_phrases:
-            return " OR ".join(f'"{phrase}"' for phrase in matching_phrases)
         frequencies = [
             (
                 token,
@@ -645,6 +701,13 @@ def fts_query(query: str, connection: sqlite3.Connection | None = None) -> str:
         tokens = informative or [
             token for token, _ in sorted(present, key=lambda item: (item[1], item[0]))[:8]
         ]
+        clauses = [f'"{phrase}"' for phrase in matching_phrases[:12]]
+        clauses.extend(
+            f'"{token.replace(chr(34), chr(34) * 2)}"'
+            for token in tokens[: 32 - len(clauses)]
+        )
+        if clauses:
+            return " OR ".join(dict.fromkeys(clauses))
     if not tokens:
         raise AcceleratorUnavailable("query has no searchable terms")
     return " OR ".join(f'"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens[:32])
@@ -753,11 +816,9 @@ def main() -> int:
         return 3
 
     connection: sqlite3.Connection | None = None
-    lock_connection: sqlite3.Connection | None = None
     try:
         probe_fts5()
         index_path = cache_path(root)
-        lock_connection = acquire_cache_lock(index_path)
         connection, changed = ensure_index(root, index_path, args.rebuild)
         candidates = search(connection, args.query, args.limit, args.graph_depth)
         count = connection.execute("SELECT count(*) FROM documents").fetchone()[0]
@@ -772,9 +833,6 @@ def main() -> int:
     finally:
         if connection is not None:
             connection.close()
-        if lock_connection is not None:
-            lock_connection.rollback()
-            lock_connection.close()
 
 
 if __name__ == "__main__":
