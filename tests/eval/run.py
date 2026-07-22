@@ -50,6 +50,8 @@ NO_SKILL_BOUNDARY_INSTRUCTIONS = (
     "evaluator-owned and contains no skill for this profile; never inspect it.\n"
 )
 EXECUTION_PROFILES = {"extract", "no-extract"}
+SPECSPINE_BEGIN_MARKER = "<!-- specspine:begin -->"
+SPECSPINE_END_MARKER = "<!-- specspine:end -->"
 SEMANTIC_ID_ERROR_CODES = {
     "DUPLICATE_ID",
     "ID_FRAGMENT",
@@ -438,6 +440,28 @@ def validate_case(case: dict[str, Any]) -> list[str]:
             errors.append(f"unsafe initial tree path: {initial_tree}")
         elif not (ROOT / initial_tree).is_dir():
             errors.append(f"initial tree does not exist: {initial_tree}")
+        elif (ROOT / initial_tree / "specspine" / "README.md").is_file():
+            errors.extend(validate_agent_bootstrap(ROOT / initial_tree, "specspine"))
+    return errors
+
+
+def validate_agent_bootstrap(root: Path, spine_root: str) -> list[str]:
+    path = root / "AGENTS.md"
+    if not path.is_file():
+        return [f"benchmark fixture is missing agent bootstrap: {path}"]
+    try:
+        content = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        return [f"cannot read benchmark agent bootstrap {path}: {error}"]
+    errors: list[str] = []
+    if content.count(SPECSPINE_BEGIN_MARKER) != 1 or content.count(
+        SPECSPINE_END_MARKER
+    ) != 1:
+        errors.append(f"benchmark agent bootstrap markers are invalid: {path}")
+    if "{{" in content or "}}" in content:
+        errors.append(f"benchmark agent bootstrap has unresolved placeholders: {path}")
+    if f"{spine_root}/README.md" not in content:
+        errors.append(f"benchmark agent bootstrap has the wrong index path: {path}")
     return errors
 
 

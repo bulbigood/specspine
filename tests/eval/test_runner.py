@@ -46,6 +46,25 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual({}, failures)
         self.assertEqual([], RUNNER.validate_collection(RUNNER.load_cases()))
 
+    def test_all_nonempty_benchmark_corpora_have_agent_bootstrap(self):
+        indexes = sorted(
+            (
+                RUNNER.ROOT / "tests" / "eval" / "context-bundles"
+            ).glob("**/specspine/README.md")
+        )
+        self.assertTrue(indexes)
+        failures = {
+            str(index.parent.parent.relative_to(RUNNER.ROOT)): errors
+            for index in indexes
+            if (
+                errors := RUNNER.validate_agent_bootstrap(
+                    index.parent.parent,
+                    index.parent.relative_to(index.parent.parent).as_posix(),
+                )
+            )
+        }
+        self.assertEqual({}, failures)
+
     def test_detects_broken_markdown_link(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)

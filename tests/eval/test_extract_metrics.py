@@ -59,6 +59,7 @@ def sample(number, mode, duration, tokens, passed, environment_valid=True):
                 },
                 "cost_ledger": {
                     "prompt_utf8_bytes": 100,
+                    "project_agent_instruction_utf8_bytes": 40,
                     "declared_skill_context_utf8_bytes": 200,
                     "retrieval_output_utf8_bytes": 30 if mode == "enabled" else 10,
                     "project_source_file_bytes": tokens,

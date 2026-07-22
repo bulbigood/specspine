@@ -37,6 +37,7 @@ METRICS = (
     "command_output_chars",
 )
 COST_METRICS = (
+    "project_agent_instruction_utf8_bytes",
     "retrieval_output_utf8_bytes",
     "project_source_file_bytes",
     "command_output_utf8_bytes",
@@ -365,6 +366,7 @@ def metric_label(metric: str) -> str:
         "command_output_chars": "Command output characters",
         "prompt_utf8_bytes": "Prompt bytes",
         "declared_skill_context_utf8_bytes": "Declared skill context bytes",
+        "project_agent_instruction_utf8_bytes": "Project AGENTS.md bytes",
         "retrieval_output_utf8_bytes": "Retrieval output bytes",
         "project_source_file_bytes": "Inferred project source bytes",
         "command_output_utf8_bytes": "Command output bytes",

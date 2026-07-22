@@ -1,5 +1,6 @@
 import importlib.util
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -13,6 +14,17 @@ SPEC.loader.exec_module(BENCHMARK)
 
 
 class ExtractBenchmarkTests(unittest.TestCase):
+    def test_generated_project_uses_canonical_agent_bootstrap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            BENCHMARK.write_agent_bootstrap(project)
+            content = (project / "AGENTS.md").read_text(encoding="utf-8")
+
+        self.assertEqual(1, content.count("<!-- specspine:begin -->"))
+        self.assertEqual(1, content.count("<!-- specspine:end -->"))
+        self.assertIn("specspine/README.md", content)
+        self.assertNotIn("{{", content)
+
     def test_small_scale_reports_ranking_and_cost_metrics(self):
         result = BENCHMARK.run_scale(40, 3)
 

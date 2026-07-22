@@ -175,6 +175,14 @@ The required documents, semantic constraint, exclusions, read-only behavior,
 and response budget remain checked. The adapter's
 `fallback` mode makes only the disposable cache
 unavailable, so the skill exercises its normal Markdown-link fallback.
+Every benchmark corpus root must include an `AGENTS.md` rendered from the
+`specspine-connect` bootstrap with its real Spine path and documentation
+language. Codex loads this project instruction in every profile. The no-Extract
+profile therefore has the same persistent discovery route as the Extract
+profiles, while only the staged skill and its prompt scaffolding differ. The
+runner validates the managed markers, resolved index path, and absence of
+template placeholders. The deterministic ledger reports `AGENTS.md` bytes
+separately from skill context bytes.
 
 Run all groups concurrently and save their per-sample reports:
 

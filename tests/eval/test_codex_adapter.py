@@ -417,6 +417,7 @@ class CodexAdapterTests(unittest.TestCase):
             )
             (root / "specspine").mkdir()
             (root / "specspine/owner.md").write_text("source", encoding="utf-8")
+            (root / "AGENTS.md").write_text("agent-bootstrap", encoding="utf-8")
 
             ledger = ADAPTER.deterministic_cost_ledger(
                 root,
@@ -428,6 +429,7 @@ class CodexAdapterTests(unittest.TestCase):
             )
 
         self.assertEqual(len("промпт".encode()), ledger["prompt_utf8_bytes"])
+        self.assertEqual(15, ledger["project_agent_instruction_utf8_bytes"])
         self.assertEqual(13, ledger["declared_skill_context_utf8_bytes"])
         self.assertEqual(6, ledger["project_source_file_bytes"])
         self.assertEqual(11, ledger["retrieval_output_utf8_bytes"])

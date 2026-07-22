@@ -3,6 +3,10 @@
 This bundle is the persistent large-document fixture for the existing
 `extract-accelerated-handoff` A/B case. `full-spine/specspine/` contains 63
 linked Markdown specifications for RelayHub, a multi-tenant integration SaaS.
+`full-spine/AGENTS.md` contains the standard `specspine-connect` bootstrap so
+every benchmark profile receives the same persistent architecture-discovery
+instructions. In the no-Extract profile its Markdown fallback is the available
+route.
 
 The corpus was mapped and grown from
 `hagopj13/node-express-boilerplate` at commit

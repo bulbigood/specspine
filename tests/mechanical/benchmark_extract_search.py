@@ -17,6 +17,18 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 DIAGNOSTIC_SEARCH = ROOT / "tools" / "specspine-extract" / "search_spine_diagnostics.py"
+AGENT_BOOTSTRAP_TEMPLATE = (
+    ROOT / "skills" / "specspine-connect" / "assets" / "templates" / "agent-bootstrap.md"
+)
+
+
+def write_agent_bootstrap(project_root: Path) -> None:
+    rendered = AGENT_BOOTSTRAP_TEMPLATE.read_text(encoding="utf-8").replace(
+        "{{SPINE_ROOT}}", "specspine"
+    ).replace("{{DOCUMENTATION_LANGUAGE}}", "English")
+    if "{{" in rendered or "}}" in rendered:
+        raise ValueError("agent bootstrap has unresolved template placeholders")
+    (project_root / "AGENTS.md").write_text(rendered, encoding="utf-8")
 
 
 def write_corpus(root: Path, document_count: int, query_count: int) -> list[dict[str, str]]:
@@ -109,9 +121,11 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
 def run_scale(document_count: int, query_count: int) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="specspine-extract-benchmark-") as directory:
         base = Path(directory)
-        spine = base / "specspine"
+        project = base / "project"
+        spine = project / "specspine"
         cache = base / "cache"
-        spine.mkdir()
+        spine.mkdir(parents=True)
+        write_agent_bootstrap(project)
         workload = write_corpus(spine, document_count, query_count)
         rows: list[dict[str, Any]] = []
         cold_payload: dict[str, Any] | None = None

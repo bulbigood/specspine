@@ -513,6 +513,11 @@ def deterministic_cost_ledger(
     command_output = event_metrics.get("command_output_utf8_bytes")
     return {
         "prompt_utf8_bytes": len(prompt.encode("utf-8")),
+        "project_agent_instruction_utf8_bytes": (
+            (root / "AGENTS.md").stat().st_size
+            if (root / "AGENTS.md").is_file()
+            else 0
+        ),
         "declared_skill_context_utf8_bytes": sum(
             path.stat().st_size for path in declared_context if path.is_file()
         ),
