@@ -17,7 +17,7 @@ SPEC.loader.exec_module(CHECKER)
 class DoctorCheckerTests(unittest.TestCase):
     def test_generated_rules_are_identical_in_all_consumers(self):
         project_root = Path(__file__).parents[2]
-        for name in ("spec-format.md", "spec-semantics.md", "context-handoff.md"):
+        for name in ("spec-format.md", "spec-semantics.md"):
             grow = project_root / "skills" / "specspine-grow" / "references" / name
             for consumer in ("specspine-map", "specspine-doctor"):
                 generated = project_root / "skills" / consumer / "references" / name

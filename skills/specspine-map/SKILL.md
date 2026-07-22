@@ -1,6 +1,6 @@
 ---
 name: specspine-map
-description: Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use for repository surveys, evidence-backed subsystem mapping, selective deepening, refresh after code changes, drift recording, and evidence-aware context handoffs. Do not use to invent or evolve intended architecture (use specspine-grow), perform general integrity audits (use specspine-doctor), implement changes, or claim code/spec conformance.
+description: Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use for repository surveys, evidence-backed subsystem mapping, selective deepening, refresh after code changes, and drift recording. Do not use to invent or evolve intended architecture (use specspine-grow), perform general integrity audits (use specspine-doctor), extract downstream context, implement changes, or claim code/spec conformance.
 ---
 
 # SpecSpine Map
@@ -8,9 +8,8 @@ description: Map observed brownfield repository architecture into a linked Markd
 Runtime contract: SpecSpine v1.
 
 Map an existing repository into architectural memory: a long-lived network of
-linked specifications. The network is the persistent artifact; a context
-handoff is a temporary projection for downstream work. SpecSpine supports SDD
-and coding agents but does not own their feature or implementation workflows.
+linked specifications. SpecSpine supports SDD and coding agents but does not
+own their feature or implementation workflows.
 
 Map breadth before depth. Build the smallest useful architectural model rather
 than exhaustive code documentation.
@@ -27,8 +26,6 @@ than exhaustive code documentation.
 - Read [references/examples.md](references/examples.md) when choosing mapping
   depth, distinguishing evidence from interpretation, or deciding whether an
   area deserves a specification.
-- Read [references/context-handoff.md](references/context-handoff.md) before
-  preparing a context handoff.
 - When creating files, use
   [assets/templates/architecture-index.md](assets/templates/architecture-index.md)
   and [assets/templates/specification.md](assets/templates/specification.md) as
@@ -43,8 +40,7 @@ Use this skill to:
 - map or deepen a selected architectural area;
 - refresh specs after meaningful repository evolution;
 - compare observed evidence with intended architecture;
-- preserve uncertainty and intended-versus-observed disagreements;
-- prepare a minimal architecture context handoff.
+- preserve uncertainty and intended-versus-observed disagreements.
 
 Do not use it to:
 
@@ -62,8 +58,8 @@ interpretations or structural changes without silently altering normative
 intent. Propose new decisions or constraints for user confirmation instead of
 accepting them from evidence alone.
 
-Remain fully usable without any companion skill. Update the linked network and
-produce context handoffs without proving conformance or implementing changes.
+Remain fully usable without any companion skill. Update the linked network
+without proving conformance or implementing changes.
 
 ## Workflow
 
@@ -81,8 +77,7 @@ Use the shallowest depth that answers the request:
 - `survey` — map the project broadly;
 - `map` — describe a selected subsystem;
 - `deepen` — add detail needed for a specific architectural question;
-- `refresh` — update specs after repository evolution;
-- `handoff` — prepare minimal downstream architectural context.
+- `refresh` — update specs after repository evolution.
 
 ### 3. Gather representative evidence
 
@@ -212,28 +207,6 @@ source tree or treat directories as architectural ownership.
 
 Apply the disagreement rules in `references/spec-semantics.md`. Do not resolve
 conflicts silently.
-
-### Context handoff
-
-Follow `references/context-handoff.md`. Include the smallest useful context and
-separate required, potentially affected, and merely related specifications.
-Carry evidence status and blocking questions without adding downstream
-artifacts.
-
-## Readiness for context handoff
-
-An area is ready when:
-
-- a canonical owner is identified;
-- its documents satisfy the applicable stopping rules in
-  `references/spec-format.md`;
-- potentially affected specifications are separated from related context;
-- blocking architectural questions are explicit;
-- claims follow `references/spec-semantics.md`.
-
-This does not imply readiness for implementation. Product requirements, edge
-cases, acceptance criteria, migrations, tests, and implementation readiness
-belong downstream. A coding agent still reads relevant code.
 
 ## Restrictions
 

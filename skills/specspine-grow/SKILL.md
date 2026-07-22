@@ -1,6 +1,6 @@
 ---
 name: specspine-grow
-description: Create and evolve intended architecture in a linked Markdown SpecSpine using explicit user intent and existing specifications. Use for greenfield initialization, accepted architectural changes, ownership or boundary restructuring, and architecture context handoffs. Do not use for repository discovery or drift analysis (use specspine-map), integrity diagnosis (use specspine-doctor), implementation, or code/spec conformance.
+description: Create and evolve intended architecture in a linked Markdown SpecSpine using explicit user intent and existing specifications. Use for greenfield initialization, accepted architectural changes, and ownership or boundary restructuring. Do not use for repository discovery or drift analysis (use specspine-map), integrity diagnosis (use specspine-doctor), context extraction, implementation, or code/spec conformance.
 ---
 
 # SpecSpine Grow
@@ -8,9 +8,8 @@ description: Create and evolve intended architecture in a linked Markdown SpecSp
 Runtime contract: SpecSpine v1.
 
 Maintain architectural memory as a long-lived network of linked
-specifications. The network is the persistent artifact; a context handoff is a
-temporary projection for downstream work. SpecSpine supports SDD and coding
-agents but does not own their feature or implementation workflows.
+specifications. SpecSpine supports SDD and coding agents but does not own their
+feature or implementation workflows.
 
 ## Resources
 
@@ -22,8 +21,6 @@ agents but does not own their feature or implementation workflows.
   For a focused prose or link edit, preserve the existing local format.
 - Read [references/examples.md](references/examples.md) when deciding whether to
   split, merge, create, or reuse a specification.
-- Read [references/context-handoff.md](references/context-handoff.md) before
-  preparing a context handoff.
 - When creating files, use
   [assets/templates/architecture-index.md](assets/templates/architecture-index.md)
   and [assets/templates/specification.md](assets/templates/specification.md) as
@@ -38,8 +35,7 @@ Use this skill to:
 - identify architectural concepts affected by a requested change;
 - split, merge, rename, or link specifications;
 - maintain canonical ownership, boundaries, navigation, and uncertainty while
-  applying an intended change;
-- prepare a minimal architecture context handoff.
+  applying an intended change.
 
 Do not use it to:
 
@@ -97,8 +93,8 @@ already stored in SpecSpine or explicitly supplied by the user. When a request
 primarily requires repository discovery, state that `specspine-map` is the
 appropriate independently installable skill. Do not pretend mapping occurred.
 
-Remain fully usable without any companion skill. Update the linked network and
-produce context handoffs without proving conformance or implementing changes.
+Remain fully usable without any companion skill. Update the linked network
+without proving conformance or implementing changes.
 
 ## Workflow
 
@@ -111,8 +107,8 @@ project files to supplement the spine unless explicitly authorized.
 
 ### 2. Classify the request
 
-Determine whether the user wants to initialize, refine, split, merge, link, or
-prepare a context handoff. Route a general health audit to `specspine-doctor`.
+Determine whether the user wants to initialize, refine, split, merge, or link.
+Route a general health audit to `specspine-doctor`.
 
 ### 3. Locate canonical owners
 
@@ -187,8 +183,7 @@ same impact information in the final report instead of pausing.
 
 ### 7. Report
 
-Summarize changed files, structural decisions, unresolved questions, and
-whether the area is ready for context handoff.
+Summarize changed files, structural decisions, and unresolved questions.
 
 ## Operation rules
 
@@ -221,31 +216,6 @@ response unless it blocks the requested architectural change.
 For a split, identify the extracted responsibility, moved content, and changed
 links; retain a concise overview when it remains a useful navigation point. For
 a merge, preserve the clearest canonical filename and update incoming links.
-
-### Prepare a context handoff
-
-Follow `references/context-handoff.md`. Include the smallest useful set and
-separate required, potentially affected, and merely related specifications.
-Preserve claim semantics without adding downstream artifacts. Include only
-observations already stored in the spine or explicitly supplied or authorized
-by the user. By default, deliver the temporary handoff in the final response;
-do not store it inside the persistent SpecSpine or another project file unless
-the user explicitly requests a file and location.
-
-## Readiness for context handoff
-
-An area is ready when:
-
-- a canonical owner is identified;
-- its documents satisfy the applicable stopping rules in
-  `references/spec-format.md`;
-- potentially affected specifications are separated from related context;
-- blocking architectural questions are explicit;
-- claims follow `references/spec-semantics.md`.
-
-This does not imply readiness for implementation. Product requirements, edge
-cases, acceptance criteria, migrations, tests, and implementation readiness
-belong downstream.
 
 ## Restrictions
 

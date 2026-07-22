@@ -21,8 +21,8 @@ published skills; never store skill copies under `tools/`.
 
 1. Modify canonical files only under `skills/`.
 2. Keep shared rules canonical in `skills/specspine-grow/references/`.
-3. Run `scripts/generate_resources.py` to synchronize shared copies into
-   `specspine-map` and `specspine-doctor`.
+3. Run `scripts/generate_resources.py` to synchronize shared specification
+   rules into `specspine-map` and `specspine-doctor`.
 4. Run `scripts/generate_resources.py --check`.
 5. Run skill validation, unit tests, the eval-manifest audit, and representative
    deterministic scripts.

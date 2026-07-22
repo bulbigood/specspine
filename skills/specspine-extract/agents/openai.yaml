@@ -1,0 +1,4 @@
+interface:
+  display_name: "SpecSpine Extract"
+  short_description: "Extract minimal architecture context handoffs"
+  default_prompt: "Use $specspine-extract to prepare a minimal architecture context handoff for downstream work."

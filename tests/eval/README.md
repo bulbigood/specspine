@@ -154,9 +154,11 @@ home/runtime, one writable workspace, and read-only authentication.
 
 Docker's default seccomp profile is disabled because Codex's bundled `bwrap`
 needs an unprivileged user namespace. Capabilities remain dropped and `bwrap`
-provides the stricter per-command filesystem and network sandbox. Preflight
-executes `bwrap` and a local `codex sandbox` read/write probe with the exact
-evaluation permission profile; it makes no model call:
+provides the stricter per-command filesystem and network sandbox. The adapter
+materializes Codex's protected `.git`, `.agents`, and `.codex` mountpoints for
+the lifetime of each invocation, then removes empty placeholders. Preflight
+executes `bwrap` and 12 concurrent local `codex sandbox` read/write probes with
+the exact evaluation permission profile; it makes no model call:
 
 ```bash
 tests/eval/docker/run-comparisons.sh --preflight

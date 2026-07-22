@@ -27,6 +27,8 @@ FORBIDDEN_SCOPE_MARKERS = (
     "/Volumes/",
 )
 
+SANDBOX_PROTECTED_NAMES = (".git", ".agents", ".codex")
+
 def relative_files(root: Path) -> list[str]:
     return sorted(
         str(path.relative_to(root))
@@ -266,7 +268,11 @@ def scope_violations(commands: list[str], root: Path) -> list[str]:
     root_text = str(root.resolve()).rstrip("/")
     violations: list[str] = []
     for command in commands:
-        inspected = command.replace(root_text, "<WORKSPACE>")
+        # Codex serializes shell invocations as `/bin/sh -c <source>`. Audit
+        # the decoded source, otherwise quoting inserted by the event stream
+        # can split a harmless negative glob around `.eval` and look like a
+        # direct path operand.
+        inspected = shell_source(command).replace(root_text, "<WORKSPACE>")
         markers = [marker for marker in FORBIDDEN_SCOPE_MARKERS if marker in inspected]
         audit_text = inspected
         if re.search(
@@ -288,6 +294,7 @@ def scope_violations(commands: list[str], root: Path) -> list[str]:
             r"(?:-not|!)\s+-path\s+[\"']*(?:\./)?\.eval(?:[^\s\"']*)?[\"']*",
             r"-path\s+[\"']*(?:\./)?\.eval(?:/?)[\"']*\s+-prune\b",
             r"(?:-g|--glob)(?:=|\s+)[\"']*!\s*(?:\./)?\.eval(?:/[^\s\"']*)?[\"']*",
+            r"(?:-g|--glob)(?:=|\s+)[\"']*![^\"']*\.eval[^\"']*[\"']*",
         ):
             allowed_eval = re.sub(pattern, "<EVAL_EXCLUSION>", allowed_eval)
         if re.search(r"(?:^|[\s'\"])(?:\./)?\.eval(?:/|\b)", allowed_eval):
@@ -298,6 +305,36 @@ def scope_violations(commands: list[str], root: Path) -> list[str]:
                 + inspected[:500].replace("\n", "\\n")
             )
     return violations
+
+
+def prepare_sandbox_mountpoints(root: Path, runtime_root: Path) -> list[Path]:
+    """Materialize paths that Codex re-protects below writable roots.
+
+    Codex's bubblewrap policy layers these paths back as read-only. Some CLI
+    versions intermittently generate a bind/remount from a missing path when
+    several shell tools start concurrently. Empty mountpoints avoid that race;
+    newly created workspace placeholders are removed after the run.
+    """
+    created_in_workspace: list[Path] = []
+    for parent in (root, runtime_root):
+        for name in SANDBOX_PROTECTED_NAMES:
+            path = parent / name
+            if path.exists():
+                continue
+            path.mkdir()
+            if parent == root:
+                created_in_workspace.append(path)
+    return created_in_workspace
+
+
+def remove_empty_mountpoints(paths: list[Path]) -> None:
+    for path in reversed(paths):
+        try:
+            path.rmdir()
+        except (FileNotFoundError, OSError):
+            # Preserve anything the agent created in a placeholder. The
+            # ordinary workspace snapshot/scope audit will then expose it.
+            pass
 
 
 def write_codex_artifacts(
@@ -457,6 +494,7 @@ def main() -> int:
     runtime_parent = Path(configured_runtime) if configured_runtime else root.parent
     runtime_parent.mkdir(parents=True, exist_ok=True)
     runtime_root = Path(tempfile.mkdtemp(prefix="specspine-runtime-", dir=runtime_parent))
+    workspace_mountpoints: list[Path] = []
     try:
         for directory in (
             runtime_root / "bin",
@@ -469,6 +507,7 @@ def main() -> int:
             runtime_root / "tmp",
         ):
             directory.mkdir(parents=True, exist_ok=True)
+        workspace_mountpoints = prepare_sandbox_mountpoints(root, runtime_root)
         stage_runtime_tools(runtime_root)
         codex_home = prepare_codex_home(runtime_root)
         (runtime_root / "gitconfig").touch()
@@ -497,6 +536,7 @@ def main() -> int:
             env=process_environment,
         )
     finally:
+        remove_empty_mountpoints(workspace_mountpoints)
         shutil.rmtree(runtime_root)
     duration_seconds = round(time.monotonic() - started, 3)
     write_codex_artifacts(

@@ -1,6 +1,6 @@
 ---
 name: specspine-doctor
-description: Check reproducible mechanical integrity and perform advisory semantic review of an existing SpecSpine. Use for broken links, reachability, semantic IDs, evidence baselines, duplicate ownership risks, conflicting claims, poor decomposition, hidden uncertainty, implementation-detail leakage, or handoff quality. Use specspine-map for repository drift analysis. Doctor never proves semantic validity or guesses architectural intent.
+description: Check reproducible mechanical integrity and perform advisory semantic review of an existing SpecSpine. Use for broken links, reachability, semantic IDs, evidence baselines, duplicate ownership risks, conflicting claims, poor decomposition, hidden uncertainty, implementation-detail leakage, or handoff quality. Use specspine-map for repository drift analysis. Doctor may invoke specspine-extract when diagnosing or repairing a handoff and otherwise never guesses architectural intent.
 ---
 
 # SpecSpine Doctor
@@ -15,8 +15,8 @@ different contract version, report version skew before suggesting repairs.
 - Read [references/spec-format.md](references/spec-format.md) only when a
   finding or repair depends on document organization, addressable-statement
   syntax, or stopping rules.
-- Read [references/context-handoff.md](references/context-handoff.md) only when
-  reviewing a handoff.
+- For a handoff pass, invoke `specspine-extract` and use its contract; do not
+  duplicate that protocol here.
 - Run `scripts/check_spine.py <spine-root>` for deterministic checks; use
   `--json` when structured results help.
 - Read [references/review-method.md](references/review-method.md) before the
@@ -32,8 +32,8 @@ Use one evidence mode:
 
 - `spine-only` — default; inspect the full specification graph for mechanical
   integrity and advisory architectural risks;
-- `handoff` — review a supplied architecture context handoff against its source
-  specifications.
+- `handoff` — invoke `specspine-extract`, then review the handoff against its
+  source specifications.
 
 Default to `check`, which is read-only. Use `repair` when the user asks to fix
 findings. Diagnose before editing and remain self-contained.

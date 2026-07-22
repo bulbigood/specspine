@@ -82,21 +82,6 @@ Look for:
 Use absence sparingly. Missing detail is a defect only when the loaded stopping
 rules require it for the specification's current purpose.
 
-## Handoff pass
-
-Check that the handoff:
-
-- names one canonical primary owner when one exists;
-- uses repository-root-relative specification addresses that include the
-  resolved spine root;
-- separates required, potentially affected, and merely related context;
-- preserves claim kinds and existing semantic IDs;
-- treats external decision sources as provenance rather than new authority;
-- includes blocking questions without answering them;
-- excludes acceptance criteria, plans, tasks, estimates, and implementation
-  status;
-- is sufficient for the requested change without copying unrelated branches.
-
 ## Report shape
 
 Report `Mechanical integrity: PASS|FAIL` from checker errors only and list its

@@ -15,8 +15,7 @@ duplicated between independently published skills.
 `skills/specspine-grow/references/` owns the canonical copies of:
 
 - `spec-format.md`;
-- `spec-semantics.md`;
-- `context-handoff.md`.
+- `spec-semantics.md`.
 
 The generator synchronizes those files into `specspine-map` and
 `specspine-doctor`. These build-time copies keep every published skill

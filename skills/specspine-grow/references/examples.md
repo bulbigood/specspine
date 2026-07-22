@@ -11,7 +11,6 @@ They are behavioral examples, not rigid output requirements.
 - [Add a cross-cutting feature](#example-3-add-a-cross-cutting-feature)
 - [Avoid duplication](#example-4-avoid-duplication)
 - [Preserve uncertainty](#example-5-preserve-uncertainty)
-- [Prepare a context handoff](#example-6-prepare-an-architecture-context-handoff)
 
 ## Example 1: Initialize from an abstract idea
 
@@ -190,45 +189,3 @@ must exist before first login.
 
 Do not silently choose just-in-time provisioning and record it as an accepted
 decision.
-
-## Example 6: Prepare an architecture context handoff
-
-### User request
-
-```text
-Prepare an architecture context handoff for adding Google Sign-In.
-```
-
-### Expected response
-
-```text
-Change intent:
-- add external authentication without changing application-session semantics
-
-Primary specification:
-- specspine/external-identity.md
-
-Required specifications:
-- specspine/authentication.md
-- specspine/account-linking.md
-- specspine/session-management.md
-
-Potentially affected specifications:
-- specspine/users.md
-- specspine/configuration.md
-
-Architectural decisions and constraints:
-- application sessions are provider-independent;
-- external provider access tokens are not stored;
-- account-linking rules belong to account-linking.md.
-
-Blocking questions:
-- Should verified email matches trigger automatic account linking?
-
-Expected architectural outcome:
-- A verified Google identity establishes a local user identity and then
-  creates a normal application session without changing session semantics.
-```
-
-The handoff should be minimal. Do not include unrelated specification branches,
-acceptance criteria, implementation tasks, or implementation status.

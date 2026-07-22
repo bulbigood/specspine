@@ -265,6 +265,11 @@ PATCH"""
             "find . -path './.eval' -prune -o -type f -print",
             "rg --files -g '!.eval/**'",
             "rg --files -g '! .eval/**'",
+            (
+                "/usr/bin/bash -c \"pwd && rg --files "
+                "-g '\"'\"'!* .eval*'\"'\"' -g '\"'\"'! .eval/**'\"'\"' "
+                "| sed -n '1,200p'\""
+            ),
             "/bin/zsh -c 'find . -type f ! -path '\"'\"'./.eval/*' -print\"",
             (
                 "/bin/zsh -c 'find . -type f ! -path '\"'\"'./.git/*' "
@@ -272,6 +277,30 @@ PATCH"""
             ),
         ]
         self.assertEqual([], ADAPTER.scope_violations(commands, root))
+
+    def test_sandbox_mountpoints_are_created_and_only_empty_placeholders_removed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            workspace = base / "workspace"
+            runtime = base / "runtime"
+            workspace.mkdir()
+            runtime.mkdir()
+            (workspace / ".git").mkdir()
+
+            created = ADAPTER.prepare_sandbox_mountpoints(workspace, runtime)
+
+            self.assertEqual(
+                [workspace / ".agents", workspace / ".codex"], created
+            )
+            for parent in (workspace, runtime):
+                for name in ADAPTER.SANDBOX_PROTECTED_NAMES:
+                    self.assertTrue((parent / name).is_dir())
+
+            (workspace / ".agents" / "created-by-agent").write_text("keep\n")
+            ADAPTER.remove_empty_mountpoints(created)
+            self.assertTrue((workspace / ".agents").is_dir())
+            self.assertFalse((workspace / ".codex").exists())
+            self.assertTrue((workspace / ".git").is_dir())
 
     def test_scope_audit_still_rejects_direct_eval_access(self):
         root = Path("/Users/example/.cache/specspine-eval/workspaces/run-1")

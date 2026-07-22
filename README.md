@@ -156,8 +156,7 @@ It can:
 * split broad concepts into focused specifications;
 * merge overlapping specifications;
 * maintain cross-links;
-* preserve unresolved questions;
-* prepare minimal architecture context handoffs for downstream work.
+* preserve unresolved questions.
 
 By default it treats the user request and files under `<spine-root>` as the only
 authoritative project evidence. It may use skills, MCP servers, internet search,
@@ -170,8 +169,14 @@ never modifies source code.
 Builds a SpecSpine for an existing brownfield project by progressively mapping the codebase from a high-level overview toward selected implementation details.
 
 It records observed repository evidence separately from intended architectural
-decisions, preserves disagreements, and can prepare the same neutral context
-handoff as `specspine-grow`.
+decisions and preserves disagreements.
+
+### `specspine-extract`
+
+Extracts the smallest temporary architecture context handoff needed by a
+downstream feature, SDD, review, or coding workflow. It reads the SpecSpine,
+preserves claim semantics and uncertainty, and does not modify persistent
+specifications or create implementation artifacts.
 
 ### `specspine-doctor`
 
@@ -182,9 +187,13 @@ certify architecture validity or completeness. It is independently installable
 and includes a deterministic checker for links, reachability, semantic IDs, and
 evidence baselines.
 
+For handoff diagnosis or repair, Doctor may directly invoke
+`specspine-extract`; other SpecSpine skills keep their own scope and do not
+orchestrate extraction.
+
 ### Package generator
 
-The four publishable packages under `skills/` are the source of truth.
+The five publishable packages under `skills/` are the source of truth.
 Repository-only tooling under `tools/specspine-adapter-generator/` synchronizes
 references shared by independently installable packages. It contains no skill
 copies, never generates canonical skills from files under `tools/`, and is
@@ -202,6 +211,12 @@ Install `specspine-grow` from this repository:
 
 ```bash
 npx skills add bulbigood/specspine --skill specspine-grow
+```
+
+Install `specspine-extract` independently:
+
+```bash
+npx skills add bulbigood/specspine --skill specspine-extract
 ```
 
 Install `specspine-map` independently:
@@ -226,6 +241,7 @@ Install all runtime SpecSpine skills without the maintainer-only generator:
 
 ```bash
 npx skills add bulbigood/specspine --skill specspine-connect
+npx skills add bulbigood/specspine --skill specspine-extract
 npx skills add bulbigood/specspine --skill specspine-grow
 npx skills add bulbigood/specspine --skill specspine-map
 npx skills add bulbigood/specspine --skill specspine-doctor
@@ -239,6 +255,7 @@ cd specspine
 
 npx skills add . --list
 npx skills add . --skill specspine-connect
+npx skills add . --skill specspine-extract
 npx skills add . --skill specspine-grow
 npx skills add . --skill specspine-map
 npx skills add . --skill specspine-doctor
@@ -354,6 +371,8 @@ The agent asks only when the request does not decide a normative choice,
 canonical ownership is genuinely ambiguous, or a conflict must be resolved.
 
 ### Prepare an architecture context handoff
+
+Use `specspine-extract`:
 
 ```text
 Prepare an architecture context handoff for adding Google Sign-In.
@@ -600,12 +619,15 @@ specspine/
 │   │       └── templates/
 │   │           ├── agent-bootstrap.md
 │   │           └── project-binding.md
+│   ├── specspine-extract/
+│   │   ├── SKILL.md
+│   │   └── references/
+│   │       └── context-handoff.md
 │   ├── specspine-grow/
 │   │   ├── SKILL.md
 │   │   ├── references/
 │   │   │   ├── spec-format.md
 │   │   │   ├── spec-semantics.md
-│   │   │   ├── context-handoff.md
 │   │   │   └── examples.md
 │   │   └── assets/
 │   │       └── templates/
@@ -617,7 +639,6 @@ specspine/
 │   │   │   ├── mapping-method.md
 │   │   │   ├── spec-format.md
 │   │   │   ├── spec-semantics.md
-│   │   │   ├── context-handoff.md
 │   │   │   └── examples.md
 │   │   └── assets/
 │   │       └── templates/
@@ -628,7 +649,6 @@ specspine/
 │   │   ├── references/
 │   │   │   ├── spec-format.md
 │   │   │   ├── spec-semantics.md
-│   │   │   ├── context-handoff.md
 │   │   │   └── review-method.md
 │   │   └── scripts/
 │   │       └── check_spine.py
@@ -645,7 +665,7 @@ specspine/
     └── scenarios/
 ```
 
-The four runtime skills are canonical, self-contained, and independently
+The five runtime skills are canonical, self-contained, and independently
 installable. `specspine-adapter-generator` is maintainer-only tooling: it keeps
 shared rules synchronized between standalone packages without retaining another
 copy of the skills or adding runtime dependencies.
@@ -686,7 +706,8 @@ Source code
 ```
 
 SpecSpine is conceptually compatible with OpenSpec, spec-kit, and direct
-coding-agent workflows through its neutral context handoff. `specspine-connect`
+coding-agent workflows through the neutral handoff produced by
+`specspine-extract`. `specspine-connect`
 can capture inspected project conventions in a compact binding read only during
 downstream SDD work. SpecSpine does not ship maintained framework-version
 adapters, convert canonical specifications, or guarantee compatibility.
@@ -712,6 +733,7 @@ The most important success criterion is:
 
 * [x] Define the SpecSpine principles
 * [x] Create `specspine-connect` for project-local agent and SDD adaptation
+* [x] Create `specspine-extract` for context handoffs
 * [x] Create `specspine-grow`
 * [ ] Add example greenfield projects
 * [x] Add a repeatable evaluation harness

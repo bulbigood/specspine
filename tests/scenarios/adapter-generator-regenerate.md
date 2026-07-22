@@ -2,8 +2,8 @@
 
 ## Initial repository
 
-The publishable `connect`, `grow`, `map`, and `doctor` packages under `skills/`
-are canonical. Shared references in `map` or `doctor` are stale.
+The publishable `connect`, `extract`, `grow`, `map`, and `doctor` packages under
+`skills/` are canonical. Shared references in `map` or `doctor` are stale.
 
 ## User request
 

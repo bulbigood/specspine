@@ -11,6 +11,7 @@ from pathlib import Path
 
 PACKAGES = (
     "specspine-connect",
+    "specspine-extract",
     "specspine-grow",
     "specspine-map",
     "specspine-doctor",
@@ -25,7 +26,6 @@ SHARED_CONSUMERS = ("specspine-map", "specspine-doctor")
 SHARED_REFERENCES = (
     "spec-format.md",
     "spec-semantics.md",
-    "context-handoff.md",
 )
 WORD_BUDGETS = {
     ("specspine-connect", "SKILL.md"): 850,
