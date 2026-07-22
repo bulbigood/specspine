@@ -60,9 +60,7 @@ cost.
 
 This is an experimental, falsifiable product claim. Link validity, document
 shape, and skill behavior are regression properties; they are not evidence that
-the hypothesis is true. Comparative downstream evaluations must measure
-functional outcomes, architectural constraint preservation, irrelevant file
-reads, token use, and unsupported decisions.
+the hypothesis is true.
 
 ## Guarantees and limits
 
