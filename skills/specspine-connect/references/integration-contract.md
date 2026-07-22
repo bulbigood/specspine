@@ -27,7 +27,7 @@ disagreements and never infer that documented intent is implemented.
 Keep the managed block small enough for every turn. It contains only:
 
 1. the resolved index path;
-2. the explicitly selected SpecSpine documentation language;
+2. the resolved SpecSpine documentation language;
 3. when to consult the index;
 4. compact authority and conflict semantics;
 5. the optional binding path.
@@ -42,6 +42,10 @@ Use exactly one managed region:
 
 Do not include framework commands, directory maps, copied architecture, or the
 full downstream workflow.
+
+Preserve the language from an existing managed block. Otherwise resolve it from
+the current request, applicable project instructions, or the SpecSpine index;
+ask only if these sources are ambiguous.
 
 ## Project binding
 
@@ -75,19 +79,12 @@ instructions provide their workflow.
 
 ## Context transfer
 
-For downstream work:
-
-1. read the index and only relevant linked specifications;
-2. identify the canonical owner and required versus potentially affected
-   context;
-3. preserve accepted decisions, constraints, conflicts, and blocking questions;
-4. enter the bound native stage and place minimal context at the configured
-   insertion point;
-5. use repository-root-relative specification paths plus existing semantic IDs
-   when available.
-
-Do not edit SpecSpine unless the user explicitly requests maintenance through
-an appropriate workflow.
+At the bound native stage, consult the index as directed by the bootstrap and
+place only relevant architecture context at the configured insertion point.
+Preserve accepted intent, conflicts, and blocking questions; use specification
+paths and existing semantic IDs when the binding supports traceability. Follow
+the native workflow for everything else. Do not edit SpecSpine unless the user
+explicitly requests maintenance through an appropriate workflow.
 
 ## Ownership
 

@@ -7,7 +7,7 @@
 - Native workflow entry: {{NATIVE_WORKFLOW_ENTRY}}
 {{DISCOVERED_OPTIONAL_FIELDS}}
 
-Read the index and only relevant linked specifications. Carry the canonical
-owner, required context, potentially affected context, accepted decisions and
-constraints, conflicts, and blocking questions into the bound stage. Do not
-edit SpecSpine or infer code/spec conformance.
+At the native entry, follow persistent SpecSpine instructions and place only
+relevant architecture context at the mapped insertion point, if defined.
+Preserve accepted intent, conflicts, and blocking questions. Otherwise follow
+the native workflow. Do not edit SpecSpine or infer code/spec conformance.

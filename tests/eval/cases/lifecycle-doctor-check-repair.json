@@ -39,7 +39,7 @@
     {
       "id": "doctor-limited-repair",
       "skill": "skills/specspine-doctor",
-      "prompt": "Repair only unambiguous mechanical defects in `specspine/` using Doctor's spine-only repair mode. Diagnose the whole Spine and run the bundled `check_spine.py` checker before editing. The broken `payment-settlemnt.md` link has the uniquely existing target `payment-settlement.md`; correct it. The invalid `CON-settlement-idempotency_key` identifier has the unique grammar-preserving correction `CON-settlement-idempotency-key`; correct it. Then rerun the bundled checker. Do not inspect repository README, code, tests, or configuration. Do not choose a canonical owner between `specspine/payment-settlement.md` and the unreachable `specspine/payment-retry-coordination.md`; do not link, delete, merge, or rewrite either competing ownership claim, and do not change accepted intent. Leave a report finding naming both files with repair disposition `user decision required`. Modify only files under `specspine/`. Report remaining findings and do not claim formal conformance, completeness, complete coverage, or code/spec agreement.",
+      "prompt": "Repair only the unambiguous mechanical defects in `specspine/`. Run Doctor's bundled checker before and after editing. Correct the uniquely resolvable `payment-settlemnt.md` link and the invalid `CON-settlement-idempotency_key` identifier. Do not inspect files outside `specspine/`, change accepted intent, or choose between the competing ownership claims in `payment-settlement.md` and `payment-retry-coordination.md`. Report what remains unresolved.",
       "assertions": [
         {"type": "changed_only", "paths": ["specspine/**"]},
         {"type": "unchanged", "paths": ["README.md", "src/**", "tests/**", "config/**", "specspine/payment-retry-coordination.md"]},
@@ -54,7 +54,8 @@
         {"type": "file_contains", "path": "specspine/payment-retry-coordination.md", "values": ["DEC-retry-coordination-canonical-owner", "canonically owns settlement retry coordination"]},
         {"type": "markdown_links_valid", "glob": "specspine/*.md"},
         {"type": "balanced_markers", "path": "specspine/payment-settlement.md", "begin": "<!-- specspine:semantic-ids:begin -->", "end": "<!-- specspine:semantic-ids:end -->", "count": 1},
-        {"type": "response_contains", "values": ["payment-settlement.md", "payment-retry-coordination.md", "user decision required"]},
+        {"type": "response_contains", "values": ["payment-settlement.md", "payment-retry-coordination.md"]},
+        {"type": "response_contains_any", "values": ["decision", "input", "unresolved", "ownership"]},
         {"type": "response_not_contains", "values": ["formally valid", "complete coverage", "code conforms", "implementation conforms", "conformance proven"]}
       ]
     }

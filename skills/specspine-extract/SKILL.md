@@ -5,8 +5,6 @@ description: Extract the smallest task-oriented architecture context handoff fro
 
 # SpecSpine Extract
 
-Runtime contract: SpecSpine v1.
-
 Create a temporary projection of the persistent SpecSpine for one downstream
 change. Read [references/context-handoff.md](references/context-handoff.md)
 before extracting.

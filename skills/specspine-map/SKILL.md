@@ -5,224 +5,72 @@ description: Map observed brownfield repository architecture into a linked Markd
 
 # SpecSpine Map
 
-Runtime contract: SpecSpine v1.
-
-Map an existing repository into architectural memory: a long-lived network of
-linked specifications. SpecSpine supports SDD and coding agents but does not
-own their feature or implementation workflows.
-
-Map breadth before depth. Build the smallest useful architectural model rather
-than exhaustive code documentation.
+Map an existing repository into the smallest useful network of linked
+architectural specifications. Map breadth before depth and preserve the
+difference between accepted intent and repository evidence.
 
 ## Resources
 
 - Read [references/spec-semantics.md](references/spec-semantics.md) before
-  classifying or changing architectural claims.
-- Read [references/spec-format.md](references/spec-format.md) before creating or
-  editing specification documents. It owns their organization, content, and
-  stopping rules; do not reconstruct those rules from this workflow.
+  classifying claims or recording code/spec disagreement.
+- Read [references/spec-format.md](references/spec-format.md) before creating,
+  editing, or restructuring specifications. It owns document organization,
+  semantic IDs, decomposition, and stopping rules.
 - Read [references/mapping-method.md](references/mapping-method.md) before a
   substantial survey, refresh, or restructuring.
-- Read [references/examples.md](references/examples.md) when choosing mapping
-  depth, distinguishing evidence from interpretation, or deciding whether an
-  area deserves a specification.
-- When creating files, use
-  [assets/templates/architecture-index.md](assets/templates/architecture-index.md)
-  and [assets/templates/specification.md](assets/templates/specification.md) as
-  starting points. Omit empty sections.
+- Read [references/examples.md](references/examples.md) when mapping depth or a
+  specification boundary is unclear.
+- Start new files from the templates under `assets/templates/` and omit empty
+  sections.
 
-## Scope
+## Authority and scope
 
-Use this skill to:
+Use this skill to survey an existing repository, map or deepen a selected area,
+refresh repository-backed observations, and record drift between observed and
+intended architecture.
 
-- create a SpecSpine for an existing repository;
-- survey project purpose, runtime shape, and major responsibilities;
-- map or deepen a selected architectural area;
-- refresh specs after meaningful repository evolution;
-- compare observed evidence with intended architecture;
-- preserve uncertainty and intended-versus-observed disagreements.
+Repository evidence may establish observations and support inferences. It does
+not establish decisions or constraints and never overrides accepted intent.
+Preserve disagreements until the user or an authorized architecture workflow
+resolves them.
 
-Do not use it to:
+Map owns repository discovery and the resulting persistent architectural map.
+It does not:
 
-- modify production code or implement changes;
-- produce exhaustive code or API documentation;
-- mirror every directory, class, endpoint, table, or function;
-- infer business intent solely from repository names;
-- create feature specifications, acceptance criteria, plans, or tasks;
-- claim complete coverage or prove code/spec conformance.
-
-## Lifecycle role
-
-Discover repository evidence, record observed architecture, and propose
-interpretations or structural changes without silently altering normative
-intent. Propose new decisions or constraints for user confirmation instead of
-accepting them from evidence alone.
-
-Remain fully usable without any companion skill. Update the linked network
-without proving conformance or implementing changes.
+- invent or evolve intended architecture; use `specspine-grow`;
+- perform a general Spine integrity review; use `specspine-doctor`;
+- extract downstream task context; use `specspine-extract`;
+- modify production code or create feature requirements, acceptance criteria,
+  plans, tasks, or implementation status;
+- prove code/spec conformance or complete coverage.
 
 ## Workflow
 
-### 1. Inspect existing architecture material
+1. Resolve `<spine-root>` using `references/spec-format.md`. Read its index and
+   relevant specifications, plus repository documentation or architecture
+   records needed to understand existing intent.
+2. Choose the shallowest operation that answers the request: whole-repository
+   survey, selected-area map, deepening, or refresh.
+3. Gather representative evidence. For a survey, prioritize root docs,
+   manifests, runtime entry points, composition roots, public interfaces,
+   schemas, integrations, deployment configuration, and representative tests.
+   For a selected area or refresh, start from the named specification and
+   relevant changed paths; expand only for dependencies that affect the map.
+4. Model stable responsibilities, boundaries, runtime and data-flow shape, and
+   relationships rather than directories or implementation details. Classify
+   claims with `references/spec-semantics.md`.
+5. Treat an explicit mapping, refresh, or restructuring request as approval.
+   Ask only before changing accepted intent, resolving a conflict or blocking
+   question, or choosing among materially different canonical owners.
+6. Modify only files under `<spine-root>`. Apply the smallest coherent change;
+   preserve unrelated content, accepted intent, useful links, and reachability
+   from the index. Follow `references/spec-format.md` instead of duplicating
+   its document and semantic-ID rules here.
+7. Report evidence inspected, files changed, mapped or deepened areas,
+   unconfirmed inferences, unresolved drift, and qualitative remaining
+   coverage.
 
-Resolve `<spine-root>` using `references/spec-format.md`. Read root
-documentation, `<spine-root>/README.md`, relevant specifications, and ADRs or
-equivalent architecture records. Preserve accepted structure unless evidence
-or the request justifies changing it.
-
-### 2. Choose mapping depth
-
-Use the shallowest depth that answers the request:
-
-- `survey` — map the project broadly;
-- `map` — describe a selected subsystem;
-- `deepen` — add detail needed for a specific architectural question;
-- `refresh` — update specs after repository evolution.
-
-### 3. Gather representative evidence
-
-Prioritize root docs and manifests, composition roots, runtime entry points,
-public interfaces, schemas and migrations, integration edges, deployment
-configuration, and representative tests. Read implementation internals only
-where boundaries remain unclear.
-
-For a selected-area or refresh request, begin from the named specification and
-known relevant paths. Use targeted path and symbol searches; do not start with a
-repository-wide content search or read unrelated branches merely to inventory
-them. A filename listing is discovery metadata, not authorization to read every
-listed file. Before reading file contents, establish a boundary of relevant
-specifications, paths, and symbols from the request and filename metadata, then
-scope content searches to that boundary. Expand it only when inspected evidence
-reveals a cross-boundary dependency relevant to the requested map, and report
-the expansion.
-
-### 4. Form the smallest useful model
-
-Choose stable responsibilities rather than filesystem shapes. A directory is
-not automatically a subsystem; several directories may implement one concept,
-and one directory may contain several concepts.
-
-Classify every architectural claim according to
-`references/spec-semantics.md`.
-
-### 5. Apply authority-aware approval
-
-Treat an explicit mapping, refresh, or restructuring request as approval; do
-not ask twice. Apply observations, inferences, evidence baselines, navigation,
-and clearly meaning-preserving structure directly. Never treat repository
-evidence as approval of normative intent.
-
-Stop and request a decision only when the change would alter accepted intent,
-resolve a conflict or blocking question, choose among plausible canonical
-owners, or introduce an agent-initiated structure whose meaning is unclear.
-When approval is still required, show:
-
-```text
-Mapping proposal
-
-Create:
-- paths, or none
-
-Modify:
-- paths, or none
-
-Evidence inspected:
-- representative sources
-
-Inferred structure:
-- unconfirmed interpretations, or none
-
-Unresolved:
-- conflicts or questions, or none
-```
-
-For an explicitly requested or otherwise safe change, apply it and include the
-same mapping information in the final report instead of pausing.
-
-### 6. Apply the map
-
-- Modify only files under `<spine-root>/`.
-- Preserve user-authored decisions and unrelated content.
-- Keep useful relative links and reachability from `<spine-root>/README.md`.
-- Keep observations separate from inference and normative intent.
-- Add or refresh the evidence baseline for repository-backed observations.
-- Write repository evidence paths as inline code, not as Markdown links that
-  escape `<spine-root>`; reserve relative Markdown links for the specification
-  graph.
-- When adding or changing a semantic ID, follow `Addressable statements` in
-  `references/spec-format.md`. Preserve the document's language and local
-  heading style when the statement kind remains unambiguous.
-- When another specification refers to that ID, make the complete ID the
-  Markdown link label and the canonical specification the destination, exactly
-  as required by `Addressable statements`. References are linked IDs; never
-  format them as bold definitions or plain text.
-- Do not rewrite intent to legitimize accidental implementation behavior.
-- Update `<spine-root>/README.md` only when top-level navigation, system-wide
-  intent, or mapping coverage changes.
-
-### 7. Report
-
-Summarize evidence inspected, files changed, mapped and deepened areas,
-inferences awaiting confirmation, unresolved conflicts, and remaining coverage.
-
-## Mapping rules
-
-### Initial survey
-
-Create `<spine-root>/README.md` and a small set of architectural entry points
-using `references/spec-format.md`. Survey broadly; do not deeply map the first
-interesting module.
-
-### Selected area
-
-Populate the smallest affected document set from representative evidence using
-`references/spec-format.md`. Do not mirror the code.
-
-### Refresh
-
-Start from affected specifications and changed repository areas. Update the
-smallest useful set, preserve normative intent, and record unresolved drift. Do
-not remap the whole repository for a local change.
-
-### Decomposition and cross-cutting concerns
-
-Split only for an independent responsibility, runtime boundary, meaningful
-interface, behavior set, or independently evolving navigation point. Treat
-security, observability, configuration, transactions, audit, tenancy, and error
-handling as cross-cutting; do not force them under one parent or create a file
-without project-specific architectural value.
-
-### Mapping status
-
-Keep coverage qualitative: mapped, deepened, partial, or not mapped. Do not use
-percentages or claim formal completeness.
-
-### Directories
-
-Start flat. Introduce a few broad directories only when navigation has become
-materially difficult and stable cohesive clusters are clear. Do not mirror the
-source tree or treat directories as architectural ownership.
-
-### Intended versus observed architecture
-
-Apply the disagreement rules in `references/spec-semantics.md`. Do not resolve
-conflicts silently.
-
-## Restrictions
-
-Never:
-
-- modify production code or generate implementation changes;
-- present inference or technical debt as accepted intent;
-- claim synchronization, conformance, complete coverage, or implementation of
-  documented intent;
-- silently change normative decisions from repository evidence;
-- silently resolve blocking questions or intended-versus-observed conflicts;
-- turn the SpecSpine into a source-tree or function-level inventory;
-- rewrite unrelated branches;
-- create plans, tasks, acceptance criteria, or implementation status.
-
-Be concise, evidence-aware, and architectural. Prefer responsibilities,
-boundaries, runtime and data-flow shape, representative evidence, and explicit
-uncertainty. The user owns architectural interpretation; this skill organizes
-evidence into a durable, navigable SpecSpine.
+For an initial survey, create the index and only a few useful architectural
+entry points. For a local refresh, do not remap the whole repository. Stop when
+the requested architectural question is answered and further detail would
+mostly reproduce the code.

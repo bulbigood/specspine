@@ -1,107 +1,54 @@
 # SpecSpine diagnostic method
 
-Use this method with the bundled semantic rules. Load the full format rules only
-when a finding or repair depends on them.
+Use this method with the bundled semantics. Load the full format rules only
+when the finding depends on them.
 
-## Mechanical severity
+## Mechanical findings
 
-- `error` — a reproducible preflight or mechanical defect that prevents
-  deterministic navigation or resolution of an explicitly used interoperable
-  address;
-- `warning` — provenance, readability, or structural defect that does not make
-  navigation or address resolution unsafe;
-- `note` — maintainability risk, optional-format preference, out-of-scope
-  reference, or incomplete diagnostic coverage.
-
-Mechanical findings do not use confidence. The checker reproduces them from the
-same files and rules.
-
-## Advisory semantic impact
-
-- `critical` — a likely contradiction or ownership conflict that can misdirect
-  downstream work;
-- `warning` — a likely semantic, structural, or provenance risk;
-- `note` — a maintainability concern or review limitation.
-
-Every advisory finding uses confidence `high`, `medium`, or `low`. Impact and
-confidence never produce a semantic PASS/FAIL result.
-
-## Mechanical pass
-
-Use the bundled checker for reproducible findings. Its interoperability checks
-cover:
-
-- index presence and specification reachability;
-- relative Markdown link targets;
-- semantic-ID definitions, sections, uniqueness, and references;
-- semantic-ID marker regions and evidence-baseline syntax.
-
-It may also report headings, empty sections, naming conventions, provenance,
-and reachability as warnings or notes. Treat these as advisory unless the
-requested operation gives them concrete semantic or navigation impact. Do not
-manually re-check advisory findings merely to reproduce the script.
+Use the bundled checker as the source of reproducible findings and severity.
+Its errors cover defects that prevent navigation or resolution of an explicitly
+used semantic address. Warnings and notes cover non-blocking provenance,
+structure, readability, optional conventions, and diagnostic limits.
 
 Only internal SpecSpine targets participate in link validity and reachability.
-Report a relative link that resolves outside `<spine-root>` as unchecked scope;
-do not inspect its target. General Markdown, HTML, template-origin, and style
-validation are outside this mechanical pass.
+Treat links outside `<spine-root>` as unchecked; do not inspect their targets.
+General Markdown, HTML, template, and style validation are outside this pass.
 
-Do not promote optional-format preferences into errors.
+## Semantic review
 
-## Repair discipline
-
-In repair mode, fix a finding directly only when the transformation is
-unambiguous and preserves meaning. Re-run the checker after edits. A plausible
-repair is not an accepted architecture decision: stop for user judgment when a
-repair would choose canonical ownership, change a decision or constraint,
-resolve a conflict or open question, or infer intent from repository evidence.
-
-## Advisory semantic review
-
-This review is evidence-backed but necessarily incomplete. It does not prove
-architecture consistency, completeness, correct decomposition, complete impact
-analysis, or code conformance. Absence of findings is not semantic validation.
-
-Look for:
+Look for architectural risks supported by the inspected specifications:
 
 - competing canonical owners or duplicated detailed definitions;
-- contradictions between decisions or constraints;
+- contradictory decisions or constraints;
 - observations or inferences presented as accepted intent;
-- decisions presented without evidence of user acceptance;
+- decisions without evidence of acceptance;
 - open questions silently answered elsewhere;
-- broad specifications containing independently evolving responsibilities;
-- fragmented specifications without independent responsibility or navigation
-  value;
+- specifications mixing independently evolving responsibilities;
+- fragmentation without independent responsibility or navigation value;
 - stale overview text or links after decomposition;
-- important direct relationships hidden behind several navigation hops;
-- feature-specific requirements, tasks, status, or release scope;
-- source-level walkthroughs and fragile inventories;
+- important direct relationships hidden behind unnecessary navigation hops;
+- feature-specific scope, acceptance criteria, tasks, or status;
+- source-level walkthroughs and fragile implementation inventories;
 - diagrams that are the only source of important meaning;
-- semantic IDs applied indiscriminately or changed after external reference.
+- semantic IDs used indiscriminately or changed after external reference.
 
-Classify findings with the framework vocabulary when applicable:
+Describe each material risk with its evidence, likely impact, confidence, and a
+next action. Use framework terms when they clarify the issue, but do not force a
+fixed taxonomy or report template. A broad specification may be a candidate
+for decomposition without being defective. Repeated ownership claims do not
+authorize Doctor to select an owner. Plausible implementation evidence does not
+turn an inference into accepted intent.
 
-- competing owners are a `canonical ownership conflict`; do not select an
-  owner from repetition or repository evidence;
-- a broad specification with independently evolving responsibilities is a
-  `decomposition candidate`, not an automatic defect or an instruction to
-  split it;
-- an unconfirmed interpretation presented as accepted intent is an
-  `inference`, even when implementation evidence makes it plausible;
-- resolving any of these by choosing ownership, boundaries, or accepted intent
-  is `user decision required` unless the current request already supplies that
-  decision.
+Use absence sparingly. Missing detail is a finding only when the document's
+stated purpose and the loaded stopping rules require it.
 
-Use absence sparingly. Missing detail is a defect only when the loaded stopping
-rules require it for the specification's current purpose.
+## Repair boundary
 
-## Report shape
+Repair only transformations that are unambiguous and preserve meaning, then
+rerun the checker. Ask for a decision when a repair would choose ownership or
+boundaries, change a decision or constraint, resolve a conflict or open
+question, or infer intent from repository evidence.
 
-Report `Mechanical integrity: PASS|FAIL` from checker errors only and list its
-findings compactly with code, severity, location, and message. Then report
-`Advisory semantic findings` with report-local labels, impact, confidence,
-evidence, and a recommended next action. Include repair disposition whenever a
-finding could lead to a structural or semantic change, explicitly stating
-`user decision required` when Doctor lacks authority to choose the result. End
-with checked scope, unchecked scope, and review limitations. Finding labels are
-ephemeral.
+Keep mechanical results separate from semantic judgments. Semantic review is
+necessarily incomplete; absence of findings does not establish validity,
+completeness, correct decomposition, impact coverage, or code conformance.

@@ -118,11 +118,9 @@ class AdapterGeneratorTests(unittest.TestCase):
             {path.name for path in templates.iterdir() if path.is_file()},
         )
 
-    def test_connect_bootstrap_requires_documentation_language(self):
+    def test_connect_bootstrap_persists_documentation_language(self):
         source = PROJECT_ROOT / "skills" / "specspine-connect"
-        skill = (source / "SKILL.md").read_text(encoding="utf-8")
         bootstrap = (source / "assets/templates/agent-bootstrap.md").read_text(encoding="utf-8")
-        self.assertIn("ask the user", skill)
         self.assertIn("{{DOCUMENTATION_LANGUAGE}}", bootstrap)
 
     def test_generator_has_no_runtime_skill_or_skill_copies(self):

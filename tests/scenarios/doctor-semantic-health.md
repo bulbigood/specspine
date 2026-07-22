@@ -20,13 +20,11 @@ The skill should:
 - use current bundled semantics and stopping rules;
 - distinguish reproducible mechanical findings from advisory risks requiring
   architectural judgment;
-- identify the competing claims as a canonical ownership conflict and identify
-  the misclassified inference;
-- explicitly describe the broad specification as a decomposition candidate
-  rather than automatically splitting it;
-- distinguish repairs Doctor can apply from choices for which a user decision
-  is required;
-- report mechanical PASS/FAIL independently from advisory findings;
+- identify the competing ownership claims and the misclassified inference;
+- explain that the broad specification may need decomposition without
+  automatically splitting it;
+- distinguish clear repairs from architectural choices that need user input;
+- report mechanical results independently from advisory findings;
 - avoid claiming semantic validity or completeness;
 - remain read-only.
 

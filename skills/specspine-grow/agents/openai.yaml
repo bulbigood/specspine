@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Grow"
-  short_description: "Grow linked architectural memory and context"
-  default_prompt: "Use $specspine-grow to create or evolve the architectural specification network for this project."
+  short_description: "Create and evolve architectural specifications"
+  default_prompt: "Use $specspine-grow to create or evolve this project's intended architecture in its SpecSpine."
