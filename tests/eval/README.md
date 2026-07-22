@@ -163,6 +163,41 @@ workspaces and report its success rate. This differs from a manifest's `runs`:
 those are sequential agent calls inside one workspace and test repeated or
 lifecycle behavior.
 
+### Compare extract retrieval cost
+
+Do not create another eval case for performance comparison. Run the existing
+`extract-accelerated-handoff` case against the same fixture and prompt in two
+modes. The adapter's `fallback` mode makes only the disposable cache
+unavailable, so the skill exercises its normal Markdown-link fallback.
+
+Run both groups concurrently and save their per-sample reports:
+
+```bash
+report_dir=$(mktemp -d)
+python3 tests/eval/run.py \
+  --case extract-accelerated-handoff --samples 3 \
+  --report-label forced-fallback --report-json "$report_dir/fallback.json" \
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium --accelerator-mode fallback" &
+fallback_pid=$!
+python3 tests/eval/run.py \
+  --case extract-accelerated-handoff --samples 3 \
+  --report-label accelerated --report-json "$report_dir/accelerated.json" \
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium --accelerator-mode enabled" &
+accelerated_pid=$!
+wait "$fallback_pid" "$accelerated_pid"
+python3 tests/eval/compare_extract_metrics.py \
+  --fallback "$report_dir/fallback.json" \
+  --accelerated "$report_dir/accelerated.json"
+```
+
+The analyzer performs no agent calls. It rejects reports with different case
+fingerprints, models, reasoning effort, sample identities, or parallelism. Its
+paired averages include behavioral failures; environment-invalid samples are
+reported and excluded. Agent time comes from adapter traces rather than fixture
+setup or assertions. Token output separates total, cached, uncached input,
+output, and reasoning tokens. Treat the result as a measurement, not a stable
+CI pass/fail threshold.
+
 Case manifests in `cases/*.json` define fixtures, prompts and deterministic
 assertions. A manifest may instead define ordered `stages`; agent stages run a
 prompt and assertions, while fixture stages model external changes.
@@ -184,6 +219,11 @@ Supported assertions:
 Trace assertions require `.eval/trace.json`. The Codex adapter conservatively
 infers reads from completed command events; repository-wide content searches
 may count every candidate file as read.
+
+Any assertion may use `"when_trace": {"field": "value"}` for exact trace
+conditions. A different trace value makes that assertion not applicable; a
+missing trace is a failure. Use this only when the contract genuinely differs
+between controlled adapter modes, not to hide ordinary eval failures.
 
 ### Do not design skills around eval assertions
 

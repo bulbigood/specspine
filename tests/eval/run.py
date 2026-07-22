@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import hashlib
 import io
 import json
 import os
@@ -64,6 +65,7 @@ class CaseReport:
     duration_seconds: float
     token_usage: dict[str, int]
     sample_number: int = 1
+    agent_runs: tuple[dict[str, Any], ...] = ()
 
 
 TOKEN_FIELDS = (
@@ -93,6 +95,102 @@ def aggregate_token_usage(reports: list[CaseReport]) -> dict[str, int]:
             if field in TOKEN_FIELDS and isinstance(value, int) and not isinstance(value, bool):
                 total[field] = total.get(field, 0) + value
     return total
+
+
+def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
+    if trace is None:
+        return {}
+    duration = trace.get("duration_seconds")
+    files_read = trace.get("files_read")
+    usage = trace.get("token_usage")
+    return {
+        "accelerator_mode": trace.get("accelerator_mode"),
+        "duration_seconds": duration if isinstance(duration, (int, float)) else None,
+        "environment_invalid": bool(trace.get("environment_invalid", False)),
+        "files_read": len(set(map(str, files_read))) if isinstance(files_read, list) else None,
+        "model": trace.get("model"),
+        "reasoning_effort": trace.get("reasoning_effort"),
+        "token_usage": {
+            field: value
+            for field, value in (usage.items() if isinstance(usage, dict) else ())
+            if field in TOKEN_FIELDS and isinstance(value, int) and not isinstance(value, bool)
+        },
+    }
+
+
+def directory_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    for item in sorted(candidate for candidate in path.rglob("*") if candidate.is_file()):
+        digest.update(item.relative_to(path).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(item.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def case_fingerprint(case: dict[str, Any]) -> str:
+    manifest = {key: value for key, value in case.items() if not key.startswith("_")}
+    prompts = (
+        [build_prompt(case, stage) for stage in case.get("stages", []) if "skill" in stage]
+        if "stages" in case
+        else [build_prompt(case)]
+    )
+    skill_paths = {case["skill"]} if "skill" in case else {
+        stage["skill"] for stage in case.get("stages", []) if "skill" in stage
+    }
+    payload = {
+        "manifest": manifest,
+        "prompts": prompts,
+        "skills": {path: directory_digest(ROOT / path) for path in sorted(skill_paths)},
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def write_json_report(
+    path: Path,
+    label: str,
+    agent_command: str,
+    reports: list[CaseReport],
+    cases: list[dict[str, Any]],
+    samples_requested: int,
+    jobs: int,
+) -> None:
+    case_by_id = {case["id"]: case for case in cases}
+    samples: list[dict[str, Any]] = []
+    for report in sorted(reports, key=lambda item: (item.case_id, item.sample_number)):
+        durations = [
+            run.get("duration_seconds")
+            for run in report.agent_runs
+            if isinstance(run.get("duration_seconds"), (int, float))
+        ]
+        samples.append(
+            {
+                "agent_duration_seconds": sum(durations) if durations else None,
+                "agent_runs": list(report.agent_runs),
+                "case_duration_seconds": report.duration_seconds,
+                "case_id": report.case_id,
+                "environment_valid": bool(report.agent_runs)
+                and not any(run.get("environment_invalid") for run in report.agent_runs),
+                "passed": report.passed,
+                "sample_number": report.sample_number,
+                "token_usage": report.token_usage,
+            }
+        )
+    payload = {
+        "agent_command": agent_command,
+        "cases": {
+            case_id: {"fingerprint": case_fingerprint(case_by_id[case_id])}
+            for case_id in sorted({report.case_id for report in reports})
+        },
+        "jobs": jobs,
+        "label": label,
+        "samples": samples,
+        "samples_requested": samples_requested,
+        "schema_version": 1,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def format_token_usage(token_usage: dict[str, int]) -> str:
@@ -196,6 +294,18 @@ def validate_case(case: dict[str, Any]) -> list[str]:
                 scenario_user_request(case)
             except ValueError as error:
                 errors.append(str(error))
+    assertions = list(case.get("assertions", [])) + list(case.get("final_assertions", []))
+    if isinstance(stages, list):
+        assertions.extend(
+            assertion
+            for stage in stages
+            if isinstance(stage, dict)
+            for assertion in stage.get("assertions", [])
+        )
+    for index, assertion in enumerate(assertions, 1):
+        condition = assertion.get("when_trace") if isinstance(assertion, dict) else None
+        if condition is not None and (not isinstance(condition, dict) or not condition):
+            errors.append(f"assertion {index} when_trace must be a non-empty object")
     for rel in case["initial_files"]:
         if not safe_relative_path(rel):
             errors.append(f"unsafe initial file path: {rel}")
@@ -419,6 +529,19 @@ def evaluate_assertion(
     response: str,
     trace: dict[str, Any] | None,
 ) -> CheckResult:
+    trace_condition = assertion.get("when_trace")
+    if trace_condition is not None:
+        if not isinstance(trace_condition, dict) or not trace_condition:
+            raise ValueError("when_trace must be a non-empty object")
+        if trace is None:
+            return CheckResult(False, "conditional assertion requires an agent trace")
+        mismatches = {
+            field: {"expected": expected, "actual": trace.get(field)}
+            for field, expected in trace_condition.items()
+            if trace.get(field) != expected
+        }
+        if mismatches:
+            return CheckResult(True, f"assertion not applicable for trace: {mismatches}")
     kind = assertion["type"]
     changed = changed_paths(before, after)
     path = workspace / assertion.get("path", "")
@@ -740,9 +863,11 @@ def run_staged_case(
     workspace: Path,
     env: dict[str, str],
     token_usage: dict[str, int] | None = None,
+    agent_runs: list[dict[str, Any]] | None = None,
     output: TextIO | None = None,
 ) -> bool:
     token_usage = {} if token_usage is None else token_usage
+    agent_runs = [] if agent_runs is None else agent_runs
     initial = snapshot(workspace)
     all_responses: list[str] = []
     last_trace: dict[str, Any] | None = None
@@ -781,6 +906,8 @@ def run_staged_case(
             returncode = completed.returncode
             trace = read_trace(workspace)
             add_token_usage(token_usage, trace)
+            if trace is not None:
+                agent_runs.append(compact_agent_trace(trace))
             last_trace = trace
             all_responses.append(response)
         after = snapshot(workspace)
@@ -834,6 +961,7 @@ def run_case(
 ) -> bool:
     started = time.monotonic()
     token_usage: dict[str, int] = {}
+    agent_runs: list[dict[str, Any]] = []
     temp = create_workspace(prefix=f"specspine-eval-{case['id']}-")
     try:
         write_fixture(case, temp)
@@ -847,10 +975,16 @@ def run_case(
             stage_count = len(case["stages"])
             stage_label = "stage" if stage_count == 1 else "stages"
             print(f"CASE {case['id']} ({stage_count} {stage_label})", file=output)
-            passed = run_staged_case(case, command, temp, env, token_usage, output)
+            passed = run_staged_case(
+                case, command, temp, env, token_usage, agent_runs, output
+            )
             duration_seconds = time.monotonic() - started
             if metrics is not None:
-                metrics.update(duration_seconds=duration_seconds, token_usage=dict(token_usage))
+                metrics.update(
+                    agent_runs=list(agent_runs),
+                    duration_seconds=duration_seconds,
+                    token_usage=dict(token_usage),
+                )
             print(f"{'PASS' if passed else 'FAIL'} {case['id']}", file=output)
             print(
                 f"  metrics: {format_metrics(duration_seconds, token_usage)}",
@@ -885,6 +1019,8 @@ def run_case(
             errors.append(completed.stderr)
             run_trace = read_trace(temp)
             add_token_usage(token_usage, run_trace)
+            if run_trace is not None:
+                agent_runs.append(compact_agent_trace(run_trace))
             scope_checks.append(workspace_boundary_check(run_trace))
             if completed.returncode:
                 returncode = completed.returncode
@@ -898,7 +1034,11 @@ def run_case(
         passed = returncode == 0 and all(result.passed for result in results)
         duration_seconds = time.monotonic() - started
         if metrics is not None:
-            metrics.update(duration_seconds=duration_seconds, token_usage=dict(token_usage))
+            metrics.update(
+                agent_runs=list(agent_runs),
+                duration_seconds=duration_seconds,
+                token_usage=dict(token_usage),
+            )
         print(
             f"{'PASS' if passed else 'FAIL'} {case['id']} "
             f"({completed_runs} {'run' if completed_runs == 1 else 'runs'}, agent exit {returncode})",
@@ -937,6 +1077,7 @@ def run_case_captured(
         duration_seconds=float(metrics.get("duration_seconds", 0.0)),
         token_usage=dict(metrics.get("token_usage", {})),
         sample_number=sample_number,
+        agent_runs=tuple(metrics.get("agent_runs", ())),
     )
 
 
@@ -954,6 +1095,8 @@ def main() -> int:
         help="run an executable category; repeatable",
     )
     parser.add_argument("--agent-command", help="command that accepts the prompt on stdin and edits its cwd")
+    parser.add_argument("--report-json", type=Path, help="write per-sample metrics as JSON")
+    parser.add_argument("--report-label", default="", help="label stored in the JSON report")
     parser.add_argument(
         "--jobs",
         type=positive_int,
@@ -973,6 +1116,8 @@ def main() -> int:
         parser.error("specify --case NAME or --category CATEGORY with --agent-command; use --list to inspect choices")
     if args.agent_command and not (args.case or args.category):
         parser.error("agent eval execution requires at least one --case NAME or --category CATEGORY")
+    if args.report_json and not args.agent_command:
+        parser.error("--report-json requires --agent-command")
     known_ids = {case["id"] for case in cases}
     unknown_ids = sorted(set(args.case) - known_ids)
     if unknown_ids:
@@ -1099,6 +1244,17 @@ def main() -> int:
                 case_passed = sum(report.passed for report in case_reports)
                 rate = 100.0 * case_passed / len(case_reports)
                 print(f"  {case['id']}: {case_passed}/{len(case_reports)} ({rate:.1f}%)")
+        if args.report_json:
+            write_json_report(
+                args.report_json,
+                args.report_label,
+                args.agent_command,
+                reports,
+                executable,
+                args.samples,
+                args.jobs,
+            )
+            print(f"JSON report: {args.report_json}")
         return 0 if not failed_ids else 1
 
     if not any((args.list, args.audit, args.validate)):

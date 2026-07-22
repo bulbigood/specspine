@@ -382,6 +382,19 @@ PATCH"""
         self.assertNotIn('.agents"="read', rendered)
         self.assertNotIn('.codex"="read', rendered)
 
+    def test_codex_command_can_force_accelerator_fallback(self):
+        command = ADAPTER.build_codex_command(
+            "agent-model", "medium", Path("/workspace"), Path("/runtime"), "fallback"
+        )
+        environment_argument = next(
+            item for item in command if item.startswith("shell_environment_policy.set=")
+        )
+
+        self.assertIn(
+            'SPECSPINE_CACHE_DIR="/runtime/accelerator-unavailable"',
+            environment_argument,
+        )
+
     def test_staging_bundles_external_macos_dependencies(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

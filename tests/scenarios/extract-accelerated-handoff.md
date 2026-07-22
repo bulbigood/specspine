@@ -2,10 +2,11 @@
 
 ## Existing specification
 
-The SpecSpine contains many short architectural areas. Settlement retry intent
-is owned by a nested payment specification and depends on a scheduling boundary
-owned by job processing. The owner preserves an observation, an inference, and
-an unresolved policy question.
+The SpecSpine contains several dozen short architectural areas, including
+plausible timeout and retry neighbors. Settlement retry intent is owned by a
+nested payment specification and depends on a scheduling boundary owned by job
+processing. The owner preserves an observation, an inference, and an unresolved
+policy question.
 
 ## User request
 

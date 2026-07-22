@@ -195,6 +195,15 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertEqual(SEARCH.FALLBACK_EXIT, result.returncode)
         self.assertEqual("fallback", payload["mode"])
 
+    def test_unavailable_cache_path_requests_fallback(self):
+        (self.spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+        self.cache.touch()
+
+        result, payload = self.run_search("architecture")
+
+        self.assertEqual(SEARCH.FALLBACK_EXIT, result.returncode)
+        self.assertEqual("fallback", payload["mode"])
+
 
 if __name__ == "__main__":
     unittest.main()

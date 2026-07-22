@@ -1,5 +1,6 @@
 import importlib.util
 import io
+import json
 import sys
 import tempfile
 import threading
@@ -221,6 +222,36 @@ class RunnerTests(unittest.TestCase):
         )
         self.assertTrue(excluded.passed, excluded.message)
         self.assertFalse(forbidden.passed)
+
+    def test_trace_condition_limits_reads_only_in_enabled_mode(self):
+        assertion = {
+            "type": "max_files_read",
+            "max": 12,
+            "when_trace": {"accelerator_mode": "enabled"},
+        }
+        enabled = RUNNER.evaluate_assertion(
+            assertion,
+            Path("."),
+            {},
+            {},
+            "",
+            {"accelerator_mode": "enabled", "files_read": [f"{index}.md" for index in range(13)]},
+        )
+        fallback = RUNNER.evaluate_assertion(
+            assertion,
+            Path("."),
+            {},
+            {},
+            "",
+            {"accelerator_mode": "fallback", "files_read": [f"{index}.md" for index in range(32)]},
+        )
+        missing_trace = RUNNER.evaluate_assertion(
+            assertion, Path("."), {}, {}, "", None
+        )
+
+        self.assertFalse(enabled.passed)
+        self.assertTrue(fallback.passed)
+        self.assertFalse(missing_trace.passed)
 
     def test_checks_structured_response_without_prose_contracts(self):
         response = (
@@ -663,6 +694,45 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(3, RUNNER.positive_int("3"))
         with self.assertRaises(RUNNER.argparse.ArgumentTypeError):
             RUNNER.positive_int("0")
+
+    def test_json_report_preserves_per_sample_agent_metrics(self):
+        case = next(
+            item for item in RUNNER.load_cases() if item["id"] == "extract-accelerated-handoff"
+        )
+        report = RUNNER.CaseReport(
+            case_id=case["id"],
+            passed=False,
+            output="",
+            duration_seconds=12.0,
+            token_usage={"input_tokens": 90, "total_tokens": 100},
+            sample_number=2,
+            agent_runs=(
+                {
+                    "accelerator_mode": "enabled",
+                    "duration_seconds": 10.0,
+                    "environment_invalid": False,
+                    "files_read": 5,
+                    "model": "model-1",
+                    "reasoning_effort": "medium",
+                    "token_usage": {"input_tokens": 90, "total_tokens": 100},
+                },
+            ),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "report.json"
+
+            RUNNER.write_json_report(
+                target, "enabled", "agent --accelerator-mode enabled", [report], [case], 3, 8
+            )
+
+            payload = json.loads(target.read_text(encoding="utf-8"))
+        self.assertEqual(1, payload["schema_version"])
+        self.assertEqual(8, payload["jobs"])
+        self.assertFalse(payload["samples"][0]["passed"])
+        self.assertEqual(10.0, payload["samples"][0]["agent_duration_seconds"])
+        self.assertEqual(100, payload["samples"][0]["token_usage"]["total_tokens"])
+        self.assertTrue(payload["samples"][0]["environment_valid"])
+        self.assertEqual(64, len(payload["cases"][case["id"]]["fingerprint"]))
 
     def test_agent_execution_requires_case_or_category(self):
         with patch.object(sys, "argv", ["run.py", "--agent-command", "fake-agent"]):

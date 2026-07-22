@@ -537,6 +537,7 @@ def build_codex_command(
     reasoning_effort: str,
     root: Path,
     runtime_root: Path,
+    accelerator_mode: str = "enabled",
 ) -> list[str]:
     runtime_root = runtime_root.resolve()
     private_home = runtime_root / "home"
@@ -567,6 +568,8 @@ def build_codex_command(
         "XDG_STATE_HOME": str(private_state),
         "ZDOTDIR": str(private_home),
     }
+    if accelerator_mode == "fallback":
+        environment["SPECSPINE_CACHE_DIR"] = str(runtime_root / "accelerator-unavailable")
     environment_config = "{" + ",".join(
         f"{key}={json.dumps(value)}" for key, value in environment.items()
     ) + "}"
@@ -611,6 +614,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="gpt-5.6-luna")
     parser.add_argument("--reasoning-effort", default="medium")
+    parser.add_argument(
+        "--accelerator-mode",
+        choices=("enabled", "fallback"),
+        default="enabled",
+        help="make the optional retrieval cache available or force its normal fallback",
+    )
     args = parser.parse_args()
 
     root = Path.cwd()
@@ -650,7 +659,15 @@ def main() -> int:
         for name, target in tool_targets.items():
             if target.is_file():
                 (runtime_root / "bin" / name).symlink_to(target)
-        command = build_codex_command(args.model, args.reasoning_effort, root, runtime_root)
+        if args.accelerator_mode == "fallback":
+            (runtime_root / "accelerator-unavailable").touch()
+        command = build_codex_command(
+            args.model,
+            args.reasoning_effort,
+            root,
+            runtime_root,
+            args.accelerator_mode,
+        )
         process_environment = os.environ.copy()
         process_environment["CODEX_HOME"] = str(codex_home)
         started = time.monotonic()
@@ -685,6 +702,7 @@ def main() -> int:
         json.dumps(
             {
                 "commands": commands,
+                "accelerator_mode": args.accelerator_mode,
                 "duration_seconds": duration_seconds,
                 "eval_case": os.environ.get("SPECSPINE_EVAL_CASE", ""),
                 "eval_run": os.environ.get("SPECSPINE_EVAL_RUN", ""),
