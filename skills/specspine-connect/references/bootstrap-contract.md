@@ -30,9 +30,18 @@ Keep the managed block small enough for every turn. It contains only:
 
 1. the resolved index path;
 2. the resolved SpecSpine documentation language;
-3. when to use `specspine-extract`;
-4. direct index-and-link fallback when extraction is unavailable;
-5. compact authority and conflict semantics.
+3. the retrieval-accelerator policy;
+4. when to use `specspine-extract`;
+5. direct index-and-link fallback when extraction is unavailable;
+6. compact authority and conflict semantics.
+
+The accelerator policy is `auto` or `disabled`. `auto` lets Extract attempt its
+optional accelerator once and then fall back. `disabled` makes Extract skip the
+attempt and navigate Markdown; it does not disable Extract itself. Default a
+missing policy to `auto`. Preserve a recognized existing policy on refresh
+unless the user explicitly changes it. Do not infer policy from Python, SQLite,
+cache, or transient runtime state. Treat an unrecognized existing value as an
+unresolved operator choice.
 
 Use exactly one managed region:
 
@@ -46,6 +55,10 @@ Do not include framework commands, directory maps, copied architecture,
 bindings, adapters, or downstream workflow instructions. Naming
 `specspine-extract` as the framework-neutral retrieval route is part of this
 contract, not workflow adaptation.
+
+The documentation language also guides Extract's retrieval query language.
+Exact paths, semantic IDs, API names, and other identifiers are never
+translated. Handoff language remains request-dependent.
 
 Preserve the language from an existing managed block. Otherwise resolve it from
 the current request, applicable project instructions, or the SpecSpine index;

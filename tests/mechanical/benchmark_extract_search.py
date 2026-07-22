@@ -25,7 +25,9 @@ AGENT_BOOTSTRAP_TEMPLATE = (
 def write_agent_bootstrap(project_root: Path) -> None:
     rendered = AGENT_BOOTSTRAP_TEMPLATE.read_text(encoding="utf-8").replace(
         "{{SPINE_ROOT}}", "specspine"
-    ).replace("{{DOCUMENTATION_LANGUAGE}}", "English")
+    ).replace("{{DOCUMENTATION_LANGUAGE}}", "English").replace(
+        "{{RETRIEVAL_ACCELERATOR}}", "auto"
+    )
     if "{{" in rendered or "}}" in rendered:
         raise ValueError("agent bootstrap has unresolved template placeholders")
     (project_root / "AGENTS.md").write_text(rendered, encoding="utf-8")

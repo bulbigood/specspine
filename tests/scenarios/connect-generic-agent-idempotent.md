@@ -10,7 +10,8 @@ managed bootstrap.
 
 ```text
 Connect this SpecSpine to my coding agent. Keep English as the language for all
-SpecSpine documentation. Apply the integration immediately.
+SpecSpine documentation and keep its retrieval accelerator disabled. Apply the
+integration immediately.
 ```
 
 ## Expected behavior
@@ -21,6 +22,7 @@ The skill should:
 - leave exactly one balanced managed block in `AGENTS.md`;
 - preserve the user-authored content and existing effective integration;
 - preserve the extract-first retrieval route and Markdown fallback;
+- preserve the `disabled` retrieval-accelerator policy;
 - create no additional artifact or project-local skill;
 - avoid changing SpecSpine documents, source code, or unrelated files;
 - make no file changes when the integration is already current.

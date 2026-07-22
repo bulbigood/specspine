@@ -1,15 +1,14 @@
 ---
 name: specspine-connect
-description: Connect an existing SpecSpine to persistent project-agent instructions. Use to install, refresh, repair, or remove the small managed discovery bootstrap. Does not create a SpecSpine or adapt downstream frameworks.
+description: Connect an existing SpecSpine to persistent project-agent instructions. Use to install, refresh, repair, configure retrieval acceleration, or remove the small managed discovery bootstrap. Does not create a SpecSpine or adapt downstream frameworks.
 ---
 
 # SpecSpine Connect
 
 Install one small, framework-neutral retrieval block in the project's persistent
-agent instructions. The block routes architecture-relevant downstream work
-through `specspine-extract` when installed and preserves linked Markdown
-navigation as fallback, without copying architecture or prescribing a
-downstream workflow.
+agent instructions. It records the index, documentation language, and retrieval
+accelerator policy; routes architecture-relevant work through
+`specspine-extract`; and preserves linked Markdown navigation as fallback.
 
 ## Resources
 
@@ -39,13 +38,18 @@ adapt SDD frameworks, tools, commands, templates, paths, or conventions.
 3. Resolve the SpecSpine documentation language from an existing managed block,
    the request, applicable project instructions, or the index. Ask only when
    those sources remain ambiguous.
-4. On install, refresh, or repair, add or replace exactly one balanced
-   `specspine:begin` / `specspine:end` block. Preserve all content outside it.
-   An explicit request authorizes the edit when the target path is unambiguous.
-5. Verify the index path, documentation language, balanced unique markers, lack
-   of unresolved `{{...}}` placeholders, preservation of surrounding content,
-   and idempotency.
-6. Report the changed file and resolved index and language. Mention unresolved
+4. Resolve retrieval acceleration from an explicit request, then a recognized
+   existing `auto` or `disabled` policy, otherwise `auto`. Preserve existing
+   policy on refresh. Ask before repairing an unrecognized value. Never infer
+   policy from the current runtime environment.
+5. On install, refresh, repair, or configuration, add or replace exactly one
+   balanced `specspine:begin` / `specspine:end` block. Preserve all content
+   outside it. An explicit request authorizes the edit when the target path is
+   unambiguous.
+6. Verify the index path, documentation language, accelerator policy, balanced
+   unique markers, lack of unresolved `{{...}}` placeholders, preservation of
+   surrounding content, and idempotency.
+7. Report the changed file and resolved configuration. Mention unresolved
    choices only when they prevent a safe edit.
 
 ## Refresh and removal

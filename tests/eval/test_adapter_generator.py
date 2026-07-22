@@ -122,6 +122,7 @@ class AdapterGeneratorTests(unittest.TestCase):
         source = PROJECT_ROOT / "skills" / "specspine-connect"
         bootstrap = (source / "assets/templates/agent-bootstrap.md").read_text(encoding="utf-8")
         self.assertIn("{{DOCUMENTATION_LANGUAGE}}", bootstrap)
+        self.assertIn("{{RETRIEVAL_ACCELERATOR}}", bootstrap)
 
     def test_generator_has_no_runtime_skill_or_skill_copies(self):
         self.assertFalse((GENERATOR_ROOT / "SKILL.md").exists())

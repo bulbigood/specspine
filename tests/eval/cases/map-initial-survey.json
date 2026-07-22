@@ -5,7 +5,7 @@
   "status": "planned",
   "category": "planned",
   "initial_files": {
-    "AGENTS.md": "# Project instructions\n\n<!-- specspine:begin -->\n## Architecture\n\nBefore planning, specifying, implementing, or reviewing a change, read `specspine/README.md` and follow only relevant links. Write all SpecSpine documentation in English.\n<!-- specspine:end -->\n",
+    "AGENTS.md": "# Project instructions\n\n<!-- specspine:begin -->\n## Architecture\n\n- SpecSpine index: `specspine/README.md`\n- Documentation language: `English`\n- Retrieval accelerator: `auto`\n\nFor architecture-relevant planning, specification, implementation, or review,\nuse installed `specspine-extract` for a minimal handoff. If it is unavailable,\nread the SpecSpine index and follow relevant links. `Decisions` and `Constraints`\nare accepted intent; preserve conflicts with `Observed`, `Inferred`, and `Open\nquestions`.\n<!-- specspine:end -->\n",
     "README.md": "# Documents platform\n\nWeb, API, and worker process documents.\n",
     "package.json": "{\"workspaces\":[\"apps/*\",\"packages/*\"]}\n",
     "apps/web/main.js": "export function startWeb() {}\n",

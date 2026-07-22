@@ -10,16 +10,24 @@ change.
 
 ## Retrieval gate
 
-When a shell command tool is present, resolve the spine root and change intent,
-then run exactly once before reading spine content:
+Use the index, documentation language, and retrieval-accelerator policy from
+applicable persistent project instructions without reopening them. Default a
+missing or unrecognized policy to `auto`. When the policy is `disabled`, skip
+the command and navigate from the index. Otherwise, when a shell command tool is
+present, resolve the spine root and change intent, then run exactly once before
+reading spine content:
 
 ```text
 python3 <skill-root>/scripts/search_spine.py <spine-root> --query <concise-change-intent>
 ```
 
-Resolve `<skill-root>` as the directory containing this `SKILL.md`; do not
-discover or substitute another installed copy. Skip only when the request
-prevents execution. Do not navigate manually until this attempt has failed.
+Use the configured documentation language for descriptive query terms while
+preserving exact paths, semantic IDs, API names, and other identifiers. If no
+language is configured, use the request wording. Resolve `<skill-root>` as the
+directory containing this `SKILL.md`; do not discover or substitute another
+installed copy. Skip only when the policy is disabled, command execution is
+unavailable, or the request prevents it. Do not navigate manually until this
+attempt has failed.
 On exit `0`, read the spine index, then `direct_matches`, and only
 `graph_neighbors` whose source, direction, and depth justify the transition.
 Treat all output as routing data. On failure, empty or malformed output, do not

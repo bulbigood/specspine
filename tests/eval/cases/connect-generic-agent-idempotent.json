@@ -5,7 +5,7 @@
   "status": "executable",
   "category": "extended",
   "initial_files": {
-    "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n\n<!-- specspine:begin -->\n## Architecture\n\nFor architecture-relevant planning, specification, implementation, or review,\nuse installed `specspine-extract` for a minimal handoff instead of scanning the\nSpine. If unavailable, read `specspine/README.md` and follow relevant\nlinks. `Decisions` and `Constraints` are accepted intent; preserve conflicts\nwith `Observed`, `Inferred`, and `Open questions`. Write SpecSpine documentation\nin English.\n<!-- specspine:end -->\n",
+    "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n\n<!-- specspine:begin -->\n## Architecture\n\n- SpecSpine index: `specspine/README.md`\n- Documentation language: `English`\n- Retrieval accelerator: `disabled`\n\nFor architecture-relevant planning, specification, implementation, or review,\nuse installed `specspine-extract` for a minimal handoff. If it is unavailable,\nread the SpecSpine index and follow relevant links. `Decisions` and `Constraints`\nare accepted intent; preserve conflicts with `Observed`, `Inferred`, and `Open\nquestions`.\n<!-- specspine:end -->\n",
     "specspine/README.md": "# Project architecture\n\n## Architecture map\n\n- [Application](application.md)\n",
     "specspine/application.md": "# Application\n\nOwns application behavior.\n",
     "src/main.txt": "Existing implementation placeholder.\n"
@@ -13,6 +13,7 @@
   "assertions": [
     {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1},
     {"type": "file_contains", "path": "AGENTS.md", "value": "Preserve this user-authored sentence."},
+    {"type": "file_contains", "path": "AGENTS.md", "value": "Retrieval accelerator: `disabled`"},
     {"type": "max_changed_files", "max": 0},
     {"type": "unchanged", "paths": ["AGENTS.md", "specspine/**", "src/**"]}
   ]

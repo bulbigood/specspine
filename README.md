@@ -146,8 +146,9 @@ This does not create a SpecSpine. It connects an existing SpecSpine to the
 project's persistent agent instructions with one short, framework-neutral
 retrieval block. Architecture-relevant downstream work is routed through
 `specspine-extract` when installed, with direct Markdown navigation as fallback.
-Connect does not inspect or adapt SDD workflows and never generates bindings or
-other skills.
+The block records the resolved index, documentation language, and operator-owned
+`auto` or `disabled` retrieval-accelerator policy. Connect does not inspect or
+adapt SDD workflows and never generates bindings or other skills.
 
 ### `specspine-grow`
 
@@ -312,8 +313,9 @@ Expose this project's SpecSpine to agents through persistent project instruction
 project-agent instructions. The bootstrap prefers `specspine-extract` for
 architecture-relevant downstream retrieval and retains direct index-and-link
 navigation as fallback. Connect creates no additional artifact, discovers no
-SDD framework, and persists the SpecSpine documentation language using existing
-project context when unambiguous.
+SDD framework, and persists the resolved index, SpecSpine documentation
+language, and operator-selected accelerator policy. New integrations default to
+`auto`; `disabled` skips acceleration without disabling Extract.
 
 ### Start a project
 

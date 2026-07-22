@@ -22,6 +22,7 @@ The skill should:
 - add one balanced managed bootstrap to `AGENTS.md` without changing other
   content;
 - persist English as the SpecSpine documentation language in that bootstrap;
+- default the retrieval accelerator policy to `auto`;
 - create no additional artifact or project-local skill;
 - point the bootstrap to `specspine/README.md`;
 - prefer `specspine-extract` for architecture-relevant downstream retrieval and
@@ -37,5 +38,6 @@ The skill should:
 - a project-local skill or additional integration artifact is generated;
 - detailed workflow prose is placed in the always-loaded bootstrap;
 - a template placeholder remains;
+- the accelerator policy is missing or not `auto`;
 - implementation files are inspected or modified;
 - global configuration is modified.
