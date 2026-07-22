@@ -26,19 +26,21 @@ Selecting `--skill specspine-grow` synchronizes both consumers. Selecting a
 consumer synchronizes only that consumer. Run the full generator before a
 release.
 
-## Project adaptation boundary
+## Framework-adapter boundary
 
-Resource generation resolves framework-maintainer duplication. It cannot know
-a consumer project's agent instructions, SpecSpine root, SDD workflow, paths,
-or naming rules.
+Canonical runtime skills know only SpecSpine artifacts, the neutral context
+handoff, and the persistent agent bootstrap. They must not contain
+framework-specific commands, stages, artifact paths, naming rules, templates,
+or compatibility branches.
 
-`specspine-connect` may generate only:
+Framework-specific integration skills are generated and maintained only by
+this tool. An adapter may translate the neutral handoff into a framework's
+native workflow, but must not redefine SpecSpine semantics or turn downstream
+artifacts into architectural authority.
 
-- one small persistent discovery block;
-- one compact project binding when a downstream SDD workflow exists.
-
-It must not generate another project-local skill. Generic integrations need
-only the discovery block.
+`specspine-connect` owns only the framework-neutral managed block in persistent
+project-agent instructions. It does not discover SDD frameworks or generate
+bindings and adapters.
 
 ## Safety properties
 
@@ -63,7 +65,7 @@ Before publishing:
 
 Generation and testing do not authorize external publishing.
 
-The generator enforces maximum word counts for the always-loaded bootstrap,
-conditional project binding, and latency-sensitive `connect` and `doctor` skill
-bodies. Change a budget only with an explicit architectural reason and a before
-and after runtime-cost comparison.
+The generator enforces maximum word counts for the always-loaded bootstrap and
+latency-sensitive `connect` and `doctor` skill bodies. Change a budget only with
+an explicit architectural reason and a before and after runtime-cost
+comparison.

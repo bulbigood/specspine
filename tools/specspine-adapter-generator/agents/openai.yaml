@@ -1,4 +1,4 @@
 interface:
-  display_name: "SpecSpine Resource Generator"
-  short_description: "Synchronize shared SpecSpine resources"
-  default_prompt: "Use $specspine-adapter-generator to synchronize shared references between the canonical publishable SpecSpine skills and validate the result."
+  display_name: "SpecSpine Adapter Generator"
+  short_description: "Maintain shared resources and SDD adapters"
+  default_prompt: "Use $specspine-adapter-generator to synchronize shared SpecSpine resources or maintain framework-specific adapter skills without changing the canonical runtime skills."

@@ -111,10 +111,10 @@ class AdapterGeneratorTests(unittest.TestCase):
                 generated = repo_root / "skills" / consumer / "references/spec-format.md"
                 self.assertEqual(expected, generated.read_bytes())
 
-    def test_connect_generates_no_project_local_skill_template(self):
+    def test_connect_has_only_framework_neutral_bootstrap_template(self):
         templates = PROJECT_ROOT / "skills" / "specspine-connect" / "assets" / "templates"
         self.assertEqual(
-            {"agent-bootstrap.md", "project-binding.md"},
+            {"agent-bootstrap.md"},
             {path.name for path in templates.iterdir() if path.is_file()},
         )
 

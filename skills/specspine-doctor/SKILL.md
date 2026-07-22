@@ -24,8 +24,8 @@ prove validity, completeness, or code conformance.
 ## Scope
 
 Default to read-only review of the SpecSpine graph. Repair only when the user
-asks. Resolve `<spine-root>` from the request, project instructions, existing
-integration, or the default `specspine`; require its `README.md`.
+asks. Resolve `<spine-root>` from the request, project instructions, an existing
+managed bootstrap, or the default `specspine`; require its `README.md`.
 
 Inspect no project-specific files outside `<spine-root>`. Repository drift and
 code/spec comparison belong to `specspine-map`.

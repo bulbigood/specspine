@@ -30,7 +30,6 @@ SHARED_REFERENCES = (
 WORD_BUDGETS = {
     ("specspine-connect", "SKILL.md"): 850,
     ("specspine-connect", "assets/templates/agent-bootstrap.md"): 60,
-    ("specspine-connect", "assets/templates/project-binding.md"): 110,
     ("specspine-doctor", "SKILL.md"): 700,
 }
 

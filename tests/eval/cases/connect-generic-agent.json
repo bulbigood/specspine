@@ -15,7 +15,6 @@
     {"type": "file_contains", "path": "AGENTS.md", "value": "Preserve this user-authored sentence."},
     {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1},
     {"type": "file_contains", "path": "AGENTS.md", "value": "Write all SpecSpine documentation in English."},
-    {"type": "path_absent", "path": ".specspine-integration.md"},
     {"type": "file_not_contains", "path": "AGENTS.md", "value": "{{"},
     {"type": "unchanged", "paths": ["specspine/**", "src/**"]},
     {"type": "changed_only", "paths": ["AGENTS.md"]}

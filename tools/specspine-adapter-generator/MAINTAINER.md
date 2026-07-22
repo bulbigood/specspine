@@ -5,8 +5,9 @@ Repository-maintainer instructions. This file deliberately is not named
 runtime skill.
 
 Treat the publishable packages under `<repo-root>/skills/specspine-*` as the
-source of truth. Generate only shared copies required by independently
-published skills; never store skill copies under `tools/`.
+framework-neutral source of truth. This tool owns both shared-resource
+synchronization and any framework-specific adapter generation. Never put SDD
+framework knowledge into canonical runtime skills.
 
 ## Resources
 
@@ -38,8 +39,11 @@ published skills; never store skill copies under `tools/`.
 - Put reusable executable logic in skill `scripts/` directories.
 - Keep `SKILL.md` files concise and route conditional detail to references.
 - Prefer build-time shared copies over runtime skill dependencies.
-- Do not generate project-specific architecture or SDD bindings here;
-  `specspine-connect` owns that one-time project adaptation.
+- Keep framework-specific commands, artifact layouts, lifecycle stages,
+  templates, and compatibility rules in adapters generated from this tool.
+- Build adapters against the neutral context handoff and agent-bootstrap
+  contracts; do not patch canonical skills for a framework.
+- Do not generate project-specific architecture or configuration bindings.
 
 ## Restrictions
 
@@ -49,4 +53,6 @@ Never:
 - publish when generation check, validation, or tests fail;
 - publish without explicit authorization;
 - make runtime skills depend on this generator;
+- make canonical runtime skills depend on a particular agent environment or SDD
+  framework;
 - use an LLM rewrite where deterministic byte copying is sufficient.

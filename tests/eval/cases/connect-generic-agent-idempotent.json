@@ -13,7 +13,6 @@
   "assertions": [
     {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1},
     {"type": "file_contains", "path": "AGENTS.md", "value": "Preserve this user-authored sentence."},
-    {"type": "path_absent", "path": ".specspine-integration.md"},
     {"type": "max_changed_files", "max": 0},
     {"type": "unchanged", "paths": ["AGENTS.md", "specspine/**", "src/**"]}
   ]

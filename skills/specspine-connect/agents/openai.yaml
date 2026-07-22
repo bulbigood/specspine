@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Connect"
-  short_description: "Connect architectural context to project workflows"
-  default_prompt: "Use $specspine-connect to connect this project's SpecSpine to the current agent and SDD workflow."
+  short_description: "Expose architectural context to project agents"
+  default_prompt: "Use $specspine-connect to add the SpecSpine discovery bootstrap to this project's persistent agent instructions."

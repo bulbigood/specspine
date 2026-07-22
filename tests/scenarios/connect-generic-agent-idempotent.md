@@ -4,7 +4,7 @@
 
 `specspine/README.md` exists and links to an architectural specification. The
 root `AGENTS.md` contains user-authored instructions and one complete SpecSpine
-managed bootstrap. No SDD framework is present.
+managed bootstrap.
 
 ## User request
 
@@ -20,7 +20,7 @@ The skill should:
 - recognize the existing managed bootstrap;
 - leave exactly one balanced managed block in `AGENTS.md`;
 - preserve the user-authored content and existing effective integration;
-- create no binding or project-local skill;
+- create no additional artifact or project-local skill;
 - avoid changing SpecSpine documents, source code, or unrelated files;
 - make no file changes when the integration is already current.
 
@@ -28,5 +28,5 @@ The skill should:
 
 - a second managed block is appended;
 - the existing bootstrap or user content is damaged;
-- a binding or project-local skill is generated;
+- an additional integration artifact or project-local skill is generated;
 - any project file is changed despite the integration already being current.

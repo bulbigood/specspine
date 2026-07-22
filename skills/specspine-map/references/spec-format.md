@@ -11,9 +11,8 @@ sections and do not create empty ones merely to satisfy the format.
 
 Keep each durable architectural concept in its own document. Do not embed
 feature specifications, acceptance criteria, plans, tasks, implementation
-status, or framework-specific workflow state. A downstream SDD framework may
-consume, link, copy, or adapt these ordinary Markdown documents without owning
-their format.
+status, or downstream workflow state. Downstream workflows may consume or link
+these ordinary Markdown documents without owning their format.
 
 ## Contents
 
@@ -33,8 +32,7 @@ their format.
 
 Resolve `<spine-root>` once before reading or writing specifications:
 
-1. Use the root explicitly supplied by the user, project instructions, or an
-   installer integration.
+1. Use the root explicitly supplied by the user or project instructions.
 2. Otherwise use an existing configured SpecSpine root.
 3. Otherwise default to `specspine`.
 

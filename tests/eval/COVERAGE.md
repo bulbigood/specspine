@@ -10,10 +10,10 @@ classified.
 |---|---:|---:|
 | `specspine-grow` | 9 | 7 |
 | `specspine-map` | 7 | 3 |
-| `specspine-connect` | 4 | 3 |
+| `specspine-connect` | 2 | 2 |
 | `specspine-doctor` | 3 | 2 |
 | package generator tooling | 1 | 0 |
-| Total | 24 | 15 |
+| Total | 22 | 14 |
 
 `traceable-visual-spec` is assigned to `specspine-map` because its expected
 result includes repository-backed observations.
@@ -23,15 +23,15 @@ The executable set is divided by resource cost and necessity:
 | Category | Manifests | Agent calls | Purpose |
 |---|---:|---:|---|
 | `core` | 6 | 6 | Minimum behavioral regression set |
-| `extended` | 9 | 13 | Lifecycle, terminal-depth refusal, idempotency, specialized integration, merge, removal, bounded growth, and visualization behavior |
-| `planned` | 9 | 0 | Documentation and future redesign only |
+| `extended` | 8 | 12 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, and visualization behavior |
+| `planned` | 8 | 0 | Documentation and future redesign only |
 
 Core and extended cases currently cover:
 
 - greenfield initialization and source-file protection;
 - creation of a brownfield map from runtime evidence;
 - generic project-agent bootstrap boundaries;
-- idempotent reconnect and specialized downstream SDD integration;
+- idempotent reconnect of the project-agent bootstrap;
 - semantic-ID references, evidence, and a Mermaid lifecycle view.
 - semantic Doctor diagnosis and bounded mechanical repair without runtime companions;
 - recursive Doctor link and marker-bounded semantic-ID validation across
@@ -47,15 +47,9 @@ Core and extended cases currently cover:
 Deterministic runtime-skill generation and drift detection remain covered by
 unit tests and do not consume an agent invocation.
 
-Planned cases include unsupported native-SDD execution, deterministic tooling
-already covered by unit tests, redundant focused cases superseded by lifecycle
-coverage, and cases whose assertions over-constrained architectural choices.
-
-## Planned fixture gap
-
-- standalone use of a generated binding.
-
-This needs a native downstream SDD fixture and executor.
+Planned cases include deterministic tooling already covered by unit tests,
+redundant focused cases superseded by lifecycle coverage, and cases whose
+assertions over-constrained architectural choices.
 
 ## Behavioral backlog
 
@@ -71,14 +65,10 @@ Potential gaps:
 - broken links, unreachable specifications, duplicate IDs, and duplicate
   canonical ownership introduced by an agent.
 
-Integration edge cases:
+Bootstrap edge cases:
 
-- ambiguous agent instruction or SDD framework selection;
-- refresh after framework conventions change;
-- generated binding with user edits or a missing ownership marker;
-- explicit integration removal without deleting user-owned files;
-- external project evidence supplied through MCP with and without
-  authorization.
+- ambiguous persistent agent-instruction selection;
+- explicit bootstrap removal without deleting user-owned files;
 
 Scale and robustness:
 

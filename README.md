@@ -136,10 +136,9 @@ Software architecture is rarely a strict tree. A concept such as authentication 
 ### `specspine-connect`
 
 This does not create a SpecSpine. It connects an existing SpecSpine to the
-project's persistent agent
-instructions and optional SDD workflow. It adds a short discovery block and,
-only for SDD projects, a compact lazily read binding. It never generates another
-skill or maintains framework-version adapters.
+project's persistent agent instructions with one short, framework-neutral
+discovery block. It does not inspect or adapt SDD workflows and never generates
+bindings or other skills.
 
 ### `specspine-grow`
 
@@ -189,13 +188,15 @@ For handoff diagnosis or repair, Doctor may directly invoke
 `specspine-extract`; other SpecSpine skills keep their own scope and do not
 orchestrate extraction.
 
-### Package generator
+### Adapter generator
 
 The five publishable packages under `skills/` are the source of truth.
 Repository-only tooling under `tools/specspine-adapter-generator/` synchronizes
-references shared by independently installable packages. It contains no skill
-copies, never generates canonical skills from files under `tools/`, and is
-intentionally not discoverable or installable through `npx skills`.
+references shared by independently installable packages and is the only place
+for generating framework-specific SDD adapters. Runtime skills remain
+framework-neutral. The tool contains no canonical skill copies, never generates
+canonical skills from files under `tools/`, and is intentionally not
+discoverable or installable through `npx skills`.
 
 ## Installation
 
@@ -272,17 +273,16 @@ tools/specspine-adapter-generator/scripts/generate_resources.py --check
 The skills work through natural-language requests. Users do not need to learn a
 command workflow.
 
-### Connect SpecSpine to the project agent
+### Connect SpecSpine to project agents
 
 ```text
-Adapt this project's SpecSpine to the current agent and SDD workflow.
+Expose this project's SpecSpine to agents through persistent project instructions.
 ```
 
-`specspine-connect` proposes a managed bootstrap and, when an SDD framework is
-present, a compact project binding. Generic coding-agent integration creates no
-additional artifact or project-local skill. The connector persists the
-SpecSpine documentation language in the managed project instructions, using
-existing project context when unambiguous and asking only when needed.
+`specspine-connect` installs one managed bootstrap in the applicable persistent
+project-agent instructions. It creates no additional artifact, discovers no SDD
+framework, and persists the SpecSpine documentation language using existing
+project context when unambiguous.
 
 ### Start a project
 
@@ -612,11 +612,10 @@ specspine/
 │   ├── specspine-connect/
 │   │   ├── SKILL.md
 │   │   ├── references/
-│   │   │   └── integration-contract.md
+│   │   │   └── bootstrap-contract.md
 │   │   └── assets/
 │   │       └── templates/
-│   │           ├── agent-bootstrap.md
-│   │           └── project-binding.md
+│   │           └── agent-bootstrap.md
 │   ├── specspine-extract/
 │   │   ├── SKILL.md
 │   │   └── references/
@@ -665,8 +664,9 @@ specspine/
 
 The five runtime skills are canonical, self-contained, and independently
 installable. `specspine-adapter-generator` is maintainer-only tooling: it keeps
-shared rules synchronized between standalone packages without retaining another
-copy of the skills or adding runtime dependencies.
+shared rules synchronized and owns framework-specific adapter generation
+without adding environment knowledge or runtime dependencies to canonical
+skills.
 
 ## What SpecSpine is not
 
@@ -705,10 +705,10 @@ Source code
 
 SpecSpine is conceptually compatible with OpenSpec, spec-kit, and direct
 coding-agent workflows through the neutral handoff produced by
-`specspine-extract`. `specspine-connect`
-can capture inspected project conventions in a compact binding read only during
-downstream SDD work. SpecSpine does not ship maintained framework-version
-adapters, convert canonical specifications, or guarantee compatibility.
+`specspine-extract`. Framework-specific integration belongs to adapters produced
+outside the runtime skill line by `tools/specspine-adapter-generator/`.
+Canonical skills do not inspect framework conventions, convert specifications,
+or guarantee compatibility.
 
 It can also be used independently as architectural memory and navigation when a
 full SDD workflow would add unnecessary ceremony.
@@ -730,7 +730,7 @@ The most important success criterion is:
 ## Roadmap
 
 * [x] Define the SpecSpine principles
-* [x] Create `specspine-connect` for project-local agent and SDD adaptation
+* [x] Create `specspine-connect` for the project-agent bootstrap
 * [x] Create `specspine-extract` for context handoffs
 * [x] Create `specspine-grow`
 * [ ] Add example greenfield projects
