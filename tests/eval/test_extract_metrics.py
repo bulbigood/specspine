@@ -21,7 +21,13 @@ def report(mode, samples, fingerprint="fixture-1"):
         "jobs": 8,
         "samples": samples,
         "samples_requested": len(samples),
-        "schema_version": 1,
+        "schema_version": 2,
+        "fingerprints": {
+            "agent_command_files": {"adapter.py": "adapter-1"},
+            "runner": "runner-1",
+        },
+        "runtime": {"python": "3.12", "platform": "test"},
+        "run": {"run_id": f"run-{mode}", "cache_profile": ["isolated-cold"]},
     }
 
 
@@ -38,6 +44,17 @@ def sample(number, mode, duration, tokens, passed, environment_valid=True):
                 "files_read": number + 2,
                 "model": "model-1",
                 "reasoning_effort": "medium",
+                "cache_profile": "isolated-cold",
+                "runtime": {"codex_cli": "codex-test"},
+                "retrieval_attempts": [
+                    {
+                        "attempt_number": 1,
+                        "mode": retrieval_mode,
+                        "exit_code": 2 if retrieval_mode == "fallback" else 0,
+                        "failure_kind": None,
+                        "candidates": [],
+                    }
+                ],
                 "token_usage": {"total_tokens": tokens},
             }
         ],
@@ -55,7 +72,7 @@ def sample(number, mode, duration, tokens, passed, environment_valid=True):
 
 
 class ExtractMetricsTests(unittest.TestCase):
-    def test_failed_behavioral_samples_remain_in_pairs(self):
+    def test_independent_metrics_include_failed_behavioral_samples(self):
         fallback = report(
             "fallback",
             [
@@ -73,8 +90,13 @@ class ExtractMetricsTests(unittest.TestCase):
 
         left, right = METRICS.validate_comparable(fallback, accelerated)
 
-        self.assertEqual(([10.0, 30.0], [5.0, 15.0]), METRICS.paired_metric(left, right, "agent_duration_seconds"))
-        self.assertEqual(([100.0, 300.0], [50.0, 150.0]), METRICS.paired_metric(left, right, "total_tokens"))
+        self.assertEqual(
+            [10.0, 30.0],
+            METRICS.metric_values(left.values(), "agent_duration_seconds"),
+        )
+        self.assertEqual(
+            [50.0, 150.0], METRICS.metric_values(right.values(), "total_tokens")
+        )
 
     def test_environment_invalid_pair_is_excluded(self):
         fallback = report(
@@ -88,7 +110,16 @@ class ExtractMetricsTests(unittest.TestCase):
 
         left, right = METRICS.validate_comparable(fallback, accelerated)
 
-        self.assertEqual(([], []), METRICS.paired_metric(left, right, "total_tokens"))
+        valid_left = METRICS.cohort(
+            left, lambda item: bool(item.get("environment_valid"))
+        )
+        valid_right = METRICS.cohort(
+            right, lambda item: bool(item.get("environment_valid"))
+        )
+        self.assertEqual([], METRICS.metric_values(valid_left, "total_tokens"))
+        self.assertEqual(
+            [50.0], METRICS.metric_values(valid_right, "total_tokens")
+        )
 
     def test_total_tokens_are_derived_when_counter_is_absent(self):
         value = METRICS.metric_value(
@@ -109,6 +140,23 @@ class ExtractMetricsTests(unittest.TestCase):
 
         with self.assertRaises(METRICS.ComparisonError):
             METRICS.validate_comparable(fallback, accelerated)
+
+    def test_rejects_different_adapter_fingerprints(self):
+        fallback = report("fallback", [sample(1, "fallback", 10, 100, True)])
+        accelerated = report("enabled", [sample(1, "enabled", 5, 50, True)])
+        accelerated["fingerprints"]["agent_command_files"]["adapter.py"] = "adapter-2"
+
+        with self.assertRaises(METRICS.ComparisonError):
+            METRICS.validate_comparable(fallback, accelerated)
+
+    def test_observed_concurrency_uses_sample_intervals(self):
+        samples = [
+            {"started_at": "2026-07-22T10:00:00+00:00", "finished_at": "2026-07-22T10:00:03+00:00"},
+            {"started_at": "2026-07-22T10:00:01+00:00", "finished_at": "2026-07-22T10:00:02+00:00"},
+            {"started_at": "2026-07-22T10:00:03+00:00", "finished_at": "2026-07-22T10:00:04+00:00"},
+        ]
+
+        self.assertEqual(2, METRICS.observed_concurrency(samples))
 
     def test_markdown_writer_creates_requested_artifact(self):
         with tempfile.TemporaryDirectory() as directory:

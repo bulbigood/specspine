@@ -150,6 +150,28 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertEqual("rare intent", attempts[0]["query"])
         self.assertEqual(["specspine/owner.md"], attempts[0]["candidate_paths"])
         self.assertEqual(1, attempts[0]["candidate_count"])
+        self.assertEqual(1, attempts[0]["attempt_number"])
+        self.assertIsNone(attempts[0]["failure_kind"])
+
+    def test_classifies_malformed_retrieval_output(self):
+        stdout = json.dumps(
+            {
+                "type": "item.completed",
+                "item": {
+                    "id": "retrieval-1",
+                    "type": "command_execution",
+                    "command": "python3 search_spine.py specspine --query intent",
+                    "exit_code": 2,
+                    "aggregated_output": "not-json\n",
+                },
+            }
+        )
+
+        attempt = ADAPTER.parse_retrieval_attempts(stdout)[0]
+
+        self.assertEqual("unknown", attempt["mode"])
+        self.assertEqual("malformed_output", attempt["failure_kind"])
+        self.assertEqual("not-json", attempt["output_excerpt"])
 
     def test_parses_latest_cumulative_token_usage(self):
         stdout = "\n".join(
@@ -470,6 +492,8 @@ PATCH"""
 
             def complete(command, **kwargs):
                 nonlocal observed_runtime
+                if command == ["codex", "--version"]:
+                    return ADAPTER.subprocess.CompletedProcess(command, 0, "codex-test\n", "")
                 environment_argument = next(
                     item for item in command if item.startswith("shell_environment_policy.set=")
                 )

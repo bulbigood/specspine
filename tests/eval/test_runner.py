@@ -735,6 +735,11 @@ class RunnerTests(unittest.TestCase):
                 },
             ),
             failed_checks=({"type": "sentinel-check", "message": "sentinel"},),
+            started_at="2026-07-22T10:00:00+00:00",
+            finished_at="2026-07-22T10:00:10+00:00",
+            queue_seconds=0.25,
+            response="response-sentinel",
+            stderr="stderr-sentinel",
         )
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "report.json"
@@ -744,7 +749,7 @@ class RunnerTests(unittest.TestCase):
             )
 
             payload = json.loads(target.read_text(encoding="utf-8"))
-        self.assertEqual(1, payload["schema_version"])
+        self.assertEqual(2, payload["schema_version"])
         self.assertEqual(8, payload["jobs"])
         self.assertFalse(payload["samples"][0]["passed"])
         self.assertEqual(10.0, payload["samples"][0]["agent_duration_seconds"])
@@ -752,6 +757,12 @@ class RunnerTests(unittest.TestCase):
         self.assertTrue(payload["samples"][0]["environment_valid"])
         self.assertEqual("sentinel-check", payload["samples"][0]["failed_checks"][0]["type"])
         self.assertEqual(64, len(payload["cases"][case["id"]]["fingerprint"]))
+        self.assertEqual(64, len(payload["fingerprints"]["runner"]))
+        self.assertIn("run_id", payload["run"])
+        self.assertEqual(0.25, payload["samples"][0]["queue_seconds"])
+        self.assertEqual(
+            "response-sentinel", payload["samples"][0]["diagnostics"]["response"]
+        )
 
     def test_agent_execution_requires_case_or_category(self):
         with patch.object(sys, "argv", ["run.py", "--agent-command", "fake-agent"]):

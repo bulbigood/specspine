@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import datetime
+import hashlib
 import json
 import os
+import platform
 import re
 import shlex
 import shutil
@@ -237,31 +240,80 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
         command = str(item.get("command", ""))
         if item.get("type") != "command_execution" or "search_spine.py" not in command:
             continue
+        raw_output = str(item.get("aggregated_output", ""))
         payload = None
-        for output_line in str(item.get("aggregated_output", "")).splitlines():
+        parsed_json = False
+        for output_line in raw_output.splitlines():
             try:
                 candidate = json.loads(output_line.strip())
             except json.JSONDecodeError:
                 continue
+            parsed_json = True
             if isinstance(candidate, dict) and candidate.get("mode") in {
                 "sqlite-fts5", "fallback", "error"
             }:
                 payload = candidate
         documents = payload.get("candidates", []) if isinstance(payload, dict) else []
+        if payload is not None:
+            failure_kind = None
+        elif not raw_output.strip():
+            failure_kind = "missing_output"
+        elif parsed_json:
+            failure_kind = "invalid_payload"
+        else:
+            failure_kind = "malformed_output"
+        candidates = []
+        for candidate in documents if isinstance(documents, list) else []:
+            if not isinstance(candidate, dict) or not isinstance(candidate.get("path"), str):
+                continue
+            candidates.append(
+                {
+                    key: candidate[key]
+                    for key in ("path", "score", "origins", "reasons", "headings", "title")
+                    if key in candidate
+                }
+            )
         attempts.append(
             {
+                "attempt_number": len(attempts) + 1,
+                "event_id": str(item_id) if item_id is not None else None,
                 "mode": payload.get("mode", "unknown") if isinstance(payload, dict) else "unknown",
                 "query": command_option(command, "--query"),
-                "candidate_count": len(documents) if isinstance(documents, list) else 0,
-                "candidate_paths": [
-                    candidate["path"]
-                    for candidate in documents
-                    if isinstance(candidate, dict) and isinstance(candidate.get("path"), str)
-                ],
+                "candidate_count": len(candidates),
+                "candidate_paths": [candidate["path"] for candidate in candidates],
+                "candidates": candidates,
                 "exit_code": item.get("exit_code"),
+                "failure_kind": failure_kind,
+                "reason_code": payload.get("reason_code") if isinstance(payload, dict) else None,
+                "reason": payload.get("reason") if isinstance(payload, dict) else None,
+                "documents": payload.get("documents") if isinstance(payload, dict) else None,
+                "refreshed": payload.get("refreshed") if isinstance(payload, dict) else None,
+                "index_state": payload.get("index_state") if isinstance(payload, dict) else None,
+                "timings": payload.get("timings", {}) if isinstance(payload, dict) else {},
+                "runtime": payload.get("runtime", {}) if isinstance(payload, dict) else {},
+                "output_excerpt": raw_output.strip()[:1000] if payload is None else None,
             }
         )
     return attempts
+
+
+def utc_now() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+
+def file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def command_version(command: str) -> str | None:
+    try:
+        completed = subprocess.run(
+            [command, "--version"], capture_output=True, text=True, check=False, timeout=10
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    value = (completed.stdout or completed.stderr).strip()
+    return value[:300] if completed.returncode == 0 and value else None
 
 
 def parse_token_usage(stdout: str) -> dict[str, int]:
@@ -730,6 +782,8 @@ def main() -> int:
         )
         process_environment = os.environ.copy()
         process_environment["CODEX_HOME"] = str(codex_home)
+        codex_version = command_version(command[0])
+        started_at = utc_now()
         started = time.monotonic()
         completed = subprocess.run(
             command,
@@ -743,6 +797,7 @@ def main() -> int:
         remove_empty_mountpoints(workspace_mountpoints)
         shutil.rmtree(runtime_root)
     duration_seconds = round(time.monotonic() - started, 3)
+    finished_at = utc_now()
     write_codex_artifacts(
         eval_dir,
         prompt=prompt,
@@ -766,7 +821,14 @@ def main() -> int:
                 "accelerator_mode": args.accelerator_mode,
                 "retrieval_attempts": retrieval_attempts,
                 "retrieval_mode": retrieval_attempts[-1]["mode"] if retrieval_attempts else None,
+                "retrieval_attempt_count": len(retrieval_attempts),
+                "unexpected_retry": len(retrieval_attempts) > 1,
+                "unknown_attempt_count": sum(
+                    attempt.get("mode") == "unknown" for attempt in retrieval_attempts
+                ),
                 "duration_seconds": duration_seconds,
+                "started_at": started_at,
+                "finished_at": finished_at,
                 "eval_case": os.environ.get("SPECSPINE_EVAL_CASE", ""),
                 "eval_run": os.environ.get("SPECSPINE_EVAL_RUN", ""),
                 "files_read": sorted(reads),
@@ -775,6 +837,13 @@ def main() -> int:
                 "scope_violations": boundary_violations,
                 "model": args.model,
                 "reasoning_effort": args.reasoning_effort,
+                "cache_profile": "isolated-cold",
+                "runtime": {
+                    "adapter_sha256": file_sha256(Path(__file__)),
+                    "codex_cli": codex_version,
+                    "python": platform.python_version(),
+                    "platform": sys.platform,
+                },
                 "token_usage": token_usage,
             },
             indent=2,

@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import fnmatch
 import hashlib
 import io
 import json
 import os
+import platform
 import re
 import shlex
 import shutil
@@ -16,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -67,6 +70,11 @@ class CaseReport:
     sample_number: int = 1
     agent_runs: tuple[dict[str, Any], ...] = ()
     failed_checks: tuple[dict[str, str], ...] = ()
+    started_at: str | None = None
+    finished_at: str | None = None
+    queue_seconds: float = 0.0
+    response: str = ""
+    stderr: str = ""
 
 
 TOKEN_FIELDS = (
@@ -109,12 +117,21 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         "accelerator_mode": trace.get("accelerator_mode"),
         "retrieval_mode": trace.get("retrieval_mode"),
         "retrieval_attempts": attempts if isinstance(attempts, list) else [],
+        "retrieval_attempt_count": trace.get("retrieval_attempt_count"),
+        "unexpected_retry": bool(trace.get("unexpected_retry", False)),
+        "unknown_attempt_count": trace.get("unknown_attempt_count"),
         "duration_seconds": duration if isinstance(duration, (int, float)) else None,
+        "started_at": trace.get("started_at"),
+        "finished_at": trace.get("finished_at"),
         "environment_invalid": bool(trace.get("environment_invalid", False)),
         "files_read": len(set(map(str, files_read))) if isinstance(files_read, list) else None,
         "file_paths_read": sorted(set(map(str, files_read))) if isinstance(files_read, list) else [],
         "model": trace.get("model"),
         "reasoning_effort": trace.get("reasoning_effort"),
+        "cache_profile": trace.get("cache_profile"),
+        "runtime": trace.get("runtime") if isinstance(trace.get("runtime"), dict) else {},
+        "environment_errors": trace.get("environment_errors", []),
+        "scope_violations": trace.get("scope_violations", []),
         "token_usage": {
             field: value
             for field, value in (usage.items() if isinstance(usage, dict) else ())
@@ -125,7 +142,12 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
 
 def directory_digest(path: Path) -> str:
     digest = hashlib.sha256()
-    for item in sorted(candidate for candidate in path.rglob("*") if candidate.is_file()):
+    for item in sorted(
+        candidate for candidate in path.rglob("*")
+        if candidate.is_file()
+        and "__pycache__" not in candidate.relative_to(path).parts
+        and candidate.suffix != ".pyc"
+    ):
         digest.update(item.relative_to(path).as_posix().encode("utf-8"))
         digest.update(b"\0")
         digest.update(item.read_bytes())
@@ -143,10 +165,16 @@ def case_fingerprint(case: dict[str, Any]) -> str:
     skill_paths = {case["skill"]} if "skill" in case else {
         stage["skill"] for stage in case.get("stages", []) if "skill" in stage
     }
+    companion_paths = set(case.get("companion_skills", []))
+    for stage in case.get("stages", []):
+        companion_paths.update(stage.get("companion_skills", []))
     payload = {
         "manifest": manifest,
         "prompts": prompts,
         "skills": {path: directory_digest(ROOT / path) for path in sorted(skill_paths)},
+        "companions": {
+            path: directory_digest(ROOT / path) for path in sorted(companion_paths)
+        },
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
@@ -160,6 +188,10 @@ def write_json_report(
     cases: list[dict[str, Any]],
     samples_requested: int,
     jobs: int,
+    *,
+    run_id: str | None = None,
+    started_at: str | None = None,
+    finished_at: str | None = None,
 ) -> None:
     case_by_id = {case["id"]: case for case in cases}
     samples: list[dict[str, Any]] = []
@@ -181,8 +213,22 @@ def write_json_report(
                 "failed_checks": list(report.failed_checks),
                 "sample_number": report.sample_number,
                 "token_usage": report.token_usage,
+                "started_at": report.started_at,
+                "finished_at": report.finished_at,
+                "queue_seconds": report.queue_seconds,
+                "diagnostics": {
+                    "response": report.response[:20_000],
+                    "stderr": report.stderr[:4_000],
+                },
             }
         )
+    command_fingerprints: dict[str, str] = {}
+    for part in shlex.split(agent_command):
+        candidate = Path(part).expanduser()
+        if candidate.is_file():
+            command_fingerprints[str(candidate.resolve())] = hashlib.sha256(
+                candidate.read_bytes()
+            ).hexdigest()
     payload = {
         "agent_command": agent_command,
         "cases": {
@@ -193,7 +239,30 @@ def write_json_report(
         "label": label,
         "samples": samples,
         "samples_requested": samples_requested,
-        "schema_version": 1,
+        "schema_version": 2,
+        "run": {
+            "run_id": run_id or str(uuid.uuid4()),
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "cache_profile": sorted(
+                set().union(*(
+                    {
+                        str(run.get("cache_profile"))
+                        for run in report.agent_runs
+                        if run.get("cache_profile")
+                    }
+                    for report in reports
+                ))
+            ),
+        },
+        "runtime": {
+            "python": platform.python_version(),
+            "platform": sys.platform,
+        },
+        "fingerprints": {
+            "runner": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "agent_command_files": command_fingerprints,
+        },
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -997,6 +1066,8 @@ def run_case(
                     agent_runs=list(agent_runs),
                     duration_seconds=duration_seconds,
                     token_usage=dict(token_usage),
+                    response="",
+                    stderr="",
                 )
             print(f"{'PASS' if passed else 'FAIL'} {case['id']}", file=output)
             print(
@@ -1064,6 +1135,8 @@ def run_case(
                 duration_seconds=duration_seconds,
                 failed_checks=failed_checks,
                 token_usage=dict(token_usage),
+                response=response,
+                stderr=stderr,
             )
         print(
             f"{'PASS' if passed else 'FAIL'} {case['id']} "
@@ -1092,10 +1165,14 @@ def run_case_captured(
     command: list[str],
     keep_workspace: bool,
     sample_number: int = 1,
+    queued_monotonic: float | None = None,
 ) -> CaseReport:
+    queue_seconds = max(0.0, time.monotonic() - queued_monotonic) if queued_monotonic else 0.0
+    started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
     output = io.StringIO()
     metrics: dict[str, Any] = {}
     passed = run_case(case, command, keep_workspace, output, metrics, sample_number)
+    finished_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
     return CaseReport(
         case_id=case["id"],
         passed=passed,
@@ -1105,6 +1182,11 @@ def run_case_captured(
         sample_number=sample_number,
         agent_runs=tuple(metrics.get("agent_runs", ())),
         failed_checks=tuple(metrics.get("failed_checks", ())),
+        started_at=started_at,
+        finished_at=finished_at,
+        queue_seconds=queue_seconds,
+        response=str(metrics.get("response", "")),
+        stderr=str(metrics.get("stderr", "")),
     )
 
 
@@ -1124,6 +1206,7 @@ def main() -> int:
     parser.add_argument("--agent-command", help="command that accepts the prompt on stdin and edits its cwd")
     parser.add_argument("--report-json", type=Path, help="write per-sample metrics as JSON")
     parser.add_argument("--report-label", default="", help="label stored in the JSON report")
+    parser.add_argument("--run-id", help="stable identifier to correlate related report runs")
     parser.add_argument(
         "--jobs",
         type=positive_int,
@@ -1208,6 +1291,7 @@ def main() -> int:
             for case in executable
             for sample_number in range(1, args.samples + 1)
         ]
+        execution_started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
         execution_started = time.monotonic()
 
         def publish(report: CaseReport) -> None:
@@ -1224,6 +1308,7 @@ def main() -> int:
             )
 
         if args.jobs > 1 and len(work_items) > 1:
+            queued = time.monotonic()
             with ThreadPoolExecutor(max_workers=min(args.jobs, len(work_items))) as executor:
                 futures = [
                     executor.submit(
@@ -1232,6 +1317,7 @@ def main() -> int:
                         command,
                         args.keep_workspace,
                         sample_number,
+                        queued,
                     )
                     for case, sample_number in work_items
                 ]
@@ -1245,6 +1331,7 @@ def main() -> int:
                     )
                 )
         wall_seconds = time.monotonic() - execution_started
+        execution_finished_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
         passed_count = sum(report.passed for report in reports)
         failed_ids = [
             f"{report.case_id}#{report.sample_number}"
@@ -1280,6 +1367,9 @@ def main() -> int:
                 executable,
                 args.samples,
                 args.jobs,
+                run_id=args.run_id,
+                started_at=execution_started_at,
+                finished_at=execution_finished_at,
             )
             print(f"JSON report: {args.report_json}")
         return 0 if not failed_ids else 1

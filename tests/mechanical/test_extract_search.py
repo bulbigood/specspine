@@ -71,6 +71,11 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("identity.md", payload["candidates"][0]["path"])
         self.assertEqual(2, payload["documents"])
+        self.assertEqual("cold_build", payload["index_state"])
+        self.assertEqual(1, payload["schema_version"])
+        self.assertIn("fts", payload["candidates"][0]["origins"])
+        self.assertGreaterEqual(payload["timings"]["total_seconds"], 0)
+        self.assertTrue(payload["runtime"]["fts5"])
         self.assertEqual([], list(self.spine.rglob("*.sqlite*")))
         self.assertNotEqual([], list(self.cache.rglob("*.sqlite")))
 
@@ -78,6 +83,7 @@ class ExtractSearchTests(unittest.TestCase):
             "# Identity\n\nOwns authenticated sessions.\n", encoding="utf-8"
         )
         result, payload = self.run_search("authenticated session")
+        self.assertEqual("incremental_refresh", payload["index_state"])
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(1, payload["refreshed"])
         self.assertEqual("identity.md", payload["candidates"][0]["path"])
@@ -199,7 +205,7 @@ class ExtractSearchTests(unittest.TestCase):
     def test_cold_cache_waits_for_current_builder(self):
         (self.spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
         with patch.dict(os.environ, {"SPECSPINE_CACHE_DIR": str(self.cache)}):
-            lock = SEARCH.acquire_cache_lock(SEARCH.cache_path(self.spine.resolve()))
+            lock, _ = SEARCH.acquire_cache_lock(SEARCH.cache_path(self.spine.resolve()))
         environment = os.environ.copy()
         environment["SPECSPINE_CACHE_DIR"] = str(self.cache)
         process = subprocess.Popen(
@@ -233,7 +239,7 @@ class ExtractSearchTests(unittest.TestCase):
         result, _ = self.run_search("routing")
         self.assertEqual(0, result.returncode, result.stderr)
         with patch.dict(os.environ, {"SPECSPINE_CACHE_DIR": str(self.cache)}):
-            lock = SEARCH.acquire_cache_lock(SEARCH.cache_path(self.spine.resolve()))
+            lock, _ = SEARCH.acquire_cache_lock(SEARCH.cache_path(self.spine.resolve()))
         try:
             result, payload = self.run_search("routing")
         finally:
@@ -242,6 +248,7 @@ class ExtractSearchTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("sqlite-fts5", payload["mode"])
+        self.assertEqual("warm", payload["index_state"])
 
     def test_parallel_cold_searches_share_the_built_index(self):
         (self.spine / "README.md").write_text(
@@ -268,6 +275,9 @@ class ExtractSearchTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual("sqlite-fts5", payload["mode"])
             self.assertEqual("target.md", payload["candidates"][0]["path"])
+        states = {payload["index_state"] for _, payload in results}
+        self.assertIn("cold_build", states)
+        self.assertLessEqual(states, {"cold_build", "waited_for_builder", "warm"})
 
     def test_corrupt_index_is_rebuilt_under_cache_lock(self):
         (self.spine / "README.md").write_text(
@@ -287,6 +297,7 @@ class ExtractSearchTests(unittest.TestCase):
         result, payload = self.run_search("routing")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("sqlite-fts5", payload["mode"])
+        self.assertEqual("rebuild", payload["index_state"])
         self.assertEqual(1, payload["documents"])
 
     def test_query_without_searchable_terms_requests_fallback(self):
@@ -294,6 +305,7 @@ class ExtractSearchTests(unittest.TestCase):
         result, payload = self.run_search("---")
         self.assertEqual(SEARCH.FALLBACK_EXIT, result.returncode)
         self.assertEqual("fallback", payload["mode"])
+        self.assertEqual("invalid_query", payload["reason_code"])
 
     def test_unavailable_cache_path_requests_fallback(self):
         (self.spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
@@ -303,6 +315,7 @@ class ExtractSearchTests(unittest.TestCase):
 
         self.assertEqual(SEARCH.FALLBACK_EXIT, result.returncode)
         self.assertEqual("fallback", payload["mode"])
+        self.assertEqual("cache_unusable", payload["reason_code"])
 
 
 if __name__ == "__main__":

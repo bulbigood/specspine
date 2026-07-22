@@ -174,13 +174,16 @@ Run both groups concurrently and save their per-sample reports:
 
 ```bash
 report_dir=$(mktemp -d -t specspine-extract-eval.XXXXXX)
+run_id="extract-ab-$(date -u +%Y%m%dT%H%M%SZ)"
 python3 tests/eval/run.py \
   --case extract-accelerated-handoff --samples 5 \
+  --run-id "$run_id-fallback" \
   --report-label forced-fallback --report-json "$report_dir/fallback.json" \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium --accelerator-mode fallback" &
 fallback_pid=$!
 python3 tests/eval/run.py \
   --case extract-accelerated-handoff --samples 5 \
+  --run-id "$run_id-accelerated" \
   --report-label accelerated --report-json "$report_dir/accelerated.json" \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium --accelerator-mode enabled" &
 accelerated_pid=$!
@@ -190,6 +193,10 @@ python3 tests/eval/compare_extract_metrics.py \
   --accelerated "$report_dir/accelerated.json"
 ```
 
+Each adapter invocation uses a private disposable runtime and cache, so this
+procedure measures isolated cold accelerator startup. The report records that
+cache profile explicitly; do not interpret it as a warm-cache benchmark.
+
 The analyzer prints the absolute source-report directory and records it in the
 generated Markdown, so every snapshot can be traced back to its JSON inputs.
 By default it creates a timestamped, never-overwritten report under
@@ -198,16 +205,16 @@ path exists the analyzer adds a numeric suffix instead of replacing it. Raw JSON
 reports stay in the unique system temporary directory created by `mktemp`; the
 runner and analyzer do not remove them, leaving eventual cleanup to the
 operating system. It performs no agent calls. It
-rejects reports with different case
-fingerprints, models, reasoning effort, sample identities, or parallelism. Its
-paired averages include behavioral failures; environment-invalid samples are
-reported and excluded. Agent time comes from adapter traces rather than fixture
-setup or assertions. Token output separates total, cached, uncached input,
-output, and reasoning tokens. Reports also distinguish the adapter's requested
-accelerator mode from the retrieval mode actually returned by
-`search_spine.py`, retain failed-check types, and show a diagnostic comparison
-for successful pairs with observed fallback and SQLite paths. Treat the result
-as a measurement, not a stable CI pass/fail threshold.
+rejects reports with incompatible case/skill or adapter fingerprints, models,
+reasoning effort, Codex CLI versions, cache profiles, sample identities, or
+configured parallelism. Sample numbers verify completeness but independent
+stochastic calls are not treated as statistical pairs. Environment-invalid
+samples are reported and excluded. Agent time comes from adapter traces rather
+than fixture setup or assertions. The Markdown preserves per-sample and
+per-retrieval-attempt diagnostics, independent cohort statistics, dispersion,
+runtime versions, timestamps, and observed combined concurrency. Raw JSON also
+retains bounded response/stderr diagnostics after workspaces are removed. Treat
+the result as a measurement, not a stable CI pass/fail threshold.
 
 Case manifests in `cases/*.json` define fixtures, prompts and deterministic
 assertions. A manifest may instead define ordered `stages`; agent stages run a

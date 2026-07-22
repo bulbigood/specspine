@@ -8,8 +8,10 @@ import hashlib
 import json
 import math
 import os
+import platform
 import re
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -17,7 +19,12 @@ from urllib.parse import unquote, urlsplit
 try:
     import sqlite3
 except ImportError as error:
-    print(json.dumps({"mode": "fallback", "reason": f"sqlite3 is unavailable: {error}"}))
+    print(json.dumps({
+        "schema_version": 1,
+        "mode": "fallback",
+        "reason_code": "sqlite_unavailable",
+        "reason": f"sqlite3 is unavailable: {error}",
+    }))
     raise SystemExit(2) from error
 
 
@@ -47,6 +54,10 @@ SECTION_KINDS = {
 
 class AcceleratorUnavailable(RuntimeError):
     """The optional accelerator cannot be used; callers should traverse links."""
+
+    def __init__(self, message: str, reason_code: str = "unexpected_error") -> None:
+        super().__init__(message)
+        self.reason_code = reason_code
 
 
 @dataclass(frozen=True)
@@ -419,7 +430,12 @@ def cache_path(root: Path) -> Path:
     base = Path(configured).expanduser() if configured else Path(tempfile.gettempdir()) / "specspine-cache"
     key = hashlib.sha256(str(root).encode("utf-8")).hexdigest()[:24]
     directory = base / key
-    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    try:
+        directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    except OSError as error:
+        raise AcceleratorUnavailable(
+            f"cannot create derived cache directory: {error}", "cache_unusable"
+        ) from error
     return directory / f"index-v{SCHEMA_VERSION}.sqlite"
 
 
@@ -431,7 +447,7 @@ def connect(path: Path) -> sqlite3.Connection:
     return connection
 
 
-def acquire_cache_lock(index_path: Path) -> sqlite3.Connection:
+def acquire_cache_lock(index_path: Path) -> tuple[sqlite3.Connection, float]:
     """Serialize index creation or replacement without blocking normal readers."""
     connection: sqlite3.Connection | None = None
     try:
@@ -442,12 +458,15 @@ def acquire_cache_lock(index_path: Path) -> sqlite3.Connection:
         connection.execute(f"PRAGMA busy_timeout = {BUILD_LOCK_TIMEOUT_MS}")
         connection.execute("CREATE TABLE IF NOT EXISTS cache_lock (id INTEGER PRIMARY KEY)")
         connection.commit()
+        started = time.perf_counter()
         connection.execute("BEGIN IMMEDIATE")
-        return connection
+        return connection, time.perf_counter() - started
     except (OSError, sqlite3.Error) as error:
         if connection is not None:
             connection.close()
-        raise AcceleratorUnavailable(f"derived index is busy or cannot be locked: {error}") from error
+        raise AcceleratorUnavailable(
+            f"derived index is busy or cannot be locked: {error}", "lock_timeout"
+        ) from error
 
 
 def sqlite_error_code(error: sqlite3.Error) -> int | None:
@@ -472,7 +491,9 @@ def probe_fts5() -> None:
         connection = sqlite3.connect(":memory:")
         connection.execute("CREATE VIRTUAL TABLE fts_probe USING fts5(content)")
     except (sqlite3.Error, OSError) as error:
-        raise AcceleratorUnavailable(f"SQLite FTS5 is unavailable: {error}") from error
+        raise AcceleratorUnavailable(
+            f"SQLite FTS5 is unavailable: {error}", "fts5_unavailable"
+        ) from error
     finally:
         if connection is not None:
             connection.close()
@@ -503,13 +524,17 @@ def create_index(path: Path, root: Path, files: dict[str, tuple[Path, os.stat_re
             insert_document(connection, parse_document(source, root, stat))
         connection.commit()
         if connection.execute("PRAGMA quick_check").fetchone()[0] != "ok":
-            raise AcceleratorUnavailable("new index failed SQLite quick_check")
+            raise AcceleratorUnavailable(
+                "new index failed SQLite quick_check", "corrupt_index"
+            )
         connection.close()
         connection = None
         os.chmod(temporary, 0o600)
         os.replace(temporary, path)
     except (OSError, UnicodeError, sqlite3.Error) as error:
-        raise AcceleratorUnavailable(f"cannot build derived index: {error}") from error
+        raise AcceleratorUnavailable(
+            f"cannot build derived index: {error}", "cache_unusable"
+        ) from error
     finally:
         if connection is not None:
             connection.close()
@@ -588,11 +613,16 @@ def create_index_under_lock(
     files: dict[str, tuple[Path, os.stat_result]],
     *,
     force: bool,
-) -> None:
-    lock = acquire_cache_lock(path)
+) -> tuple[str, float, float]:
+    lock, wait_seconds = acquire_cache_lock(path)
+    build_seconds = 0.0
     try:
         if force or not path.is_file():
+            started = time.perf_counter()
             create_index(path, root, files)
+            build_seconds = time.perf_counter() - started
+            return ("rebuild" if force else "cold_build", wait_seconds, build_seconds)
+        return "waited_for_builder", wait_seconds, build_seconds
     finally:
         release_cache_lock(lock)
 
@@ -613,56 +643,98 @@ def rebuild_invalid_index(
     path: Path,
     root: Path,
     files: dict[str, tuple[Path, os.stat_result]],
-) -> None:
-    lock = acquire_cache_lock(path)
+) -> tuple[str, float, float]:
+    lock, wait_seconds = acquire_cache_lock(path)
     connection: sqlite3.Connection | None = None
+    build_seconds = 0.0
     try:
         try:
             connection = connect(path)
             if index_metadata_is_current(connection, root):
-                return
+                return "waited_for_builder", wait_seconds, build_seconds
         except sqlite3.Error:
             pass
         finally:
             if connection is not None:
                 connection.close()
+        started = time.perf_counter()
         create_index(path, root, files)
+        build_seconds = time.perf_counter() - started
+        return "rebuild", wait_seconds, build_seconds
     finally:
         release_cache_lock(lock)
 
 
-def ensure_index(root: Path, path: Path, rebuild: bool) -> tuple[sqlite3.Connection, int]:
+def ensure_index(
+    root: Path, path: Path, rebuild: bool
+) -> tuple[sqlite3.Connection, int, dict[str, object]]:
+    discovery_started = time.perf_counter()
     files = discover(root)
+    discovery_seconds = time.perf_counter() - discovery_started
+    index_state = "warm"
+    lock_wait_seconds = 0.0
+    build_seconds = 0.0
     if rebuild:
-        create_index_under_lock(path, root, files, force=True)
+        index_state, lock_wait_seconds, build_seconds = create_index_under_lock(
+            path, root, files, force=True
+        )
     elif not path.is_file():
-        create_index_under_lock(path, root, files, force=False)
+        index_state, lock_wait_seconds, build_seconds = create_index_under_lock(
+            path, root, files, force=False
+        )
     connection: sqlite3.Connection | None = None
     try:
         connection = connect(path)
         if not index_metadata_is_current(connection, root):
             connection.close()
-            rebuild_invalid_index(path, root, files)
+            index_state, waited, built = rebuild_invalid_index(path, root, files)
+            lock_wait_seconds += waited
+            build_seconds += built
             connection = connect(path)
         connection.execute("PRAGMA journal_mode = WAL")
+        refresh_started = time.perf_counter()
         changed = refresh_index(connection, root, files)
-        return connection, changed
+        refresh_seconds = time.perf_counter() - refresh_started
+        if changed and index_state == "warm":
+            index_state = "incremental_refresh"
+        return connection, changed, {
+            "index_state": index_state,
+            "discovery_seconds": discovery_seconds,
+            "lock_wait_seconds": lock_wait_seconds,
+            "build_seconds": build_seconds,
+            "refresh_seconds": refresh_seconds,
+        }
     except sqlite3.Error as error:
         if connection is not None:
             connection.close()
         if is_lock_error(error) or not is_rebuildable_error(error):
-            raise AcceleratorUnavailable(f"cannot use derived index: {error}") from error
+            reason_code = "lock_timeout" if is_lock_error(error) else "cache_unusable"
+            raise AcceleratorUnavailable(
+                f"cannot use derived index: {error}", reason_code
+            ) from error
         try:
-            rebuild_invalid_index(path, root, files)
+            index_state, waited, built = rebuild_invalid_index(path, root, files)
+            lock_wait_seconds += waited
+            build_seconds += built
             connection = connect(path)
             connection.execute("PRAGMA journal_mode = WAL")
-            return connection, len(files)
+            return connection, len(files), {
+                "index_state": index_state,
+                "discovery_seconds": discovery_seconds,
+                "lock_wait_seconds": lock_wait_seconds,
+                "build_seconds": build_seconds,
+                "refresh_seconds": 0.0,
+            }
         except (AcceleratorUnavailable, OSError, UnicodeError, sqlite3.Error) as rebuild_error:
-            raise AcceleratorUnavailable(f"cannot refresh derived index: {rebuild_error}") from error
+            raise AcceleratorUnavailable(
+                f"cannot refresh derived index: {rebuild_error}", "corrupt_index"
+            ) from error
     except (OSError, UnicodeError) as error:
         if connection is not None:
             connection.close()
-        raise AcceleratorUnavailable(f"cannot use derived index: {error}") from error
+        raise AcceleratorUnavailable(
+            f"cannot use derived index: {error}", "cache_unusable"
+        ) from error
 
 
 def fts_query(query: str, connection: sqlite3.Connection | None = None) -> str:
@@ -709,16 +781,18 @@ def fts_query(query: str, connection: sqlite3.Connection | None = None) -> str:
         if clauses:
             return " OR ".join(dict.fromkeys(clauses))
     if not tokens:
-        raise AcceleratorUnavailable("query has no searchable terms")
+        raise AcceleratorUnavailable("query has no searchable terms", "invalid_query")
     return " OR ".join(f'"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens[:32])
 
 
 def search(connection: sqlite3.Connection, query: str, limit: int, graph_depth: int) -> list[dict[str, object]]:
     candidates: dict[str, dict[str, object]] = {}
 
-    def add(path: str, score: float, reason: str, title: str | None = None, summary: str | None = None, heading: str | None = None) -> None:
-        item = candidates.setdefault(path, {"path": path, "score": 0.0, "reasons": [], "headings": []})
+    def add(path: str, score: float, origin: str, reason: str, title: str | None = None, summary: str | None = None, heading: str | None = None) -> None:
+        item = candidates.setdefault(path, {"path": path, "score": 0.0, "origins": [], "reasons": [], "headings": []})
         item["score"] = max(float(item["score"]), score)
+        if origin not in item["origins"]:
+            item["origins"].append(origin)
         if reason not in item["reasons"]:
             item["reasons"].append(reason)
         if heading and heading not in item["headings"]:
@@ -733,7 +807,7 @@ def search(connection: sqlite3.Connection, query: str, limit: int, graph_depth: 
         "SELECT path, title, summary FROM documents WHERE lower(path) = ? OR lower(title) = ?",
         (normalized, normalized),
     ):
-        add(row["path"], 100.0, "exact document match", row["title"], row["summary"])
+        add(row["path"], 100.0, "exact", "exact document match", row["title"], row["summary"])
     for token in QUERY_TOKEN_RE.findall(normalized):
         if not ID_QUERY_RE.fullmatch(token):
             continue
@@ -741,7 +815,7 @@ def search(connection: sqlite3.Connection, query: str, limit: int, graph_depth: 
             "SELECT d.path, d.title, d.summary FROM semantic_ids s JOIN documents d ON d.path = s.document_path WHERE lower(s.semantic_id) = ?",
             (token,),
         ):
-            add(row["path"], 120.0, f"semantic ID {token}", row["title"], row["summary"])
+            add(row["path"], 120.0, "semantic_id", f"semantic ID {token}", row["title"], row["summary"])
 
     match_query = fts_query(query, connection)
     batch_size = max(limit * 10, 50)
@@ -758,6 +832,7 @@ def search(connection: sqlite3.Connection, query: str, limit: int, graph_depth: 
             add(
                 row["path"],
                 60.0 / (document_rank + 1),
+                "fts",
                 "full-text match",
                 row["title"],
                 row["summary"],
@@ -783,7 +858,8 @@ def search(connection: sqlite3.Connection, query: str, limit: int, graph_depth: 
                 ).fetchone()
                 if document is None:
                     continue
-                add(neighbor, base * (0.25 ** (depth + 1)), direction, document["title"], document["summary"])
+                origin = "graph_outgoing" if direction == "linked from candidate" else "graph_incoming"
+                add(neighbor, base * (0.25 ** (depth + 1)), origin, direction, document["title"], document["summary"])
                 if neighbor not in visited:
                     visited.add(neighbor)
                     next_frontier.append(neighbor)
@@ -809,26 +885,55 @@ def main() -> int:
 
     root = args.spine_root.resolve()
     if not root.is_dir() or not (root / "README.md").is_file():
-        print(json.dumps({"mode": "error", "reason": "SpecSpine root or README.md is missing"}))
+        print(json.dumps({"schema_version": 1, "mode": "error", "reason_code": "invalid_root", "reason": "SpecSpine root or README.md is missing"}))
         return 3
     if args.limit < 1 or args.limit > 50:
-        print(json.dumps({"mode": "error", "reason": "limit must be between 1 and 50"}))
+        print(json.dumps({"schema_version": 1, "mode": "error", "reason_code": "invalid_limit", "reason": "limit must be between 1 and 50"}))
         return 3
 
     connection: sqlite3.Connection | None = None
+    total_started = time.perf_counter()
     try:
         probe_fts5()
         index_path = cache_path(root)
-        connection, changed = ensure_index(root, index_path, args.rebuild)
+        connection, changed, timings = ensure_index(root, index_path, args.rebuild)
+        search_started = time.perf_counter()
         candidates = search(connection, args.query, args.limit, args.graph_depth)
+        timings["search_seconds"] = time.perf_counter() - search_started
+        timings["total_seconds"] = time.perf_counter() - total_started
         count = connection.execute("SELECT count(*) FROM documents").fetchone()[0]
-        print(json.dumps({"mode": "sqlite-fts5", "documents": count, "refreshed": changed, "candidates": candidates}, ensure_ascii=False))
+        print(json.dumps({
+            "schema_version": 1,
+            "mode": "sqlite-fts5",
+            "runtime": {
+                "python": platform.python_version(),
+                "sqlite": sqlite3.sqlite_version,
+                "fts5": True,
+            },
+            "documents": count,
+            "refreshed": changed,
+            "index_state": timings.pop("index_state"),
+            "timings": {key: round(float(value), 6) for key, value in timings.items()},
+            "candidates": candidates,
+        }, ensure_ascii=False))
         return 0 if candidates else FALLBACK_EXIT
     except AcceleratorUnavailable as error:
-        print(json.dumps({"mode": "fallback", "reason": str(error)}, ensure_ascii=False))
+        print(json.dumps({
+            "schema_version": 1,
+            "mode": "fallback",
+            "reason_code": error.reason_code,
+            "reason": str(error),
+            "timings": {"total_seconds": round(time.perf_counter() - total_started, 6)},
+        }, ensure_ascii=False))
         return FALLBACK_EXIT
     except Exception as error:
-        print(json.dumps({"mode": "fallback", "reason": f"accelerator failed: {error}"}, ensure_ascii=False))
+        print(json.dumps({
+            "schema_version": 1,
+            "mode": "fallback",
+            "reason_code": "unexpected_error",
+            "reason": f"accelerator failed: {error}",
+            "timings": {"total_seconds": round(time.perf_counter() - total_started, 6)},
+        }, ensure_ascii=False))
         return FALLBACK_EXIT
     finally:
         if connection is not None:
