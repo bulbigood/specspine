@@ -211,6 +211,16 @@ solely to add a question inferred from likely implementation needs (for example,
 runtime credentials or configuration); report that uncertainty in the final
 response unless it blocks the requested architectural change.
 
+If the target already contains the responsibility, boundaries, significant
+behavior, dependencies, accepted decisions, important constraints, and relevant
+open questions, and the request supplies no new architectural intent, stop at
+terminal detail. Do not add function flows, schemas, SDK calls, pseudocode,
+configuration fields, or other implementation-manual content. Make no file
+changes. State `terminal detail reached`, explain that implementation detail
+belongs outside SpecSpine, and invite a new decision, constraint, responsibility,
+boundary, or open question. This rule does not block explicitly supplied new
+architectural intent.
+
 ### Split or merge
 
 For a split, identify the extracted responsibility, moved content, and changed

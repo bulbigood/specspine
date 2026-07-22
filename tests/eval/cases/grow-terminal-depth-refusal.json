@@ -1,0 +1,27 @@
+{
+  "id": "grow-terminal-depth-refusal",
+  "scenario": "tests/scenarios/grow-terminal-depth-refusal.md",
+  "skill": "skills/specspine-grow",
+  "status": "executable",
+  "category": "extended",
+  "eval_language": "English",
+  "initial_files": {
+    "specspine/README.md": "# Commerce architecture\n\n## Architecture map\n\n- [Checkout](checkout.md)\n- [Payment processing](payment-processing.md)\n- [Payment provider boundary](payment-provider.md)\n\n## Mapping status\n\nThe purchase and payment responsibility boundaries are reviewed. Provider retry policy remains intentionally unresolved.\n",
+    "specspine/checkout.md": "# Checkout\n\n## Responsibility\n\nOwns purchase submission and requests a payment attempt.\n\n## Boundaries\n\nPayment execution and outcomes belong to [Payment processing](payment-processing.md).\n\n## Relationships\n\n- [Payment processing](payment-processing.md)\n",
+    "specspine/payment-provider.md": "# Payment provider boundary\n\n## Responsibility\n\nOwns the external provider integration boundary used by payment processing.\n\n## Boundaries\n\nProvider-specific SDK calls, transport payloads, and error translation remain implementation details behind this boundary. Payment outcome policy belongs to [Payment processing](payment-processing.md).\n\n## Relationships\n\n- [Payment processing](payment-processing.md)\n",
+    "specspine/payment-processing.md": "# Payment processing\n\n## Responsibility\n\nOwns provider-independent payment attempts, their stable identity, and the transition to a terminal payment outcome.\n\n## Boundaries\n\n[Checkout](checkout.md) supplies the purchase and requested amount. [Payment provider boundary](payment-provider.md) encapsulates SDK calls, transport payloads, and provider-specific error translation. Payment processing does not own order submission or provider implementation mechanics.\n\n## Significant behavior\n\nA logical payment attempt keeps one identity across provider retries. Duplicate or older provider events cannot replace a newer terminal outcome. A terminal outcome is reported to checkout without prescribing checkout compensation.\n\n## Dependencies\n\nPayment processing depends on checkout input and the provider boundary, but its accepted outcome rules remain provider-independent.\n\n<!-- specspine:semantic-ids:begin -->\n## Decisions\n\n- **DEC-payment-attempt-identity** — One logical payment attempt retains a stable identity across provider retries.\n- **DEC-payment-terminal-outcome** — Once a payment reaches a terminal outcome, older provider events cannot replace it.\n\n## Constraints\n\n- **CON-payment-event-deduplication** — Duplicate provider events cannot produce duplicate payment transitions.\n- **CON-provider-details-encapsulated** — Provider SDK calls, payload schemas, and error translation remain behind the provider boundary.\n\n## Open questions\n\n- **OQ-payment-retry-policy** — Which retry timing and attempt limit should apply?\n<!-- specspine:semantic-ids:end -->\n\n## Relationships\n\n- [Checkout](checkout.md)\n- [Payment provider boundary](payment-provider.md)\n",
+    "src/payments/process-payment.ts": "export async function processPaymentWithProviderRetryStateMachine() {}\n",
+    "config/payments.yml": "retry_algorithm: exponential_with_decorrelated_jitter\nmax_attempts: 17\n"
+  },
+  "assertions": [
+    {"type": "max_changed_files", "max": 0},
+    {"type": "unchanged", "paths": ["specspine/**", "src/**", "config/**"]},
+    {"type": "glob_count", "glob": "specspine/*.md", "min": 4, "max": 4},
+    {"type": "read_only", "paths": ["specspine/**"]},
+    {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md"]},
+    {"type": "max_files_read", "max": 4},
+    {"type": "response_contains", "value": "terminal detail reached"},
+    {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+    {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+  ]
+}

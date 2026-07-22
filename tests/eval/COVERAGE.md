@@ -8,12 +8,12 @@ classified.
 
 | Area | Documented scenarios | Executable fixtures |
 |---|---:|---:|
-| `specspine-grow` | 8 | 6 |
+| `specspine-grow` | 9 | 7 |
 | `specspine-map` | 7 | 3 |
 | `specspine-connect` | 4 | 3 |
 | `specspine-doctor` | 3 | 2 |
 | package generator tooling | 1 | 0 |
-| Total | 23 | 14 |
+| Total | 24 | 15 |
 
 `traceable-visual-spec` is assigned to `specspine-map` because its expected
 result includes repository-backed observations.
@@ -23,7 +23,7 @@ The executable set is divided by resource cost and necessity:
 | Category | Manifests | Agent calls | Purpose |
 |---|---:|---:|---|
 | `core` | 6 | 6 | Minimum behavioral regression set |
-| `extended` | 8 | 12 | Lifecycle, idempotency, specialized integration, merge, removal, bounded growth, and visualization behavior |
+| `extended` | 9 | 13 | Lifecycle, terminal-depth refusal, idempotency, specialized integration, merge, removal, bounded growth, and visualization behavior |
 | `planned` | 9 | 0 | Documentation and future redesign only |
 
 Core and extended cases currently cover:
@@ -41,6 +41,8 @@ Core and extended cases currently cover:
   bounded Doctor repair.
 - repeated Grow deepening with per-document and whole-Spine word budgets while
   preserving addressable architectural meaning.
+- Grow refusal when a specification already has terminal architectural detail
+  and the request asks only for implementation-manual content.
 
 Deterministic runtime-skill generation and drift detection remain covered by
 unit tests and do not consume an agent invocation.

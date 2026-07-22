@@ -49,7 +49,7 @@ python3 tests/eval/run.py \
 
 `--case` and `--category` are repeatable and may be combined. There is no
 implicit run-all mode. Planned cases are never executed. Categories are
-disjoint: `core` has 6 executable cases, `extended` has 8, and `planned` has
+disjoint: `core` has 6 executable cases, `extended` has 9, and `planned` has
 9 documented non-executable cases.
 
 Each case gets a clean temporary workspace. Cases run with concurrency 8 by

@@ -354,17 +354,22 @@ class RunnerTests(unittest.TestCase):
         fast_finished = threading.Event()
         lock = threading.Lock()
         called: list[str] = []
+        roles: dict[str, str] = {}
 
         def fake_run_case(case, command, keep_workspace, output=None, metrics=None):
             with lock:
                 called.append(case["id"])
                 call_number = len(called)
+                if call_number == 1:
+                    roles["slow"] = case["id"]
+                elif call_number == 2:
+                    roles["fast"] = case["id"]
             print(f"START {case['id']}", file=output)
             if call_number <= 2:
                 barrier.wait(timeout=2)
-            if case["id"] == "parallel-a":
+            if call_number == 1:
                 fast_finished.wait(timeout=2)
-            elif case["id"] == "parallel-b":
+            elif call_number == 2:
                 fast_finished.set()
             print(f"END {case['id']}", file=output)
             return True
@@ -384,7 +389,10 @@ class RunnerTests(unittest.TestCase):
         report = stdout.getvalue()
         for case_id in ("parallel-a", "parallel-b", "parallel-c"):
             self.assertIn(f"START {case_id}\nEND {case_id}\n", report)
-        self.assertLess(report.index("START parallel-b"), report.index("START parallel-a"))
+        self.assertLess(
+            report.index(f"START {roles['fast']}"),
+            report.index(f"START {roles['slow']}"),
+        )
 
     def test_default_runs_selected_cases_concurrently(self):
         cases = [
