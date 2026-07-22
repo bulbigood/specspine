@@ -1,5 +1,8 @@
 # SpecSpine evaluation
 
+Follow the repository-wide [test rules](../README.md). This file adds
+eval-harness-specific guidance.
+
 The directory contains a deterministic harness. `run.py` checks SpecSpine
 skills against case manifests.
 

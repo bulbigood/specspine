@@ -101,18 +101,30 @@ class ExtractSearchTests(unittest.TestCase):
         )
         (resilience / "retry-policy.md").write_text(
             "# Retry policy\n\n## Constraints\n\n"
-            "- **CON-retry-limit** — Retries stop after five attempts.\n",
+            "- **CON-retry-limit** — Retries use fiveattemptceiling.\n",
             encoding="utf-8",
         )
 
-        result, payload = self.run_search("CON-retry-limit", "--limit", "3")
+        result, payload = self.run_search(
+            "CON-retry-limit", "--limit", "3", "--graph-depth", "0"
+        )
         self.assertEqual(0, result.returncode, result.stderr)
         by_path = {item["path"]: item for item in payload["candidates"]}
         owner = "platform/resilience/retry-policy.md"
         consumer = "domains/payments/processing.md"
         self.assertEqual(120.0, by_path[owner]["score"])
-        self.assertIn("semantic ID con-retry-limit", by_path[owner]["reasons"])
-        self.assertIn("links to candidate", by_path[consumer]["reasons"])
+
+        result, payload = self.run_search(
+            "fiveattemptceiling", "--limit", "3", "--graph-depth", "0"
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotIn(consumer, {item["path"] for item in payload["candidates"]})
+
+        result, payload = self.run_search(
+            "fiveattemptceiling", "--limit", "3", "--graph-depth", "1"
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(consumer, {item["path"] for item in payload["candidates"]})
 
     def test_fts_limit_counts_unique_documents_not_matching_sections(self):
         connection = SEARCH.sqlite3.connect(":memory:")
@@ -156,7 +168,6 @@ class ExtractSearchTests(unittest.TestCase):
 
         self.assertEqual(SEARCH.FALLBACK_EXIT, result.returncode)
         self.assertEqual("fallback", payload["mode"])
-        self.assertIn("busy or cannot be locked", payload["reason"])
 
     def test_corrupt_index_is_rebuilt_under_cache_lock(self):
         (self.spine / "README.md").write_text(

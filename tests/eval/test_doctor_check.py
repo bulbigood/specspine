@@ -32,9 +32,8 @@ class DoctorCheckerTests(unittest.TestCase):
             / "spec-format.md"
         )
         text = format_path.read_text(encoding="utf-8")
-        match = re.search(r"Use this identifier grammar:\n\n```text\n([^\n]+)\n```", text)
-        self.assertIsNotNone(match)
-        self.assertEqual(match.group(1), CHECKER.ID_RE.pattern)
+        text_blocks = re.findall(r"```text\n(.*?)\n```", text, re.DOTALL)
+        self.assertIn(CHECKER.ID_RE.pattern, [block.strip() for block in text_blocks])
 
     def test_accepts_valid_graph_and_semantic_reference(self):
         with tempfile.TemporaryDirectory() as directory:

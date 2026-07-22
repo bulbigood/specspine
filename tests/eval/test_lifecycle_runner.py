@@ -68,9 +68,13 @@ class LifecycleRunnerTests(unittest.TestCase):
 
     def test_stage_prompt_contains_only_current_request(self):
         case = self.staged_case()
+        current = "CURRENT_STAGE_REQUEST_SENTINEL_91af"
+        future = "FUTURE_STAGE_REQUEST_SENTINEL_91af"
+        case["stages"][0]["prompt"] = current
+        case["stages"][2]["prompt"] = future
         prompt = RUNNER.build_prompt(case, case["stages"][0])
-        self.assertIn("Create the first lifecycle marker.", prompt)
-        self.assertNotIn("Read the external change", prompt)
+        self.assertTrue(prompt.endswith(current + "\n"))
+        self.assertNotIn(future, prompt)
 
     def test_project_glob_assertions_ignore_eval_resources(self):
         with tempfile.TemporaryDirectory() as directory:

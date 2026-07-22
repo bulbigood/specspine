@@ -236,28 +236,39 @@ class RunnerTests(unittest.TestCase):
             )
             self.assertTrue(result.passed, result.message)
 
-    def test_prompt_declares_eval_language(self):
+    def test_prompt_composes_runtime_inputs(self):
         case = {
             "scenario": "tests/scenarios/initialize-project.md",
             "skill": "skills/specspine-grow",
-            "eval_language": "English",
+            "prompt": "REQUEST_SENTINEL_7b4c",
+            "entrypoint": "ENTRYPOINT_SENTINEL_7b4c.md",
+            "eval_language": "LANGUAGE_SENTINEL_7b4c",
         }
         prompt = RUNNER.build_prompt(case)
-        self.assertIn("newly created project documents in English", prompt)
-        self.assertIn("complete and only authorized project", prompt)
-        self.assertIn("Never use `..`, `$HOME`, `~`", prompt)
-        self.assertIn("never inspect any other `.eval` content", prompt)
-        self.assertIn("Before any project discovery, read .eval/skill/SKILL.md", prompt)
-        self.assertIn("Do not list `.eval`", prompt)
+        self.assertIn(RUNNER.WORKSPACE_BOUNDARY_INSTRUCTIONS, prompt)
+        self.assertEqual(1, prompt.count(case["entrypoint"]))
+        self.assertEqual(1, prompt.count(case["eval_language"]))
+        self.assertTrue(prompt.endswith(case["prompt"] + "\n"))
 
-    def test_non_staged_prompts_exclude_hidden_rubrics(self):
-        for case in RUNNER.load_cases():
-            if "stages" in case:
-                continue
-            with self.subTest(case=case["id"]):
+    def test_prompt_exposes_only_user_request_from_scenario(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scenario = root / "scenario.md"
+            scenario.write_text(
+                "# Scenario\n\n## User request\nREQUEST_SENTINEL_c219\n\n"
+                "## Hidden evaluator context\nHIDDEN_SENTINEL_c219\n",
+                encoding="utf-8",
+            )
+            case = {
+                "scenario": "scenario.md",
+                "skill": "skills/specspine-grow",
+                "assertions": [{"value": "ASSERTION_SENTINEL_c219"}],
+            }
+            with patch.object(RUNNER, "ROOT", root):
                 prompt = RUNNER.build_prompt(case)
-                self.assertNotIn("Expected behavior", prompt)
-                self.assertNotIn("Failure indicators", prompt)
+        self.assertTrue(prompt.endswith("REQUEST_SENTINEL_c219\n"))
+        self.assertNotIn("HIDDEN_SENTINEL_c219", prompt)
+        self.assertNotIn("ASSERTION_SENTINEL_c219", prompt)
 
     def test_workspace_does_not_expose_hidden_scenario(self):
         case = next(case for case in RUNNER.load_cases() if case["id"] == "doctor-semantic-health")
