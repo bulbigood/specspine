@@ -33,8 +33,9 @@ Core and extended cases currently cover:
 - creation of a brownfield map from runtime evidence;
 - generic project-agent bootstrap boundaries;
 - idempotent reconnect of the project-agent bootstrap;
-- accelerated extraction of a bounded architecture handoff and native
-  Markdown fallback when acceleration is unavailable;
+- accelerated extraction of a bounded architecture handoff, fallback after one
+  failed acceleration attempt, direct navigation without Extract, and native
+  Markdown navigation when project configuration disables acceleration;
 - semantic-ID references and representative repository evidence;
 - semantic Doctor diagnosis and bounded mechanical repair without runtime companions;
 - recursive Doctor link and marker-bounded semantic-ID validation across

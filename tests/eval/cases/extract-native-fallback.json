@@ -6,6 +6,7 @@
   "category": "core",
   "runs": 1,
   "initial_files": {
+    "AGENTS.md": "<!-- specspine:begin -->\n## Architecture\n\n- SpecSpine index: `specspine/README.md`\n- Documentation language: `English`\n- Retrieval accelerator: `disabled`\n\nFor architecture-relevant planning, specification, implementation, or review,\nuse installed `specspine-extract` for a minimal handoff. If it is unavailable,\nread the SpecSpine index and follow relevant links. `Decisions` and `Constraints`\nare accepted intent; preserve conflicts with `Observed`, `Inferred`, and `Open\nquestions`.\n<!-- specspine:end -->\n",
     "specspine/README.md": "# Project architecture\n\n## Architecture map\n\n- [Payments](payments.md)\n- [Unrelated analytics](analytics.md)\n",
     "specspine/payments.md": "# Payments\n\nPayment navigation. [Settlement](settlement.md) owns settlement outcomes.\n",
     "specspine/settlement.md": "# Settlement\n\nOwns provider settlement boundaries. [Retry policy](retry-policy.md) canonically owns provider-timeout retry delay.\n",
@@ -19,6 +20,7 @@
     {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payments.md", "specspine/settlement.md", "specspine/retry-policy.md"]},
     {"type": "max_files_read", "max": 4},
     {"type": "command_excludes", "value": "search_spine.py"},
+    {"type": "trace_equals", "field": "retrieval_attempt_count", "value": 0},
     {"type": "response_section_contains", "section": "Primary specification", "value": "specspine/retry-policy.md"},
     {"type": "response_contains", "value": "CON-provider-timeout-delay"},
     {"type": "response_section_contains", "section": "Blocking questions", "value": "OQ-provider-timeout-delay-duration"},

@@ -14,6 +14,7 @@
     {"type": "read_includes", "paths": ["specspine/README.md", "specspine/execution-retries.md", "specspine/external-rate-limits.md", "specspine/idempotency.md", "specspine/background-jobs.md"]},
     {"type": "trace_equals", "field": "retrieval_mode", "value": "sqlite-fts5", "when_trace": {"accelerator_mode": "enabled"}, "profiles": ["extract"]},
     {"type": "trace_equals", "field": "retrieval_mode", "value": "fallback", "when_trace": {"accelerator_mode": "fallback"}, "profiles": ["extract"]},
+    {"type": "trace_equals", "field": "retrieval_attempt_count", "value": 1, "profiles": ["extract"]},
     {"type": "max_files_read", "max": 16, "when_trace": {"accelerator_mode": "enabled"}, "profiles": ["extract"]},
     {"type": "command_includes", "value": "search_spine.py", "profiles": ["extract"]},
     {"type": "command_excludes", "value": "search_spine.py", "profiles": ["no-extract"]},
