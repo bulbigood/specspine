@@ -191,6 +191,71 @@ class CodexAdapterTests(unittest.TestCase):
         )
         self.assertGreater(attempts[0]["output_utf8_bytes"], 0)
 
+    def test_records_compact_retrieval_result_without_diagnostics(self):
+        payload = {
+            "schema_version": 2,
+            "mode": "sqlite-fts5",
+            "direct_matches": [{"path": "specspine/owner.md"}],
+            "graph_neighbors": [
+                {
+                    "path": "specspine/worker.md",
+                    "transitions": [
+                        {
+                            "root_path": "specspine/owner.md",
+                            "source_path": "specspine/owner.md",
+                            "direction": "outgoing",
+                            "depth": 1,
+                        }
+                    ],
+                }
+            ],
+        }
+        stdout = json.dumps({
+            "type": "item.completed",
+            "item": {
+                "id": "retrieval-1",
+                "type": "command_execution",
+                "command": "python3 search_spine.py specspine --query intent",
+                "exit_code": 0,
+                "aggregated_output": json.dumps(payload) + "\n",
+            },
+        })
+
+        attempt = ADAPTER.parse_retrieval_attempts(stdout)[0]
+
+        self.assertEqual("sqlite-fts5", attempt["mode"])
+        self.assertEqual(
+            ["specspine/owner.md", "specspine/worker.md"],
+            attempt["candidate_paths"],
+        )
+        self.assertEqual({}, attempt["selection"])
+        self.assertEqual({}, attempt["timings"])
+        self.assertIsNone(attempt["reason_code"])
+
+    def test_records_unquoted_multiword_retrieval_query(self):
+        stdout = json.dumps({
+            "type": "item.completed",
+            "item": {
+                "id": "retrieval-1",
+                "type": "command_execution",
+                "command": (
+                    "python3 search_spine.py specspine --query delayed retries "
+                    "after timeouts --limit 3"
+                ),
+                "exit_code": 0,
+                "aggregated_output": json.dumps({
+                    "schema_version": 2,
+                    "mode": "sqlite-fts5",
+                    "direct_matches": [{"path": "owner.md"}],
+                    "graph_neighbors": [],
+                }),
+            },
+        })
+
+        attempt = ADAPTER.parse_retrieval_attempts(stdout)[0]
+
+        self.assertEqual("delayed retries after timeouts", attempt["query"])
+
     def test_classifies_malformed_retrieval_output(self):
         stdout = json.dumps(
             {

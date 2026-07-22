@@ -20,8 +20,8 @@ SEARCH = ROOT / "skills" / "specspine-extract" / "scripts" / "search_spine.py"
 
 
 def write_corpus(root: Path, document_count: int, query_count: int) -> list[dict[str, str]]:
-    if document_count < query_count + 1:
-        raise ValueError("document count must exceed query count")
+    if document_count < query_count * 2 + 1:
+        raise ValueError("document count must exceed twice the query count")
     owners = [f"owner-{index}.md" for index in range(query_count)]
     (root / "README.md").write_text(
         "# Benchmark\n\n" + "\n".join(
@@ -44,8 +44,18 @@ def write_corpus(root: Path, document_count: int, query_count: int) -> list[dict
                 "expected": path,
             },
             {"kind": "semantic-id", "query": semantic_id, "expected": path},
+            {
+                "kind": "ambiguous",
+                "query": f"capability{index} invariant{index} timeout",
+                "expected": path,
+            },
         ))
-    for index in range(document_count - query_count - 1):
+        (root / f"ambiguous-{index}.md").write_text(
+            f"# Ambiguous {index}\n\n"
+            f"Transport timeout handling mentions capability{index} without invariant ownership.\n",
+            encoding="utf-8",
+        )
+    for index in range(document_count - query_count * 2 - 1):
         (root / f"decoy-{index:05d}.md").write_text(
             f"# Decoy {index}\n\nGeneric change boundary material noise{index}.\n",
             encoding="utf-8",
@@ -62,6 +72,7 @@ def invoke(root: Path, cache: Path, query: str) -> tuple[dict[str, Any], int]:
             str(SEARCH),
             str(root),
             f"--query={query}",
+            "--diagnostics",
             "--graph-depth=0",
             "--graph-limit=0",
         ],
@@ -146,8 +157,8 @@ def main() -> int:
     parser.add_argument("--queries", type=int, default=8, help="queries per workload kind")
     parser.add_argument("--jobs", type=int, default=0, help="parallel scales; 0 selects automatically")
     args = parser.parse_args()
-    if args.queries < 1 or any(count <= args.queries for count in args.documents):
-        parser.error("queries must be positive and smaller than every document count")
+    if args.queries < 1 or any(count < args.queries * 2 + 1 for count in args.documents):
+        parser.error("queries must be positive and fit twice in every document count")
     workers = args.jobs or min(len(args.documents), os.cpu_count() or 1)
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
         scales = list(executor.map(lambda count: run_scale(count, args.queries), args.documents))

@@ -8,6 +8,7 @@ import datetime
 import hashlib
 import html
 import json
+import random
 import shlex
 import statistics
 import sys
@@ -26,18 +27,18 @@ TOKEN_METRICS = (
 )
 METRICS = (
     "agent_duration_seconds",
-    *TOKEN_METRICS,
+    "total_tokens",
+    "uncached_input_tokens",
+    "output_tokens",
+    "reasoning_output_tokens",
     "files_read",
     "command_count",
     "command_output_chars",
 )
 COST_METRICS = (
-    "prompt_utf8_bytes",
-    "declared_skill_context_utf8_bytes",
     "retrieval_output_utf8_bytes",
     "project_source_file_bytes",
     "command_output_utf8_bytes",
-    "final_response_utf8_bytes",
     "tool_cycles",
 )
 
@@ -56,6 +57,20 @@ def markdown_text(value: object) -> str:
 
 def markdown_path(path: Path) -> str:
     return f"<code>{markdown_text(path)}</code>"
+
+
+def without_sections(lines: list[str], titles: set[str]) -> list[str]:
+    result: list[str] = []
+    skipping = False
+    for line in lines:
+        if line in titles:
+            skipping = True
+            continue
+        if skipping and line.startswith("## "):
+            skipping = False
+        if not skipping:
+            result.append(line)
+    return result
 
 
 def load_report(path: Path) -> dict[str, Any]:
@@ -119,17 +134,6 @@ def all_trace_values(samples: Iterable[dict[str, Any]], field: str) -> str:
 
 def all_runtime_values(samples: Iterable[dict[str, Any]], field: str) -> str:
     values = sorted(set().union(*(runtime_values(sample, field) for sample in samples)))
-    return ", ".join(values) or "unavailable"
-
-
-def accelerator_runtime_values(samples: Iterable[dict[str, Any]], field: str) -> str:
-    values = sorted({
-        str(runtime[field])
-        for sample in samples
-        for attempt in attempts(sample)
-        for runtime in [attempt.get("runtime")]
-        if isinstance(runtime, dict) and runtime.get(field) is not None
-    })
     return ", ".join(values) or "unavailable"
 
 
@@ -259,11 +263,7 @@ def single_expected_attempt(sample: dict[str, Any], expected_mode: str) -> bool:
         and found[0].get("mode") == expected_mode
         and found[0].get("failure_kind") is None
         and found[0].get("exit_code") == expected_exit
-        and (
-            bool(found[0].get("reason_code"))
-            if expected_mode == "fallback"
-            else not found[0].get("reason_code")
-        )
+        and (expected_mode == "fallback" or not found[0].get("reason_code"))
     )
 
 
@@ -276,10 +276,6 @@ def cohort(
 def metric_values(samples: Iterable[dict[str, Any]], metric: str) -> list[float]:
     values = [metric_value(sample, metric) for sample in samples]
     return [value for value in values if value is not None]
-
-
-def percentage(delta: float, baseline: float) -> str:
-    return "n/a" if baseline == 0 else f"{100.0 * delta / baseline:+.1f}%"
 
 
 def format_number(value: float | None, metric: str, *, signed: bool = False) -> str:
@@ -305,8 +301,45 @@ def metric_label(metric: str) -> str:
     }.get(metric, metric.replace("_", " ").capitalize())
 
 
-def range_text(values: list[float], metric: str) -> str:
-    return "n/a" if not values else f"{format_number(min(values), metric)}–{format_number(max(values), metric)}"
+def relative_effect(
+    left: list[float], right: list[float], center: Callable[[list[float]], float]
+) -> float | None:
+    if not left or not right:
+        return None
+    baseline = center(left)
+    return None if baseline == 0 else (center(right) - baseline) / baseline
+
+
+def percentile(sorted_values: list[float], probability: float) -> float:
+    position = (len(sorted_values) - 1) * probability
+    lower = int(position)
+    upper = min(lower + 1, len(sorted_values) - 1)
+    fraction = position - lower
+    return sorted_values[lower] * (1 - fraction) + sorted_values[upper] * fraction
+
+
+def bootstrap_median_effect(
+    left: list[float],
+    right: list[float],
+    metric: str,
+    iterations: int = 20_000,
+) -> tuple[float, float] | None:
+    if not left or not right or statistics.median(left) == 0:
+        return None
+    seed = int.from_bytes(hashlib.sha256(metric.encode("utf-8")).digest()[:8])
+    generator = random.Random(seed)
+    effects = []
+    for _ in range(iterations):
+        sampled_left = [generator.choice(left) for _ in left]
+        sampled_right = [generator.choice(right) for _ in right]
+        effect = relative_effect(sampled_left, sampled_right, statistics.median)
+        if effect is not None:
+            effects.append(effect)
+    effects.sort()
+    return (
+        percentile(effects, 0.025),
+        percentile(effects, 0.975),
+    )
 
 
 def render_metric_table(
@@ -316,27 +349,37 @@ def render_metric_table(
     left_label: str = "F",
     right_label: str = "A",
     metrics: tuple[str, ...] = METRICS,
+    show_uncertainty: bool = True,
 ) -> None:
+    uncertainty_header = " | 95% bootstrap Δ median" if show_uncertainty else ""
     lines.extend([
-        f"| Metric | {left_label} mean | {right_label} mean | Δ mean | {left_label} median | {right_label} median | {left_label} min–max | {right_label} min–max | {left_label} SD | {right_label} SD | Totals ratio {right_label}/{left_label} | n {left_label}/{right_label} |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        f"| Metric | {left_label} median | {right_label} median | Δ median | {left_label} mean | {right_label} mean | Δ mean{uncertainty_header} | n {left_label}/{right_label} |",
+        "|---|---:|---:|---:|---:|---:|---:|"
+        + ("---:|" if show_uncertainty else "")
+        + "---:|",
     ])
     for metric in metrics:
         left, right = metric_values(fallback_samples, metric), metric_values(accelerated_samples, metric)
+        left_median = statistics.median(left) if left else None
+        right_median = statistics.median(right) if right else None
         left_mean = statistics.fmean(left) if left else None
         right_mean = statistics.fmean(right) if right else None
-        delta = None if left_mean is None or right_mean is None else right_mean - left_mean
-        ratio = None if not left or not right or sum(left) == 0 else sum(right) / sum(left)
+        median_effect = relative_effect(left, right, statistics.median)
+        mean_effect = relative_effect(left, right, statistics.fmean)
+        interval = bootstrap_median_effect(left, right, metric) if show_uncertainty else None
         label = metric_label(metric)
+        uncertainty_cell = (
+            ""
+            if not show_uncertainty
+            else f"{('—' if interval is None else f'{interval[0]:+.1%}–{interval[1]:+.1%}')} | "
+        )
         lines.append(
-            f"| {label} | {format_number(left_mean, metric)} | {format_number(right_mean, metric)} | "
-            f"{('n/a' if delta is None or left_mean is None else percentage(delta, left_mean))} | "
-            f"{format_number(statistics.median(left) if left else None, metric)} | "
-            f"{format_number(statistics.median(right) if right else None, metric)} | "
-            f"{range_text(left, metric)} | {range_text(right, metric)} | "
-            f"{format_number(statistics.stdev(left) if len(left) > 1 else None, metric)} | "
-            f"{format_number(statistics.stdev(right) if len(right) > 1 else None, metric)} | "
-            f"{('n/a' if ratio is None else f'{ratio:.3f}')} | {len(left)}/{len(right)} |"
+            f"| {label} | {format_number(left_median, metric)} | {format_number(right_median, metric)} | "
+            f"{('n/a' if median_effect is None else f'{median_effect:+.1%}')} | "
+            f"{format_number(left_mean, metric)} | {format_number(right_mean, metric)} | "
+            f"{('n/a' if mean_effect is None else f'{mean_effect:+.1%}')} | "
+            f"{uncertainty_cell}"
+            f"{len(left)}/{len(right)} |"
         )
 
 
@@ -384,15 +427,6 @@ def cache_profile_text(run: dict[str, Any]) -> str:
     if isinstance(value, list):
         return ", ".join(map(str, value)) or "unavailable"
     return str(value) if value else "unavailable"
-
-
-def prewarm_seconds(sample: dict[str, Any]) -> float:
-    return sum(
-        float(value)
-        for run in agent_runs(sample)
-        for value in [run.get("prewarm_seconds")]
-        if isinstance(value, (int, float)) and not isinstance(value, bool)
-    )
 
 
 def aggregate_usefulness(sample: dict[str, Any]) -> dict[str, object]:
@@ -445,17 +479,12 @@ def render_comparison(
         "Independent stochastic samples use matched case identities; sample numbers are not statistical pairs.", "",
         "## Configuration", "", "| Setting | Forced fallback | SQLite FTS5 + graph |", "|---|---|---|",
         f"| Run ID | {markdown_text(run_left.get('run_id', 'unavailable'))} | {markdown_text(run_right.get('run_id', 'unavailable'))} |",
-        f"| Started | {markdown_text(run_left.get('started_at', 'unavailable'))} | {markdown_text(run_right.get('started_at', 'unavailable'))} |",
-        f"| Finished | {markdown_text(run_left.get('finished_at', 'unavailable'))} | {markdown_text(run_right.get('finished_at', 'unavailable'))} |",
         f"| Cache profile | {markdown_text(cache_profile_text(run_left))} | {markdown_text(cache_profile_text(run_right))} |",
         f"| Configured jobs | {fallback.get('jobs')} | {accelerated.get('jobs')} |",
         f"| Samples | {len(left)} | {len(right)} |",
         f"| Model | {all_trace_values(left.values(), 'model')} | {all_trace_values(right.values(), 'model')} |",
         f"| Reasoning effort | {all_trace_values(left.values(), 'reasoning_effort')} | {all_trace_values(right.values(), 'reasoning_effort')} |",
         f"| Codex CLI | {all_runtime_values(left.values(), 'codex_cli')} | {all_runtime_values(right.values(), 'codex_cli')} |",
-        f"| Accelerator Python | {accelerator_runtime_values(left.values(), 'python')} | {accelerator_runtime_values(right.values(), 'python')} |",
-        f"| SQLite | {accelerator_runtime_values(left.values(), 'sqlite')} | {accelerator_runtime_values(right.values(), 'sqlite')} |",
-        f"| Runner fingerprint | {markdown_text(str(report_fingerprint(fallback, 'runner'))[:12])} | {markdown_text(str(report_fingerprint(accelerated, 'runner'))[:12])} |",
         f"| Observed combined concurrency | {observed_concurrency(all_samples) or 'unavailable'} | {observed_concurrency(all_samples) or 'unavailable'} |",
     ]
     for number, directory in enumerate(source_directories, 1):
@@ -465,10 +494,15 @@ def render_comparison(
         lines.extend(["", "> Compatibility warning: " + "; ".join(warnings) + "."])
 
     cohorts = (
-        ("Environment-valid", lambda sample, mode: bool(sample.get("environment_valid"))),
-        ("Behavior-passed", lambda sample, mode: bool(sample.get("environment_valid")) and bool(sample.get("passed"))),
-        ("Expected retrieval path", lambda sample, mode: bool(sample.get("environment_valid")) and expected_path(sample, mode)),
-        ("Single expected retrieval attempt", lambda sample, mode: bool(sample.get("environment_valid")) and single_expected_attempt(sample, mode)),
+        ("All valid samples", lambda sample, mode: bool(sample.get("environment_valid"))),
+        (
+            "Clean retrieval path",
+            lambda sample, mode: (
+                bool(sample.get("environment_valid"))
+                and bool(sample.get("passed"))
+                and single_expected_attempt(sample, mode)
+            ),
+        ),
     )
     for title, predicate in cohorts:
         left_samples = cohort(left, lambda sample, p=predicate: p(sample, "fallback"))
@@ -485,20 +519,84 @@ def render_comparison(
         "Byte and cycle proxies are measured independently from stochastic model token counters.",
         "",
     ])
-    render_metric_table(lines, valid_left, valid_right, metrics=COST_METRICS)
+    render_metric_table(
+        lines, valid_left, valid_right, metrics=COST_METRICS, show_uncertainty=False
+    )
 
-    lines.extend(["", "## Sample outcomes", "", "| Mode | Sample | Valid | Passed | Retrieval | Attempts | Index state | Inferred files | Commands | Tool output chars | Prewarm | Agent time | Total tokens | Queue | Outcome/reason |", "|---|---:|---:|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|"])
+    lines.extend(["", "## Sample outcomes", "", "| Mode | Sample | Passed | Retrieval | Files | Commands | Agent time | Total tokens | Outcome |", "|---|---:|---:|---|---:|---:|---:|---:|---|"])
     for label, samples in (("fallback", left), ("accelerated", right)):
         for key, sample in sorted(samples.items()):
             found = attempts(sample)
             last = found[-1] if found else {}
             lines.append(
-                f"| {label} | {key[1]} | {bool(sample.get('environment_valid'))} | {bool(sample.get('passed'))} | "
-                f"{markdown_text(last.get('mode', 'unavailable'))} | {len(found)} | {markdown_text(last.get('index_state') or '—')} | "
+                f"| {label} | {key[1]} | {bool(sample.get('passed'))} | "
+                f"{markdown_text(last.get('mode', 'unavailable'))} | "
                 f"{format_number(metric_value(sample, 'files_read'), 'files_read')} | {format_number(metric_value(sample, 'command_count'), 'command_count')} | "
-                f"{format_number(metric_value(sample, 'command_output_chars'), 'command_output_chars')} | {prewarm_seconds(sample):.3f} | {format_number(metric_value(sample, 'agent_duration_seconds'), 'agent_duration_seconds')} | "
-                f"{format_number(metric_value(sample, 'total_tokens'), 'total_tokens')} | {float(sample.get('queue_seconds') or 0):.3f} | {markdown_text(failure_summary(sample))} |"
+                f"{format_number(metric_value(sample, 'agent_duration_seconds'), 'agent_duration_seconds')} | "
+                f"{format_number(metric_value(sample, 'total_tokens'), 'total_tokens')} | {markdown_text(failure_summary(sample))} |"
             )
+
+    lines.extend([
+        "",
+        "## Retrieval summary",
+        "",
+        "| Mode | Expected single attempt | Direct median | Graph median | Retrieval bytes median | Sample failures |",
+        "|---|---:|---:|---:|---:|---:|",
+    ])
+    for label, samples, expected_mode in (
+        ("fallback", left, "fallback"),
+        ("accelerated", right, "sqlite-fts5"),
+    ):
+        sample_values = list(samples.values())
+        direct_counts = [
+            float(attempt.get("direct_count"))
+            for sample in sample_values
+            for attempt in attempts(sample)
+            if isinstance(attempt.get("direct_count"), int)
+        ]
+        graph_counts = [
+            float(attempt.get("graph_count"))
+            for sample in sample_values
+            for attempt in attempts(sample)
+            if isinstance(attempt.get("graph_count"), int)
+        ]
+        retrieval_bytes = metric_values(sample_values, "retrieval_output_utf8_bytes")
+        lines.append(
+            f"| {label} | {sum(single_expected_attempt(sample, expected_mode) for sample in sample_values)}/{len(sample_values)} | "
+            f"{format_number(statistics.median(direct_counts) if direct_counts else None, 'files_read')} | "
+            f"{format_number(statistics.median(graph_counts) if graph_counts else None, 'files_read')} | "
+            f"{format_number(statistics.median(retrieval_bytes) if retrieval_bytes else None, 'retrieval_output_utf8_bytes')} | "
+            f"{sum(bool(failure_summary(sample) != '—') for sample in sample_values)} |"
+        )
+
+    lines.extend([
+        "",
+        "## Retrieval usefulness",
+        "",
+        "Median counts; README.md is excluded from routed reads.",
+        "",
+        "| Mode | Returned direct | Returned graph | Read direct | Read graph | Read outside |",
+        "|---|---:|---:|---:|---:|---:|",
+    ])
+    for label, samples in (("fallback", left), ("accelerated", right)):
+        ledgers = [aggregate_usefulness(sample) for sample in samples.values()]
+        fields = (
+            "returned_direct",
+            "returned_graph",
+            "read_returned_direct",
+            "read_returned_graph",
+            "read_outside_results",
+        )
+        values = [
+            statistics.median([
+                float(ledger[field]) for ledger in ledgers
+                if isinstance(ledger.get(field), int)
+            ])
+            for field in fields
+        ]
+        lines.append(
+            f"| {label} | " + " | ".join(format_number(value, "files_read") for value in values) + " |"
+        )
 
     lines.extend(["", "## Retrieval attempts", "", "| Mode | Sample | Attempt | Query | Result | Strategy | Exit | Failure/reason | Index | Documents | Refreshed | Direct/graph | Total/Search (s) | Candidates |", "|---|---:|---:|---|---|---|---:|---|---|---:|---:|---:|---:|---|"])
     for label, samples in (("fallback", left), ("accelerated", right)):
@@ -538,7 +636,7 @@ def render_comparison(
 
     lines.extend([
         "",
-        "## Retrieval usefulness",
+        "## Retrieval usefulness details",
         "",
         "README.md is excluded because the skill reads it independently of accelerator routing.",
         "",
@@ -587,7 +685,8 @@ def render_comparison(
                 for value in run.get("scope_violations", []):
                     diagnostic_rows.append((label, key[1], "scope", str(value)[:1000]))
             for attempt in attempts(sample):
-                if attempt.get("failure_kind") or attempt.get("reason_code"):
+                reason_code = attempt.get("reason_code")
+                if attempt.get("failure_kind") or reason_code not in {None, "cache_unusable"}:
                     detail = attempt.get("reason") or attempt.get("output_excerpt") or ""
                     diagnostic_rows.append((label, key[1], f"retrieval-{attempt.get('attempt_number', '?')}", str(detail)[:1000]))
     if diagnostic_rows:
@@ -597,6 +696,10 @@ def render_comparison(
             for label, sample_number, kind, detail in diagnostic_rows
         )
 
+    lines = without_sections(
+        lines,
+        {"## Retrieval attempts", "## Retrieval usefulness details", "## Command executions"},
+    )
     lines.extend(["", f"> Comparator fingerprint: `{hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}`.", "> Behavioral failures remain visible. Environment-invalid samples are excluded from metric cohorts. This is a measurement, not a CI threshold."])
     return "\n".join(lines)
 

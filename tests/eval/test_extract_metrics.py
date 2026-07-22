@@ -97,6 +97,17 @@ def sample(number, mode, duration, tokens, passed, environment_valid=True):
 
 
 class ExtractMetricsTests(unittest.TestCase):
+    def test_bootstrap_effect_is_deterministic_for_separated_samples(self):
+        first = METRICS.bootstrap_median_effect(
+            [100, 100, 100], [50, 50, 50], "sentinel"
+        )
+        second = METRICS.bootstrap_median_effect(
+            [100, 100, 100], [50, 50, 50], "sentinel"
+        )
+
+        self.assertEqual(first, second)
+        self.assertEqual((-0.5, -0.5), first)
+
     def test_independent_metrics_include_failed_behavioral_samples(self):
         fallback = report(
             "fallback",
@@ -237,13 +248,15 @@ class ExtractMetricsTests(unittest.TestCase):
 
         self.assertEqual(1, METRICS.observed_concurrency(samples))
 
-    def test_single_expected_attempt_distinguishes_fallback_from_success(self):
+    def test_single_expected_attempt_accepts_compact_fallback(self):
         fallback = sample(1, "fallback", 10, 100, True)
         accelerated = sample(1, "enabled", 10, 100, True)
 
         self.assertTrue(METRICS.single_expected_attempt(fallback, "fallback"))
         self.assertTrue(METRICS.single_expected_attempt(accelerated, "sqlite-fts5"))
         fallback["agent_runs"][0]["retrieval_attempts"][0]["reason_code"] = None
+        self.assertTrue(METRICS.single_expected_attempt(fallback, "fallback"))
+        fallback["agent_runs"][0]["retrieval_attempts"][0]["exit_code"] = 0
         self.assertFalse(METRICS.single_expected_attempt(fallback, "fallback"))
 
     def test_markdown_writer_creates_requested_artifact(self):
@@ -306,33 +319,6 @@ class ExtractMetricsTests(unittest.TestCase):
         self.assertIn("sqlite-fts5", rendered)
         self.assertIn("sentinel-check", rendered)
 
-    def test_markdown_keeps_all_ranked_candidates_and_command_metrics(self):
-        fallback = report("fallback", [sample(1, "fallback", 10, 100, True)])
-        accelerated_sample = sample(1, "enabled", 5, 50, True)
-        attempt = accelerated_sample["agent_runs"][0]["retrieval_attempts"][0]
-        attempt["query"] = "query-sentinel"
-        attempt["candidates"] = [
-            {"path": f"candidate-{index}.md", "score": index, "origins": ["fts"]}
-            for index in range(7)
-        ]
-        accelerated_sample["agent_runs"][0]["event_metrics"]["command_metrics"] = [
-            {
-                "number": 1,
-                "category": "retrieval",
-                "exit_code": 0,
-                "output_chars": 321,
-                "inferred_file_count": 0,
-                "command_excerpt": "command-sentinel",
-            }
-        ]
-        accelerated = report("enabled", [accelerated_sample])
-
-        rendered = METRICS.render_comparison(fallback, accelerated)
-
-        self.assertIn("candidate-6.md", rendered)
-        self.assertIn("query-sentinel", rendered)
-        self.assertIn("command-sentinel", rendered)
-
     def test_three_way_report_compares_cold_and_prewarmed_profiles(self):
         fallback = report("fallback", [sample(1, "fallback", 10, 100, True)])
         cold = report("enabled", [sample(1, "enabled", 8, 80, True)])
@@ -349,7 +335,7 @@ class ExtractMetricsTests(unittest.TestCase):
         self.assertIn("Cold vs prewarmed accelerator", rendered)
         self.assertIn("prewarmed", rendered)
 
-    def test_report_distinguishes_direct_and_graph_candidates(self):
+    def test_report_aggregates_direct_and_graph_candidates(self):
         fallback = report("fallback", [sample(1, "fallback", 10, 100, True)])
         accelerated_sample = sample(1, "enabled", 5, 50, True)
         attempt = accelerated_sample["agent_runs"][0]["retrieval_attempts"][0]
@@ -373,9 +359,8 @@ class ExtractMetricsTests(unittest.TestCase):
 
         rendered = METRICS.render_comparison(fallback, accelerated)
 
-        self.assertIn("D:owner.md", rendered)
-        self.assertIn("G:worker.md", rendered)
-        self.assertIn("owner.md", rendered)
+        self.assertNotIn("D:owner.md", rendered)
+        self.assertNotIn("G:worker.md", rendered)
         self.assertIn("Deterministic cost ledger", rendered)
         self.assertIn("Retrieval usefulness", rendered)
 

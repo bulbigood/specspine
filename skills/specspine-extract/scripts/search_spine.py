@@ -977,22 +977,44 @@ def search(
         if len(candidates) > 1:
             candidates.pop("README.md", None)
 
-    def adaptive_direct(items: list[dict[str, object]]) -> list[dict[str, object]]:
+    def weak_direct(item: dict[str, object]) -> bool:
+        signals = item["signals"]
+        assert isinstance(signals, dict)
+        return int(signals.get("query_tokens") or 0) >= 3 and not (
+            signals.get("exact")
+            or signals.get("semantic_ids")
+            or int(signals.get("token_hits") or 0) >= 2
+            or int(signals.get("phrase_hits") or 0) >= 1
+            or int(signals.get("graph_support") or 0) >= 1
+        )
+
+    def adaptive_direct(
+        items: list[dict[str, object]], weak_limit: int
+    ) -> list[dict[str, object]]:
         if not items:
             return []
         # Keep weak-but-distinct recall signals while dropping the long tail.
         # Exact/semantic queries bypass this heuristic entirely.
         threshold = max(5.0, float(items[0]["score"]) * 0.1)
-        return [
-            item for item in items
-            if strong_match or float(item["score"]) >= threshold
-        ][:limit]
+        selected: list[dict[str, object]] = []
+        weak_count = 0
+        for item in items:
+            if not strong_match and float(item["score"]) < threshold:
+                continue
+            if not strong_match and weak_direct(item):
+                if weak_count >= weak_limit:
+                    continue
+                weak_count += 1
+            selected.append(item)
+            if len(selected) >= limit:
+                break
+        return selected
 
     direct_paths = set(candidates)
     preliminary_direct = adaptive_direct(sorted(
         candidates.values(),
         key=lambda item: (-float(item["score"]), str(item["path"])),
-    ))
+    ), weak_limit=2)
     frontier = [str(item["path"]) for item in preliminary_direct]
     visited = set(frontier)
     graph_candidates: dict[str, dict[str, object]] = {}
@@ -1086,7 +1108,7 @@ def search(
         candidates.values(),
         key=lambda item: (-float(item["score"]), str(item["path"])),
     )
-    direct = adaptive_direct(ranked_direct)
+    direct = adaptive_direct(ranked_direct, weak_limit=1)
     direct_cutoff_score = (
         None
         if strong_match or not ranked_direct
@@ -1128,6 +1150,13 @@ def search(
         item.pop("summary", None)
         item["score"] = round(float(item["score"]), 3)
         item["headings"] = item["headings"][:4]
+        signals = item["signals"]
+        assert isinstance(signals, dict)
+        item["signals"] = {
+            key: value
+            for key, value in signals.items()
+            if value not in (False, None, 0, [], ())
+        }
     for item in graph:
         item.pop("_scores", None)
         item.pop("_root_path", None)
@@ -1152,6 +1181,8 @@ def search(
     selection = {
         "direct_considered": len(ranked_direct),
         "direct_returned": len(direct),
+        "direct_weak_considered": sum(weak_direct(item) for item in ranked_direct),
+        "direct_weak_returned": sum(weak_direct(item) for item in direct),
         "direct_cutoff_score": (
             round(direct_cutoff_score, 3) if direct_cutoff_score is not None else None
         ),
@@ -1167,26 +1198,51 @@ def search(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("spine_root", type=Path)
-    parser.add_argument("--query", required=True)
+    parser.add_argument("--query", required=True, nargs="+")
     parser.add_argument("--limit", type=int, default=12)
     parser.add_argument("--graph-limit", type=int, default=6)
     parser.add_argument("--graph-depth", type=int, choices=(0, 1, 2), default=1)
     parser.add_argument("--rebuild", action="store_true")
+    parser.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="include ranking, index, runtime, and timing diagnostics",
+    )
     args = parser.parse_args()
+    query = " ".join(args.query)
+
+    total_started = time.perf_counter()
+
+    def failure_payload(mode: str, reason_code: str, reason: str) -> dict[str, object]:
+        payload: dict[str, object] = {"schema_version": 2, "mode": mode}
+        if args.diagnostics:
+            payload.update({
+                "reason_code": reason_code,
+                "reason": reason,
+                "timings": {
+                    "total_seconds": round(time.perf_counter() - total_started, 6)
+                },
+            })
+        return payload
 
     root = args.spine_root.resolve()
     if not root.is_dir() or not (root / "README.md").is_file():
-        print(json.dumps({"schema_version": 2, "mode": "error", "reason_code": "invalid_root", "reason": "SpecSpine root or README.md is missing"}))
+        print(json.dumps(failure_payload(
+            "error", "invalid_root", "SpecSpine root or README.md is missing"
+        )))
         return 3
     if args.limit < 1 or args.limit > 50:
-        print(json.dumps({"schema_version": 2, "mode": "error", "reason_code": "invalid_limit", "reason": "limit must be between 1 and 50"}))
+        print(json.dumps(failure_payload(
+            "error", "invalid_limit", "limit must be between 1 and 50"
+        )))
         return 3
     if args.graph_limit < 0 or args.graph_limit > 50:
-        print(json.dumps({"schema_version": 2, "mode": "error", "reason_code": "invalid_graph_limit", "reason": "graph-limit must be between 0 and 50"}))
+        print(json.dumps(failure_payload(
+            "error", "invalid_graph_limit", "graph-limit must be between 0 and 50"
+        )))
         return 3
 
     connection: sqlite3.Connection | None = None
-    total_started = time.perf_counter()
     try:
         probe_fts5()
         index_path = cache_path(root)
@@ -1194,7 +1250,7 @@ def main() -> int:
         search_started = time.perf_counter()
         direct_matches, graph_neighbors, retrieval_strategy, selection = search(
             connection,
-            args.query,
+            query,
             args.limit,
             args.graph_depth,
             args.graph_limit,
@@ -1202,41 +1258,58 @@ def main() -> int:
         timings["search_seconds"] = time.perf_counter() - search_started
         timings["total_seconds"] = time.perf_counter() - total_started
         count = connection.execute("SELECT count(*) FROM documents").fetchone()[0]
-        print(json.dumps({
+        payload: dict[str, object] = {
             "schema_version": 2,
             "mode": "sqlite-fts5",
-            "runtime": {
-                "python": platform.python_version(),
-                "sqlite": sqlite3.sqlite_version,
-                "fts5": True,
-            },
-            "documents": count,
-            "refreshed": changed,
-            "index_state": timings.pop("index_state"),
-            "retrieval_strategy": retrieval_strategy,
-            "selection": selection,
-            "timings": {key: round(float(value), 6) for key, value in timings.items()},
-            "direct_matches": direct_matches,
-            "graph_neighbors": graph_neighbors,
-        }, ensure_ascii=False))
+            "direct_matches": [{"path": item["path"]} for item in direct_matches],
+            "graph_neighbors": [
+                {
+                    "path": item["path"],
+                    "transitions": [
+                        {
+                            key: transition[key]
+                            for key in ("root_path", "source_path", "direction", "depth")
+                            if key in transition
+                        }
+                        for transition in item["transitions"]
+                    ],
+                }
+                for item in graph_neighbors
+            ],
+        }
+        if args.diagnostics:
+            payload.update({
+                "runtime": {
+                    "python": platform.python_version(),
+                    "sqlite": sqlite3.sqlite_version,
+                    "fts5": True,
+                },
+                "documents": count,
+                "refreshed": changed,
+                "index_state": timings.pop("index_state"),
+                "retrieval_strategy": retrieval_strategy,
+                "selection": selection,
+                "timings": {
+                    key: round(float(value), 6) for key, value in timings.items()
+                },
+                "direct_matches": direct_matches,
+                "graph_neighbors": graph_neighbors,
+            })
+        print(json.dumps(payload, ensure_ascii=False))
         return 0 if direct_matches else FALLBACK_EXIT
     except AcceleratorUnavailable as error:
-        print(json.dumps({
-            "schema_version": 2,
-            "mode": "fallback",
-            "reason_code": error.reason_code,
-            "reason": str(error),
-            "timings": {"total_seconds": round(time.perf_counter() - total_started, 6)},
-        }, ensure_ascii=False))
+        print(json.dumps(
+            failure_payload("fallback", error.reason_code, str(error)),
+            ensure_ascii=False,
+        ))
         return FALLBACK_EXIT
     except Exception as error:
-        print(json.dumps({
-            "schema_version": 2,
-            "mode": "fallback",
-            "reason_code": "unexpected_error",
-            "reason": f"accelerator failed: {error}",
-            "timings": {"total_seconds": round(time.perf_counter() - total_started, 6)},
-        }, ensure_ascii=False))
+        print(json.dumps(
+            failure_payload(
+                "fallback", "unexpected_error", f"accelerator failed: {error}"
+            ),
+            ensure_ascii=False,
+        ))
         return FALLBACK_EXIT
     finally:
         if connection is not None:

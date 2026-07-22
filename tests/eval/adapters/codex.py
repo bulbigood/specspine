@@ -303,7 +303,12 @@ def command_option(command: str, option: str) -> str | None:
         return None
     for index, token in enumerate(tokens):
         if token == option and index + 1 < len(tokens):
-            return tokens[index + 1]
+            values = []
+            for value in tokens[index + 1:]:
+                if value.startswith("--"):
+                    break
+                values.append(value)
+            return " ".join(values) or None
         if token.startswith(option + "="):
             return token.split("=", 1)[1]
     return None

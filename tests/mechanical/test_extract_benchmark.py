@@ -19,6 +19,10 @@ class ExtractBenchmarkTests(unittest.TestCase):
         self.assertEqual(40, result["documents"])
         self.assertEqual("cold_build", result["cold"]["index_state"])
         self.assertEqual(1.0, result["workloads"]["hybrid"]["recall_at_1"])
+        self.assertEqual(1.0, result["workloads"]["ambiguous"]["recall_at_1"])
+        self.assertLessEqual(
+            result["workloads"]["ambiguous"]["mean_direct_results"], 3
+        )
         self.assertEqual(1.0, result["workloads"]["semantic-id"]["recall_at_1"])
         self.assertGreater(result["workloads"]["hybrid"]["mean_output_utf8_bytes"], 0)
 

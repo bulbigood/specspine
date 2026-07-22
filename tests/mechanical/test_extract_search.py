@@ -43,12 +43,16 @@ class ExtractSearchTests(unittest.TestCase):
     def run_search(self, query, *arguments):
         environment = os.environ.copy()
         environment["SPECSPINE_CACHE_DIR"] = str(self.cache)
+        query_arguments = (
+            [f"--query={query}"] if query.startswith("-") else ["--query", query]
+        )
         result = subprocess.run(
             [
                 sys.executable,
                 str(MODULE_PATH),
                 str(self.spine),
-                f"--query={query}",
+                *query_arguments,
+                "--diagnostics",
                 *arguments,
             ],
             check=False,
@@ -58,6 +62,78 @@ class ExtractSearchTests(unittest.TestCase):
             timeout=5,
         )
         return result, json.loads(result.stdout)
+
+    def run_default_search(self, query, *arguments):
+        environment = os.environ.copy()
+        environment["SPECSPINE_CACHE_DIR"] = str(self.cache)
+        query_arguments = (
+            [f"--query={query}"] if query.startswith("-") else ["--query", query]
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(MODULE_PATH),
+                str(self.spine),
+                *query_arguments,
+                *arguments,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=environment,
+            timeout=5,
+        )
+        return result, json.loads(result.stdout)
+
+    def test_default_payload_omits_diagnostics(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Owner](owner.md)\n", encoding="utf-8"
+        )
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns compactpayloadsentinel. Uses [Worker](worker.md).\n",
+            encoding="utf-8",
+        )
+        (self.spine / "worker.md").write_text(
+            "# Worker\n\nProvides mechanics.\n", encoding="utf-8"
+        )
+
+        result, payload = self.run_default_search(
+            "compactpayloadsentinel", "--limit", "1", "--graph-limit", "1"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(
+            {"schema_version", "mode", "direct_matches", "graph_neighbors"},
+            set(payload),
+        )
+        self.assertEqual([{"path": "owner.md"}], payload["direct_matches"])
+        self.assertEqual("worker.md", payload["graph_neighbors"][0]["path"])
+        self.assertEqual(
+            {"root_path", "source_path", "direction", "depth"},
+            set(payload["graph_neighbors"][0]["transitions"][0]),
+        )
+
+    def test_default_fallback_payload_omits_diagnostics(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        self.cache.write_text("unavailable", encoding="utf-8")
+
+        result, payload = self.run_default_search("anything")
+
+        self.assertEqual(2, result.returncode)
+        self.assertEqual({"schema_version": 2, "mode": "fallback"}, payload)
+
+    def test_cli_accepts_unquoted_multiword_query(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Owner](owner.md)\n", encoding="utf-8"
+        )
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns multiword query routing.\n", encoding="utf-8"
+        )
+
+        result, payload = self.run_default_search("multiword", "query", "routing")
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([{"path": "owner.md"}], payload["direct_matches"])
 
     def test_cli_builds_refreshes_and_removes_without_writing_inside_spine(self):
         (self.spine / "README.md").write_text(
@@ -192,15 +268,7 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertNotIn("summary", candidate)
         self.assertNotIn("reasons", candidate)
         self.assertEqual(
-            {
-                "exact",
-                "semantic_ids",
-                "token_hits",
-                "query_tokens",
-                "phrase_hits",
-                "fts_rank",
-                "graph_support",
-            },
+            {"token_hits", "query_tokens", "fts_rank"},
             set(candidate["signals"]),
         )
 

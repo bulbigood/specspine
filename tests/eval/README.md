@@ -234,10 +234,15 @@ the explicit prewarmed comparison permits only that intentional difference.
 Sample numbers verify completeness but independent
 stochastic calls are not treated as statistical pairs. Environment-invalid
 samples are reported and excluded. Agent time comes from adapter traces rather
-than fixture setup or assertions. The Markdown preserves per-sample and
-per-retrieval-attempt diagnostics, all ranked candidates, concise command
-execution counts/output sizes, independent cohort statistics, dispersion,
-runtime versions, agent timestamps, and observed combined agent concurrency.
+than fixture setup or assertions. The Markdown is a compact median-first
+summary; means stay beside medians to expose outlier influence, and bootstrap
+intervals apply to median differences. It retains concise sample outcomes,
+retrieval/usefulness aggregates, failures, byte/cycle proxies, and observed
+concurrency. Detailed attempts and commands remain in the raw JSON. Normal A/B
+runs intentionally exercise the accelerator's compact production output. Add
+`--diagnostics` to a direct `search_spine.py` invocation only when ranking
+signals, all candidate details, index state, runtime versions, or timings are
+needed for investigation.
 It also keeps a deterministic byte/cycle cost ledger and relates returned
 direct/graph candidates to conservatively inferred subsequent document reads.
 These proxies explain context growth but are not model tokens.

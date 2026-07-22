@@ -35,7 +35,8 @@ retry; navigate from `README.md` through ordinary Markdown links.
    accelerator succeeds; otherwise navigate through ordinary Markdown links.
 4. Read current candidate documents and only the linked neighborhood needed to
    identify the canonical owner and classify required, potentially affected,
-   and merely related context. Never treat cached text as source evidence.
+   and merely related context. Batch selected reads when supported. Never treat
+   cached text as source evidence.
 5. Preserve statement kinds, semantic IDs, decision provenance, evidence
    baselines, unconfirmed inferences, and blocking questions.
 6. Render the smallest useful handoff using the bundled contract.
