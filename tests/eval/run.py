@@ -962,6 +962,7 @@ def main() -> int:
             print(
                 f"[{len(reports)}/{len(work_items)} completed]{sample_label}\n{report.output}",
                 end="",
+                flush=True,
             )
 
         if args.jobs > 1 and len(work_items) > 1:
