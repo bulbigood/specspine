@@ -43,6 +43,7 @@ htmlcov/
 *.temp
 .tmp/
 tmp/
+/.eval-runtime/
 
 # Local comparative evaluation reports
 /comparison-runs/**

@@ -428,7 +428,10 @@ def main() -> int:
     prompt = sys.stdin.read()
     candidates = relative_files(root)
     eval_dir = root / ".eval"
-    runtime_root = Path(tempfile.mkdtemp(prefix="specspine-runtime-", dir=root.parent))
+    configured_runtime = os.environ.get("SPECSPINE_EVAL_RUNTIME_DIR")
+    runtime_parent = Path(configured_runtime) if configured_runtime else root.parent
+    runtime_parent.mkdir(parents=True, exist_ok=True)
+    runtime_root = Path(tempfile.mkdtemp(prefix="specspine-runtime-", dir=runtime_parent))
     try:
         for directory in (
             runtime_root / "bin",

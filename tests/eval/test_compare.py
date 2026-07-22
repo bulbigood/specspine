@@ -207,6 +207,32 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(1.0, summary["native-repository"]["outcome_pass_rate"])
         self.assertEqual(101, summary["minimal-handoff"]["median_input_tokens"])
 
+    def test_execution_environment_must_be_complete_and_consistent(self):
+        environment = {
+            "kind": "docker",
+            "image": "specspine-eval-agent:abc",
+            "image_id": "sha256:image",
+            "source_sha256": "source",
+        }
+        self.assertEqual(
+            environment,
+            COMPARE.execution_environment_settings(
+                [
+                    {"valid": True, "execution_environment": environment},
+                    {"valid": True, "execution_environment": environment},
+                ]
+            ),
+        )
+        with self.assertRaisesRegex(ValueError, "missing execution environment"):
+            COMPARE.execution_environment_settings(
+                [{"valid": True, "execution_environment": environment}, {"valid": True}]
+            )
+        self.assertIsNone(COMPARE.execution_environment_settings([{"valid": False}]))
+        with self.assertRaisesRegex(ValueError, "incomplete execution environment"):
+            COMPARE.execution_environment_settings(
+                [{"execution_environment": {**environment, "image_id": "unknown"}}]
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

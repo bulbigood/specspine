@@ -59,6 +59,14 @@ path without naming the arm or adding an instruction confound. Do not expose the
 arm identifier through the environment. Verify required handoff/index reads
 from the trace.
 
+Run every sample and judgment in a fresh restricted container from the same
+content-addressed agent image. Reuse the immutable image, fixture archive, and
+preflight result between runs, but never a sample container, home directory, or
+runtime directory. Record the image name and immutable image ID. Treat image
+build/preflight failures, missing execution metadata, mixed image identities,
+and unavailable required tools as invalid experimental infrastructure—not as
+product failures.
+
 The value and projection experiments reuse the same task definitions so their
 requests and deterministic outcome checks cannot drift. Arms from different
 experiments are never interpreted as a direct comparison.

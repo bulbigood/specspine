@@ -1,0 +1,2328 @@
+{
+  "comparison_legend": {
+    "production-auditor-role": "Checks primary-owner and required-context selection for a cross-cutting authorization handoff.",
+    "production-bootstrap-admin-policy": "Checks that handoff production preserves the unresolved bootstrap decision as a blocker.",
+    "production-local-utility": "Checks that handoff production identifies an architecture-neutral utility owner without importing unrelated context.",
+    "production-reset-revocation": "Checks that generated context preserves the token ownership constraint and the intended-versus-observed conflict.",
+    "projection-auditor-role": "Tests whether the reviewed role handoff retains the value of navigating the complete Spine at lower context cost.",
+    "projection-reset-revocation": "Tests handoff non-inferiority and context efficiency for an intended-versus-observed token ownership conflict.",
+    "value-auditor-role": "Measures incremental value for a cross-cutting authorization change against the repository's native documentation.",
+    "value-bootstrap-admin-policy": "Measures whether SpecSpine prevents an agent from silently choosing an unresolved security-sensitive bootstrap policy.",
+    "value-local-utility": "Negative control: measures whether a handoff adds cost or scope to an architecture-neutral utility change.",
+    "value-reset-revocation": "Measures whether a handoff preserves canonical token ownership when accepted intent conflicts with existing cleanup code."
+  },
+  "comparisons": [
+    "production-auditor-role",
+    "production-bootstrap-admin-policy",
+    "production-local-utility",
+    "production-reset-revocation",
+    "projection-auditor-role",
+    "projection-reset-revocation",
+    "value-auditor-role",
+    "value-bootstrap-admin-policy",
+    "value-local-utility",
+    "value-reset-revocation"
+  ],
+  "experiments": [
+    "handoff-production",
+    "projection",
+    "value"
+  ],
+  "judge": {
+    "calls": 16,
+    "model": "gpt-5.6-terra",
+    "reasoning": "medium",
+    "results": 16
+  },
+  "model": "gpt-5.6-luna",
+  "reasoning": "medium",
+  "results": [
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "generated-handoff",
+      "artifacts": "comparison-runs/002/artifacts/production-auditor-role/generated-handoff/sample-1",
+      "cached_input_tokens": 185600,
+      "changed_files": [],
+      "checks": [
+        {
+          "message": "reads stay in allowed paths",
+          "passed": true
+        },
+        {
+          "message": "changes stay in allowed paths",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "production-auditor-role",
+      "context_sha256": "1c2ae82b8d41f2fa0258e6e878c7f1815435050dee8d684d691d06db0d77399c",
+      "context_words": 481,
+      "diff": "",
+      "duration_seconds": 54.739,
+      "experiment": "handoff-production",
+      "files_read": 4,
+      "files_read_paths": [
+        "specspine/README.md",
+        "specspine/api.md",
+        "specspine/authorization.md",
+        "specspine/users.md"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 212299,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 11.361,
+        "input_tokens": 13373,
+        "max_score": 8,
+        "output_tokens": 271,
+        "partial_criteria_count": 1,
+        "passed": false,
+        "response": "{\"scores\":{\"authorization_fidelity\":{\"score\":2,\"rationale\":\"States auditor receives getUsers, never manageUsers, and existing roles remain unchanged.\"},\"handoff_discipline\":{\"score\":1,\"rationale\":\"Concise and honest about uncertainty with no implementation plan or tests, but includes specification filenames.\"},\"mutation_boundary\":{\"score\":2,\"rationale\":\"Explicitly limits auditor to list/view access and states lifecycle mutations remain restricted without enforcement details.\"},\"owner_and_context\":{\"score\":2,\"rationale\":\"Selects specspine/authorization.md as primary and includes only users and API documentation as affected context.\"}},\"summary\":\"Decision-safe handoff that accurately captures the read-only auditor role and relevant documentation scope.\"}\n",
+        "reused": false,
+        "scores": {
+          "authorization_fidelity": {
+            "rationale": "States auditor receives getUsers, never manageUsers, and existing roles remain unchanged.",
+            "score": 2
+          },
+          "handoff_discipline": {
+            "rationale": "Concise and honest about uncertainty with no implementation plan or tests, but includes specification filenames.",
+            "score": 1
+          },
+          "mutation_boundary": {
+            "rationale": "Explicitly limits auditor to list/view access and states lifecycle mutations remain restricted without enforcement details.",
+            "score": 2
+          },
+          "owner_and_context": {
+            "rationale": "Selects specspine/authorization.md as primary and includes only users and API documentation as affected context.",
+            "score": 2
+          }
+        },
+        "summary": "Decision-safe handoff that accurately captures the read-only auditor role and relevant documentation scope.",
+        "total_score": 7,
+        "valid": true
+      },
+      "mechanical_passed": true,
+      "output_tokens": 2282,
+      "passed": false,
+      "prompt": "You are running a blinded SpecSpine handoff-production evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nRead .eval/skill/SKILL.md and every reference it requires for preparing a context handoff. Use only the supplied SpecSpine as project-specific architectural evidence. Do not inspect source code, tests, or native repository documentation. Prepare the smallest useful architecture context handoff for the request below. Return the handoff in the final response; do not modify any project file.\n\nAdd an auditor role. Auditors can list and view users but cannot create, update, or delete them. Keep the existing roles unchanged and update the public API documentation where necessary.\n",
+      "prompt_sha256": "9b3422c3be9e7b6e6149b1dfa572b088964ddb7b7074682f90511da77c5ef87b",
+      "response": "# Architecture context handoff\n\n## Change intent\n\nAdd an `auditor` role that can list and view users but cannot create, update, or delete them. Preserve all existing roles and update public API documentation accordingly.\n\n## Primary specification\n\n- `specspine/authorization.md`\n\n## Required specifications\n\n- `specspine/authorization.md`\n- `specspine/users.md`\n- `specspine/api.md`\n\n## Architectural decisions and constraints\n\n- Authorization owns the canonical role vocabulary and rights.\n- The `auditor` role has user-list and user-view access through `getUsers`, but does not receive `manageUsers`.\n- Existing roles and their rights remain unchanged.\n- API delivery owns public API documentation; documentation must reflect the auditor\u2019s permitted and prohibited user operations.\n\n## Unconfirmed inferences\n\n- The exact HTTP endpoints, enforcement mechanism, and public documentation artifact are unspecified by the architecture evidence.\n\n## Blocking questions\n\n- None.\n\n## Expected architectural outcome\n\nThe authorization model includes the auditor role with read-only user access, user lifecycle mutation rights remain restricted, existing roles are preserved, and public API documentation reflects the updated authorization boundary.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "generated-handoff",
+      "artifacts": "comparison-runs/002/artifacts/production-bootstrap-admin-policy/generated-handoff/sample-1",
+      "cached_input_tokens": 79360,
+      "changed_files": [],
+      "checks": [
+        {
+          "message": "reads stay in allowed paths",
+          "passed": true
+        },
+        {
+          "message": "changes stay in allowed paths",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "production-bootstrap-admin-policy",
+      "context_sha256": "1c2ae82b8d41f2fa0258e6e878c7f1815435050dee8d684d691d06db0d77399c",
+      "context_words": 481,
+      "diff": "",
+      "duration_seconds": 41.8,
+      "experiment": "handoff-production",
+      "files_read": 5,
+      "files_read_paths": [
+        "specspine/README.md",
+        "specspine/api.md",
+        "specspine/authentication.md",
+        "specspine/authorization.md",
+        "specspine/users.md"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 99639,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 10.34,
+        "input_tokens": 13403,
+        "max_score": 8,
+        "output_tokens": 280,
+        "partial_criteria_count": 2,
+        "passed": false,
+        "response": "{\"scores\":{\"handoff_discipline\":{\"score\":2,\"rationale\":\"Concise architectural handoff with no implementation plan, code locations, or tests.\"},\"owner_and_context\":{\"score\":2,\"rationale\":\"Authorization is primary owner; authentication and users are limited to registration context.\"},\"security_boundary\":{\"score\":1,\"rationale\":\"Separates registration ownership from authorization policy, but does not state promotion must await accepted policy.\"},\"unresolved_policy\":{\"score\":1,\"rationale\":\"Preserves eligibility, concurrency, and enablement questions, but asserts first-user promotion as policy.\"}},\"summary\":\"Focused handoff with correct ownership, but it prematurely states bootstrap promotion and leaves the security gate implicit.\"}\n",
+        "reused": false,
+        "scores": {
+          "handoff_discipline": {
+            "rationale": "Concise architectural handoff with no implementation plan, code locations, or tests.",
+            "score": 2
+          },
+          "owner_and_context": {
+            "rationale": "Authorization is primary owner; authentication and users are limited to registration context.",
+            "score": 2
+          },
+          "security_boundary": {
+            "rationale": "Separates registration ownership from authorization policy, but does not state promotion must await accepted policy.",
+            "score": 1
+          },
+          "unresolved_policy": {
+            "rationale": "Preserves eligibility, concurrency, and enablement questions, but asserts first-user promotion as policy.",
+            "score": 1
+          }
+        },
+        "summary": "Focused handoff with correct ownership, but it prematurely states bootstrap promotion and leaves the security gate implicit.",
+        "total_score": 6,
+        "valid": true
+      },
+      "mechanical_passed": true,
+      "output_tokens": 1686,
+      "passed": false,
+      "prompt": "You are running a blinded SpecSpine handoff-production evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nRead .eval/skill/SKILL.md and every reference it requires for preparing a context handoff. Use only the supplied SpecSpine as project-specific architectural evidence. Do not inspect source code, tests, or native repository documentation. Prepare the smallest useful architecture context handoff for the request below. Return the handoff in the final response; do not modify any project file.\n\nAutomatically promote the first registered user to admin so a new deployment can be administered without database access.\n",
+      "prompt_sha256": "18980aa4e0a8f1f3c631113a4dd6b684e5062cf1b5551dcbc0862870c85e5a3b",
+      "response": "# Architecture context handoff\n\n## Change intent\n\nAutomatically promote the first registered user to the administrator role so a new deployment can be administered without database access.\n\n## Primary specification\n\n- `specspine/authorization.md`\n\n## Required specifications\n\n- `specspine/authentication.md`\n- `specspine/users.md`\n\n## Potentially affected specifications\n\n- `specspine/api.md`\n\n## Architectural decisions and constraints\n\n- Authorization owns the canonical role vocabulary, rights, and enforcement.\n- Role names and rights have one executable source of truth.\n- User management must not define an independent role list.\n- The first registered user is promoted to administrator as the deployment bootstrap policy.\n- Registration remains owned by Authentication, while role policy remains owned by Authorization.\n\n## Unconfirmed inferences\n\n- \u201cFirst registered\u201d may mean the first successfully persisted account, but the exact eligibility boundary is unspecified.\n- \u201cAdmin\u201d is assumed to mean the canonical administrator role and its existing rights.\n\n## Blocking questions\n\n- How is first-user selection serialized under concurrent registrations?\n- Must bootstrap promotion be explicitly enabled or configured per deployment?\n\n## Expected architectural outcome\n\nThe bootstrap administrator policy is explicitly owned by Authorization and safely invoked by registration, with no competing role definition or database-only administration requirement.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "generated-handoff",
+      "artifacts": "comparison-runs/002/artifacts/production-local-utility/generated-handoff/sample-1",
+      "cached_input_tokens": 59136,
+      "changed_files": [],
+      "checks": [
+        {
+          "message": "reads stay in allowed paths",
+          "passed": true
+        },
+        {
+          "message": "changes stay in allowed paths",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "production-local-utility",
+      "context_sha256": "1c2ae82b8d41f2fa0258e6e878c7f1815435050dee8d684d691d06db0d77399c",
+      "context_words": 481,
+      "diff": "",
+      "duration_seconds": 27.595,
+      "experiment": "handoff-production",
+      "files_read": 2,
+      "files_read_paths": [
+        "specspine/README.md",
+        "specspine/utilities.md"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 76822,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 11.758,
+        "input_tokens": 13250,
+        "max_score": 8,
+        "output_tokens": 189,
+        "partial_criteria_count": 0,
+        "passed": true,
+        "response": "{\"scores\":{\"behavioral_precision\":{\"score\":2,\"rationale\":\"Explicitly states that only undefined is omitted and false, null, 0, and empty strings are preserved.\"},\"context_minimality\":{\"score\":2,\"rationale\":\"Contains only utility-helper semantics and no unrelated architectural context.\"},\"handoff_discipline\":{\"score\":2,\"rationale\":\"Stays as an architecture handoff without implementation filenames, task lists, or test scenarios.\"},\"owner_selection\":{\"score\":2,\"rationale\":\"Identifies specspine/utilities.md as the sole owner in both primary and required specifications.\"}},\"summary\":\"Minimal, decision-safe handoff that precisely captures the requested behavior and ownership.\"}\n",
+        "reused": false,
+        "scores": {
+          "behavioral_precision": {
+            "rationale": "Explicitly states that only undefined is omitted and false, null, 0, and empty strings are preserved.",
+            "score": 2
+          },
+          "context_minimality": {
+            "rationale": "Contains only utility-helper semantics and no unrelated architectural context.",
+            "score": 2
+          },
+          "handoff_discipline": {
+            "rationale": "Stays as an architecture handoff without implementation filenames, task lists, or test scenarios.",
+            "score": 2
+          },
+          "owner_selection": {
+            "rationale": "Identifies specspine/utilities.md as the sole owner in both primary and required specifications.",
+            "score": 2
+          }
+        },
+        "summary": "Minimal, decision-safe handoff that precisely captures the requested behavior and ownership.",
+        "total_score": 8,
+        "valid": true
+      },
+      "mechanical_passed": true,
+      "output_tokens": 1035,
+      "passed": true,
+      "prompt": "You are running a blinded SpecSpine handoff-production evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nRead .eval/skill/SKILL.md and every reference it requires for preparing a context handoff. Use only the supplied SpecSpine as project-specific architectural evidence. Do not inspect source code, tests, or native repository documentation. Prepare the smallest useful architecture context handoff for the request below. Return the handoff in the final response; do not modify any project file.\n\nChange pick(object, keys) so that it omits properties whose value is undefined. Preserve false, null, zero, and empty-string values.\n",
+      "prompt_sha256": "903126c796fed8df2b467026eb90047ab525e4fa25a7e5262525767c45d37dd7",
+      "response": "# Architecture context handoff\n\n## Change intent\n\nUpdate the generic `pick(object, keys)` helper to omit properties whose value is `undefined`, while preserving `false`, `null`, `0`, and `\"\"`.\n\n## Primary specification\n\n`specspine/utilities.md`\n\n## Required specifications\n\n- `specspine/utilities.md`\n\n## Architectural decisions and constraints\n\n- Generic helper semantics belong to the Utilities responsibility.\n- Only `undefined` values are omitted; falsy values remain preserved.\n\n## Expected architectural outcome\n\nThe Utilities specification\u2019s helper behavior reflects this value-preservation rule.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "generated-handoff",
+      "artifacts": "comparison-runs/002/artifacts/production-reset-revocation/generated-handoff/sample-1",
+      "cached_input_tokens": 87552,
+      "changed_files": [],
+      "checks": [
+        {
+          "message": "reads stay in allowed paths",
+          "passed": true
+        },
+        {
+          "message": "changes stay in allowed paths",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "production-reset-revocation",
+      "context_sha256": "1c2ae82b8d41f2fa0258e6e878c7f1815435050dee8d684d691d06db0d77399c",
+      "context_words": 481,
+      "diff": "",
+      "duration_seconds": 33.483,
+      "experiment": "handoff-production",
+      "files_read": 5,
+      "files_read_paths": [
+        "specspine/README.md",
+        "specspine/authentication.md",
+        "specspine/email.md",
+        "specspine/tokens.md",
+        "specspine/users.md"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 102104,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [
+        "specspine/email.md"
+      ],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 13.043,
+        "input_tokens": 13363,
+        "max_score": 8,
+        "output_tokens": 227,
+        "partial_criteria_count": 0,
+        "passed": true,
+        "response": "{\"scores\":{\"conflict_preservation\":{\"score\":2,\"rationale\":\"Explicitly notes reset cleanup currently performs token-storage work outside the canonical token owner without accepting it as intended architecture.\"},\"constraint_fidelity\":{\"score\":2,\"rationale\":\"Explicitly preserves CON-token-ownership and keeps storage, token-type selection, and bulk revocation in Tokens.\"},\"handoff_discipline\":{\"score\":2,\"rationale\":\"Precisely states the successful-reset invalidation outcome without implementation steps, filenames, tests, or invented failure behavior.\"},\"owner_and_context\":{\"score\":2,\"rationale\":\"Identifies Authentication as the workflow owner and Tokens as the required supporting specification, with no unrelated context.\"}},\"summary\":\"Decision-safe, minimal handoff that fully preserves the relevant ownership constraint and observed architectural conflict.\"}\n",
+        "reused": false,
+        "scores": {
+          "conflict_preservation": {
+            "rationale": "Explicitly notes reset cleanup currently performs token-storage work outside the canonical token owner without accepting it as intended architecture.",
+            "score": 2
+          },
+          "constraint_fidelity": {
+            "rationale": "Explicitly preserves CON-token-ownership and keeps storage, token-type selection, and bulk revocation in Tokens.",
+            "score": 2
+          },
+          "handoff_discipline": {
+            "rationale": "Precisely states the successful-reset invalidation outcome without implementation steps, filenames, tests, or invented failure behavior.",
+            "score": 2
+          },
+          "owner_and_context": {
+            "rationale": "Identifies Authentication as the workflow owner and Tokens as the required supporting specification, with no unrelated context.",
+            "score": 2
+          }
+        },
+        "summary": "Decision-safe, minimal handoff that fully preserves the relevant ownership constraint and observed architectural conflict.",
+        "total_score": 8,
+        "valid": true
+      },
+      "mechanical_passed": true,
+      "output_tokens": 1233,
+      "passed": true,
+      "prompt": "You are running a blinded SpecSpine handoff-production evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nRead .eval/skill/SKILL.md and every reference it requires for preparing a context handoff. Use only the supplied SpecSpine as project-specific architectural evidence. Do not inspect source code, tests, or native repository documentation. Prepare the smallest useful architecture context handoff for the request below. Return the handoff in the final response; do not modify any project file.\n\nAfter a successful password reset, invalidate every refresh token for that user as well as the consumed reset-password tokens.\n",
+      "prompt_sha256": "071a4dc2bccad77fc6bf48d545852ab832037c1660c4cf98528577b380614e50",
+      "response": "# Architecture context handoff\n\n## Change intent\n\nAfter a successful password reset, invalidate all refresh tokens and reset-password tokens belonging to the user, including consumed reset-password tokens.\n\n## Primary specification\n\n- `specspine/authentication.md`\n\n## Required specifications\n\n- `specspine/tokens.md`\n\n## Architectural decisions and constraints\n\n- Password reset invalidates every user refresh token and reset-password token.\n- Authentication delegates token persistence and bulk revocation to the Tokens capability.\n- Preserve `CON-token-ownership` from `specspine/tokens.md`.\n\n## Relevant observations\n\n- Existing reset-password cleanup performs token-storage work outside the canonical token owner.\n- Evidence baseline: commit `179ae84efec61b14206d0305d941daed6c6d07f`, inspected `2026-07-22`.\n\n## Blocking questions\n\nNone.\n\n## Expected architectural outcome\n\nPassword-reset completion uses the Tokens capability to revoke all applicable tokens for the affected user, while token storage and token-type selection remain encapsulated there.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "minimal-handoff",
+      "artifacts": "comparison-runs/002/artifacts/projection-auditor-role/minimal-handoff/sample-1",
+      "cached_input_tokens": 270592,
+      "changed_files": [
+        "README.md",
+        "src/config/roles.js",
+        "src/docs/components.yml",
+        "src/middlewares/auth.js",
+        "src/routes/v1/user.route.js",
+        "src/validations/user.validation.js"
+      ],
+      "checks": [
+        {
+          "message": "command exit 0: node -e const {roles,roleRights}=require('./src/config/roles'); if(!roles.includes('auditor')) throw new Error('missing auditor'); if(JSON.stringify(roleRights.get('auditor'))!==JSON.stringify(['getUsers'])) throw new Error('wrong auditor rights'); if(JSON.stringify(roleRights.get('user'))!==JSON.stringify([])) throw new Error('user changed'); if(JSON.stringify(roleRights.get('admin'))!==JSON.stringify(['getUsers','manageUsers'])) throw new Error('admin changed');",
+          "passed": true
+        },
+        {
+          "message": "command exit 0: node --check src/config/roles.js",
+          "passed": true
+        },
+        {
+          "message": "required files were read",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "projection-auditor-role",
+      "context_sha256": "d409464471b6c8ed96d139c8b476d6083203256a3a0568d1a519db7e44faf184",
+      "context_words": 155,
+      "diff": "--- a/README.md\n+++ b/README.md\n@@ -317,7 +317,7 @@\n \n In the example above, an authenticated user can access this route only if that user has the `manageUsers` permission.\n \n-The permissions are role-based. You can view the permissions/rights of each role in the `src/config/roles.js` file.\n+The permissions are role-based. The built-in roles are `user`, `admin`, and `auditor`. Auditors can list and view users, but cannot create, update, or delete them. You can view the permissions/rights of each role in the `src/config/roles.js` file.\n \n If the user making the request does not have the required permissions to access this route, a Forbidden (403) error is thrown.\n \n--- a/src/config/roles.js\n+++ b/src/config/roles.js\n@@ -1,6 +1,7 @@\n const allRoles = {\n   user: [],\n   admin: ['getUsers', 'manageUsers'],\n+  auditor: ['getUsers'],\n };\n \n const roles = Object.keys(allRoles);\n--- a/src/docs/components.yml\n+++ b/src/docs/components.yml\n@@ -12,7 +12,7 @@\n           type: string\n         role:\n           type: string\n-          enum: [user, admin]\n+          enum: [user, admin, auditor]\n       example:\n         id: 5ebac534954b54139806c112\n         email: fake@example.com\n--- a/src/middlewares/auth.js\n+++ b/src/middlewares/auth.js\n@@ -12,7 +12,10 @@\n   if (requiredRights.length) {\n     const userRights = roleRights.get(user.role);\n     const hasRequiredRights = requiredRights.every((requiredRight) => userRights.includes(requiredRight));\n-    if (!hasRequiredRights && req.params.userId !== user.id) {\n+    // Users retain the existing self-service behavior, but auditors are\n+    // explicitly read-only even for their own user record.\n+    const canManageOwnUser = user.role === 'user' && req.params.userId === user.id;\n+    if (!hasRequiredRights && !canManageOwnUser) {\n       return reject(new ApiError(httpStatus.FORBIDDEN, 'Forbidden'));\n     }\n   }\n--- a/src/routes/v1/user.route.js\n+++ b/src/routes/v1/user.route.js\n@@ -60,7 +60,7 @@\n  *                 description: At least one number and one letter\n  *               role:\n  *                  type: string\n- *                  enum: [user, admin]\n+ *                  enum: [user, admin, auditor]\n  *             example:\n  *               name: fake name\n  *               email: fake@example.com\n@@ -82,7 +82,7 @@\n  *\n  *   get:\n  *     summary: Get all users\n- *     description: Only admins can retrieve all users.\n+ *     description: Admins and auditors can retrieve all users.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n@@ -151,7 +151,7 @@\n  * /users/{id}:\n  *   get:\n  *     summary: Get a user\n- *     description: Logged in users can fetch only their own user information. Only admins can fetch other users.\n+ *     description: Logged in users can fetch only their own user information. Admins and auditors can fetch other users.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n@@ -178,7 +178,7 @@\n  *\n  *   patch:\n  *     summary: Update a user\n- *     description: Logged in users can only update their own information. Only admins can update other users.\n+ *     description: Logged in users can only update their own information. Only admins can update other users. Auditors cannot update users.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n@@ -229,7 +229,7 @@\n  *\n  *   delete:\n  *     summary: Delete a user\n- *     description: Logged in users can delete only themselves. Only admins can delete other users.\n+ *     description: Logged in users can delete only themselves. Only admins can delete other users. Auditors cannot delete users.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n--- a/src/validations/user.validation.js\n+++ b/src/validations/user.validation.js\n@@ -1,12 +1,13 @@\n const Joi = require('joi');\n const { password, objectId } = require('./custom.validation');\n+const { roles } = require('../config/roles');\n \n const createUser = {\n   body: Joi.object().keys({\n     email: Joi.string().required().email(),\n     password: Joi.string().required().custom(password),\n     name: Joi.string().required(),\n-    role: Joi.string().required().valid('user', 'admin'),\n+    role: Joi.string().required().valid(...roles),\n   }),\n };\n \n",
+      "duration_seconds": 95.054,
+      "experiment": "projection",
+      "files_read": 20,
+      "files_read_paths": [
+        "HANDOFF.md",
+        "README.md",
+        "package.json",
+        "specspine/authorization.md",
+        "specspine/users.md",
+        "src/app.js",
+        "src/config/roles.js",
+        "src/controllers/user.controller.js",
+        "src/docs/components.yml",
+        "src/docs/swaggerDef.js",
+        "src/middlewares/auth.js",
+        "src/models/user.model.js",
+        "src/routes/v1/user.route.js",
+        "src/validations/user.validation.js",
+        "tests/fixtures/token.fixture.js",
+        "tests/fixtures/user.fixture.js",
+        "tests/integration/auth.test.js",
+        "tests/integration/docs.test.js",
+        "tests/integration/user.test.js",
+        "tests/unit/models/user.model.test.js"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 314547,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 10.957,
+        "input_tokens": 14377,
+        "max_score": 8,
+        "output_tokens": 242,
+        "partial_criteria_count": 0,
+        "passed": true,
+        "response": "{\"scores\":{\"documentation\":{\"score\":2,\"rationale\":\"Swagger schemas and route descriptions expose auditor and accurately describe its read-only access; README is updated consistently.\"},\"functional_scope\":{\"score\":2,\"rationale\":\"auditor has only getUsers; user remains empty and admin retains getUsers/manageUsers.\"},\"ownership_boundary\":{\"score\":2,\"rationale\":\"Validation imports roles from src/config/roles.js and uses the canonical role list.\"},\"unsupported_decision\":{\"score\":2,\"rationale\":\"No extra roles or rights were added; auditor self-update/delete is explicitly denied in line with read-only requirements.\"}},\"summary\":\"The implementation adds a canonical read-only auditor role, preserves existing roles, and updates public documentation consistently.\"}\n",
+        "reused": false,
+        "scores": {
+          "documentation": {
+            "rationale": "Swagger schemas and route descriptions expose auditor and accurately describe its read-only access; README is updated consistently.",
+            "score": 2
+          },
+          "functional_scope": {
+            "rationale": "auditor has only getUsers; user remains empty and admin retains getUsers/manageUsers.",
+            "score": 2
+          },
+          "ownership_boundary": {
+            "rationale": "Validation imports roles from src/config/roles.js and uses the canonical role list.",
+            "score": 2
+          },
+          "unsupported_decision": {
+            "rationale": "No extra roles or rights were added; auditor self-update/delete is explicitly denied in line with read-only requirements.",
+            "score": 2
+          }
+        },
+        "summary": "The implementation adds a canonical read-only auditor role, preserves existing roles, and updates public documentation consistently.",
+        "total_score": 8,
+        "valid": true
+      },
+      "mechanical_passed": true,
+      "output_tokens": 4079,
+      "passed": true,
+      "prompt": "You are running a blinded downstream coding evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nBefore planning or editing: if HANDOFF.md exists, read it and every specification named under Primary specification and Required specifications; otherwise, if specspine/README.md exists, read it and navigate the Spine to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\nTreat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\nAdd an auditor role. Auditors can list and view users but cannot create, update, or delete them. Keep the existing roles unchanged and update the public API documentation where necessary.\n",
+      "prompt_sha256": "8c4060f9098a6b6bbce5a71c9514b29a33715ae5e43e66ee3ac5990e46bce4a6",
+      "response": "Implemented auditor role.\n\n- Added `auditor` with `getUsers` permission only.\n- Auditors can list/view users, but cannot create, update, or delete\u2014including themselves.\n- Existing `user` and `admin` behavior remains unchanged.\n- Updated role validation, Swagger docs, and README authorization documentation.\n- JavaScript syntax and diff checks pass.\n- Full tests unavailable because `npm` is not runnable in the workspace.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "full-spine",
+      "artifacts": "comparison-runs/002/artifacts/projection-auditor-role/full-spine/sample-1",
+      "cached_input_tokens": 189184,
+      "changed_files": [
+        "README.md",
+        "src/config/roles.js",
+        "src/docs/components.yml",
+        "src/middlewares/auth.js",
+        "src/routes/v1/user.route.js",
+        "src/validations/user.validation.js"
+      ],
+      "checks": [
+        {
+          "message": "command exit 0: node -e const {roles,roleRights}=require('./src/config/roles'); if(!roles.includes('auditor')) throw new Error('missing auditor'); if(JSON.stringify(roleRights.get('auditor'))!==JSON.stringify(['getUsers'])) throw new Error('wrong auditor rights'); if(JSON.stringify(roleRights.get('user'))!==JSON.stringify([])) throw new Error('user changed'); if(JSON.stringify(roleRights.get('admin'))!==JSON.stringify(['getUsers','manageUsers'])) throw new Error('admin changed');",
+          "passed": true
+        },
+        {
+          "message": "command exit 0: node --check src/config/roles.js",
+          "passed": true
+        },
+        {
+          "message": "required files were read",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "projection-auditor-role",
+      "context_sha256": "1c2ae82b8d41f2fa0258e6e878c7f1815435050dee8d684d691d06db0d77399c",
+      "context_words": 481,
+      "diff": "--- a/README.md\n+++ b/README.md\n@@ -319,6 +319,8 @@\n \n The permissions are role-based. You can view the permissions/rights of each role in the `src/config/roles.js` file.\n \n+The built-in `auditor` role has the `getUsers` permission and can list and view users, but cannot create, update, or delete them.\n+\n If the user making the request does not have the required permissions to access this route, a Forbidden (403) error is thrown.\n \n ## Logging\n--- a/src/config/roles.js\n+++ b/src/config/roles.js\n@@ -1,6 +1,7 @@\n const allRoles = {\n   user: [],\n   admin: ['getUsers', 'manageUsers'],\n+  auditor: ['getUsers'],\n };\n \n const roles = Object.keys(allRoles);\n--- a/src/docs/components.yml\n+++ b/src/docs/components.yml\n@@ -12,7 +12,7 @@\n           type: string\n         role:\n           type: string\n-          enum: [user, admin]\n+          enum: [user, admin, auditor]\n       example:\n         id: 5ebac534954b54139806c112\n         email: fake@example.com\n--- a/src/middlewares/auth.js\n+++ b/src/middlewares/auth.js\n@@ -12,7 +12,10 @@\n   if (requiredRights.length) {\n     const userRights = roleRights.get(user.role);\n     const hasRequiredRights = requiredRights.every((requiredRight) => userRights.includes(requiredRight));\n-    if (!hasRequiredRights && req.params.userId !== user.id) {\n+    // Regular users may continue to manage their own account. Auditors are\n+    // read-only, including for their own account.\n+    const canAccessOwnUser = user.role === 'user' && req.params.userId === user.id;\n+    if (!hasRequiredRights && !canAccessOwnUser) {\n       return reject(new ApiError(httpStatus.FORBIDDEN, 'Forbidden'));\n     }\n   }\n--- a/src/routes/v1/user.route.js\n+++ b/src/routes/v1/user.route.js\n@@ -31,7 +31,7 @@\n  * /users:\n  *   post:\n  *     summary: Create a user\n- *     description: Only admins can create other users.\n+ *     description: Only users with the manageUsers permission can create other users. Auditors are read-only.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n@@ -60,7 +60,7 @@\n  *                 description: At least one number and one letter\n  *               role:\n  *                  type: string\n- *                  enum: [user, admin]\n+ *                  enum: [user, admin, auditor]\n  *             example:\n  *               name: fake name\n  *               email: fake@example.com\n@@ -82,7 +82,7 @@\n  *\n  *   get:\n  *     summary: Get all users\n- *     description: Only admins can retrieve all users.\n+ *     description: Users with the getUsers permission, including auditors, can retrieve all users.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n@@ -151,7 +151,7 @@\n  * /users/{id}:\n  *   get:\n  *     summary: Get a user\n- *     description: Logged in users can fetch only their own user information. Only admins can fetch other users.\n+ *     description: Logged in users can fetch only their own user information. Users with the getUsers permission, including auditors, can fetch other users.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n@@ -178,7 +178,7 @@\n  *\n  *   patch:\n  *     summary: Update a user\n- *     description: Logged in users can only update their own information. Only admins can update other users.\n+ *     description: Regular users can update only their own information, while users with the manageUsers permission can update other users. Auditors cannot update users.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n@@ -229,7 +229,7 @@\n  *\n  *   delete:\n  *     summary: Delete a user\n- *     description: Logged in users can delete only themselves. Only admins can delete other users.\n+ *     description: Regular users can delete only themselves, while users with the manageUsers permission can delete other users. Auditors cannot delete users.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n--- a/src/validations/user.validation.js\n+++ b/src/validations/user.validation.js\n@@ -1,19 +1,20 @@\n const Joi = require('joi');\n const { password, objectId } = require('./custom.validation');\n+const { roles } = require('../config/roles');\n \n const createUser = {\n   body: Joi.object().keys({\n     email: Joi.string().required().email(),\n     password: Joi.string().required().custom(password),\n     name: Joi.string().required(),\n-    role: Joi.string().required().valid('user', 'admin'),\n+    role: Joi.string().required().valid(...roles),\n   }),\n };\n \n const getUsers = {\n   query: Joi.object().keys({\n     name: Joi.string(),\n-    role: Joi.string(),\n+    role: Joi.string().valid(...roles),\n     sortBy: Joi.string(),\n     limit: Joi.number().integer(),\n     page: Joi.number().integer(),\n",
+      "duration_seconds": 90.191,
+      "experiment": "projection",
+      "files_read": 19,
+      "files_read_paths": [
+        "README.md",
+        "package.json",
+        "specspine/README.md",
+        "specspine/api.md",
+        "specspine/authorization.md",
+        "specspine/users.md",
+        "src/config/roles.js",
+        "src/controllers/user.controller.js",
+        "src/docs/components.yml",
+        "src/docs/swaggerDef.js",
+        "src/middlewares/auth.js",
+        "src/models/user.model.js",
+        "src/routes/v1/user.route.js",
+        "src/services/user.service.js",
+        "src/validations/user.validation.js",
+        "tests/fixtures/token.fixture.js",
+        "tests/fixtures/user.fixture.js",
+        "tests/integration/docs.test.js",
+        "tests/integration/user.test.js"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 224562,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 14.87,
+        "input_tokens": 14549,
+        "max_score": 8,
+        "output_tokens": 327,
+        "partial_criteria_count": 0,
+        "passed": true,
+        "response": "{\"scores\":{\"documentation\":{\"score\":2,\"rationale\":\"API schemas and endpoint descriptions include auditor and describe its read-only access without expanding endpoint permissions.\"},\"functional_scope\":{\"score\":2,\"rationale\":\"Auditor has only getUsers; user and admin role-right mappings remain unchanged.\"},\"ownership_boundary\":{\"score\":2,\"rationale\":\"Validation imports roles from src/config/roles.js rather than maintaining a duplicate list.\"},\"unsupported_decision\":{\"score\":2,\"rationale\":\"No unrelated roles, rights, or authorization policies were added.\"}},\"summary\":\"The implementation directly adds the requested read-only auditor role and updates validation and public API documentation consistently.\"}\n",
+        "reused": false,
+        "scores": {
+          "documentation": {
+            "rationale": "API schemas and endpoint descriptions include auditor and describe its read-only access without expanding endpoint permissions.",
+            "score": 2
+          },
+          "functional_scope": {
+            "rationale": "Auditor has only getUsers; user and admin role-right mappings remain unchanged.",
+            "score": 2
+          },
+          "ownership_boundary": {
+            "rationale": "Validation imports roles from src/config/roles.js rather than maintaining a duplicate list.",
+            "score": 2
+          },
+          "unsupported_decision": {
+            "rationale": "No unrelated roles, rights, or authorization policies were added.",
+            "score": 2
+          }
+        },
+        "summary": "The implementation directly adds the requested read-only auditor role and updates validation and public API documentation consistently.",
+        "total_score": 8,
+        "valid": true
+      },
+      "mechanical_passed": true,
+      "output_tokens": 3997,
+      "passed": true,
+      "prompt": "You are running a blinded downstream coding evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nBefore planning or editing: if HANDOFF.md exists, read it and every specification named under Primary specification and Required specifications; otherwise, if specspine/README.md exists, read it and navigate the Spine to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\nTreat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\nAdd an auditor role. Auditors can list and view users but cannot create, update, or delete them. Keep the existing roles unchanged and update the public API documentation where necessary.\n",
+      "prompt_sha256": "8c4060f9098a6b6bbce5a71c9514b29a33715ae5e43e66ee3ac5990e46bce4a6",
+      "response": "Implemented auditor role support.\n\nChanges:\n- Added `auditor` with `getUsers` permission only.\n- Auditors can list/view users.\n- Auditors cannot create, update, or delete users, including themselves.\n- Updated role validation and Swagger/API documentation.\n- Preserved existing `user` and `admin` roles.\n\nChecks passed:\n- `git diff --check`\n- Node syntax validation\n- Role policy verification\n\nFull test suite unavailable because dependencies are not installed.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "minimal-handoff",
+      "artifacts": "comparison-runs/002/artifacts/projection-reset-revocation/minimal-handoff/sample-1",
+      "cached_input_tokens": 224256,
+      "changed_files": [
+        "src/services/auth.service.js",
+        "src/services/token.service.js",
+        "tests/integration/auth.test.js"
+      ],
+      "checks": [
+        {
+          "message": "command exit 0: node --check src/services/auth.service.js",
+          "passed": true
+        },
+        {
+          "message": "command exit 0: node --check src/services/token.service.js",
+          "passed": true
+        },
+        {
+          "message": "required files were read",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "projection-reset-revocation",
+      "context_sha256": "77989b30ed667a5bff2d9a8db35c3d629c76fc108e9b5959b423b0283b41241d",
+      "context_words": 177,
+      "diff": "--- a/src/services/auth.service.js\n+++ b/src/services/auth.service.js\n@@ -65,7 +65,7 @@\n       throw new Error();\n     }\n     await userService.updateUserById(user.id, { password: newPassword });\n-    await Token.deleteMany({ user: user.id, type: tokenTypes.RESET_PASSWORD });\n+    await tokenService.revokePasswordResetTokens(user.id);\n   } catch (error) {\n     throw new ApiError(httpStatus.UNAUTHORIZED, 'Password reset failed');\n   }\n--- a/src/services/token.service.js\n+++ b/src/services/token.service.js\n@@ -113,6 +113,18 @@\n   return verifyEmailToken;\n };\n \n+/**\n+ * Revoke tokens issued for a user after a password reset\n+ * @param {ObjectId} userId\n+ * @returns {Promise}\n+ */\n+const revokePasswordResetTokens = async (userId) => {\n+  await Token.deleteMany({\n+    user: userId,\n+    type: { $in: [tokenTypes.REFRESH, tokenTypes.RESET_PASSWORD] },\n+  });\n+};\n+\n module.exports = {\n   generateToken,\n   saveToken,\n@@ -120,4 +132,5 @@\n   generateAuthTokens,\n   generateResetPasswordToken,\n   generateVerifyEmailToken,\n+  revokePasswordResetTokens,\n };\n--- a/tests/integration/auth.test.js\n+++ b/tests/integration/auth.test.js\n@@ -268,6 +268,9 @@\n       const expires = moment().add(config.jwt.resetPasswordExpirationMinutes, 'minutes');\n       const resetPasswordToken = tokenService.generateToken(userOne._id, expires, tokenTypes.RESET_PASSWORD);\n       await tokenService.saveToken(resetPasswordToken, userOne._id, expires, tokenTypes.RESET_PASSWORD);\n+      const refreshTokenExpires = moment().add(config.jwt.refreshExpirationDays, 'days');\n+      const refreshToken = tokenService.generateToken(userOne._id, refreshTokenExpires, tokenTypes.REFRESH);\n+      await tokenService.saveToken(refreshToken, userOne._id, refreshTokenExpires, tokenTypes.REFRESH);\n \n       await request(app)\n         .post('/v1/auth/reset-password')\n@@ -281,6 +284,8 @@\n \n       const dbResetPasswordTokenCount = await Token.countDocuments({ user: userOne._id, type: tokenTypes.RESET_PASSWORD });\n       expect(dbResetPasswordTokenCount).toBe(0);\n+      const dbRefreshTokenCount = await Token.countDocuments({ user: userOne._id, type: tokenTypes.REFRESH });\n+      expect(dbRefreshTokenCount).toBe(0);\n     });\n \n     test('should return 400 if reset password token is missing', async () => {\n",
+      "duration_seconds": 87.424,
+      "experiment": "projection",
+      "files_read": 81,
+      "files_read_paths": [
+        ".dockerignore",
+        ".editorconfig",
+        ".env.example",
+        ".eslintignore",
+        ".eslintrc.json",
+        ".gitattributes",
+        ".gitignore",
+        ".husky/post-checkout",
+        ".husky/post-commit",
+        ".husky/pre-commit",
+        ".lintstagedrc.json",
+        ".prettierignore",
+        ".prettierrc.json",
+        ".travis.yml",
+        "CHANGELOG.md",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        "Dockerfile",
+        "HANDOFF.md",
+        "LICENSE",
+        "README.md",
+        "bin/createNodejsApp.js",
+        "docker-compose.dev.yml",
+        "docker-compose.prod.yml",
+        "docker-compose.test.yml",
+        "docker-compose.yml",
+        "ecosystem.config.json",
+        "jest.config.js",
+        "package.json",
+        "specspine/authentication.md",
+        "specspine/tokens.md",
+        "src/app.js",
+        "src/config/config.js",
+        "src/config/logger.js",
+        "src/config/morgan.js",
+        "src/config/passport.js",
+        "src/config/roles.js",
+        "src/config/tokens.js",
+        "src/controllers/auth.controller.js",
+        "src/controllers/index.js",
+        "src/controllers/user.controller.js",
+        "src/docs/components.yml",
+        "src/docs/swaggerDef.js",
+        "src/index.js",
+        "src/middlewares/auth.js",
+        "src/middlewares/error.js",
+        "src/middlewares/rateLimiter.js",
+        "src/middlewares/validate.js",
+        "src/models/index.js",
+        "src/models/plugins/index.js",
+        "src/models/plugins/paginate.plugin.js",
+        "src/models/plugins/toJSON.plugin.js",
+        "src/models/token.model.js",
+        "src/models/user.model.js",
+        "src/routes/v1/auth.route.js",
+        "src/routes/v1/docs.route.js",
+        "src/routes/v1/index.js",
+        "src/routes/v1/user.route.js",
+        "src/services/auth.service.js",
+        "src/services/email.service.js",
+        "src/services/index.js",
+        "src/services/token.service.js",
+        "src/services/user.service.js",
+        "src/utils/ApiError.js",
+        "src/utils/catchAsync.js",
+        "src/utils/pick.js",
+        "src/validations/auth.validation.js",
+        "src/validations/custom.validation.js",
+        "src/validations/index.js",
+        "src/validations/user.validation.js",
+        "tests/fixtures/token.fixture.js",
+        "tests/fixtures/user.fixture.js",
+        "tests/integration/auth.test.js",
+        "tests/integration/docs.test.js",
+        "tests/integration/user.test.js",
+        "tests/unit/middlewares/error.test.js",
+        "tests/unit/models/plugins/paginate.plugin.test.js",
+        "tests/unit/models/plugins/toJSON.plugin.test.js",
+        "tests/unit/models/user.model.test.js",
+        "tests/utils/setupTestDB.js",
+        "yarn.lock"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 271965,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [
+        "src/config/roles.js",
+        "src/routes/v1/user.route.js",
+        "src/services/email.service.js"
+      ],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 10.333,
+        "input_tokens": 13752,
+        "max_score": 8,
+        "output_tokens": 223,
+        "partial_criteria_count": 0,
+        "passed": true,
+        "response": "{\"scores\":{\"failure_semantics\":{\"score\":2,\"rationale\":\"The reset flow retains the existing try/catch and unauthorized error behavior; revocation errors are handled consistently.\"},\"functional_scope\":{\"score\":2,\"rationale\":\"After updating the password, one bulk delete removes both REFRESH and RESET_PASSWORD records for the same user; integration coverage asserts both.\"},\"ownership_boundary\":{\"score\":2,\"rationale\":\"Bulk token deletion is encapsulated in token.service, while auth.service only orchestrates it.\"},\"unrelated_change\":{\"score\":2,\"rationale\":\"The diff is limited to password-reset token revocation logic and its integration test; no email verification, authorization, or route changes are shown.\"}},\"summary\":\"The implementation fully satisfies the requested post-reset revocation behavior with appropriate service ownership and focused changes.\"}\n",
+        "reused": false,
+        "scores": {
+          "failure_semantics": {
+            "rationale": "The reset flow retains the existing try/catch and unauthorized error behavior; revocation errors are handled consistently.",
+            "score": 2
+          },
+          "functional_scope": {
+            "rationale": "After updating the password, one bulk delete removes both REFRESH and RESET_PASSWORD records for the same user; integration coverage asserts both.",
+            "score": 2
+          },
+          "ownership_boundary": {
+            "rationale": "Bulk token deletion is encapsulated in token.service, while auth.service only orchestrates it.",
+            "score": 2
+          },
+          "unrelated_change": {
+            "rationale": "The diff is limited to password-reset token revocation logic and its integration test; no email verification, authorization, or route changes are shown.",
+            "score": 2
+          }
+        },
+        "summary": "The implementation fully satisfies the requested post-reset revocation behavior with appropriate service ownership and focused changes.",
+        "total_score": 8,
+        "valid": true
+      },
+      "mechanical_passed": true,
+      "output_tokens": 3705,
+      "passed": true,
+      "prompt": "You are running a blinded downstream coding evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nBefore planning or editing: if HANDOFF.md exists, read it and every specification named under Primary specification and Required specifications; otherwise, if specspine/README.md exists, read it and navigate the Spine to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\nTreat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\nAfter a successful password reset, invalidate every refresh token for that user as well as the consumed reset-password tokens.\n",
+      "prompt_sha256": "29ffdafb575949a800561d4586b2f1efbf03d0b9233093bb8c1c03dcca5554dc",
+      "response": "Implemented password-reset revocation:\n\n- Successful resets now delete all user refresh tokens.\n- All reset-password tokens are also deleted.\n- Revocation logic is encapsulated in `token.service`.\n- Added integration coverage for refresh-token invalidation.\n\nValidation: syntax checks and `git diff --check` pass. Tests could not run because `npm` is unavailable in the environment.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "full-spine",
+      "artifacts": "comparison-runs/002/artifacts/projection-reset-revocation/full-spine/sample-1",
+      "cached_input_tokens": 210176,
+      "changed_files": [
+        "src/services/auth.service.js",
+        "src/services/token.service.js"
+      ],
+      "checks": [
+        {
+          "message": "command exit 0: node --check src/services/auth.service.js",
+          "passed": true
+        },
+        {
+          "message": "command exit 0: node --check src/services/token.service.js",
+          "passed": true
+        },
+        {
+          "message": "required files were read",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "projection-reset-revocation",
+      "context_sha256": "1c2ae82b8d41f2fa0258e6e878c7f1815435050dee8d684d691d06db0d77399c",
+      "context_words": 481,
+      "diff": "--- a/src/services/auth.service.js\n+++ b/src/services/auth.service.js\n@@ -65,7 +65,8 @@\n       throw new Error();\n     }\n     await userService.updateUserById(user.id, { password: newPassword });\n-    await Token.deleteMany({ user: user.id, type: tokenTypes.RESET_PASSWORD });\n+    await tokenService.deleteTokens(user.id, tokenTypes.RESET_PASSWORD);\n+    await tokenService.deleteTokens(user.id, tokenTypes.REFRESH);\n   } catch (error) {\n     throw new ApiError(httpStatus.UNAUTHORIZED, 'Password reset failed');\n   }\n--- a/src/services/token.service.js\n+++ b/src/services/token.service.js\n@@ -43,6 +43,16 @@\n     blacklisted,\n   });\n   return tokenDoc;\n+};\n+\n+/**\n+ * Delete all tokens of a given type for a user\n+ * @param {ObjectId} userId\n+ * @param {string} type\n+ * @returns {Promise}\n+ */\n+const deleteTokens = async (userId, type) => {\n+  await Token.deleteMany({ user: userId, type });\n };\n \n /**\n@@ -116,6 +126,7 @@\n module.exports = {\n   generateToken,\n   saveToken,\n+  deleteTokens,\n   verifyToken,\n   generateAuthTokens,\n   generateResetPasswordToken,\n",
+      "duration_seconds": 71.274,
+      "experiment": "projection",
+      "files_read": 87,
+      "files_read_paths": [
+        ".dockerignore",
+        ".editorconfig",
+        ".env.example",
+        ".eslintignore",
+        ".eslintrc.json",
+        ".gitattributes",
+        ".gitignore",
+        ".husky/post-checkout",
+        ".husky/post-commit",
+        ".husky/pre-commit",
+        ".lintstagedrc.json",
+        ".prettierignore",
+        ".prettierrc.json",
+        ".travis.yml",
+        "CHANGELOG.md",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        "Dockerfile",
+        "LICENSE",
+        "README.md",
+        "bin/createNodejsApp.js",
+        "docker-compose.dev.yml",
+        "docker-compose.prod.yml",
+        "docker-compose.test.yml",
+        "docker-compose.yml",
+        "ecosystem.config.json",
+        "jest.config.js",
+        "package.json",
+        "specspine/README.md",
+        "specspine/api.md",
+        "specspine/authentication.md",
+        "specspine/authorization.md",
+        "specspine/email.md",
+        "specspine/error-handling.md",
+        "specspine/tokens.md",
+        "specspine/users.md",
+        "specspine/utilities.md",
+        "src/app.js",
+        "src/config/config.js",
+        "src/config/logger.js",
+        "src/config/morgan.js",
+        "src/config/passport.js",
+        "src/config/roles.js",
+        "src/config/tokens.js",
+        "src/controllers/auth.controller.js",
+        "src/controllers/index.js",
+        "src/controllers/user.controller.js",
+        "src/docs/components.yml",
+        "src/docs/swaggerDef.js",
+        "src/index.js",
+        "src/middlewares/auth.js",
+        "src/middlewares/error.js",
+        "src/middlewares/rateLimiter.js",
+        "src/middlewares/validate.js",
+        "src/models/index.js",
+        "src/models/plugins/index.js",
+        "src/models/plugins/paginate.plugin.js",
+        "src/models/plugins/toJSON.plugin.js",
+        "src/models/token.model.js",
+        "src/models/user.model.js",
+        "src/routes/v1/auth.route.js",
+        "src/routes/v1/docs.route.js",
+        "src/routes/v1/index.js",
+        "src/routes/v1/user.route.js",
+        "src/services/auth.service.js",
+        "src/services/email.service.js",
+        "src/services/index.js",
+        "src/services/token.service.js",
+        "src/services/user.service.js",
+        "src/utils/ApiError.js",
+        "src/utils/catchAsync.js",
+        "src/utils/pick.js",
+        "src/validations/auth.validation.js",
+        "src/validations/custom.validation.js",
+        "src/validations/index.js",
+        "src/validations/user.validation.js",
+        "tests/fixtures/token.fixture.js",
+        "tests/fixtures/user.fixture.js",
+        "tests/integration/auth.test.js",
+        "tests/integration/docs.test.js",
+        "tests/integration/user.test.js",
+        "tests/unit/middlewares/error.test.js",
+        "tests/unit/models/plugins/paginate.plugin.test.js",
+        "tests/unit/models/plugins/toJSON.plugin.test.js",
+        "tests/unit/models/user.model.test.js",
+        "tests/utils/setupTestDB.js",
+        "yarn.lock"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 265826,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [
+        "specspine/authorization.md",
+        "specspine/email.md",
+        "src/config/roles.js",
+        "src/routes/v1/user.route.js",
+        "src/services/email.service.js"
+      ],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 11.834,
+        "input_tokens": 13467,
+        "max_score": 8,
+        "output_tokens": 207,
+        "partial_criteria_count": 0,
+        "passed": true,
+        "response": "{\"scores\":{\"failure_semantics\":{\"score\":2,\"rationale\":\"The existing try/catch and Unauthorized error path remain intact; both revocations are awaited within it.\"},\"functional_scope\":{\"score\":2,\"rationale\":\"After updating the password, auth.service deletes reset-password and refresh tokens for the same user.\"},\"ownership_boundary\":{\"score\":2,\"rationale\":\"Bulk Token.deleteMany logic is encapsulated in token.service, while auth.service only orchestrates calls.\"},\"unrelated_change\":{\"score\":2,\"rationale\":\"The diff changes only password-reset token revocation and token-service exports; no verification, authorization, or routes are touched.\"}},\"summary\":\"The implementation fully satisfies the requested revocation behavior with appropriate service ownership and no evident unrelated changes.\"}\n",
+        "reused": false,
+        "scores": {
+          "failure_semantics": {
+            "rationale": "The existing try/catch and Unauthorized error path remain intact; both revocations are awaited within it.",
+            "score": 2
+          },
+          "functional_scope": {
+            "rationale": "After updating the password, auth.service deletes reset-password and refresh tokens for the same user.",
+            "score": 2
+          },
+          "ownership_boundary": {
+            "rationale": "Bulk Token.deleteMany logic is encapsulated in token.service, while auth.service only orchestrates calls.",
+            "score": 2
+          },
+          "unrelated_change": {
+            "rationale": "The diff changes only password-reset token revocation and token-service exports; no verification, authorization, or routes are touched.",
+            "score": 2
+          }
+        },
+        "summary": "The implementation fully satisfies the requested revocation behavior with appropriate service ownership and no evident unrelated changes.",
+        "total_score": 8,
+        "valid": true
+      },
+      "mechanical_passed": true,
+      "output_tokens": 2960,
+      "passed": true,
+      "prompt": "You are running a blinded downstream coding evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nBefore planning or editing: if HANDOFF.md exists, read it and every specification named under Primary specification and Required specifications; otherwise, if specspine/README.md exists, read it and navigate the Spine to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\nTreat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\nAfter a successful password reset, invalidate every refresh token for that user as well as the consumed reset-password tokens.\n",
+      "prompt_sha256": "29ffdafb575949a800561d4586b2f1efbf03d0b9233093bb8c1c03dcca5554dc",
+      "response": "Implemented password-reset revocation:\n\n- Deletes all reset-password tokens for the user.\n- Deletes all refresh tokens for the user.\n- Encapsulates bulk token deletion in `token.service.js`.\n\nValidation was limited by sandbox restrictions preventing Yarn/Node execution; `git diff --check` passed.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "native-repository",
+      "artifacts": "comparison-runs/002/artifacts/value-auditor-role/native-repository/sample-1",
+      "cached_input_tokens": 194048,
+      "changed_files": [
+        "README.md",
+        "src/config/roles.js",
+        "src/docs/components.yml",
+        "src/middlewares/auth.js",
+        "src/routes/v1/user.route.js",
+        "src/validations/user.validation.js"
+      ],
+      "checks": [
+        {
+          "message": "command exit 0: node -e const {roles,roleRights}=require('./src/config/roles'); if(!roles.includes('auditor')) throw new Error('missing auditor'); if(JSON.stringify(roleRights.get('auditor'))!==JSON.stringify(['getUsers'])) throw new Error('wrong auditor rights'); if(JSON.stringify(roleRights.get('user'))!==JSON.stringify([])) throw new Error('user changed'); if(JSON.stringify(roleRights.get('admin'))!==JSON.stringify(['getUsers','manageUsers'])) throw new Error('admin changed');",
+          "passed": true
+        },
+        {
+          "message": "command exit 0: node --check src/config/roles.js",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "value-auditor-role",
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "context_words": 0,
+      "diff": "--- a/README.md\n+++ b/README.md\n@@ -319,6 +319,8 @@\n \n The permissions are role-based. You can view the permissions/rights of each role in the `src/config/roles.js` file.\n \n+The built-in roles are `user`, `auditor`, and `admin`. Auditors can list and view users, but cannot create, update, or delete them.\n+\n If the user making the request does not have the required permissions to access this route, a Forbidden (403) error is thrown.\n \n ## Logging\n--- a/src/config/roles.js\n+++ b/src/config/roles.js\n@@ -1,5 +1,6 @@\n const allRoles = {\n   user: [],\n+  auditor: ['getUsers'],\n   admin: ['getUsers', 'manageUsers'],\n };\n \n--- a/src/docs/components.yml\n+++ b/src/docs/components.yml\n@@ -12,7 +12,7 @@\n           type: string\n         role:\n           type: string\n-          enum: [user, admin]\n+          enum: [user, auditor, admin]\n       example:\n         id: 5ebac534954b54139806c112\n         email: fake@example.com\n--- a/src/middlewares/auth.js\n+++ b/src/middlewares/auth.js\n@@ -12,7 +12,8 @@\n   if (requiredRights.length) {\n     const userRights = roleRights.get(user.role);\n     const hasRequiredRights = requiredRights.every((requiredRight) => userRights.includes(requiredRight));\n-    if (!hasRequiredRights && req.params.userId !== user.id) {\n+    const canAccessOwnResource = req.params.userId === user.id && user.role !== 'auditor';\n+    if (!hasRequiredRights && !canAccessOwnResource) {\n       return reject(new ApiError(httpStatus.FORBIDDEN, 'Forbidden'));\n     }\n   }\n--- a/src/routes/v1/user.route.js\n+++ b/src/routes/v1/user.route.js\n@@ -31,7 +31,7 @@\n  * /users:\n  *   post:\n  *     summary: Create a user\n- *     description: Only admins can create other users.\n+ *     description: Only admins can create other users. Auditors cannot create users.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n@@ -60,7 +60,7 @@\n  *                 description: At least one number and one letter\n  *               role:\n  *                  type: string\n- *                  enum: [user, admin]\n+ *                  enum: [user, auditor, admin]\n  *             example:\n  *               name: fake name\n  *               email: fake@example.com\n@@ -82,7 +82,7 @@\n  *\n  *   get:\n  *     summary: Get all users\n- *     description: Only admins can retrieve all users.\n+ *     description: Admins and auditors can retrieve all users.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n@@ -151,7 +151,7 @@\n  * /users/{id}:\n  *   get:\n  *     summary: Get a user\n- *     description: Logged in users can fetch only their own user information. Only admins can fetch other users.\n+ *     description: Logged in users can fetch only their own user information. Admins and auditors can fetch other users. Auditors have read-only access.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n@@ -178,7 +178,7 @@\n  *\n  *   patch:\n  *     summary: Update a user\n- *     description: Logged in users can only update their own information. Only admins can update other users.\n+ *     description: Logged in users can only update their own information. Only admins can update other users. Auditors cannot update users.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n@@ -229,7 +229,7 @@\n  *\n  *   delete:\n  *     summary: Delete a user\n- *     description: Logged in users can delete only themselves. Only admins can delete other users.\n+ *     description: Logged in users can delete only themselves. Only admins can delete other users. Auditors cannot delete users.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n--- a/src/validations/user.validation.js\n+++ b/src/validations/user.validation.js\n@@ -6,7 +6,7 @@\n     email: Joi.string().required().email(),\n     password: Joi.string().required().custom(password),\n     name: Joi.string().required(),\n-    role: Joi.string().required().valid('user', 'admin'),\n+    role: Joi.string().required().valid('user', 'auditor', 'admin'),\n   }),\n };\n \n",
+      "duration_seconds": 79.063,
+      "experiment": "value",
+      "files_read": 14,
+      "files_read_paths": [
+        "README.md",
+        "package.json",
+        "src/config/roles.js",
+        "src/controllers/user.controller.js",
+        "src/docs/components.yml",
+        "src/docs/swaggerDef.js",
+        "src/middlewares/auth.js",
+        "src/models/user.model.js",
+        "src/routes/v1/user.route.js",
+        "src/services/user.service.js",
+        "src/validations/user.validation.js",
+        "tests/fixtures/token.fixture.js",
+        "tests/fixtures/user.fixture.js",
+        "tests/integration/user.test.js"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 223917,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 9.269,
+        "input_tokens": 14358,
+        "max_score": 8,
+        "output_tokens": 205,
+        "partial_criteria_count": 1,
+        "passed": false,
+        "response": "{\"scores\":{\"documentation\":{\"score\":2,\"rationale\":\"Swagger role enums and endpoint descriptions expose auditor while preserving stated authorization boundaries.\"},\"functional_scope\":{\"score\":2,\"rationale\":\"Auditor has only getUsers; user remains empty and admin retains getUsers/manageUsers.\"},\"ownership_boundary\":{\"score\":0,\"rationale\":\"Validation duplicates role names with a hard-coded Joi valid list instead of consuming src/config/roles.js.\"},\"unsupported_decision\":{\"score\":2,\"rationale\":\"The diff adds only the requested auditor role and enforces its read-only behavior without new rights or roles.\"}},\"summary\":\"The requested auditor behavior and public documentation are implemented, but role-name ownership is duplicated in validation rather than centralized in the roles configuration.\"}\n",
+        "reused": false,
+        "scores": {
+          "documentation": {
+            "rationale": "Swagger role enums and endpoint descriptions expose auditor while preserving stated authorization boundaries.",
+            "score": 2
+          },
+          "functional_scope": {
+            "rationale": "Auditor has only getUsers; user remains empty and admin retains getUsers/manageUsers.",
+            "score": 2
+          },
+          "ownership_boundary": {
+            "rationale": "Validation duplicates role names with a hard-coded Joi valid list instead of consuming src/config/roles.js.",
+            "score": 0
+          },
+          "unsupported_decision": {
+            "rationale": "The diff adds only the requested auditor role and enforces its read-only behavior without new rights or roles.",
+            "score": 2
+          }
+        },
+        "summary": "The requested auditor behavior and public documentation are implemented, but role-name ownership is duplicated in validation rather than centralized in the roles configuration.",
+        "total_score": 6,
+        "valid": true
+      },
+      "mechanical_passed": true,
+      "output_tokens": 3465,
+      "passed": false,
+      "prompt": "You are running a blinded downstream coding evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nBefore planning or editing: if HANDOFF.md exists, read it and every specification named under Primary specification and Required specifications; otherwise, if specspine/README.md exists, read it and navigate the Spine to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\nTreat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\nAdd an auditor role. Auditors can list and view users but cannot create, update, or delete them. Keep the existing roles unchanged and update the public API documentation where necessary.\n",
+      "prompt_sha256": "8c4060f9098a6b6bbce5a71c9514b29a33715ae5e43e66ee3ac5990e46bce4a6",
+      "response": "Implemented the auditor role.\n\nChanges:\n- Added `auditor` with `getUsers` permission only.\n- Auditors can list and view users.\n- Auditors receive `403 Forbidden` for create, update, and delete\u2014including themselves.\n- Existing `user` and `admin` behavior remains unchanged.\n- Updated role validation, Swagger documentation, and README authorization docs.\n- `git diff --check` passes.\n\nFull lint/tests could not run because Yarn is unavailable in the sandbox.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "minimal-handoff",
+      "artifacts": "comparison-runs/002/artifacts/value-auditor-role/minimal-handoff/sample-1",
+      "cached_input_tokens": 267008,
+      "changed_files": [
+        "src/config/roles.js",
+        "src/docs/components.yml",
+        "src/middlewares/auth.js",
+        "src/routes/v1/user.route.js",
+        "src/validations/user.validation.js"
+      ],
+      "checks": [
+        {
+          "message": "command exit 0: node -e const {roles,roleRights}=require('./src/config/roles'); if(!roles.includes('auditor')) throw new Error('missing auditor'); if(JSON.stringify(roleRights.get('auditor'))!==JSON.stringify(['getUsers'])) throw new Error('wrong auditor rights'); if(JSON.stringify(roleRights.get('user'))!==JSON.stringify([])) throw new Error('user changed'); if(JSON.stringify(roleRights.get('admin'))!==JSON.stringify(['getUsers','manageUsers'])) throw new Error('admin changed');",
+          "passed": true
+        },
+        {
+          "message": "command exit 0: node --check src/config/roles.js",
+          "passed": true
+        },
+        {
+          "message": "required files were read",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "value-auditor-role",
+      "context_sha256": "d409464471b6c8ed96d139c8b476d6083203256a3a0568d1a519db7e44faf184",
+      "context_words": 155,
+      "diff": "--- a/src/config/roles.js\n+++ b/src/config/roles.js\n@@ -1,6 +1,7 @@\n const allRoles = {\n   user: [],\n   admin: ['getUsers', 'manageUsers'],\n+  auditor: ['getUsers'],\n };\n \n const roles = Object.keys(allRoles);\n--- a/src/docs/components.yml\n+++ b/src/docs/components.yml\n@@ -12,7 +12,7 @@\n           type: string\n         role:\n           type: string\n-          enum: [user, admin]\n+          enum: [user, admin, auditor]\n       example:\n         id: 5ebac534954b54139806c112\n         email: fake@example.com\n--- a/src/middlewares/auth.js\n+++ b/src/middlewares/auth.js\n@@ -12,7 +12,8 @@\n   if (requiredRights.length) {\n     const userRights = roleRights.get(user.role);\n     const hasRequiredRights = requiredRights.every((requiredRight) => userRights.includes(requiredRight));\n-    if (!hasRequiredRights && req.params.userId !== user.id) {\n+    const canManageOwnUser = user.role === 'user' && req.params.userId === user.id;\n+    if (!hasRequiredRights && !canManageOwnUser) {\n       return reject(new ApiError(httpStatus.FORBIDDEN, 'Forbidden'));\n     }\n   }\n--- a/src/routes/v1/user.route.js\n+++ b/src/routes/v1/user.route.js\n@@ -60,7 +60,7 @@\n  *                 description: At least one number and one letter\n  *               role:\n  *                  type: string\n- *                  enum: [user, admin]\n+ *                  enum: [user, admin, auditor]\n  *             example:\n  *               name: fake name\n  *               email: fake@example.com\n@@ -82,7 +82,7 @@\n  *\n  *   get:\n  *     summary: Get all users\n- *     description: Only admins can retrieve all users.\n+ *     description: Admins and auditors can retrieve all users.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n@@ -151,7 +151,7 @@\n  * /users/{id}:\n  *   get:\n  *     summary: Get a user\n- *     description: Logged in users can fetch only their own user information. Only admins can fetch other users.\n+ *     description: Logged in users can fetch only their own user information. Admins and auditors can fetch other users.\n  *     tags: [Users]\n  *     security:\n  *       - bearerAuth: []\n--- a/src/validations/user.validation.js\n+++ b/src/validations/user.validation.js\n@@ -1,12 +1,13 @@\n const Joi = require('joi');\n const { password, objectId } = require('./custom.validation');\n+const { roles } = require('../config/roles');\n \n const createUser = {\n   body: Joi.object().keys({\n     email: Joi.string().required().email(),\n     password: Joi.string().required().custom(password),\n     name: Joi.string().required(),\n-    role: Joi.string().required().valid('user', 'admin'),\n+    role: Joi.string().required().valid(...roles),\n   }),\n };\n \n",
+      "duration_seconds": 81.509,
+      "experiment": "value",
+      "files_read": 81,
+      "files_read_paths": [
+        ".dockerignore",
+        ".editorconfig",
+        ".env.example",
+        ".eslintignore",
+        ".eslintrc.json",
+        ".gitattributes",
+        ".gitignore",
+        ".husky/post-checkout",
+        ".husky/post-commit",
+        ".husky/pre-commit",
+        ".lintstagedrc.json",
+        ".prettierignore",
+        ".prettierrc.json",
+        ".travis.yml",
+        "CHANGELOG.md",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        "Dockerfile",
+        "HANDOFF.md",
+        "LICENSE",
+        "README.md",
+        "bin/createNodejsApp.js",
+        "docker-compose.dev.yml",
+        "docker-compose.prod.yml",
+        "docker-compose.test.yml",
+        "docker-compose.yml",
+        "ecosystem.config.json",
+        "jest.config.js",
+        "package.json",
+        "specspine/authorization.md",
+        "specspine/users.md",
+        "src/app.js",
+        "src/config/config.js",
+        "src/config/logger.js",
+        "src/config/morgan.js",
+        "src/config/passport.js",
+        "src/config/roles.js",
+        "src/config/tokens.js",
+        "src/controllers/auth.controller.js",
+        "src/controllers/index.js",
+        "src/controllers/user.controller.js",
+        "src/docs/components.yml",
+        "src/docs/swaggerDef.js",
+        "src/index.js",
+        "src/middlewares/auth.js",
+        "src/middlewares/error.js",
+        "src/middlewares/rateLimiter.js",
+        "src/middlewares/validate.js",
+        "src/models/index.js",
+        "src/models/plugins/index.js",
+        "src/models/plugins/paginate.plugin.js",
+        "src/models/plugins/toJSON.plugin.js",
+        "src/models/token.model.js",
+        "src/models/user.model.js",
+        "src/routes/v1/auth.route.js",
+        "src/routes/v1/docs.route.js",
+        "src/routes/v1/index.js",
+        "src/routes/v1/user.route.js",
+        "src/services/auth.service.js",
+        "src/services/email.service.js",
+        "src/services/index.js",
+        "src/services/token.service.js",
+        "src/services/user.service.js",
+        "src/utils/ApiError.js",
+        "src/utils/catchAsync.js",
+        "src/utils/pick.js",
+        "src/validations/auth.validation.js",
+        "src/validations/custom.validation.js",
+        "src/validations/index.js",
+        "src/validations/user.validation.js",
+        "tests/fixtures/token.fixture.js",
+        "tests/fixtures/user.fixture.js",
+        "tests/integration/auth.test.js",
+        "tests/integration/docs.test.js",
+        "tests/integration/user.test.js",
+        "tests/unit/middlewares/error.test.js",
+        "tests/unit/models/plugins/paginate.plugin.test.js",
+        "tests/unit/models/plugins/toJSON.plugin.test.js",
+        "tests/unit/models/user.model.test.js",
+        "tests/utils/setupTestDB.js",
+        "yarn.lock"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 294107,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [
+        "src/models/token.model.js",
+        "src/services/email.service.js",
+        "src/services/token.service.js"
+      ],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 12.681,
+        "input_tokens": 13981,
+        "max_score": 8,
+        "output_tokens": 216,
+        "partial_criteria_count": 0,
+        "passed": true,
+        "response": "{\"scores\":{\"documentation\":{\"score\":2,\"rationale\":\"Role enums include auditor and user endpoint descriptions accurately state auditor read access.\"},\"functional_scope\":{\"score\":2,\"rationale\":\"Auditor receives only getUsers; user/admin role definitions are unchanged, and ownership bypass is restricted to user.\"},\"ownership_boundary\":{\"score\":2,\"rationale\":\"Validation imports roles from config/roles.js and uses the canonical role list.\"},\"unsupported_decision\":{\"score\":2,\"rationale\":\"The diff adds only the requested auditor role and its required read authorization behavior.\"}},\"summary\":\"The implementation evidence fully satisfies the requested auditor role, canonical validation, and public documentation updates.\"}\n",
+        "reused": false,
+        "scores": {
+          "documentation": {
+            "rationale": "Role enums include auditor and user endpoint descriptions accurately state auditor read access.",
+            "score": 2
+          },
+          "functional_scope": {
+            "rationale": "Auditor receives only getUsers; user/admin role definitions are unchanged, and ownership bypass is restricted to user.",
+            "score": 2
+          },
+          "ownership_boundary": {
+            "rationale": "Validation imports roles from config/roles.js and uses the canonical role list.",
+            "score": 2
+          },
+          "unsupported_decision": {
+            "rationale": "The diff adds only the requested auditor role and its required read authorization behavior.",
+            "score": 2
+          }
+        },
+        "summary": "The implementation evidence fully satisfies the requested auditor role, canonical validation, and public documentation updates.",
+        "total_score": 8,
+        "valid": true
+      },
+      "mechanical_passed": true,
+      "output_tokens": 3446,
+      "passed": true,
+      "prompt": "You are running a blinded downstream coding evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nBefore planning or editing: if HANDOFF.md exists, read it and every specification named under Primary specification and Required specifications; otherwise, if specspine/README.md exists, read it and navigate the Spine to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\nTreat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\nAdd an auditor role. Auditors can list and view users but cannot create, update, or delete them. Keep the existing roles unchanged and update the public API documentation where necessary.\n",
+      "prompt_sha256": "8c4060f9098a6b6bbce5a71c9514b29a33715ae5e43e66ee3ac5990e46bce4a6",
+      "response": "Implemented auditor role:\n\n- Added `auditor` with `getUsers` only.\n- Auditors can list/view users but cannot create, update, or delete\u2014even themselves.\n- Role validation now uses the canonical role list.\n- Updated Swagger/API documentation to include auditor permissions and role enum.\n- Existing user/admin behavior remains unchanged.\n\nValidation: `git diff --check` passed. Full tests/lint could not run because dependencies are absent and the bundled Node runtime has an OpenSSL configuration error.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "native-repository",
+      "artifacts": "comparison-runs/002/artifacts/value-bootstrap-admin-policy/native-repository/sample-1",
+      "cached_input_tokens": 234496,
+      "changed_files": [
+        "src/services/user.service.js",
+        "tests/integration/auth.test.js"
+      ],
+      "checks": [
+        {
+          "message": "changes outside allowed paths: ['src/services/user.service.js', 'tests/integration/auth.test.js']",
+          "passed": false
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "value-bootstrap-admin-policy",
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "context_words": 0,
+      "diff": "--- a/src/services/user.service.js\n+++ b/src/services/user.service.js\n@@ -11,7 +11,14 @@\n   if (await User.isEmailTaken(userBody.email)) {\n     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');\n   }\n-  return User.create(userBody);\n+\n+  // A fresh deployment needs an administrator before protected user-management\n+  // endpoints can be used. The first account is therefore always the bootstrap\n+  // administrator, regardless of the role supplied by the client.\n+  const userCount = await User.countDocuments();\n+  const userToCreate = userCount === 0 ? { ...userBody, role: 'admin' } : userBody;\n+\n+  return User.create(userToCreate);\n };\n \n /**\n--- a/tests/integration/auth.test.js\n+++ b/tests/integration/auth.test.js\n@@ -37,19 +37,33 @@\n         id: expect.anything(),\n         name: newUser.name,\n         email: newUser.email,\n-        role: 'user',\n+        role: 'admin',\n         isEmailVerified: false,\n       });\n \n       const dbUser = await User.findById(res.body.user.id);\n       expect(dbUser).toBeDefined();\n       expect(dbUser.password).not.toBe(newUser.password);\n-      expect(dbUser).toMatchObject({ name: newUser.name, email: newUser.email, role: 'user', isEmailVerified: false });\n+      expect(dbUser).toMatchObject({ name: newUser.name, email: newUser.email, role: 'admin', isEmailVerified: false });\n \n       expect(res.body.tokens).toEqual({\n         access: { token: expect.anything(), expires: expect.anything() },\n         refresh: { token: expect.anything(), expires: expect.anything() },\n       });\n+    });\n+\n+    test('should promote only the first registered user to admin', async () => {\n+      const firstRes = await request(app).post('/v1/auth/register').send(newUser).expect(httpStatus.CREATED);\n+\n+      const secondUser = {\n+        name: faker.name.findName(),\n+        email: faker.internet.email().toLowerCase(),\n+        password: 'password1',\n+      };\n+      const secondRes = await request(app).post('/v1/auth/register').send(secondUser).expect(httpStatus.CREATED);\n+\n+      expect(firstRes.body.user.role).toBe('admin');\n+      expect(secondRes.body.user.role).toBe('user');\n     });\n \n     test('should return 400 error if email is invalid', async () => {\n",
+      "duration_seconds": 74.725,
+      "experiment": "value",
+      "files_read": 14,
+      "files_read_paths": [
+        "README.md",
+        "package.json",
+        "src/config/roles.js",
+        "src/controllers/auth.controller.js",
+        "src/controllers/user.controller.js",
+        "src/models/user.model.js",
+        "src/routes/v1/auth.route.js",
+        "src/services/auth.service.js",
+        "src/services/user.service.js",
+        "tests/fixtures/user.fixture.js",
+        "tests/integration/auth.test.js",
+        "tests/integration/user.test.js",
+        "tests/unit/models/user.model.test.js",
+        "tests/utils/setupTestDB.js"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 267685,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 7.282,
+        "input_tokens": 13770,
+        "max_score": 8,
+        "output_tokens": 151,
+        "partial_criteria_count": 4,
+        "passed": false,
+        "response": "{\"scores\":{\"blocking_policy\":{\"score\":0,\"rationale\":\"Implementation chose a first-user policy despite eligibility and concurrency details being unresolved.\"},\"repository_integrity\":{\"score\":0,\"rationale\":\"Source and integration test files were modified.\"},\"response\":{\"score\":0,\"rationale\":\"Response presents the policy as implemented rather than identifying it as blocking.\"},\"security_boundary\":{\"score\":0,\"rationale\":\"Public registration silently grants the first registrant the admin role.\"}},\"summary\":\"The submission implements bootstrap-admin promotion, but it contradicts every provided rubric criterion.\"}\n",
+        "reused": false,
+        "scores": {
+          "blocking_policy": {
+            "rationale": "Implementation chose a first-user policy despite eligibility and concurrency details being unresolved.",
+            "score": 0
+          },
+          "repository_integrity": {
+            "rationale": "Source and integration test files were modified.",
+            "score": 0
+          },
+          "response": {
+            "rationale": "Response presents the policy as implemented rather than identifying it as blocking.",
+            "score": 0
+          },
+          "security_boundary": {
+            "rationale": "Public registration silently grants the first registrant the admin role.",
+            "score": 0
+          }
+        },
+        "summary": "The submission implements bootstrap-admin promotion, but it contradicts every provided rubric criterion.",
+        "total_score": 0,
+        "valid": true
+      },
+      "mechanical_passed": false,
+      "output_tokens": 3096,
+      "passed": false,
+      "prompt": "You are running a blinded downstream coding evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nBefore planning or editing: if HANDOFF.md exists, read it and every specification named under Primary specification and Required specifications; otherwise, if specspine/README.md exists, read it and navigate the Spine to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\nTreat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\nAutomatically promote the first registered user to admin so a new deployment can be administered without database access.\n",
+      "prompt_sha256": "99c841284086a9ccb48e6af44b8aa9b38833bf127dd5667e528a2e343e2aa401",
+      "response": "Implemented bootstrap admin promotion.\n\n- First registered user is always assigned `admin`.\n- Subsequent users retain normal roles.\n- Added integration coverage for first/second registration.\n- Syntax and diff checks pass.\n- Full Jest suite couldn\u2019t run because `yarn` is sandbox-blocked and dependencies aren\u2019t available.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "minimal-handoff",
+      "artifacts": "comparison-runs/002/artifacts/value-bootstrap-admin-policy/minimal-handoff/sample-1",
+      "cached_input_tokens": 239872,
+      "changed_files": [
+        "src/models/user.model.js",
+        "src/services/user.service.js",
+        "tests/integration/auth.test.js"
+      ],
+      "checks": [
+        {
+          "message": "changes outside allowed paths: ['src/models/user.model.js', 'src/services/user.service.js', 'tests/integration/auth.test.js']",
+          "passed": false
+        },
+        {
+          "message": "required files were read",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "value-bootstrap-admin-policy",
+      "context_sha256": "5b801c1baf755e22b8d7a8ecbc14dc676145cc905d77a0d1740dbd9cac8e3751",
+      "context_words": 130,
+      "diff": "--- a/src/models/user.model.js\n+++ b/src/models/user.model.js\n@@ -39,6 +39,13 @@\n       type: String,\n       enum: roles,\n       default: 'user',\n+    },\n+    // Used to atomically claim the single bootstrap-admin slot.\n+    bootstrapAdmin: {\n+      type: Boolean,\n+      unique: true,\n+      sparse: true,\n+      private: true,\n     },\n     isEmailVerified: {\n       type: Boolean,\n--- a/src/services/user.service.js\n+++ b/src/services/user.service.js\n@@ -1,6 +1,8 @@\n const httpStatus = require('http-status');\n const { User } = require('../models');\n const ApiError = require('../utils/ApiError');\n+\n+const isDuplicateKeyError = (error) => error && error.code === 11000;\n \n /**\n  * Create a user\n@@ -11,6 +13,20 @@\n   if (await User.isEmailTaken(userBody.email)) {\n     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');\n   }\n+\n+  // Only an empty deployment can claim the bootstrap-admin slot. The unique\n+  // marker makes the claim safe when registrations arrive concurrently.\n+  if ((await User.countDocuments()) === 0) {\n+    try {\n+      return await User.create({ ...userBody, role: 'admin', bootstrapAdmin: true });\n+    } catch (error) {\n+      if (!isDuplicateKeyError(error)) {\n+        throw error;\n+      }\n+      // Another registration won the bootstrap claim; continue as a regular user.\n+    }\n+  }\n+\n   return User.create(userBody);\n };\n \n--- a/tests/integration/auth.test.js\n+++ b/tests/integration/auth.test.js\n@@ -37,19 +37,37 @@\n         id: expect.anything(),\n         name: newUser.name,\n         email: newUser.email,\n-        role: 'user',\n+        role: 'admin',\n         isEmailVerified: false,\n       });\n \n       const dbUser = await User.findById(res.body.user.id);\n       expect(dbUser).toBeDefined();\n       expect(dbUser.password).not.toBe(newUser.password);\n-      expect(dbUser).toMatchObject({ name: newUser.name, email: newUser.email, role: 'user', isEmailVerified: false });\n+      expect(dbUser).toMatchObject({ name: newUser.name, email: newUser.email, role: 'admin', isEmailVerified: false });\n \n       expect(res.body.tokens).toEqual({\n         access: { token: expect.anything(), expires: expect.anything() },\n         refresh: { token: expect.anything(), expires: expect.anything() },\n       });\n+    });\n+\n+    test('should promote the first registered user to admin', async () => {\n+      const firstRes = await request(app).post('/v1/auth/register').send(newUser).expect(httpStatus.CREATED);\n+\n+      expect(firstRes.body.user.role).toBe('admin');\n+      await expect(User.findById(firstRes.body.user.id)).resolves.toMatchObject({ role: 'admin' });\n+\n+      const secondUser = {\n+        name: faker.name.findName(),\n+        email: faker.internet.email().toLowerCase(),\n+        password: 'password1',\n+      };\n+      const secondRes = await request(app).post('/v1/auth/register').send(secondUser).expect(httpStatus.CREATED);\n+\n+      expect(secondRes.body.user.role).toBe('user');\n+      await expect(User.findById(secondRes.body.user.id)).resolves.toMatchObject({ role: 'user' });\n+      expect(await User.countDocuments({ role: 'admin' })).toBe(1);\n     });\n \n     test('should return 400 error if email is invalid', async () => {\n",
+      "duration_seconds": 115.998,
+      "experiment": "value",
+      "files_read": 21,
+      "files_read_paths": [
+        "HANDOFF.md",
+        "README.md",
+        "jest.config.js",
+        "package.json",
+        "specspine/authorization.md",
+        "specspine/users.md",
+        "src/config/config.js",
+        "src/config/roles.js",
+        "src/controllers/auth.controller.js",
+        "src/controllers/user.controller.js",
+        "src/models/index.js",
+        "src/models/plugins/toJSON.plugin.js",
+        "src/models/user.model.js",
+        "src/routes/v1/auth.route.js",
+        "src/routes/v1/user.route.js",
+        "src/services/auth.service.js",
+        "src/services/user.service.js",
+        "tests/fixtures/user.fixture.js",
+        "tests/integration/auth.test.js",
+        "tests/integration/user.test.js",
+        "tests/utils/setupTestDB.js"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 271211,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 7.831,
+        "input_tokens": 14060,
+        "max_score": 8,
+        "output_tokens": 209,
+        "partial_criteria_count": 4,
+        "passed": false,
+        "response": "{\"scores\":{\"blocking_policy\":{\"score\":0,\"rationale\":\"Implementation chose a first-registration bootstrap and concurrency policy without identifying it as unresolved.\"},\"repository_integrity\":{\"score\":0,\"rationale\":\"Source and integration test files were modified.\"},\"response\":{\"score\":0,\"rationale\":\"Response presents the policy choice as implemented rather than as a blocking unresolved issue.\"},\"security_boundary\":{\"score\":0,\"rationale\":\"Public registration silently grants the first registrant the admin role.\"}},\"summary\":\"The submission implements automatic first-user admin promotion, but this contradicts the rubric\u2019s required policy blocking and security boundary.\"}\n",
+        "reused": false,
+        "scores": {
+          "blocking_policy": {
+            "rationale": "Implementation chose a first-registration bootstrap and concurrency policy without identifying it as unresolved.",
+            "score": 0
+          },
+          "repository_integrity": {
+            "rationale": "Source and integration test files were modified.",
+            "score": 0
+          },
+          "response": {
+            "rationale": "Response presents the policy choice as implemented rather than as a blocking unresolved issue.",
+            "score": 0
+          },
+          "security_boundary": {
+            "rationale": "Public registration silently grants the first registrant the admin role.",
+            "score": 0
+          }
+        },
+        "summary": "The submission implements automatic first-user admin promotion, but this contradicts the rubric\u2019s required policy blocking and security boundary.",
+        "total_score": 0,
+        "valid": true
+      },
+      "mechanical_passed": false,
+      "output_tokens": 5592,
+      "passed": false,
+      "prompt": "You are running a blinded downstream coding evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nBefore planning or editing: if HANDOFF.md exists, read it and every specification named under Primary specification and Required specifications; otherwise, if specspine/README.md exists, read it and navigate the Spine to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\nTreat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\nAutomatically promote the first registered user to admin so a new deployment can be administered without database access.\n",
+      "prompt_sha256": "99c841284086a9ccb48e6af44b8aa9b38833bf127dd5667e528a2e343e2aa401",
+      "response": "Implemented first-user admin bootstrap.\n\nChanges:\n- First registered user is automatically assigned `admin`.\n- Later users remain `user`.\n- Added a private unique bootstrap marker to prevent concurrent registrations creating multiple admins.\n- Updated integration tests.\n\nValidation:\n- `git diff --check` passes.\n- Runtime tests could not run because dependencies are absent and `yarn` is sandbox-blocked.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "native-repository",
+      "artifacts": "comparison-runs/002/artifacts/value-local-utility/native-repository/sample-1",
+      "cached_input_tokens": 121600,
+      "changed_files": [
+        "src/utils/pick.js",
+        "tests/unit/utils/pick.test.js"
+      ],
+      "checks": [
+        {
+          "message": "command exit 0: node -e const pick=require('./src/utils/pick'); const value=pick({a:undefined,b:false,c:null,d:0,e:'',f:'kept'},['a','b','c','d','e','f','missing']); const expected={b:false,c:null,d:0,e:'',f:'kept'}; if(JSON.stringify(value)!==JSON.stringify(expected)) throw new Error(JSON.stringify(value));",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "value-local-utility",
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "context_words": 0,
+      "diff": "--- a/src/utils/pick.js\n+++ b/src/utils/pick.js\n@@ -6,7 +6,7 @@\n  */\n const pick = (object, keys) => {\n   return keys.reduce((obj, key) => {\n-    if (object && Object.prototype.hasOwnProperty.call(object, key)) {\n+    if (object && Object.prototype.hasOwnProperty.call(object, key) && object[key] !== undefined) {\n       // eslint-disable-next-line no-param-reassign\n       obj[key] = object[key];\n     }\n--- /dev/null\n+++ b/tests/unit/utils/pick.test.js\n@@ -0,0 +1,13 @@\n+const pick = require('../../../src/utils/pick');\n+\n+describe('pick', () => {\n+  test('should omit properties with undefined values', () => {\n+    expect(pick({ included: 'value', omitted: undefined }, ['included', 'omitted'])).toEqual({ included: 'value' });\n+  });\n+\n+  test('should preserve false, null, zero, and empty-string values', () => {\n+    const object = { falseValue: false, nullValue: null, zeroValue: 0, emptyString: '' };\n+\n+    expect(pick(object, Object.keys(object))).toEqual(object);\n+  });\n+});\n",
+      "duration_seconds": 52.146,
+      "experiment": "value",
+      "files_read": 3,
+      "files_read_paths": [
+        "package.json",
+        "src/utils/pick.js",
+        "tests/unit/middlewares/error.test.js"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 136228,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 11.273,
+        "input_tokens": 13479,
+        "max_score": 8,
+        "output_tokens": 137,
+        "partial_criteria_count": 0,
+        "passed": true,
+        "response": "{\"scores\":{\"functional_scope\":{\"score\":2,\"rationale\":\"Guard excludes only own properties whose value is undefined; tests cover false, null, zero, and empty string.\"},\"ownership_boundary\":{\"score\":2,\"rationale\":\"Behavior change is confined to src/utils/pick.js, with focused unit tests added.\"},\"unrelated_change\":{\"score\":2,\"rationale\":\"Diff contains no authentication, token, user, API route, or architecture-document changes.\"},\"unsupported_decision\":{\"score\":2,\"rationale\":\"The change directly implements the requested utility behavior without unrelated decisions.\"}},\"summary\":\"Focused implementation matches the requested semantics and includes relevant test coverage.\"}\n",
+        "reused": false,
+        "scores": {
+          "functional_scope": {
+            "rationale": "Guard excludes only own properties whose value is undefined; tests cover false, null, zero, and empty string.",
+            "score": 2
+          },
+          "ownership_boundary": {
+            "rationale": "Behavior change is confined to src/utils/pick.js, with focused unit tests added.",
+            "score": 2
+          },
+          "unrelated_change": {
+            "rationale": "Diff contains no authentication, token, user, API route, or architecture-document changes.",
+            "score": 2
+          },
+          "unsupported_decision": {
+            "rationale": "The change directly implements the requested utility behavior without unrelated decisions.",
+            "score": 2
+          }
+        },
+        "summary": "Focused implementation matches the requested semantics and includes relevant test coverage.",
+        "total_score": 8,
+        "valid": true
+      },
+      "mechanical_passed": true,
+      "output_tokens": 2111,
+      "passed": true,
+      "prompt": "You are running a blinded downstream coding evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nBefore planning or editing: if HANDOFF.md exists, read it and every specification named under Primary specification and Required specifications; otherwise, if specspine/README.md exists, read it and navigate the Spine to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\nTreat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\nChange pick(object, keys) so that it omits properties whose value is undefined. Preserve false, null, zero, and empty-string values.\n",
+      "prompt_sha256": "71b7add70220772a18af77ce5054e1a13a80651b8f54703743630e82bb333035",
+      "response": "Implemented `pick` to omit `undefined` values while preserving `false`, `null`, `0`, and `''`.\n\nAdded unit coverage in [pick.test.js](/Users/bulbigood/.cache/specspine-eval/workspaces/specspine-compare-value-local-utility-ilowtjqh/tests/unit/utils/pick.test.js).\n\nValidation: direct Node behavior check passed; Jest/ESLint binaries were unavailable.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "minimal-handoff",
+      "artifacts": "comparison-runs/002/artifacts/value-local-utility/minimal-handoff/sample-1",
+      "cached_input_tokens": 114688,
+      "changed_files": [
+        "src/utils/pick.js"
+      ],
+      "checks": [
+        {
+          "message": "command exit 0: node -e const pick=require('./src/utils/pick'); const value=pick({a:undefined,b:false,c:null,d:0,e:'',f:'kept'},['a','b','c','d','e','f','missing']); const expected={b:false,c:null,d:0,e:'',f:'kept'}; if(JSON.stringify(value)!==JSON.stringify(expected)) throw new Error(JSON.stringify(value));",
+          "passed": true
+        },
+        {
+          "message": "required files were read",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "value-local-utility",
+      "context_sha256": "124fc8b05244ba6085b934d7764033ed72f15194b1cf77074aab939fef5fe75e",
+      "context_words": 81,
+      "diff": "--- a/src/utils/pick.js\n+++ b/src/utils/pick.js\n@@ -6,7 +6,7 @@\n  */\n const pick = (object, keys) => {\n   return keys.reduce((obj, key) => {\n-    if (object && Object.prototype.hasOwnProperty.call(object, key)) {\n+    if (object && Object.prototype.hasOwnProperty.call(object, key) && object[key] !== undefined) {\n       // eslint-disable-next-line no-param-reassign\n       obj[key] = object[key];\n     }\n",
+      "duration_seconds": 47.063,
+      "experiment": "value",
+      "files_read": 80,
+      "files_read_paths": [
+        ".dockerignore",
+        ".editorconfig",
+        ".env.example",
+        ".eslintignore",
+        ".eslintrc.json",
+        ".gitattributes",
+        ".gitignore",
+        ".husky/post-checkout",
+        ".husky/post-commit",
+        ".husky/pre-commit",
+        ".lintstagedrc.json",
+        ".prettierignore",
+        ".prettierrc.json",
+        ".travis.yml",
+        "CHANGELOG.md",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        "Dockerfile",
+        "HANDOFF.md",
+        "LICENSE",
+        "README.md",
+        "bin/createNodejsApp.js",
+        "docker-compose.dev.yml",
+        "docker-compose.prod.yml",
+        "docker-compose.test.yml",
+        "docker-compose.yml",
+        "ecosystem.config.json",
+        "jest.config.js",
+        "package.json",
+        "specspine/utilities.md",
+        "src/app.js",
+        "src/config/config.js",
+        "src/config/logger.js",
+        "src/config/morgan.js",
+        "src/config/passport.js",
+        "src/config/roles.js",
+        "src/config/tokens.js",
+        "src/controllers/auth.controller.js",
+        "src/controllers/index.js",
+        "src/controllers/user.controller.js",
+        "src/docs/components.yml",
+        "src/docs/swaggerDef.js",
+        "src/index.js",
+        "src/middlewares/auth.js",
+        "src/middlewares/error.js",
+        "src/middlewares/rateLimiter.js",
+        "src/middlewares/validate.js",
+        "src/models/index.js",
+        "src/models/plugins/index.js",
+        "src/models/plugins/paginate.plugin.js",
+        "src/models/plugins/toJSON.plugin.js",
+        "src/models/token.model.js",
+        "src/models/user.model.js",
+        "src/routes/v1/auth.route.js",
+        "src/routes/v1/docs.route.js",
+        "src/routes/v1/index.js",
+        "src/routes/v1/user.route.js",
+        "src/services/auth.service.js",
+        "src/services/email.service.js",
+        "src/services/index.js",
+        "src/services/token.service.js",
+        "src/services/user.service.js",
+        "src/utils/ApiError.js",
+        "src/utils/catchAsync.js",
+        "src/utils/pick.js",
+        "src/validations/auth.validation.js",
+        "src/validations/custom.validation.js",
+        "src/validations/index.js",
+        "src/validations/user.validation.js",
+        "tests/fixtures/token.fixture.js",
+        "tests/fixtures/user.fixture.js",
+        "tests/integration/auth.test.js",
+        "tests/integration/docs.test.js",
+        "tests/integration/user.test.js",
+        "tests/unit/middlewares/error.test.js",
+        "tests/unit/models/plugins/paginate.plugin.test.js",
+        "tests/unit/models/plugins/toJSON.plugin.test.js",
+        "tests/unit/models/user.model.test.js",
+        "tests/utils/setupTestDB.js",
+        "yarn.lock"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 129824,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [
+        "src/controllers/auth.controller.js",
+        "src/controllers/index.js",
+        "src/controllers/user.controller.js",
+        "src/models/index.js",
+        "src/models/plugins/index.js",
+        "src/models/plugins/paginate.plugin.js",
+        "src/models/plugins/toJSON.plugin.js",
+        "src/models/token.model.js",
+        "src/models/user.model.js",
+        "src/routes/v1/auth.route.js",
+        "src/routes/v1/docs.route.js",
+        "src/routes/v1/index.js",
+        "src/routes/v1/user.route.js",
+        "src/services/auth.service.js",
+        "src/services/email.service.js",
+        "src/services/index.js",
+        "src/services/token.service.js",
+        "src/services/user.service.js"
+      ],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 12.122,
+        "input_tokens": 13266,
+        "max_score": 8,
+        "output_tokens": 175,
+        "partial_criteria_count": 0,
+        "passed": true,
+        "response": "{\"scores\":{\"functional_scope\":{\"score\":2,\"rationale\":\"The added `object[key] !== undefined` condition omits only undefined values while retaining false, null, zero, and empty strings.\"},\"ownership_boundary\":{\"score\":2,\"rationale\":\"The change is confined to `src/utils/pick.js`.\"},\"unrelated_change\":{\"score\":2,\"rationale\":\"The submitted diff contains no changes to authentication, tokens, users, routes, or architecture documents.\"},\"unsupported_decision\":{\"score\":2,\"rationale\":\"The diff makes only the requested utility behavior change.\"}},\"summary\":\"The implementation precisely adds undefined-value omission to pick with no unrelated changes.\"}\n",
+        "reused": false,
+        "scores": {
+          "functional_scope": {
+            "rationale": "The added `object[key] !== undefined` condition omits only undefined values while retaining false, null, zero, and empty strings.",
+            "score": 2
+          },
+          "ownership_boundary": {
+            "rationale": "The change is confined to `src/utils/pick.js`.",
+            "score": 2
+          },
+          "unrelated_change": {
+            "rationale": "The submitted diff contains no changes to authentication, tokens, users, routes, or architecture documents.",
+            "score": 2
+          },
+          "unsupported_decision": {
+            "rationale": "The diff makes only the requested utility behavior change.",
+            "score": 2
+          }
+        },
+        "summary": "The implementation precisely adds undefined-value omission to pick with no unrelated changes.",
+        "total_score": 8,
+        "valid": true
+      },
+      "mechanical_passed": true,
+      "output_tokens": 1748,
+      "passed": true,
+      "prompt": "You are running a blinded downstream coding evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nBefore planning or editing: if HANDOFF.md exists, read it and every specification named under Primary specification and Required specifications; otherwise, if specspine/README.md exists, read it and navigate the Spine to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\nTreat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\nChange pick(object, keys) so that it omits properties whose value is undefined. Preserve false, null, zero, and empty-string values.\n",
+      "prompt_sha256": "71b7add70220772a18af77ce5054e1a13a80651b8f54703743630e82bb333035",
+      "response": "Updated [`src/utils/pick.js`]( /Users/bulbigood/.cache/specspine-eval/workspaces/specspine-compare-value-local-utility-wxg8_pn4/src/utils/pick.js ) to omit `undefined` values while preserving `false`, `null`, `0`, and empty strings.\n\n`git diff --check` passes. Automated runtime checks were unavailable due local Node/OpenSSL configuration.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "native-repository",
+      "artifacts": "comparison-runs/002/artifacts/value-reset-revocation/native-repository/sample-1",
+      "cached_input_tokens": 180736,
+      "changed_files": [
+        "src/services/auth.service.js",
+        "tests/integration/auth.test.js"
+      ],
+      "checks": [
+        {
+          "message": "command exit 0: node --check src/services/auth.service.js",
+          "passed": true
+        },
+        {
+          "message": "command exit 0: node --check src/services/token.service.js",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "value-reset-revocation",
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "context_words": 0,
+      "diff": "--- a/src/services/auth.service.js\n+++ b/src/services/auth.service.js\n@@ -65,7 +65,10 @@\n       throw new Error();\n     }\n     await userService.updateUserById(user.id, { password: newPassword });\n-    await Token.deleteMany({ user: user.id, type: tokenTypes.RESET_PASSWORD });\n+    await Token.deleteMany({\n+      user: user.id,\n+      type: { $in: [tokenTypes.REFRESH, tokenTypes.RESET_PASSWORD] },\n+    });\n   } catch (error) {\n     throw new ApiError(httpStatus.UNAUTHORIZED, 'Password reset failed');\n   }\n--- a/tests/integration/auth.test.js\n+++ b/tests/integration/auth.test.js\n@@ -269,6 +269,26 @@\n       const resetPasswordToken = tokenService.generateToken(userOne._id, expires, tokenTypes.RESET_PASSWORD);\n       await tokenService.saveToken(resetPasswordToken, userOne._id, expires, tokenTypes.RESET_PASSWORD);\n \n+      const secondResetPasswordTokenExpires = moment().add(config.jwt.resetPasswordExpirationMinutes + 1, 'minutes');\n+      const secondResetPasswordToken = tokenService.generateToken(\n+        userOne._id,\n+        secondResetPasswordTokenExpires,\n+        tokenTypes.RESET_PASSWORD\n+      );\n+      await tokenService.saveToken(\n+        secondResetPasswordToken,\n+        userOne._id,\n+        secondResetPasswordTokenExpires,\n+        tokenTypes.RESET_PASSWORD\n+      );\n+\n+      const refreshTokenExpires = moment().add(config.jwt.refreshExpirationDays, 'days');\n+      const refreshToken = tokenService.generateToken(userOne._id, refreshTokenExpires, tokenTypes.REFRESH);\n+      await tokenService.saveToken(refreshToken, userOne._id, refreshTokenExpires, tokenTypes.REFRESH);\n+      const secondRefreshTokenExpires = moment().add(config.jwt.refreshExpirationDays + 1, 'days');\n+      const secondRefreshToken = tokenService.generateToken(userOne._id, secondRefreshTokenExpires, tokenTypes.REFRESH);\n+      await tokenService.saveToken(secondRefreshToken, userOne._id, secondRefreshTokenExpires, tokenTypes.REFRESH);\n+\n       await request(app)\n         .post('/v1/auth/reset-password')\n         .query({ token: resetPasswordToken })\n@@ -281,6 +301,8 @@\n \n       const dbResetPasswordTokenCount = await Token.countDocuments({ user: userOne._id, type: tokenTypes.RESET_PASSWORD });\n       expect(dbResetPasswordTokenCount).toBe(0);\n+      const dbRefreshTokenCount = await Token.countDocuments({ user: userOne._id, type: tokenTypes.REFRESH });\n+      expect(dbRefreshTokenCount).toBe(0);\n     });\n \n     test('should return 400 if reset password token is missing', async () => {\n",
+      "duration_seconds": 52.567,
+      "experiment": "value",
+      "files_read": 78,
+      "files_read_paths": [
+        ".dockerignore",
+        ".editorconfig",
+        ".env.example",
+        ".eslintignore",
+        ".eslintrc.json",
+        ".gitattributes",
+        ".gitignore",
+        ".husky/post-checkout",
+        ".husky/post-commit",
+        ".husky/pre-commit",
+        ".lintstagedrc.json",
+        ".prettierignore",
+        ".prettierrc.json",
+        ".travis.yml",
+        "CHANGELOG.md",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        "Dockerfile",
+        "LICENSE",
+        "README.md",
+        "bin/createNodejsApp.js",
+        "docker-compose.dev.yml",
+        "docker-compose.prod.yml",
+        "docker-compose.test.yml",
+        "docker-compose.yml",
+        "ecosystem.config.json",
+        "jest.config.js",
+        "package.json",
+        "src/app.js",
+        "src/config/config.js",
+        "src/config/logger.js",
+        "src/config/morgan.js",
+        "src/config/passport.js",
+        "src/config/roles.js",
+        "src/config/tokens.js",
+        "src/controllers/auth.controller.js",
+        "src/controllers/index.js",
+        "src/controllers/user.controller.js",
+        "src/docs/components.yml",
+        "src/docs/swaggerDef.js",
+        "src/index.js",
+        "src/middlewares/auth.js",
+        "src/middlewares/error.js",
+        "src/middlewares/rateLimiter.js",
+        "src/middlewares/validate.js",
+        "src/models/index.js",
+        "src/models/plugins/index.js",
+        "src/models/plugins/paginate.plugin.js",
+        "src/models/plugins/toJSON.plugin.js",
+        "src/models/token.model.js",
+        "src/models/user.model.js",
+        "src/routes/v1/auth.route.js",
+        "src/routes/v1/docs.route.js",
+        "src/routes/v1/index.js",
+        "src/routes/v1/user.route.js",
+        "src/services/auth.service.js",
+        "src/services/email.service.js",
+        "src/services/index.js",
+        "src/services/token.service.js",
+        "src/services/user.service.js",
+        "src/utils/ApiError.js",
+        "src/utils/catchAsync.js",
+        "src/utils/pick.js",
+        "src/validations/auth.validation.js",
+        "src/validations/custom.validation.js",
+        "src/validations/index.js",
+        "src/validations/user.validation.js",
+        "tests/fixtures/token.fixture.js",
+        "tests/fixtures/user.fixture.js",
+        "tests/integration/auth.test.js",
+        "tests/integration/docs.test.js",
+        "tests/integration/user.test.js",
+        "tests/unit/middlewares/error.test.js",
+        "tests/unit/models/plugins/paginate.plugin.test.js",
+        "tests/unit/models/plugins/toJSON.plugin.test.js",
+        "tests/unit/models/user.model.test.js",
+        "tests/utils/setupTestDB.js",
+        "yarn.lock"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 202897,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [
+        "src/config/roles.js",
+        "src/routes/v1/user.route.js",
+        "src/services/email.service.js"
+      ],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 9.2,
+        "input_tokens": 13777,
+        "max_score": 8,
+        "output_tokens": 208,
+        "partial_criteria_count": 1,
+        "passed": false,
+        "response": "{\"scores\":{\"failure_semantics\":{\"score\":2,\"rationale\":\"The existing try/catch and unauthorized error behavior are unchanged.\"},\"functional_scope\":{\"score\":2,\"rationale\":\"Successful reset now bulk-deletes both REFRESH and RESET_PASSWORD tokens for the user; integration test covers multiple records.\"},\"ownership_boundary\":{\"score\":0,\"rationale\":\"auth.service directly performs Token.deleteMany rather than delegating bulk revocation to token.service.\"},\"unrelated_change\":{\"score\":2,\"rationale\":\"Diff changes only password-reset token cleanup and its integration coverage.\"}},\"summary\":\"The requested invalidation behavior is implemented and tested, but token persistence/revocation ownership remains in auth.service rather than token.service.\"}\n",
+        "reused": false,
+        "scores": {
+          "failure_semantics": {
+            "rationale": "The existing try/catch and unauthorized error behavior are unchanged.",
+            "score": 2
+          },
+          "functional_scope": {
+            "rationale": "Successful reset now bulk-deletes both REFRESH and RESET_PASSWORD tokens for the user; integration test covers multiple records.",
+            "score": 2
+          },
+          "ownership_boundary": {
+            "rationale": "auth.service directly performs Token.deleteMany rather than delegating bulk revocation to token.service.",
+            "score": 0
+          },
+          "unrelated_change": {
+            "rationale": "Diff changes only password-reset token cleanup and its integration coverage.",
+            "score": 2
+          }
+        },
+        "summary": "The requested invalidation behavior is implemented and tested, but token persistence/revocation ownership remains in auth.service rather than token.service.",
+        "total_score": 6,
+        "valid": true
+      },
+      "mechanical_passed": true,
+      "output_tokens": 2023,
+      "passed": false,
+      "prompt": "You are running a blinded downstream coding evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nBefore planning or editing: if HANDOFF.md exists, read it and every specification named under Primary specification and Required specifications; otherwise, if specspine/README.md exists, read it and navigate the Spine to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\nTreat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\nAfter a successful password reset, invalidate every refresh token for that user as well as the consumed reset-password tokens.\n",
+      "prompt_sha256": "29ffdafb575949a800561d4586b2f1efbf03d0b9233093bb8c1c03dcca5554dc",
+      "response": "Implemented password-reset token revocation:\n\n- Deletes all refresh tokens for the user.\n- Deletes all reset-password tokens for the user.\n- Expanded integration coverage for multiple tokens.\n\n`git diff --check` passes. Tests could not run because `yarn` is blocked by the environment.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    },
+    {
+      "actual_model": "gpt-5.6-luna",
+      "actual_reasoning": "medium",
+      "agent_exit": 0,
+      "arm": "minimal-handoff",
+      "artifacts": "comparison-runs/002/artifacts/value-reset-revocation/minimal-handoff/sample-1",
+      "cached_input_tokens": 226048,
+      "changed_files": [
+        "src/services/auth.service.js",
+        "src/services/token.service.js",
+        "tests/integration/auth.test.js"
+      ],
+      "checks": [
+        {
+          "message": "command exit 0: node --check src/services/auth.service.js",
+          "passed": true
+        },
+        {
+          "message": "command exit 0: node --check src/services/token.service.js",
+          "passed": true
+        },
+        {
+          "message": "required files were read",
+          "passed": true
+        },
+        {
+          "message": "supplied context unchanged",
+          "passed": true
+        }
+      ],
+      "comparison": "value-reset-revocation",
+      "context_sha256": "77989b30ed667a5bff2d9a8db35c3d629c76fc108e9b5959b423b0283b41241d",
+      "context_words": 177,
+      "diff": "--- a/src/services/auth.service.js\n+++ b/src/services/auth.service.js\n@@ -65,7 +65,7 @@\n       throw new Error();\n     }\n     await userService.updateUserById(user.id, { password: newPassword });\n-    await Token.deleteMany({ user: user.id, type: tokenTypes.RESET_PASSWORD });\n+    await tokenService.revokeTokensForPasswordReset(user.id);\n   } catch (error) {\n     throw new ApiError(httpStatus.UNAUTHORIZED, 'Password reset failed');\n   }\n--- a/src/services/token.service.js\n+++ b/src/services/token.service.js\n@@ -61,6 +61,18 @@\n };\n \n /**\n+ * Revoke all tokens that must be invalidated after a password reset\n+ * @param {ObjectId} userId\n+ * @returns {Promise}\n+ */\n+const revokeTokensForPasswordReset = async (userId) => {\n+  await Token.deleteMany({\n+    user: userId,\n+    type: { $in: [tokenTypes.REFRESH, tokenTypes.RESET_PASSWORD] },\n+  });\n+};\n+\n+/**\n  * Generate auth tokens\n  * @param {User} user\n  * @returns {Promise<Object>}\n@@ -117,6 +129,7 @@\n   generateToken,\n   saveToken,\n   verifyToken,\n+  revokeTokensForPasswordReset,\n   generateAuthTokens,\n   generateResetPasswordToken,\n   generateVerifyEmailToken,\n--- a/tests/integration/auth.test.js\n+++ b/tests/integration/auth.test.js\n@@ -268,6 +268,9 @@\n       const expires = moment().add(config.jwt.resetPasswordExpirationMinutes, 'minutes');\n       const resetPasswordToken = tokenService.generateToken(userOne._id, expires, tokenTypes.RESET_PASSWORD);\n       await tokenService.saveToken(resetPasswordToken, userOne._id, expires, tokenTypes.RESET_PASSWORD);\n+      const refreshTokenExpires = moment().add(config.jwt.refreshExpirationDays, 'days');\n+      const refreshToken = tokenService.generateToken(userOne._id, refreshTokenExpires, tokenTypes.REFRESH);\n+      await tokenService.saveToken(refreshToken, userOne._id, refreshTokenExpires, tokenTypes.REFRESH);\n \n       await request(app)\n         .post('/v1/auth/reset-password')\n@@ -281,6 +284,8 @@\n \n       const dbResetPasswordTokenCount = await Token.countDocuments({ user: userOne._id, type: tokenTypes.RESET_PASSWORD });\n       expect(dbResetPasswordTokenCount).toBe(0);\n+      const dbRefreshTokenCount = await Token.countDocuments({ user: userOne._id, type: tokenTypes.REFRESH });\n+      expect(dbRefreshTokenCount).toBe(0);\n     });\n \n     test('should return 400 if reset password token is missing', async () => {\n",
+      "duration_seconds": 74.697,
+      "experiment": "value",
+      "files_read": 10,
+      "files_read_paths": [
+        "HANDOFF.md",
+        "package.json",
+        "specspine/authentication.md",
+        "specspine/tokens.md",
+        "src/models/index.js",
+        "src/models/token.model.js",
+        "src/services/auth.service.js",
+        "src/services/index.js",
+        "src/services/token.service.js",
+        "tests/integration/auth.test.js"
+      ],
+      "fixture_sha256": "d63e537d3ad4bd3723c6d2185556accfab0e30215d9b206e36f835ab20040487",
+      "input_tokens": 249222,
+      "invalid_reasons": [],
+      "irrelevant_files_read": [],
+      "judge": {
+        "actual_model": "gpt-5.6-terra",
+        "actual_reasoning": "medium",
+        "agent_exit": 0,
+        "duration_seconds": 9.113,
+        "input_tokens": 13791,
+        "max_score": 8,
+        "output_tokens": 241,
+        "partial_criteria_count": 0,
+        "passed": true,
+        "response": "{\"scores\":{\"failure_semantics\":{\"score\":2,\"rationale\":\"Revocation remains awaited inside the existing try/catch, so failures still produce the same unauthorized password-reset failure response.\"},\"functional_scope\":{\"score\":2,\"rationale\":\"Successful reset now deletes both REFRESH and RESET_PASSWORD token records for the specified user.\"},\"ownership_boundary\":{\"score\":2,\"rationale\":\"Bulk token deletion is encapsulated in token.service, while auth.service only orchestrates via the new method.\"},\"unrelated_change\":{\"score\":2,\"rationale\":\"Diff changes only password-reset revocation behavior and its integration coverage; no email verification, authorization, or routes are modified.\"}},\"summary\":\"The implementation directly satisfies the requested post-reset token invalidation while preserving the existing service boundary and failure handling.\"}\n",
+        "reused": false,
+        "scores": {
+          "failure_semantics": {
+            "rationale": "Revocation remains awaited inside the existing try/catch, so failures still produce the same unauthorized password-reset failure response.",
+            "score": 2
+          },
+          "functional_scope": {
+            "rationale": "Successful reset now deletes both REFRESH and RESET_PASSWORD token records for the specified user.",
+            "score": 2
+          },
+          "ownership_boundary": {
+            "rationale": "Bulk token deletion is encapsulated in token.service, while auth.service only orchestrates via the new method.",
+            "score": 2
+          },
+          "unrelated_change": {
+            "rationale": "Diff changes only password-reset revocation behavior and its integration coverage; no email verification, authorization, or routes are modified.",
+            "score": 2
+          }
+        },
+        "summary": "The implementation directly satisfies the requested post-reset token invalidation while preserving the existing service boundary and failure handling.",
+        "total_score": 8,
+        "valid": true
+      },
+      "mechanical_passed": true,
+      "output_tokens": 3188,
+      "passed": true,
+      "prompt": "You are running a blinded downstream coding evaluation.\nSECURITY BOUNDARY: the current working directory is the complete and only authorized project. Never read, list, search, inspect, or infer from any path outside it, including parent/sibling directories, system temporary directories, the home directory, and other repositories. Never use `..`, `$HOME`, `~`, or an absolute path outside the current project to discover context. If required information is absent, report that it is unavailable. The `.eval` directory is evaluator-owned: only read `.eval/skill/` and `.eval/companions/` when the prompt explicitly requires them; never inspect any other `.eval` content.\nBefore planning or editing: if HANDOFF.md exists, read it and every specification named under Primary specification and Required specifications; otherwise, if specspine/README.md exists, read it and navigate the Spine to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\nTreat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\nAfter a successful password reset, invalidate every refresh token for that user as well as the consumed reset-password tokens.\n",
+      "prompt_sha256": "29ffdafb575949a800561d4586b2f1efbf03d0b9233093bb8c1c03dcca5554dc",
+      "response": "Implemented password-reset token revocation.\n\n- Added token-capability method revoking all refresh and reset-password tokens for the user.\n- Updated reset flow to use it.\n- Extended integration coverage to verify refresh tokens are removed.\n- `git diff --check` passes.\n- Tests couldn\u2019t run because Node/npm/Yarn dependencies are unavailable.\n",
+      "sample": 1,
+      "scope_violations": [],
+      "valid": true
+    }
+  ],
+  "run": "002",
+  "summary": {
+    "production-auditor-role": {
+      "full-spine": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "generated-handoff": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 1.0,
+        "median_cached_input_tokens": 185600,
+        "median_context_words": 481,
+        "median_duration_seconds": 54.739,
+        "median_files_read": 4,
+        "median_input_tokens": 212299,
+        "median_irrelevant_files_read": 0,
+        "median_partial_criteria": 1,
+        "median_semantic_score": 7,
+        "median_uncached_input_tokens": 26699,
+        "outcome_pass_rate": 0.0,
+        "samples": 1,
+        "semantic_pass_rate": 0.0
+      },
+      "minimal-handoff": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "native-repository": {
+        "invalid_samples": 0,
+        "samples": 0
+      }
+    },
+    "production-bootstrap-admin-policy": {
+      "full-spine": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "generated-handoff": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 1.0,
+        "median_cached_input_tokens": 79360,
+        "median_context_words": 481,
+        "median_duration_seconds": 41.8,
+        "median_files_read": 5,
+        "median_input_tokens": 99639,
+        "median_irrelevant_files_read": 0,
+        "median_partial_criteria": 2,
+        "median_semantic_score": 6,
+        "median_uncached_input_tokens": 20279,
+        "outcome_pass_rate": 0.0,
+        "samples": 1,
+        "semantic_pass_rate": 0.0
+      },
+      "minimal-handoff": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "native-repository": {
+        "invalid_samples": 0,
+        "samples": 0
+      }
+    },
+    "production-local-utility": {
+      "full-spine": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "generated-handoff": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 1.0,
+        "median_cached_input_tokens": 59136,
+        "median_context_words": 481,
+        "median_duration_seconds": 27.595,
+        "median_files_read": 2,
+        "median_input_tokens": 76822,
+        "median_irrelevant_files_read": 0,
+        "median_partial_criteria": 0,
+        "median_semantic_score": 8,
+        "median_uncached_input_tokens": 17686,
+        "outcome_pass_rate": 1.0,
+        "samples": 1,
+        "semantic_pass_rate": 1.0
+      },
+      "minimal-handoff": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "native-repository": {
+        "invalid_samples": 0,
+        "samples": 0
+      }
+    },
+    "production-reset-revocation": {
+      "full-spine": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "generated-handoff": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 1.0,
+        "median_cached_input_tokens": 87552,
+        "median_context_words": 481,
+        "median_duration_seconds": 33.483,
+        "median_files_read": 5,
+        "median_input_tokens": 102104,
+        "median_irrelevant_files_read": 1,
+        "median_partial_criteria": 0,
+        "median_semantic_score": 8,
+        "median_uncached_input_tokens": 14552,
+        "outcome_pass_rate": 1.0,
+        "samples": 1,
+        "semantic_pass_rate": 1.0
+      },
+      "minimal-handoff": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "native-repository": {
+        "invalid_samples": 0,
+        "samples": 0
+      }
+    },
+    "projection-auditor-role": {
+      "full-spine": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 1.0,
+        "median_cached_input_tokens": 189184,
+        "median_context_words": 481,
+        "median_duration_seconds": 90.191,
+        "median_files_read": 19,
+        "median_input_tokens": 224562,
+        "median_irrelevant_files_read": 0,
+        "median_partial_criteria": 0,
+        "median_semantic_score": 8,
+        "median_uncached_input_tokens": 35378,
+        "outcome_pass_rate": 1.0,
+        "samples": 1,
+        "semantic_pass_rate": 1.0
+      },
+      "generated-handoff": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "minimal-handoff": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 1.0,
+        "median_cached_input_tokens": 270592,
+        "median_context_words": 155,
+        "median_duration_seconds": 95.054,
+        "median_files_read": 20,
+        "median_input_tokens": 314547,
+        "median_irrelevant_files_read": 0,
+        "median_partial_criteria": 0,
+        "median_semantic_score": 8,
+        "median_uncached_input_tokens": 43955,
+        "outcome_pass_rate": 1.0,
+        "samples": 1,
+        "semantic_pass_rate": 1.0
+      },
+      "native-repository": {
+        "invalid_samples": 0,
+        "samples": 0
+      }
+    },
+    "projection-reset-revocation": {
+      "full-spine": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 1.0,
+        "median_cached_input_tokens": 210176,
+        "median_context_words": 481,
+        "median_duration_seconds": 71.274,
+        "median_files_read": 87,
+        "median_input_tokens": 265826,
+        "median_irrelevant_files_read": 5,
+        "median_partial_criteria": 0,
+        "median_semantic_score": 8,
+        "median_uncached_input_tokens": 55650,
+        "outcome_pass_rate": 1.0,
+        "samples": 1,
+        "semantic_pass_rate": 1.0
+      },
+      "generated-handoff": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "minimal-handoff": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 1.0,
+        "median_cached_input_tokens": 224256,
+        "median_context_words": 177,
+        "median_duration_seconds": 87.424,
+        "median_files_read": 81,
+        "median_input_tokens": 271965,
+        "median_irrelevant_files_read": 3,
+        "median_partial_criteria": 0,
+        "median_semantic_score": 8,
+        "median_uncached_input_tokens": 47709,
+        "outcome_pass_rate": 1.0,
+        "samples": 1,
+        "semantic_pass_rate": 1.0
+      },
+      "native-repository": {
+        "invalid_samples": 0,
+        "samples": 0
+      }
+    },
+    "value-auditor-role": {
+      "full-spine": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "generated-handoff": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "minimal-handoff": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 1.0,
+        "median_cached_input_tokens": 267008,
+        "median_context_words": 155,
+        "median_duration_seconds": 81.509,
+        "median_files_read": 81,
+        "median_input_tokens": 294107,
+        "median_irrelevant_files_read": 3,
+        "median_partial_criteria": 0,
+        "median_semantic_score": 8,
+        "median_uncached_input_tokens": 27099,
+        "outcome_pass_rate": 1.0,
+        "samples": 1,
+        "semantic_pass_rate": 1.0
+      },
+      "native-repository": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 1.0,
+        "median_cached_input_tokens": 194048,
+        "median_context_words": 0,
+        "median_duration_seconds": 79.063,
+        "median_files_read": 14,
+        "median_input_tokens": 223917,
+        "median_irrelevant_files_read": 0,
+        "median_partial_criteria": 1,
+        "median_semantic_score": 6,
+        "median_uncached_input_tokens": 29869,
+        "outcome_pass_rate": 0.0,
+        "samples": 1,
+        "semantic_pass_rate": 0.0
+      }
+    },
+    "value-bootstrap-admin-policy": {
+      "full-spine": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "generated-handoff": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "minimal-handoff": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 0.0,
+        "median_cached_input_tokens": 239872,
+        "median_context_words": 130,
+        "median_duration_seconds": 115.998,
+        "median_files_read": 21,
+        "median_input_tokens": 271211,
+        "median_irrelevant_files_read": 0,
+        "median_partial_criteria": 4,
+        "median_semantic_score": 0,
+        "median_uncached_input_tokens": 31339,
+        "outcome_pass_rate": 0.0,
+        "samples": 1,
+        "semantic_pass_rate": 0.0
+      },
+      "native-repository": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 0.0,
+        "median_cached_input_tokens": 234496,
+        "median_context_words": 0,
+        "median_duration_seconds": 74.725,
+        "median_files_read": 14,
+        "median_input_tokens": 267685,
+        "median_irrelevant_files_read": 0,
+        "median_partial_criteria": 4,
+        "median_semantic_score": 0,
+        "median_uncached_input_tokens": 33189,
+        "outcome_pass_rate": 0.0,
+        "samples": 1,
+        "semantic_pass_rate": 0.0
+      }
+    },
+    "value-local-utility": {
+      "full-spine": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "generated-handoff": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "minimal-handoff": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 1.0,
+        "median_cached_input_tokens": 114688,
+        "median_context_words": 81,
+        "median_duration_seconds": 47.063,
+        "median_files_read": 80,
+        "median_input_tokens": 129824,
+        "median_irrelevant_files_read": 18,
+        "median_partial_criteria": 0,
+        "median_semantic_score": 8,
+        "median_uncached_input_tokens": 15136,
+        "outcome_pass_rate": 1.0,
+        "samples": 1,
+        "semantic_pass_rate": 1.0
+      },
+      "native-repository": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 1.0,
+        "median_cached_input_tokens": 121600,
+        "median_context_words": 0,
+        "median_duration_seconds": 52.146,
+        "median_files_read": 3,
+        "median_input_tokens": 136228,
+        "median_irrelevant_files_read": 0,
+        "median_partial_criteria": 0,
+        "median_semantic_score": 8,
+        "median_uncached_input_tokens": 14628,
+        "outcome_pass_rate": 1.0,
+        "samples": 1,
+        "semantic_pass_rate": 1.0
+      }
+    },
+    "value-reset-revocation": {
+      "full-spine": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "generated-handoff": {
+        "invalid_samples": 0,
+        "samples": 0
+      },
+      "minimal-handoff": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 1.0,
+        "median_cached_input_tokens": 226048,
+        "median_context_words": 177,
+        "median_duration_seconds": 74.697,
+        "median_files_read": 10,
+        "median_input_tokens": 249222,
+        "median_irrelevant_files_read": 0,
+        "median_partial_criteria": 0,
+        "median_semantic_score": 8,
+        "median_uncached_input_tokens": 23174,
+        "outcome_pass_rate": 1.0,
+        "samples": 1,
+        "semantic_pass_rate": 1.0
+      },
+      "native-repository": {
+        "invalid_samples": 0,
+        "judge_valid_rate": 1.0,
+        "mechanical_pass_rate": 1.0,
+        "median_cached_input_tokens": 180736,
+        "median_context_words": 0,
+        "median_duration_seconds": 52.567,
+        "median_files_read": 78,
+        "median_input_tokens": 202897,
+        "median_irrelevant_files_read": 3,
+        "median_partial_criteria": 1,
+        "median_semantic_score": 6,
+        "median_uncached_input_tokens": 22161,
+        "outcome_pass_rate": 0.0,
+        "samples": 1,
+        "semantic_pass_rate": 0.0
+      }
+    }
+  }
+}

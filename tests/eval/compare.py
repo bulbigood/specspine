@@ -442,6 +442,9 @@ def trace_metrics(trace: dict[str, Any] | None, irrelevant: list[str]) -> dict[s
     scope_violations = [] if trace is None else [
         str(item) for item in trace.get("scope_violations", [])
     ]
+    environment_errors = [] if trace is None else [
+        str(item) for item in trace.get("environment_errors", [])
+    ]
     return {
         "files_read": len(unique_files),
         "files_read_paths": unique_files,
@@ -450,6 +453,8 @@ def trace_metrics(trace: dict[str, Any] | None, irrelevant: list[str]) -> dict[s
         "cached_input_tokens": token_usage.get("cached_input_tokens") if isinstance(token_usage, dict) else None,
         "output_tokens": token_usage.get("output_tokens") if isinstance(token_usage, dict) else None,
         "scope_violations": scope_violations,
+        "environment_errors": environment_errors,
+        "execution_environment": None if trace is None else trace.get("execution_environment"),
     }
 
 
@@ -574,10 +579,13 @@ def run_arm(
             "checks": [{"passed": check.passed, "message": check.message} for check in checks],
             **trace_metrics(trace, comparison.get("irrelevant_read_patterns", [])),
         }
-        result["valid"] = not result["scope_violations"]
+        result["valid"] = not result["scope_violations"] and not result["environment_errors"]
         result["invalid_reasons"] = [
             f"workspace boundary violation: {message}"
             for message in result["scope_violations"]
+        ] + [
+            f"execution environment failure: {message}"
+            for message in result["environment_errors"]
         ]
         if trace is not None:
             result["actual_model"] = trace.get("model")
@@ -842,6 +850,13 @@ def markdown_report(report: dict[str, Any]) -> str:
             f"- Judge: `{markdown_cell(judge.get('model'))}` "
             f"(`{markdown_cell(judge.get('reasoning'))}`), calls: {judge.get('calls', 0)}"
         )
+    execution_environment = report.get("execution_environment")
+    if execution_environment:
+        lines.append(
+            f"- Execution: `{markdown_cell(execution_environment.get('kind'))}` / "
+            f"`{markdown_cell(execution_environment.get('image'))}` / "
+            f"`{markdown_cell(execution_environment.get('image_id'))}`"
+        )
     lines.extend(
         [
             f"- Valid samples: **{len(valid_results)}/{len(results)}**",
@@ -1091,6 +1106,44 @@ def judge_settings(results: list[dict[str, Any]]) -> dict[str, str]:
     }
 
 
+def execution_environment_settings(results: list[dict[str, Any]]) -> dict[str, str] | None:
+    eligible = [item for item in results if item.get("valid", True)]
+    environments = [
+        item["execution_environment"]
+        for item in eligible
+        if isinstance(item.get("execution_environment"), dict)
+    ]
+    if not environments:
+        return None
+    required = ("kind", "image", "image_id", "source_sha256")
+    if any(
+        not isinstance(item.get(field), str)
+        or not item[field].strip()
+        or item[field] == "unknown"
+        for item in environments
+        for field in required
+    ):
+        raise ValueError("incomplete execution environment metadata")
+    identities = {
+        (
+            item["kind"],
+            item["image"],
+            item["image_id"],
+            item["source_sha256"],
+        )
+        for item in environments
+    }
+    if len(identities) != 1 or len(environments) != len(eligible):
+        raise ValueError("inconsistent or missing execution environment metadata")
+    kind, image, image_id, source_sha256 = next(iter(identities))
+    return {
+        "kind": kind,
+        "image": image,
+        "image_id": image_id,
+        "source_sha256": source_sha256,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--list", action="store_true")
@@ -1237,6 +1290,7 @@ def main() -> int:
         try:
             settings = actual_settings(results)
             observed_judge_settings = judge_settings(results) if args.judge_command else None
+            observed_environment = execution_environment_settings(results)
         except ValueError as error:
             print(f"INVALID RUN: {error}", file=sys.stderr)
             return 2
@@ -1251,6 +1305,8 @@ def main() -> int:
             "summary": summarize(results),
             "results": results,
         }
+        if observed_environment is not None:
+            report["execution_environment"] = observed_environment
         if observed_judge_settings is not None:
             report["judge"] = {
                 **observed_judge_settings,

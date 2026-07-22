@@ -86,55 +86,58 @@ The recommended pilot pairing is `gpt-5.6-luna` at medium reasoning for the
 downstream or handoff-producing agent and the independent `gpt-5.6-terra` at
 medium reasoning for the blind judge. Keep this pairing fixed within a run.
 
+Run comparisons through the Docker launcher. It builds content-addressed agent
+and controller images once, reuses them on later runs, and creates a fresh
+restricted agent container for every sample and judgment. Verify the complete
+controller-to-agent path without making a model call:
+
+```bash
+tests/eval/docker/run-comparisons.sh --preflight
+```
+
 The harness separates three questions. Run the primary incremental-value
 experiment with its manifest-defined sample counts (24 agent calls):
 
 ```bash
-python3 tests/eval/compare.py \
-  --experiment value \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
-  --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium"
+tests/eval/docker/run-comparisons.sh --experiment value
 ```
 
 Run the smaller projection ablation only after changing handoff format or
 selection (8 agent calls):
 
 ```bash
-python3 tests/eval/compare.py \
-  --experiment projection \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
-  --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium"
+tests/eval/docker/run-comparisons.sh --experiment projection
 ```
 
 Evaluate automatic handoff production independently (4 agent calls). The judge
 scores semantic handoff quality in addition to deterministic reference checks:
 
 ```bash
-python3 tests/eval/compare.py \
-  --experiment handoff-production \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
-  --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium"
+tests/eval/docker/run-comparisons.sh --experiment handoff-production
 ```
 
 Run the complete manifest-defined pilot (36 agent calls and up to 36 judge
 calls; identical judge inputs reuse one judgment):
 
 ```bash
-python3 tests/eval/compare.py \
-  --all \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
-  --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium"
+tests/eval/docker/run-comparisons.sh --all
 ```
 
 Use a one-sample smoke run to verify live infrastructure at lower cost before
 the pilot. It makes 16 agent calls but is insufficient for product conclusions:
 
 ```bash
-python3 tests/eval/compare.py \
-  --all \
-  --samples 1 \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
-  --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium"
+tests/eval/docker/run-comparisons.sh --all --samples 1
+```
+
+Override the pinned run pairing explicitly when needed:
+
+```bash
+SPECSPINE_EVAL_AGENT_MODEL=gpt-5.6-luna \
+SPECSPINE_EVAL_AGENT_REASONING=medium \
+SPECSPINE_EVAL_JUDGE_MODEL=gpt-5.6-terra \
+SPECSPINE_EVAL_JUDGE_REASONING=medium \
+  tests/eval/docker/run-comparisons.sh --experiment value
 ```
 
 `--experiment` and `--comparison` are repeatable and may be combined. `--all`
@@ -150,10 +153,9 @@ The value experiment has two arms:
    the required SpecSpine files.
 
 The minimal arm must read `HANDOFF.md` and every supplied primary/required
-specification before editing. The full-Spine arm must begin at
-`specspine/README.md` and navigate the Spine itself. Required protocol reads are
-verified from the adapter trace, so the intervention does not depend on chance
-discovery of an unfamiliar root file.
+specification before editing. Required protocol reads are verified from the
+adapter trace, so the intervention does not depend on chance discovery of an
+unfamiliar root file.
 
 The projection experiment reuses the same task definitions and compares:
 
@@ -169,6 +171,38 @@ The repository fixture is a hash-verified archive of
 `179ae84efec61b14206d0305d941daed6c6d07f9`. It is downloaded once to
 `~/.cache/specspine-eval/fixtures`; override this with
 `SPECSPINE_EVAL_FIXTURES_DIR`. Agent workspaces do not require network access.
+
+### Docker execution model
+
+The launcher uses the host Docker daemon through its local Unix socket. This is
+container-outside-of-container, not a nested daemon: the controller container
+is trusted and can create sibling containers, while agent and judge containers
+never receive the socket. Do not run an untrusted controller image.
+
+Agent images are named from the SHA-256 of their Dockerfile, adapter, and
+preflight script. An exact image is built and preflighted once, then reused.
+Every model invocation still gets a new `--rm` container, read-only root
+filesystem, dropped capabilities, `no-new-privileges`, resource limits, private
+tmpfs home/runtime, and only the current workspace plus read-only authentication
+mounted. Thus tools are cached but sample state is not.
+
+Persistent launcher state lives in `.eval-runtime/` and is ignored by Git:
+fixture archives, prepared workspaces, Docker preflight markers, and controller
+home. Override authentication with `SPECSPINE_EVAL_AUTH_FILE`. The launcher
+currently requires a local Unix Docker socket. Docker build or preflight
+failures produce `environment_invalid` traces, invalidate the affected sample,
+and are never counted as product failures. Reports record the exact agent image
+name and immutable image ID; mixed or missing metadata on valid Docker samples
+invalidates a run.
+
+For debugging only, the original host adapter remains available:
+
+```bash
+python3 tests/eval/compare.py \
+  --experiment value \
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
+  --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium"
+```
 
 All agent runs finish before judging starts. A judge receives only the
 submission type, request, diff, final response and matching frozen rubric; it
