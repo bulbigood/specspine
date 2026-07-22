@@ -4,14 +4,16 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import shlex
 import statistics
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 
+DEFAULT_OUTPUT = Path(__file__).with_name("EXTRACT_METRICS.md")
 TOKEN_METRICS = (
     "total_tokens",
     "input_tokens",
@@ -24,6 +26,15 @@ TOKEN_METRICS = (
 
 class ComparisonError(ValueError):
     pass
+
+
+def report_directories(paths: Iterable[Path]) -> tuple[Path, ...]:
+    return tuple(dict.fromkeys(path.resolve().parent for path in paths))
+
+
+def markdown_path(path: Path) -> str:
+    escaped = html.escape(str(path)).replace("|", "&#124;")
+    return f"<code>{escaped}</code>"
 
 
 def load_report(path: Path) -> dict[str, Any]:
@@ -157,56 +168,128 @@ def percentage(delta: float, baseline: float) -> str:
     return "n/a" if baseline == 0 else f"{100.0 * delta / baseline:+.1f}%"
 
 
-def render_comparison(fallback: dict[str, Any], accelerated: dict[str, Any]) -> str:
+def format_metric(value: float, metric: str, *, signed: bool = False) -> str:
+    if metric == "agent_duration_seconds":
+        return f"{value:+.3f}" if signed else f"{value:.3f}"
+    return f"{value:+,.1f}" if signed else f"{value:,.1f}"
+
+
+def render_comparison(
+    fallback: dict[str, Any],
+    accelerated: dict[str, Any],
+    source_directories: tuple[Path, ...] = (),
+) -> str:
     left, right = validate_comparable(fallback, accelerated)
     lines = [
-        "metric | forced fallback | accelerated | delta | delta % | pairs",
-        "--- | ---: | ---: | ---: | ---: | ---:",
+        "# Extract retrieval performance",
+        "",
+        "The same eval case, fixture, prompt, model, reasoning effort, sample identities,",
+        "and parallelism are used in both modes. Only accelerator availability differs.",
+        "",
+        "> This is a snapshot of the supplied JSON reports. Regenerate it after changing",
+        "> the case manifest, fixture, assertions, skill, model, or adapter configuration.",
+        "",
+        "## Configuration",
+        "",
+        "| Setting | Value |",
+        "|---|---|",
+        f"| Cases | {', '.join(sorted(fallback['cases']))} |",
+        f"| Samples requested per mode | {fallback['samples_requested']} |",
+        f"| Parallel jobs | {fallback['jobs']} |",
+        f"| Model | {', '.join(sorted(set().union(*(trace_values(sample, 'model') for sample in left.values())))) or 'unavailable'} |",
+        f"| Reasoning effort | {', '.join(sorted(set().union(*(trace_values(sample, 'reasoning_effort') for sample in left.values())))) or 'unavailable'} |",
     ]
+    if len(source_directories) == 1:
+        lines.append(f"| Source report directory | {markdown_path(source_directories[0])} |")
+    else:
+        lines.extend(
+            f"| Source report directory {number} | {markdown_path(directory)} |"
+            for number, directory in enumerate(source_directories, start=1)
+        )
+    lines.extend(
+        [
+            "",
+            "## Metrics",
+            "",
+            "| Metric | Forced fallback | SQLite FTS5 + graph | Accelerated delta | Delta % | Paired samples |",
+            "|---|---:|---:|---:|---:|---:|",
+        ]
+    )
     metrics = (
-        ("agent time mean (s)", "agent_duration_seconds", "mean"),
-        ("agent time median (s)", "agent_duration_seconds", "median"),
-        *((metric.replace("_", " "), metric, "mean") for metric in TOKEN_METRICS),
-        ("files read", "files_read", "mean"),
+        ("Agent time mean (s)", "agent_duration_seconds", "mean"),
+        ("Agent time median (s)", "agent_duration_seconds", "median"),
+        *((metric.replace("_", " ").capitalize(), metric, "mean") for metric in TOKEN_METRICS),
+        ("Files read", "files_read", "mean"),
     )
     for label, metric, aggregation in metrics:
         fallback_values, accelerated_values = paired_metric(left, right, metric)
         if not fallback_values:
-            lines.append(f"{label} | n/a | n/a | n/a | n/a | 0")
+            lines.append(f"| {label} | n/a | n/a | n/a | n/a | 0 |")
             continue
         reducer = statistics.median if aggregation == "median" else statistics.fmean
         baseline = float(reducer(fallback_values))
         treatment = float(reducer(accelerated_values))
         delta = treatment - baseline
         lines.append(
-            f"{label} | {baseline:.3f} | {treatment:.3f} | {delta:+.3f} | "
-            f"{percentage(delta, baseline)} | {len(fallback_values)}"
+            f"| {label} | {format_metric(baseline, metric)} | "
+            f"{format_metric(treatment, metric)} | "
+            f"{format_metric(delta, metric, signed=True)} | "
+            f"{percentage(delta, baseline)} | {len(fallback_values)} |"
         )
 
-    lines.append("")
+    lines.extend(
+        [
+            "",
+            "## Sample outcomes",
+            "",
+            "| Mode | Samples | Valid | Passed | Failed | Environment-invalid |",
+            "|---|---:|---:|---:|---:|---:|",
+        ]
+    )
     for label, samples in (("forced fallback", left), ("accelerated", right)):
         valid = [sample for sample in samples.values() if sample.get("environment_valid")]
         passed = sum(bool(sample.get("passed")) for sample in valid)
         failed = len(valid) - passed
         invalid = len(samples) - len(valid)
         lines.append(
-            f"{label}: samples={len(samples)}, valid={len(valid)}, passed={passed}, "
-            f"failed={failed}, environment-invalid={invalid}"
+            f"| {label} | {len(samples)} | {len(valid)} | {passed} | {failed} | {invalid} |"
         )
-    lines.append("Failed behavioral samples are included in metric averages.")
+    lines.extend(
+        [
+            "",
+            "> Behavioral failures are included in metric averages. Environment-invalid",
+            "> samples are reported but excluded. This report is a measurement, not a CI",
+            "> threshold.",
+        ]
+    )
     return "\n".join(lines)
+
+
+def write_markdown(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content.rstrip() + "\n", encoding="utf-8")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fallback", type=Path, required=True)
     parser.add_argument("--accelerated", type=Path, required=True)
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
+    directories = report_directories((args.fallback, args.accelerated))
     try:
-        print(render_comparison(load_report(args.fallback), load_report(args.accelerated)))
+        content = render_comparison(
+            load_report(args.fallback),
+            load_report(args.accelerated),
+            directories,
+        )
+        write_markdown(args.output, content)
     except ComparisonError as error:
         print(f"cannot compare reports: {error}", file=sys.stderr)
         return 2
+    for directory in directories:
+        print(f"Reports read from: {directory}")
+    print(f"Markdown report: {args.output.resolve()}")
     return 0
 
 

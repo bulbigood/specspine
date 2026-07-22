@@ -190,7 +190,11 @@ python3 tests/eval/compare_extract_metrics.py \
   --accelerated "$report_dir/accelerated.json"
 ```
 
-The analyzer performs no agent calls. It rejects reports with different case
+The analyzer prints the absolute source-report directory and records it in the
+generated Markdown, so every snapshot can be traced back to its JSON inputs.
+It updates [EXTRACT_METRICS.md](EXTRACT_METRICS.md) by default; use `--output
+PATH` for a disposable or alternate report. It performs no agent calls. It
+rejects reports with different case
 fingerprints, models, reasoning effort, sample identities, or parallelism. Its
 paired averages include behavioral failures; environment-invalid samples are
 reported and excluded. Agent time comes from adapter traces rather than fixture

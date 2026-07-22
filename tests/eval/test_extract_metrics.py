@@ -1,5 +1,6 @@
 import importlib.util
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -105,6 +106,33 @@ class ExtractMetricsTests(unittest.TestCase):
 
         with self.assertRaises(METRICS.ComparisonError):
             METRICS.validate_comparable(fallback, accelerated)
+
+    def test_markdown_writer_creates_requested_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "nested" / "metrics.md"
+
+            METRICS.write_markdown(target, "sentinel")
+
+            self.assertEqual("sentinel\n", target.read_text(encoding="utf-8"))
+
+    def test_report_directories_are_resolved_and_deduplicated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory)
+
+            result = METRICS.report_directories(
+                (source / "fallback.json", source / "accelerated.json")
+            )
+
+            self.assertEqual((source.resolve(),), result)
+
+    def test_markdown_contains_source_report_directories(self):
+        fallback = report("fallback", [sample(1, "fallback", 10, 100, True)])
+        accelerated = report("enabled", [sample(1, "enabled", 5, 50, True)])
+        sources = (Path("/sentinel/source-a"), Path("/sentinel/source-b"))
+
+        rendered = METRICS.render_comparison(fallback, accelerated, sources)
+
+        self.assertTrue(all(str(source) in rendered for source in sources))
 
 
 if __name__ == "__main__":
