@@ -268,12 +268,13 @@ npx skills add . --skill specspine-map
 npx skills add . --skill specspine-doctor
 ```
 
-Maintainers synchronize shared package resources and verify that derived copies
-match their canonical owner under `skills/`:
+Maintainers synchronize shared package resources, verify that derived copies
+match their canonical owner under `skills/`, and run mechanical tests:
 
 ```bash
 tools/specspine-adapter-generator/scripts/generate_resources.py
 tools/specspine-adapter-generator/scripts/generate_resources.py --check
+python3 -m unittest discover -s tests/mechanical -p 'test_*.py'
 ```
 
 ## Usage
@@ -670,6 +671,8 @@ specspine/
 ├── examples/
 │   └── minimal-saas/
 └── tests/
+    ├── mechanical/
+    │   └── test_extract_search.py
     └── scenarios/
 ```
 
