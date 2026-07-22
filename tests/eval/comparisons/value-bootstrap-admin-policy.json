@@ -7,6 +7,6 @@
   "samples": 3,
   "arms": [
     {"id": "native-repository"},
-    {"id": "minimal-handoff", "context_bundle": "node-express/bootstrap-admin"}
+    {"id": "full-spine", "context_bundle": "node-express/full-spine"}
   ]
 }

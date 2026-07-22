@@ -8,6 +8,7 @@ from unittest import mock
 
 
 MODULE_PATH = Path(__file__).with_name("adapters") / "docker.py"
+LAUNCHER_PATH = Path(__file__).with_name("docker") / "run-comparisons.sh"
 SPEC = importlib.util.spec_from_file_location("specspine_docker_adapter", MODULE_PATH)
 assert SPEC and SPEC.loader
 ADAPTER = importlib.util.module_from_spec(SPEC)
@@ -16,6 +17,14 @@ SPEC.loader.exec_module(ADAPTER)
 
 
 class DockerAdapterTests(unittest.TestCase):
+    def test_launcher_forwards_comparison_arguments_unchanged(self):
+        launcher = LAUNCHER_PATH.read_text(encoding="utf-8")
+        self.assertIn('compare_args=("$@")', launcher)
+        self.assertIn('"${compare_args[@]}"', launcher)
+        self.assertIn("SPECSPINE_EVAL_DOCKER_CONTROLLER=1", launcher)
+        for option in ("--agent-command=*", "--judge-command=*", "--experiment=*", "--comparison=*"):
+            self.assertIn(option, launcher)
+
     def test_image_reference_is_content_addressed(self):
         reference = ADAPTER.image_reference()
         self.assertRegex(reference, r"^specspine-eval-agent:[0-9a-f]{16}$")

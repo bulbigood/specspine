@@ -17,78 +17,41 @@ SPEC.loader.exec_module(COMPARE)
 
 
 class ComparisonTests(unittest.TestCase):
-    def test_inventory_defines_three_focused_experiments(self):
+    def test_inventory_defines_one_focused_experiment(self):
         comparisons = COMPARE.load_comparisons()
-        self.assertEqual(10, len(comparisons))
-        self.assertEqual(
-            {"value": 4, "projection": 2, "handoff-production": 4},
-            {
-                experiment: sum(item["experiment"] == experiment for item in comparisons)
-                for experiment in COMPARE.EXPERIMENT_ARMS
-            },
-        )
+        self.assertEqual(4, len(comparisons))
+        self.assertEqual({"value"}, set(COMPARE.EXPERIMENT_ARMS))
         for comparison in comparisons:
             self.assertEqual([], COMPARE.validate_comparison(comparison), comparison["id"])
             self.assertEqual(
-                COMPARE.EXPERIMENT_ARMS[comparison["experiment"]],
+                {"native-repository", "full-spine"},
                 {arm["id"] for arm in comparison["arms"]},
             )
 
-    def test_value_baseline_preserves_native_documentation(self):
-        comparison = next(
-            item for item in COMPARE.load_comparisons() if item["id"] == "value-auditor-role"
+    def test_native_baseline_and_full_spine_use_same_repository(self):
+        for comparison in COMPARE.load_comparisons():
+            native = next(arm for arm in comparison["arms"] if arm["id"] == "native-repository")
+            spine = next(arm for arm in comparison["arms"] if arm["id"] == "full-spine")
+            self.assertEqual({}, COMPARE.context_files(native))
+            self.assertIn("specspine/README.md", COMPARE.context_files(spine))
+            self.assertEqual("node-express-boilerplate", comparison["repository"])
+
+    def test_prompt_routes_agent_through_documentation_graph_without_handoff(self):
+        comparison = COMPARE.load_comparisons()[0]
+        native, spine = comparison["arms"]
+        prompt = COMPARE.build_prompt(comparison, spine)
+        self.assertEqual(prompt, COMPARE.build_prompt(comparison, native))
+        self.assertIn("specspine/README.md", prompt)
+        self.assertIn("navigate the documentation graph", prompt)
+        self.assertNotIn("HANDOFF", prompt)
+
+    def test_full_spine_protocol_requires_index_read_only(self):
+        assertions = COMPARE.context_protocol_assertions({"id": "full-spine"})
+        self.assertEqual(
+            [{"type": "read_includes", "paths": ["specspine/README.md"]}],
+            assertions,
         )
-        native = next(arm for arm in comparison["arms"] if arm["id"] == "native-repository")
-        self.assertEqual({}, COMPARE.context_files(native))
-        self.assertEqual("node-express-boilerplate", comparison["repository"])
-
-    def test_reused_tasks_have_byte_identical_downstream_prompts(self):
-        comparisons = COMPARE.load_comparisons()
-        for task in ("auditor-role", "reset-revocation"):
-            selected = [
-                item
-                for item in comparisons
-                if item["task"] == task and item["experiment"] in {"value", "projection"}
-            ]
-            self.assertEqual(2, len(selected))
-            prompts = {
-                COMPARE.build_prompt(
-                    item,
-                    next(arm for arm in item["arms"] if arm["id"] == "minimal-handoff"),
-                )
-                for item in selected
-            }
-            self.assertEqual(1, len(prompts))
-
-    def test_arm_protocols_force_the_intended_context_intervention(self):
-        comparisons = COMPARE.load_comparisons()
-        value = next(item for item in comparisons if item["id"] == "value-auditor-role")
-        minimal = next(arm for arm in value["arms"] if arm["id"] == "minimal-handoff")
-        self.assertIn("HANDOFF.md exists, read it", COMPARE.build_prompt(value, minimal))
-        projection = next(item for item in comparisons if item["id"] == "projection-auditor-role")
-        full = next(arm for arm in projection["arms"] if arm["id"] == "full-spine")
-        self.assertIn("specspine/README.md exists, read it", COMPARE.build_prompt(projection, full))
-        native = next(arm for arm in value["arms"] if arm["id"] == "native-repository")
-        self.assertEqual(COMPARE.build_prompt(value, native), COMPARE.build_prompt(value, minimal))
-
-    def test_context_bundles_keep_handoff_smaller_than_full_spine(self):
-        full = COMPARE.context_files({"context_bundle": "node-express/full-spine"})
-        handoff = COMPARE.context_files({"context_bundle": "node-express/auditor-role"})
-        self.assertIn("specspine/README.md", full)
-        self.assertIn("HANDOFF.md", handoff)
-        self.assertNotIn("specspine/email.md", handoff)
-        self.assertLess(sum(map(len, handoff.values())), sum(map(len, full.values())))
-
-    def test_production_prompt_enforces_spine_only_evidence(self):
-        comparison = next(
-            item
-            for item in COMPARE.load_comparisons()
-            if item["id"] == "production-reset-revocation"
-        )
-        prompt = COMPARE.build_prompt(comparison, comparison["arms"][0])
-        self.assertIn(".eval/skill/SKILL.md", prompt)
-        self.assertIn("Do not inspect source code", prompt)
-        self.assertNotIn("generated-handoff", prompt)
+        self.assertEqual([], COMPARE.context_protocol_assertions({"id": "native-repository"}))
 
     def test_repository_descriptor_is_commit_and_hash_pinned(self):
         repository = COMPARE.load_repositories()["node-express-boilerplate"]
@@ -96,7 +59,7 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(64, len(repository["archive_sha256"]))
         self.assertIn(repository["commit"], repository["archive_url"])
 
-    def test_run_arm_copies_native_repository_and_keeps_context_unchanged(self):
+    def test_run_arm_copies_native_repository(self):
         with tempfile.TemporaryDirectory() as directory:
             repository = Path(directory) / "repository"
             (repository / "src" / "utils").mkdir(parents=True)
@@ -113,79 +76,62 @@ class ComparisonTests(unittest.TestCase):
                 "assertions": [{"type": "path_exists", "path": "README.md"}],
                 "irrelevant_read_patterns": [],
             }
-            arm = {"id": "minimal-handoff", "context_files": {"HANDOFF.md": "reviewed\n"}}
+            arm = {"id": "native-repository"}
             command = [
                 sys.executable,
                 "-c",
                 "from pathlib import Path; import json,sys; sys.stdin.read(); "
                 "Path('src/utils/pick.js').write_text('module.exports = x => x;\\n'); "
-                "Path('.eval/trace.json').write_text(json.dumps({'files_read':['README.md','HANDOFF.md'], 'token_usage':{'input_tokens':10}}))",
+                "Path('.eval/trace.json').write_text(json.dumps({'files_read':['README.md'], 'token_usage':{'input_tokens':10}}))",
             ]
             with mock.patch.object(COMPARE, "materialize_repository", return_value=repository):
                 result = COMPARE.run_arm(comparison, arm, 1, command, False)
             self.assertTrue(result["passed"], result["checks"])
-            self.assertEqual("value", result["experiment"])
-            self.assertEqual(2, result["files_read"])
+            self.assertEqual(1, result["files_read"])
             self.assertEqual(10, result["input_tokens"])
-            self.assertNotIn("HANDOFF.md", result["changed_files"])
 
-    def test_handoff_production_uses_a_dedicated_semantic_rubric(self):
-        comparison = next(
-            item for item in COMPARE.load_comparisons() if item["id"] == "production-bootstrap-admin-policy"
-        )
-        bundle = COMPARE.judge_bundle({"diff": "", "response": "handoff"}, comparison)
-        self.assertEqual("handoff", bundle["submission_type"])
-        self.assertEqual(comparison["handoff_rubric"], bundle["rubric"])
-        self.assertIn("empty diff is required", COMPARE.build_judge_prompt(bundle))
-
-    def test_semantic_phrasing_is_not_checked_mechanically(self):
-        for comparison in COMPARE.load_comparisons():
-            assertions = comparison.get("assertions", []) + comparison.get("production_assertions", [])
-            self.assertFalse(
-                any(item["type"].startswith("response_") for item in assertions),
-                comparison["id"],
-            )
-
-    def test_judge_input_is_blind_to_experiment_and_arm(self):
-        comparison = next(
-            item for item in COMPARE.load_comparisons() if item["id"] == "value-local-utility"
-        )
-        first = {"arm": "native-repository", "experiment": "value", "diff": "", "response": "done"}
-        second = {"arm": "minimal-handoff", "experiment": "value", "diff": "", "response": "done"}
+    def test_judge_is_implementation_only_and_blind_to_arm(self):
+        comparison = COMPARE.load_comparisons()[0]
+        first = {"arm": "native-repository", "diff": "", "response": "done"}
+        second = {"arm": "full-spine", "diff": "", "response": "done"}
+        bundle = COMPARE.judge_bundle(first, comparison)
+        self.assertEqual("implementation", bundle["submission_type"])
+        self.assertEqual(comparison["architectural_rubric"], bundle["rubric"])
         self.assertEqual(
             COMPARE.judge_cache_key(first, comparison),
             COMPARE.judge_cache_key(second, comparison),
         )
 
-    def test_report_groups_rows_by_experiment(self):
-        results = []
-        for experiment, arm in (
-            ("value", "native-repository"),
-            ("projection", "full-spine"),
-            ("handoff-production", "generated-handoff"),
-        ):
-            results.append(
-                {
-                    "experiment": experiment,
-                    "comparison": f"{experiment}-example",
-                    "arm": arm,
-                    "sample": 1,
-                    "valid": True,
-                    "passed": True,
-                    "mechanical_passed": True,
-                    "context_words": 0,
-                    "files_read": 1,
-                    "irrelevant_files_read": [],
-                    "input_tokens": 10,
-                    "duration_seconds": 1.0,
-                    "checks": [],
-                }
+    def test_semantic_phrasing_is_not_checked_mechanically(self):
+        for comparison in COMPARE.load_comparisons():
+            self.assertFalse(
+                any(item["type"].startswith("response_") for item in comparison.get("assertions", [])),
+                comparison["id"],
             )
+
+    def test_report_contains_only_current_arms(self):
+        results = [
+            {
+                "experiment": "value",
+                "comparison": "value-example",
+                "arm": arm,
+                "sample": 1,
+                "valid": True,
+                "passed": True,
+                "mechanical_passed": True,
+                "context_words": 0,
+                "files_read": 1,
+                "irrelevant_files_read": [],
+                "input_tokens": 10,
+                "duration_seconds": 1.0,
+                "checks": [],
+            }
+            for arm in ("native-repository", "full-spine")
+        ]
         markdown = COMPARE.markdown_report({"results": results})
-        self.assertIn("| Experiment | Arm |", markdown)
         self.assertIn("| value | native-repository |", markdown)
-        self.assertIn("| projection | full-spine |", markdown)
-        self.assertIn("| handoff-production | generated-handoff |", markdown)
+        self.assertIn("| value | full-spine |", markdown)
+        self.assertNotIn("minimal-handoff", markdown)
 
     def test_summary_keeps_outcome_and_cost_separate(self):
         results = [
@@ -201,11 +147,11 @@ class ComparisonTests(unittest.TestCase):
                 "input_tokens": 100 + index,
                 "duration_seconds": 1.0,
             }
-            for index, arm in enumerate(("native-repository", "minimal-handoff"))
+            for index, arm in enumerate(("native-repository", "full-spine"))
         ]
         summary = COMPARE.summarize(results)["example"]
         self.assertEqual(1.0, summary["native-repository"]["outcome_pass_rate"])
-        self.assertEqual(101, summary["minimal-handoff"]["median_input_tokens"])
+        self.assertEqual(101, summary["full-spine"]["median_input_tokens"])
 
     def test_execution_environment_must_be_complete_and_consistent(self):
         environment = {
@@ -228,10 +174,6 @@ class ComparisonTests(unittest.TestCase):
                 [{"valid": True, "execution_environment": environment}, {"valid": True}]
             )
         self.assertIsNone(COMPARE.execution_environment_settings([{"valid": False}]))
-        with self.assertRaisesRegex(ValueError, "incomplete execution environment"):
-            COMPARE.execution_environment_settings(
-                [{"execution_environment": {**environment, "image_id": "unknown"}}]
-            )
 
 
 if __name__ == "__main__":

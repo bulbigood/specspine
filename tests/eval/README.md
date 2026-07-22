@@ -1,20 +1,21 @@
 # SpecSpine evaluation
 
-The evaluation directory contains two independent harnesses:
+The directory contains two independent harnesses:
 
-- `run.py` checks SpecSpine skills against deterministic case manifests.
-- `compare.py` compares architectural-context strategies on downstream coding
-  tasks using narrow mechanical checks and an optional blind semantic judge.
+- `run.py` checks SpecSpine skills against deterministic case manifests;
+- Docker comparisons measure whether navigating a SpecSpine documentation graph
+  improves downstream coding outcomes over a normally documented repository.
 
-The Python harnesses use only the standard library. The bundled adapter requires
-the Codex CLI.
+The Python harnesses use only the standard library. Live runs require Docker,
+the Codex CLI bundled in the agent image, and Codex authentication.
 
 ## Validation
 
 ```bash
 python3 tests/eval/run.py --validate --audit
-python3 tests/eval/compare.py --validate --list
 python3 -m unittest discover -s tests/eval -p 'test_*.py'
+tests/eval/docker/run-comparisons.sh --validate --list
+tests/eval/docker/run-comparisons.sh --preflight
 ```
 
 The optional installed-package test requires npm execution:
@@ -36,36 +37,21 @@ python3 tests/eval/run.py \
 ```
 
 `--case` and `--category` are repeatable and may be combined. There is no
-implicit run-all mode. Planned cases are never executed.
+implicit run-all mode. Planned cases are never executed. Categories are
+disjoint: `core` has 10 executable cases, `extended` has 3, and `planned` has
+11 documented non-executable cases.
 
-Categories are disjoint:
+Each case gets a clean temporary workspace. Cases run with concurrency 8 by
+default; change it with `--jobs N`. Workspaces default to
+`~/.cache/specspine-eval/workspaces`; override with
+`SPECSPINE_EVAL_WORKSPACES_DIR`. Failed workspaces are retained only with
+`--keep-workspace`.
 
-- `core`: 10 executable cases, 12 agent calls;
-- `extended`: 3 executable cases, 4 agent calls;
-- `planned`: 11 documented, non-executable cases.
+Case manifests in `cases/*.json` define fixtures, prompts and deterministic
+assertions. A manifest may instead define ordered `stages`; agent stages run a
+prompt and assertions, while fixture stages model external changes.
 
-The runner creates a clean temporary workspace per case, sends the prompt to the
-adapter on stdin, and evaluates the resulting files. The adapter path must be
-absolute because its current directory is the temporary workspace. Cases run
-with concurrency 8 by default; use `--jobs N` to change it.
-
-Workspaces are created under `~/.cache/specspine-eval/workspaces`, outside the
-system temp directory. Override this with `SPECSPINE_EVAL_WORKSPACES_DIR`.
-
-Failed workspaces are deleted unless `--keep-workspace` is set. Successful
-workspaces are always deleted. The final terminal line reports how many selected
-cases passed.
-
-### Case manifests
-
-`cases/*.json` defines the fixture, category, status, skill, prompt and
-deterministic assertions. A manifest may instead define `stages`: agent stages
-run their own prompt and assertions, while fixture stages model external
-changes. A failing stage stops later stages; `final_assertions` still inspect the
-state reached. Stage diagnostics are stored under
-`.eval/stages/<number>-<id>/` inside the temporary workspace.
-
-Supported assertion types:
+Supported assertions:
 
 - paths/content: `path_exists`, `path_absent`, `glob_count`, `glob_contains`,
   `file_contains`, `file_not_contains`;
@@ -76,184 +62,124 @@ Supported assertion types:
 - structure: `balanced_markers`, `no_template_placeholders`,
   `markdown_links_valid`, `semantic_ids_valid`, `spine_mechanical_valid`.
 
-Trace assertions require the adapter to write `.eval/trace.json`. The bundled
-Codex adapter derives a conservative read trace from CLI command events; broad
-content searches may count every candidate file as read.
+Trace assertions require `.eval/trace.json`. The Codex adapter conservatively
+infers reads from completed command events; repository-wide content searches
+may count every candidate file as read.
 
 ## Comparative evaluation
 
-The recommended pilot pairing is `gpt-5.6-luna` at medium reasoning for the
-downstream or handoff-producing agent and the independent `gpt-5.6-terra` at
-medium reasoning for the blind judge. Keep this pairing fixed within a run.
+Comparisons have one experiment, `value`, and four task classes:
 
-Run comparisons through the Docker launcher. It builds content-addressed agent
-and controller images once, reuses them on later runs, and creates a fresh
-restricted agent container for every sample and judgment. Verify the complete
-controller-to-agent path without making a model call:
+- `local-utility`: architecture-neutral negative control;
+- `auditor-role`: cross-cutting authorization vocabulary;
+- `reset-revocation`: accepted token ownership versus existing code;
+- `bootstrap-admin-policy`: unresolved security-sensitive policy.
 
-```bash
-tests/eval/docker/run-comparisons.sh --preflight
-```
+Every task compares exactly two arms:
 
-The harness separates three questions. Run the primary incremental-value
-experiment with its manifest-defined sample counts (24 agent calls):
+1. `native-repository`: the frozen repository with its native documentation,
+   tests, comments and configuration, without SpecSpine;
+2. `full-spine`: the identical repository plus the complete reviewed Spine.
 
-```bash
-tests/eval/docker/run-comparisons.sh --experiment value
-```
+The downstream prompt is byte-identical. When `specspine/README.md` exists, the
+agent must read it and navigate the documentation graph itself. No task-specific
+context is preselected and no external context tool is involved.
 
-Run the smaller projection ablation only after changing handoff format or
-selection (8 agent calls):
-
-```bash
-tests/eval/docker/run-comparisons.sh --experiment projection
-```
-
-Evaluate automatic handoff production independently (4 agent calls). The judge
-scores semantic handoff quality in addition to deterministic reference checks:
-
-```bash
-tests/eval/docker/run-comparisons.sh --experiment handoff-production
-```
-
-Run the complete manifest-defined pilot (36 agent calls and up to 36 judge
-calls; identical judge inputs reuse one judgment):
-
-```bash
-tests/eval/docker/run-comparisons.sh --all
-```
-
-Use a one-sample smoke run to verify live infrastructure at lower cost before
-the pilot. It makes 16 agent calls but is insufficient for product conclusions:
+The default pilot uses three samples per arm: 4 tasks × 2 arms × 3 samples = 24
+agent calls and up to 24 blind-judge calls. First run the cheaper smoke:
 
 ```bash
 tests/eval/docker/run-comparisons.sh --all --samples 1
 ```
 
-Override the pinned run pairing explicitly when needed:
+Then run the manifest-defined pilot:
+
+```bash
+tests/eval/docker/run-comparisons.sh --all
+```
+
+Individual selections are repeatable:
+
+```bash
+tests/eval/docker/run-comparisons.sh \
+  --comparison value-auditor-role \
+  --comparison value-reset-revocation
+
+tests/eval/docker/run-comparisons.sh --experiment value
+```
+
+### Models
+
+Defaults are `gpt-5.6-luna` at medium reasoning for the agent and
+`gpt-5.6-terra` at medium reasoning for the independent judge. Keep a pairing
+fixed within a run. Override it with environment variables:
 
 ```bash
 SPECSPINE_EVAL_AGENT_MODEL=gpt-5.6-luna \
 SPECSPINE_EVAL_AGENT_REASONING=medium \
 SPECSPINE_EVAL_JUDGE_MODEL=gpt-5.6-terra \
 SPECSPINE_EVAL_JUDGE_REASONING=medium \
-  tests/eval/docker/run-comparisons.sh --experiment value
+  tests/eval/docker/run-comparisons.sh --all --samples 1
 ```
 
-`--experiment` and `--comparison` are repeatable and may be combined. `--all`
-runs the complete 36-agent-call pilot budget. `--samples N` overrides the
-manifest counts and is intended for smoke verification or deliberate
-resampling, not for changing the recorded pilot design silently.
+Set `SPECSPINE_EVAL_NO_JUDGE=1` to omit judging. Override the authentication
+file with `SPECSPINE_EVAL_AUTH_FILE`.
 
-The value experiment has two arms:
+### Launcher arguments
 
-1. `native-repository`: the frozen repository and all of its native README,
-   Swagger documentation, tests, comments, and configuration; no SpecSpine.
-2. `minimal-handoff`: the same repository plus a reviewed `HANDOFF.md` and only
-   the required SpecSpine files.
+`run-comparisons.sh` is the only supported comparison entry point. It forwards
+all comparison arguments unchanged to the controller:
 
-The minimal arm must read `HANDOFF.md` and every supplied primary/required
-specification before editing. Required protocol reads are verified from the
-adapter trace, so the intervention does not depend on chance discovery of an
-unfamiliar root file.
+- discovery: `--list`, `--validate`;
+- selection: repeatable `--comparison ID`, repeatable `--experiment value`, or
+  `--all`;
+- execution: `--samples N`, `--jobs N`, `--judge-jobs N`, `--keep-workspace`;
+- output: `--runs-dir PATH`, `--artifacts-dir NAME`,
+  `--json-output NAME`, `--markdown-output NAME`;
+- advanced adapter override: `--agent-command COMMAND`,
+  `--judge-command COMMAND`.
 
-The projection experiment reuses the same task definitions and compares:
-
-1. `full-spine`: native repository plus the complete reviewed Spine.
-2. `minimal-handoff`: native repository plus the reviewed projection.
-
-Handoff production supplies the full Spine and `specspine-grow`, prohibits
-repository inspection outside the Spine, and evaluates the returned handoff
-without running an implementation task.
-
-The repository fixture is a hash-verified archive of
-`hagopj13/node-express-boilerplate` commit
-`179ae84efec61b14206d0305d941daed6c6d07f9`. It is downloaded once to
-`~/.cache/specspine-eval/fixtures`; override this with
-`SPECSPINE_EVAL_FIXTURES_DIR`. Agent workspaces do not require network access.
+Both `--option value` and argparse's `--option=value` form are preserved. The
+advanced command overrides execute inside the Docker controller and therefore
+must reference tools and paths available there. Direct `compare.py` execution
+is rejected to prevent accidental host runs.
 
 ### Docker execution model
 
-The launcher uses the host Docker daemon through its local Unix socket. This is
-container-outside-of-container, not a nested daemon: the controller container
-is trusted and can create sibling containers, while agent and judge containers
-never receive the socket. Do not run an untrusted controller image.
+The trusted controller uses the host's local Unix Docker socket to create
+sibling agent containers. Agent and judge containers never receive the socket.
+Each model invocation gets a fresh `--rm` container with a read-only root,
+dropped capabilities, `no-new-privileges`, CPU/RAM/PID limits, private tmpfs
+home/runtime, one writable workspace, and read-only authentication.
 
-Agent images are named from the SHA-256 of their Dockerfile, adapter, and
-preflight script. An exact image is built and preflighted once, then reused.
-Every model invocation still gets a new `--rm` container, read-only root
-filesystem, dropped capabilities, `no-new-privileges`, resource limits, private
-tmpfs home/runtime, and only the current workspace plus read-only authentication
-mounted. Docker's default seccomp profile is disabled because it blocks the
-unprivileged user namespace required by Codex's bundled `bwrap`; capabilities
-remain dropped and `bwrap` supplies the stricter per-command filesystem and
-network sandbox. The cached preflight executes both `bwrap` and a local
-`codex sandbox` read/write probe with the evaluation permission profile; it
-does not make a model call. Thus tools are cached but sample state is not.
-
-Persistent launcher state lives in `.eval-runtime/` and is ignored by Git:
-fixture archives, prepared workspaces, Docker preflight markers, and controller
-home. Override authentication with `SPECSPINE_EVAL_AUTH_FILE`. The launcher
-currently requires a local Unix Docker socket. Docker build or preflight
-failures produce `environment_invalid` traces, invalidate the affected sample,
-as do recognized command-sandbox failures even when Codex returns exit code 0;
-they are never counted as product failures. Reports record the exact agent image
-name and immutable image ID; mixed or missing metadata on valid Docker samples
-invalidates a run.
-
-For debugging only, the original host adapter remains available:
+Docker's default seccomp profile is disabled because Codex's bundled `bwrap`
+needs an unprivileged user namespace. Capabilities remain dropped and `bwrap`
+provides the stricter per-command filesystem and network sandbox. Preflight
+executes `bwrap` and a local `codex sandbox` read/write probe with the exact
+evaluation permission profile; it makes no model call:
 
 ```bash
-python3 tests/eval/compare.py \
-  --experiment value \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium" \
-  --judge-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium"
+tests/eval/docker/run-comparisons.sh --preflight
 ```
 
-All agent runs finish before judging starts. A judge receives only the
-submission type, request, diff, final response and matching frozen rubric; it
-cannot see the arm or supplied context. Implementation and handoff production
-use separate rubrics. The handoff judge is explicitly told that its required
-empty diff is not missing implementation evidence. Each criterion is scored
-`0` (violated), `1` (partial/unclear), or `2` (fully satisfied). Identical judge
-inputs reuse one judgment.
+Agent images are named from the SHA-256 of their Dockerfile, adapter and
+preflight inputs. Exact images and successful preflight markers are reused;
+sample containers and runtime state are not. Persistent caches live in
+`.eval-runtime/` and are ignored by Git.
 
-Mechanical checks are limited to facts requiring no interpretation: command
-success, syntax, workspace/read boundaries, required context consumption,
-protected-context integrity, and tasks whose only safe outcome is no repository
-change. Ownership, blocker meaning, relevance, documentation adequacy,
-unrelated scope, and handoff quality belong to the blind judge. Exact response
-wording is never a pass condition. Overall pass requires both layers; efficiency
-metrics remain independent.
+Recognized sandbox/build/preflight failures populate `environment_errors`, mark
+the sample invalid, exclude it from aggregates and prevent judging. Reports
+record the exact image name and immutable image ID.
 
-The bundled Codex adapter uses an isolated named permission profile: only the
-current workspace is writable/readable beyond minimal operating-system files,
-network access is disabled, user config and exec rules are ignored, and secret
-environment variables are filtered. Every prompt also forbids leaving the
-workspace. Commands containing external-path markers invalidate the sample;
-invalid samples are excluded from aggregates and are not judged.
-Tool subprocesses receive private HOME, temporary, Git, Python, pip, and XDG
-cache/config directories in an ephemeral sibling runtime that is removed after
-the agent exits and is not part of repository context. Login shells are
-disabled, and inaccessible user-level PATH entries such as pyenv shims are
-removed. When available, `node` and `rg` are copied into the permitted
-ephemeral runtime so agents can run dependency-free checks and search without
-access to user tool directories. Each invocation also receives a private
-`CODEX_HOME` containing only a temporary copy of `auth.json`; model cache,
-config, rules and memory are not shared between concurrent agents. `.eval` is reserved for evaluator output and
-excluded from agent inspection except for requested skill and companion inputs;
-commands that explicitly exclude `.eval` from searches remain valid.
-The profile was verified with Codex CLI 0.144.4; strict config validation makes
-older incompatible CLIs fail instead of silently weakening isolation.
+### Evaluation and output
 
-Mechanical or semantic failures are benchmark results and do not cause a
-non-zero process exit. Workspace-boundary violations, agent execution errors, missing/invalid
-judge responses, and inconsistent observed model settings do. Agent and judge
-concurrency default to 8; override them with `--jobs` and `--judge-jobs`.
+Mechanical checks cover executable behavior, syntax, required Spine-index
+consumption and context integrity. Architecture, ownership, blockers and
+unrelated scope are scored by a blind judge that receives only the request,
+diff, final response and frozen rubric. Overall pass requires both layers;
+read counts, tokens, duration and cost remain independent efficiency metrics.
 
-### Run output
-
-Each execution allocates the next numeric directory:
+Each run allocates the next numeric directory:
 
 ```text
 comparison-runs/<run>/
@@ -262,26 +188,8 @@ comparison-runs/<run>/
 └── artifacts/<comparison>/<arm>/sample-<n>/
 ```
 
-Both reports are automatic. Use `--markdown-output` or `--json-output` only to
-change their filenames, `--runs-dir` to change the parent directory, and
-`--artifacts-dir` to rename the artifacts directory.
+Reports preserve prompts, responses, diffs, checks, hashes, read metrics, token
+usage, model metadata and artifact paths. Per-sample agent/judge directories
+also contain the raw Codex JSONL stream, stderr, invocation metadata and trace.
 
-The Markdown report separates overall, mechanical, and semantic outcomes and
-contains the legend, methodology, arm aggregates, individual results and
-failure findings. The JSON report additionally preserves
-structured prompts, responses, diffs, checks, hashes, read metrics, token usage,
-model metadata and artifact paths.
-
-Each sample artifact contains the prompt, response, diff, judge input and parsed
-traces. Its `agent/` and, when judging is enabled, `judge/` directories preserve:
-
-- unfiltered Codex `--json` event stream (`codex-events.jsonl`);
-- Codex stderr and exact prompt;
-- invocation arguments, exit status and duration;
-- parsed trace and final response.
-
-The raw stream includes every event exported by Codex CLI, potentially including
-reasoning summaries, command output, file changes and tool calls. Hidden model
-chain-of-thought and events omitted by Codex itself are unavailable.
-
-See [HYPOTHESIS.md](HYPOTHESIS.md) for the experimental hypothesis and metrics.
+See [HYPOTHESIS.md](HYPOTHESIS.md) for the experimental claim and thresholds.

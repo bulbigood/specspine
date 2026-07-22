@@ -61,8 +61,8 @@ test or an existing behavioral case.
 
 Potential gaps:
 
-- minimal handoff selection on a larger graph, including read and context-size
-  budgets;
+- agent navigation efficiency on larger documentation graphs, including read
+  and context-size budgets;
 - custom `<spine-root>` handling in `grow` and `map`;
 - broken links, unreachable specifications, duplicate IDs, and duplicate
   canonical ownership introduced by an agent.
@@ -96,8 +96,8 @@ model-judge layer scores:
 - invention of product or technology decisions;
 - preservation of meaning without implementation-level duplication.
 
-Implementation and handoff production use separate frozen rubrics. Mechanical
-checks remain independent objective gates, while overall comparative pass
+Implementation uses frozen task rubrics. Mechanical checks remain independent
+objective gates, while overall comparative pass
 requires both mechanical and semantic pass. Model name, version, prompt, sample
 count, duration, and token usage are recorded for reproducibility.
 
@@ -105,6 +105,6 @@ Comparative downstream coverage under `comparisons/` uses a hash-pinned full
 `node-express-boilerplate` repository. Four value tasks cover an
 architecture-neutral utility change, cross-cutting authorization, an
 intended-versus-observed token ownership conflict, and a blocking security
-policy. Two focused projection comparisons test full-Spine versus handoff
-efficiency, while four separate production cases evaluate handoff selection.
+policy. Every task compares the native repository with the same repository plus
+the complete Spine; the agent navigates the documentation graph itself.
 See `HYPOTHESIS.md` for sampling budgets and interpretation.

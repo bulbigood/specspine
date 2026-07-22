@@ -7,12 +7,6 @@
     "failure_semantics": "Existing password-reset failure behavior remains unchanged.",
     "unrelated_change": "Email verification, user authorization, and API routes are not changed."
   },
-  "handoff_rubric": {
-    "owner_and_context": "The handoff selects authentication as the workflow owner and tokens as required context, without unrelated specifications.",
-    "constraint_fidelity": "It explicitly preserves CON-token-ownership: token storage queries, token-type selection, and bulk revocation remain in the token capability.",
-    "conflict_preservation": "It reports that existing reset cleanup performs token persistence outside the canonical owner and does not treat that observed code as accepted intent.",
-    "handoff_discipline": "It precisely transfers the successful-reset outcome without implementation filenames, task steps, tests, or invented failure semantics."
-  },
   "irrelevant_read_patterns": [
     "src/services/email.service.js",
     "src/routes/v1/user.route.js",
@@ -23,9 +17,5 @@
   "assertions": [
     {"type": "command_succeeds", "command": ["node", "--check", "src/services/auth.service.js"]},
     {"type": "command_succeeds", "command": ["node", "--check", "src/services/token.service.js"]}
-  ],
-  "production_assertions": [
-    {"type": "read_only", "paths": ["specspine/**", ".eval/skill/**"]},
-    {"type": "changed_only", "paths": []}
   ]
 }

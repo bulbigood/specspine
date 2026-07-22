@@ -31,20 +31,14 @@ CONTEXT_BUNDLES_DIR = Path(__file__).resolve().parent / "context-bundles"
 RUNNER_PATH = Path(__file__).resolve().parent / "run.py"
 ARM_ORDER = (
     "native-repository",
-    "minimal-handoff",
     "full-spine",
-    "generated-handoff",
 )
 EXPERIMENT_ARMS = {
-    "value": frozenset({"native-repository", "minimal-handoff"}),
-    "projection": frozenset({"full-spine", "minimal-handoff"}),
-    "handoff-production": frozenset({"generated-handoff"}),
+    "value": frozenset({"native-repository", "full-spine"}),
 }
 ARM_DESCRIPTIONS = {
     "native-repository": "Frozen repository with its native README, API documentation, tests, comments, and configuration; no SpecSpine.",
-    "minimal-handoff": "The same native repository plus a reviewed HANDOFF.md and only its required SpecSpine specifications.",
-    "full-spine": "The same native repository plus the complete reviewed SpecSpine; no task handoff.",
-    "generated-handoff": "The complete reviewed SpecSpine and specspine-grow skill; the agent produces a task-oriented handoff without implementing the change.",
+    "full-spine": "The same native repository plus the complete reviewed SpecSpine, navigated by the agent from its index.",
 }
 JUDGE_SCORE_MIN = 0
 JUDGE_SCORE_MAX = 2
@@ -119,10 +113,6 @@ def validate_comparison(comparison: dict[str, Any]) -> list[str]:
     rubric = comparison.get("architectural_rubric")
     if not isinstance(rubric, dict) or not rubric:
         errors.append("architectural_rubric must be a non-empty object")
-    if experiment == "handoff-production":
-        handoff_rubric = comparison.get("handoff_rubric")
-        if not isinstance(handoff_rubric, dict) or not handoff_rubric:
-            errors.append("handoff-production requires a non-empty handoff_rubric")
     arms = comparison["arms"]
     if not isinstance(arms, list):
         return errors + ["arms must be a list"]
@@ -228,42 +218,19 @@ def context_files(arm: dict[str, Any]) -> dict[str, str]:
 
 
 def build_prompt(comparison: dict[str, Any], arm: dict[str, Any]) -> str:
-    if comparison.get("experiment") == "handoff-production":
-        return (
-            "You are running a blinded SpecSpine handoff-production evaluation.\n"
-            + RUNNER.WORKSPACE_BOUNDARY_INSTRUCTIONS
-            + "Read .eval/skill/SKILL.md and every reference it requires for preparing a context handoff. "
-            "Use only the supplied SpecSpine as project-specific architectural evidence. Do not inspect source code, tests, or native repository documentation. "
-            "Prepare the smallest useful architecture context handoff for the request below. Return the handoff in the final response; do not modify any project file.\n\n"
-            + f"{comparison['prompt'].strip()}\n"
-        )
     return (
         "You are running a blinded downstream coding evaluation.\n"
         + RUNNER.WORKSPACE_BOUNDARY_INSTRUCTIONS
-        + "Before planning or editing: if HANDOFF.md exists, read it and every specification named under Primary specification and Required specifications; otherwise, if specspine/README.md exists, read it and navigate the Spine to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\n"
+        + "Before planning or editing: if specspine/README.md exists, read it and navigate the documentation graph to the specifications relevant to this request; otherwise use the repository's native documentation normally. Treat accepted constraints and blocking questions in supplied architectural context as authoritative.\n"
         + "Treat the current directory as the repository root. Implement the request, use repository evidence and any supplied architectural context as needed, run relevant checks, and do not modify supplied architectural context.\n\n"
         + f"{comparison['prompt'].strip()}\n"
     )
 
 
-def rubric_for(comparison: dict[str, Any]) -> dict[str, str]:
-    if comparison.get("experiment") == "handoff-production":
-        return comparison["handoff_rubric"]
-    return comparison["architectural_rubric"]
-
-
 def build_judge_prompt(bundle: dict[str, Any]) -> str:
-    submission_type = bundle["submission_type"]
-    evidence_rule = (
-        "The submission is a context handoff, not an implementation. An empty diff is required and must not reduce a score. "
-        "Evaluate whether the response transfers the correct, minimal, decision-safe context for downstream work. "
-        if submission_type == "handoff"
-        else
-        "The submission is an implementation. Evaluate the diff and final response as evidence of the resulting behavior and architecture. "
-    )
     return (
         "You are a blind semantic evaluator. "
-        + evidence_rule
+        "The submission is an implementation. Evaluate the diff and final response as evidence of the resulting behavior and architecture. "
         + "Score only the submitted work; "
         "do not infer which experimental arm produced it. Use only the request, diff, "
         "final response, and rubric below. Do not inspect the filesystem or any external source. "
@@ -362,13 +329,11 @@ def comparison_snapshot(workspace: Path) -> dict[str, bytes]:
 
 def judge_bundle(result: dict[str, Any], comparison: dict[str, Any]) -> dict[str, Any]:
     return {
-        "submission_type": "handoff"
-        if comparison.get("experiment") == "handoff-production"
-        else "implementation",
+        "submission_type": "implementation",
         "request": comparison["prompt"].strip(),
         "diff": result["diff"],
         "response": result["response"],
-        "rubric": rubric_for(comparison),
+        "rubric": comparison["architectural_rubric"],
     }
 
 
@@ -458,11 +423,8 @@ def trace_metrics(trace: dict[str, Any] | None, irrelevant: list[str]) -> dict[s
     }
 
 
-def context_protocol_assertions(arm: dict[str, Any], supplied_context: dict[str, str]) -> list[dict[str, Any]]:
+def context_protocol_assertions(arm: dict[str, Any]) -> list[dict[str, Any]]:
     """Return objective reads required to ensure the intended context intervention occurred."""
-    if arm["id"] == "minimal-handoff":
-        paths = ["HANDOFF.md", *sorted(path for path in supplied_context if path.startswith("specspine/"))]
-        return [{"type": "read_includes", "paths": paths}]
     if arm["id"] == "full-spine":
         return [{"type": "read_includes", "paths": ["specspine/README.md"]}]
     return []
@@ -485,8 +447,6 @@ def run_arm(
         supplied_context = context_files(arm)
         write_files(workspace, supplied_context)
         (workspace / ".eval").mkdir(exist_ok=True)
-        if comparison.get("experiment") == "handoff-production":
-            shutil.copytree(ROOT / "skills" / "specspine-grow", workspace / ".eval" / "skill")
         RUNNER.initialize_git_workspace(workspace)
         context_paths = sorted(supplied_context)
         context_before = {
@@ -521,15 +481,10 @@ def run_arm(
         blind_judge_bundle = judge_bundle(
             {"diff": patch, "response": completed.stdout}, comparison
         )
-        assertion_key = (
-            "production_assertions"
-            if comparison.get("experiment") == "handoff-production"
-            else "assertions"
-        )
         assertions = (
-            comparison.get(assertion_key, [])
+            comparison.get("assertions", [])
             + arm.get("assertions", [])
-            + context_protocol_assertions(arm, supplied_context)
+            + context_protocol_assertions(arm)
         )
         checks = [
             RUNNER.evaluate_assertion(item, workspace, before, after, completed.stdout, trace)
@@ -659,7 +614,7 @@ def run_judge(
         else:
             try:
                 judge.update(
-                    parse_judge_response(completed.stdout, rubric_for(comparison))
+                    parse_judge_response(completed.stdout, comparison["architectural_rubric"])
                 )
                 judge["valid"] = True
             except ValueError as error:
@@ -892,7 +847,7 @@ def markdown_report(report: dict[str, Any]) -> str:
             "### Testing process",
             "",
             "1. Every arm/sample starts from the same clean fixture and receives the same user request; only the supplied architectural context differs.",
-            "2. Value and projection runs use a downstream coding agent; handoff-production runs use specspine-grow without implementation. All work occurs in isolated temporary workspaces.",
+            "2. Both arms use the same downstream coding agent. All work occurs in isolated temporary workspaces.",
             "3. Mechanical checks cover only objective execution, workspace, context-consumption, and repository-integrity facts; they do not interpret prose or architectural meaning.",
             "4. A blind model judge receives only the submission type, request, diff, final response, and matching frozen semantic rubric—not the arm name or supplied context—and scores each criterion from 0 to 2.",
             "5. Samples that violate the workspace boundary are marked invalid, excluded from aggregates, and not sent to the judge.",
@@ -902,13 +857,13 @@ def markdown_report(report: dict[str, Any]) -> str:
             "",
             "### Summary by arm",
             "",
-            "Rows are grouped by experiment. Arms from different experiments are never interpreted as a direct comparison; each valid sample has equal weight within its row.",
+            "Each valid sample has equal weight within its arm.",
             "",
             "| Experiment | Arm | Valid/total | Overall | Mechanics | Semantics | Avg judge | Avg partial criteria | Avg context words | Avg files read | Avg irrelevant reads | Avg total input | Avg cached | Avg uncached | Avg duration |",
             "|---|---|---:|:---:|:---:|:---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
-    experiment_order = ("value", "projection", "handoff-production")
+    experiment_order = ("value",)
     for experiment, arm in (
         (experiment, arm) for experiment in experiment_order for arm in ARM_ORDER
     ):
@@ -1188,6 +1143,9 @@ def main() -> int:
         help="artifacts subdirectory inside each numbered run",
     )
     args = parser.parse_args()
+
+    if os.environ.get("SPECSPINE_EVAL_DOCKER_CONTROLLER") != "1":
+        parser.error("run comparisons through tests/eval/docker/run-comparisons.sh")
 
     if args.judge_command and not args.agent_command:
         parser.error("--judge-command requires --agent-command")

@@ -50,9 +50,11 @@ has_agent_command=false
 has_judge_command=false
 run_requested=false
 for argument in "$@"; do
-  [[ "$argument" == "--agent-command" ]] && has_agent_command=true
-  [[ "$argument" == "--judge-command" ]] && has_judge_command=true
-  [[ "$argument" == "--all" || "$argument" == "--experiment" || "$argument" == "--comparison" ]] && run_requested=true
+  case "$argument" in
+    --agent-command|--agent-command=*) has_agent_command=true ;;
+    --judge-command|--judge-command=*) has_judge_command=true ;;
+    --all|--experiment|--experiment=*|--comparison|--comparison=*) run_requested=true ;;
+  esac
 done
 
 docker_args=(
@@ -72,6 +74,7 @@ docker_args=(
   --env "SPECSPINE_EVAL_WORKSPACES_DIR=$runtime_root/workspaces"
   --env "SPECSPINE_EVAL_FIXTURES_DIR=$runtime_root/fixtures"
   --env "SPECSPINE_EVAL_DOCKER_CACHE_DIR=$runtime_root/docker"
+  --env SPECSPINE_EVAL_DOCKER_CONTROLLER=1
   --env PYTHONDONTWRITEBYTECODE=1
 )
 if [[ -n "$socket_gid" ]]; then

@@ -7,12 +7,6 @@
     "documentation": "The public user API documentation exposes auditor as an accepted role without changing endpoint authorization boundaries.",
     "unsupported_decision": "No additional roles, rights, or authorization policy are invented."
   },
-  "handoff_rubric": {
-    "owner_and_context": "The handoff selects specspine/authorization.md as primary and includes users and API delivery as required or potentially affected context, without unrelated specifications.",
-    "authorization_fidelity": "It preserves the canonical role vocabulary, assigns auditor getUsers but never manageUsers, and keeps existing roles unchanged.",
-    "mutation_boundary": "It makes clear that auditors cannot create, update, or delete users and does not propose implementation details for enforcing that boundary.",
-    "handoff_discipline": "It is a concise architecture context handoff, identifies uncertainty honestly, and contains no implementation plan, implementation filenames, tests, or invented policy. Repository-relative SpecSpine addresses are required and must not be treated as implementation filenames."
-  },
   "irrelevant_read_patterns": [
     "src/services/email.service.js",
     "src/services/token.service.js",
@@ -30,9 +24,5 @@
       ]
     },
     {"type": "command_succeeds", "command": ["node", "--check", "src/config/roles.js"]}
-  ],
-  "production_assertions": [
-    {"type": "read_only", "paths": ["specspine/**", ".eval/skill/**"]},
-    {"type": "changed_only", "paths": []}
   ]
 }
