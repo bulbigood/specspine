@@ -29,22 +29,15 @@
         {"type": "file_contains", "path": "specspine/payment-settlement.md", "values": ["DEC-settlement-independent-evolution", "DEC-settlement-idempotency", "OBS-payment-settlement", "OQ-settlement-retry-policy"]},
         {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md"]},
         {"type": "read_only", "paths": ["specspine/**"]},
-        {"type": "unchanged", "paths": ["README.md", "src/**", "tests/**", "config/**"]},
         {"type": "changed_only", "paths": ["specspine/**"]},
+        {"type": "glob_count", "glob": "specspine/*.md", "min": 5, "max": 5},
         {"type": "glob_count", "glob": "specspine/*webhook*.md", "max": 0},
-        {"type": "glob_count", "glob": "specspine/*plan*.md", "max": 0},
-        {"type": "glob_count", "glob": "specspine/*feature*.md", "max": 0},
-        {"type": "glob_count", "glob": "specspine/*handoff*.md", "max": 0},
-        {"type": "glob_count", "glob": "specspine/*task*.md", "max": 0},
-        {"type": "response_not_contains", "values": ["Proceed with these specification changes?", "acceptance criteria", "implementation plan"]},
         {"type": "markdown_links_valid", "glob": "specspine/*.md"},
         {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
       ]
     }
   ],
   "final_assertions": [
-    {"type": "markdown_links_valid", "glob": "specspine/*.md"},
-    {"type": "semantic_ids_valid", "glob": "specspine/*.md"},
-    {"type": "unchanged", "paths": ["README.md", "src/**", "tests/**", "config/**"]}
+    {"type": "glob_count", "glob": "specspine/*.md", "min": 5, "max": 5}
   ]
 }

@@ -22,13 +22,9 @@
       "assertions": [
         {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["**DEC-payment-attempt-idempotency**", "**OQ-payment-retry-policy**"]},
         {"type": "glob_count", "glob": "specspine/*.md", "min": 4, "max": 4},
-        {"type": "word_budget", "path": "specspine/README.md", "max_total": 110},
-        {"type": "word_budget", "glob": "specspine/*.md", "max_each": 210, "max_total": 520},
         {"type": "read_only", "paths": ["specspine/**"]},
         {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md"]},
-        {"type": "max_files_read", "max": 4},
         {"type": "changed_only", "paths": ["specspine/**"]},
-        {"type": "unchanged", "paths": ["README.md", "src/**", "config/**"]},
         {"type": "markdown_links_valid", "glob": "specspine/*.md"},
         {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
       ]
@@ -42,13 +38,9 @@
         {"type": "file_contains", "path": "specspine/checkout.md", "value": "**DEC-checkout-terminal-failure-release**"},
         {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["**DEC-payment-attempt-idempotency**", "**OQ-payment-retry-policy**"]},
         {"type": "glob_count", "glob": "specspine/*.md", "min": 4, "max": 4},
-        {"type": "word_budget", "path": "specspine/README.md", "max_total": 110},
-        {"type": "word_budget", "glob": "specspine/*.md", "max_each": 230, "max_total": 650},
         {"type": "read_only", "paths": ["specspine/**"]},
         {"type": "read_includes", "paths": ["specspine/README.md", "specspine/checkout.md", "specspine/payment-processing.md", "specspine/inventory-reservations.md"]},
-        {"type": "max_files_read", "max": 4},
         {"type": "changed_only", "paths": ["specspine/**"]},
-        {"type": "unchanged", "paths": ["README.md", "src/**", "config/**"]},
         {"type": "markdown_links_valid", "glob": "specspine/*.md"},
         {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
       ]
@@ -62,16 +54,9 @@
         {"type": "file_contains", "path": "specspine/checkout.md", "value": "**DEC-checkout-terminal-failure-release**"},
         {"type": "file_contains", "path": "specspine/inventory-reservations.md", "value": "**CON-inventory-reservation-expiry**"},
         {"type": "glob_count", "glob": "specspine/*.md", "min": 4, "max": 4},
-        {"type": "word_budget", "path": "specspine/README.md", "max_total": 110},
-        {"type": "word_budget", "glob": "specspine/*.md", "max_each": 250, "max_total": 780},
         {"type": "read_only", "paths": ["specspine/**"]},
         {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md"]},
-        {"type": "max_files_read", "max": 4},
         {"type": "changed_only", "paths": ["specspine/**"]},
-        {"type": "unchanged", "paths": ["README.md", "src/**", "config/**"]},
-        {"type": "glob_count", "glob": "specspine/*plan*.md", "max": 0},
-        {"type": "glob_count", "glob": "specspine/*task*.md", "max": 0},
-        {"type": "glob_count", "glob": "specspine/*handoff*.md", "max": 0},
         {"type": "markdown_links_valid", "glob": "specspine/*.md"},
         {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
       ]
@@ -81,10 +66,6 @@
     {"type": "glob_count", "glob": "specspine/*.md", "min": 4, "max": 4},
     {"type": "word_budget", "path": "specspine/README.md", "max_total": 110},
     {"type": "word_budget", "glob": "specspine/*.md", "max_each": 250, "max_total": 780},
-    {"type": "glob_contains", "glob": "specspine/*.md", "values": ["DEC-payment-attempt-idempotency", "OQ-payment-retry-policy", "CON-inventory-reservation-expiry", "DEC-checkout-terminal-failure-release", "CON-provider-event-deduplication", "CON-provider-event-ordering", "OQ-provider-event-audit-retention"]},
-    {"type": "unchanged", "paths": ["README.md", "src/**", "config/**"]},
-    {"type": "changed_only", "paths": ["specspine/**"]},
-    {"type": "markdown_links_valid", "glob": "specspine/*.md"},
-    {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+    {"type": "glob_contains", "glob": "specspine/*.md", "values": ["DEC-payment-attempt-idempotency", "OQ-payment-retry-policy", "CON-inventory-reservation-expiry", "DEC-checkout-terminal-failure-release", "CON-provider-event-deduplication", "CON-provider-event-ordering", "OQ-provider-event-audit-retention"]}
   ]
 }

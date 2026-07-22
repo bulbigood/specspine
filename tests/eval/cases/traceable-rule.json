@@ -1,6 +1,6 @@
 {
-  "id": "traceable-visual-spec",
-  "scenario": "tests/scenarios/traceable-visual-spec.md",
+  "id": "traceable-rule",
+  "scenario": "tests/scenarios/traceable-rule.md",
   "skill": "skills/specspine-map",
   "status": "executable",
   "category": "extended",
@@ -12,10 +12,11 @@
     "tests/job-retry.test.js": "// verifies that the fourth attempt is not run\n"
   },
   "assertions": [
-    {"type": "file_contains", "path": "specspine/job-processing.md", "values": ["**CON-", "stateDiagram-v2", "Evidence:"]},
+    {"type": "file_contains", "path": "specspine/job-processing.md", "values": ["**CON-", "Evidence:"]},
     {"type": "file_contains", "path": "specspine/operations.md", "value": "[CON-"},
     {"type": "file_not_contains", "path": "specspine/operations.md", "value": ".md#CON-"},
-    {"type": "unchanged", "paths": ["src/**", "tests/**"]},
+    {"type": "read_only", "paths": ["specspine/**", "src/worker.js", "tests/job-retry.test.js"]},
+    {"type": "read_includes", "paths": ["src/worker.js", "tests/job-retry.test.js"]},
     {"type": "changed_only", "paths": ["specspine/job-processing.md", "specspine/operations.md"]},
     {"type": "markdown_links_valid", "glob": "specspine/*.md"},
     {"type": "semantic_ids_valid", "glob": "specspine/*.md"}

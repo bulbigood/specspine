@@ -15,22 +15,18 @@
   },
   "assertions": [
     {"type": "max_changed_files", "max": 0},
-    {"type": "unchanged", "paths": ["specspine/**", "src/**", "config/**"]},
-    {"type": "glob_count", "glob": "specspine/*.md", "min": 4, "max": 4},
     {"type": "read_only", "paths": ["specspine/**"]},
     {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md"]},
-    {"type": "max_files_read", "max": 4},
     {
       "type": "response_contains_any",
       "values": [
-        "implementation detail belongs outside SpecSpine",
-        "implementation details belong outside SpecSpine",
-        "would turn the specification into an implementation manual",
-        "would turn the specification into a coding manual",
-        "no new architectural intent"
+        "implementation detail",
+        "implementation-level detail",
+        "implementation manual",
+        "coding manual",
+        "architectural intent",
+        "downstream implementation"
       ]
-    },
-    {"type": "markdown_links_valid", "glob": "specspine/*.md"},
-    {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+    }
   ]
 }

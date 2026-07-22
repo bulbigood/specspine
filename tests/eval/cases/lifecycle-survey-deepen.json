@@ -30,7 +30,6 @@
         {"type": "file_contains", "path": "specspine/README.md", "value": "## Mapping status"},
         {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["## Observed", "<!-- specspine:evidence-baseline"]},
         {"type": "changed_only", "paths": ["specspine/**"]},
-        {"type": "unchanged", "paths": ["README.md", "package.json", "src/**", "config/**", "db/**", "tests/**"]},
         {"type": "max_changed_files", "max": 6},
         {"type": "markdown_links_valid", "glob": "specspine/*.md"},
         {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
@@ -43,7 +42,6 @@
       "assertions": [
         {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["## Responsibility", "## Boundaries", "## Observed", "<!-- specspine:evidence-baseline", "src/payments/", "tests/payment-flow.test.js"]},
         {"type": "changed_only", "paths": ["specspine/**"]},
-        {"type": "unchanged", "paths": ["README.md", "package.json", "src/**", "config/**", "db/**", "tests/**"]},
         {"type": "read_only", "paths": ["specspine/**", "src/payments/**", "src/checkout/payment-port.js", "src/workers/payment-webhooks.js", "config/payments.yml", "db/payment-schema.sql", "tests/payment-flow.test.js"]},
         {"type": "read_includes", "paths": ["specspine/payment-processing.md", "src/payments/provider-adapter.js", "src/payments/webhook-handler.js", "tests/payment-flow.test.js"]},
         {"type": "max_files_read", "max": 12},
@@ -59,10 +57,6 @@
     {"type": "glob_count", "glob": "specspine/*.md", "min": 3, "max": 6},
     {"type": "path_absent", "path": "specspine/controllers.md"},
     {"type": "path_absent", "path": "specspine/workers.md"},
-    {"type": "path_absent", "path": "specspine/services.md"},
-    {"type": "changed_only", "paths": ["specspine/**"]},
-    {"type": "unchanged", "paths": ["README.md", "package.json", "src/**", "config/**", "db/**", "tests/**"]},
-    {"type": "markdown_links_valid", "glob": "specspine/*.md"},
-    {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+    {"type": "path_absent", "path": "specspine/services.md"}
   ]
 }

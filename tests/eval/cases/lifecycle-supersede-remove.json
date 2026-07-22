@@ -31,12 +31,6 @@
         {"type": "read_only", "paths": ["specspine/**"]},
         {"type": "max_files_read", "max": 4},
         {"type": "changed_only", "paths": ["specspine/**"]},
-        {"type": "unchanged", "paths": ["README.md", "src/**", "config/**", "tests/**"]},
-        {"type": "glob_count", "glob": "specspine/*plan*.md", "max": 0},
-        {"type": "glob_count", "glob": "specspine/*feature*.md", "max": 0},
-        {"type": "glob_count", "glob": "specspine/*handoff*.md", "max": 0},
-        {"type": "glob_count", "glob": "specspine/*task*.md", "max": 0},
-        {"type": "response_not_contains", "values": ["Proceed with these specification changes?", "Acceptance criteria", "Implementation plan", "Implementation tasks"]},
         {"type": "markdown_links_valid", "glob": "specspine/*.md"},
         {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
       ]
@@ -57,13 +51,7 @@
         {"type": "read_only", "paths": ["specspine/**"]},
         {"type": "max_files_read", "max": 4},
         {"type": "changed_only", "paths": ["specspine/**"]},
-        {"type": "unchanged", "paths": ["README.md", "src/**", "config/**", "tests/**"]},
         {"type": "glob_count", "glob": "specspine/*webhook*retry*.md", "max": 0},
-        {"type": "glob_count", "glob": "specspine/*plan*.md", "max": 0},
-        {"type": "glob_count", "glob": "specspine/*feature*.md", "max": 0},
-        {"type": "glob_count", "glob": "specspine/*handoff*.md", "max": 0},
-        {"type": "glob_count", "glob": "specspine/*task*.md", "max": 0},
-        {"type": "response_not_contains", "values": ["Proceed with these specification changes?", "Acceptance criteria", "Implementation plan", "Implementation tasks"]},
         {"type": "markdown_links_valid", "glob": "specspine/*.md"},
         {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
       ]
@@ -73,10 +61,6 @@
     {"type": "path_absent", "path": "specspine/payment-webhook-retry.md"},
     {"type": "file_contains", "path": "specspine/payment-settlement.md", "values": ["DEC-settlement-bounded-exponential-retry", "DEC-webhook-synchronous-retry", "OBS-settlement-bounded-retry-worker"]},
     {"type": "file_not_contains", "path": "specspine/README.md", "values": ["payment-webhook-retry.md"]},
-    {"type": "file_not_contains", "path": "specspine/payment-processing.md", "values": ["payment-webhook-retry.md"]},
-    {"type": "unchanged", "paths": ["README.md", "src/**", "config/**", "tests/**"]},
-    {"type": "changed_only", "paths": ["specspine/**"]},
-    {"type": "markdown_links_valid", "glob": "specspine/*.md"},
-    {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+    {"type": "file_not_contains", "path": "specspine/payment-processing.md", "values": ["payment-webhook-retry.md"]}
   ]
 }

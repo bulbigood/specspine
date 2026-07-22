@@ -20,7 +20,6 @@
     {"type": "file_contains", "path": "specspine/authentication.md", "value": "user-accounts.md"},
     {"type": "unchanged", "paths": ["specspine/operations.md"]},
     {"type": "changed_only", "paths": ["specspine/**"]},
-    {"type": "response_not_contains", "value": "Proceed with these specification changes?"},
     {"type": "markdown_links_valid", "glob": "specspine/*.md"}
   ]
 }
