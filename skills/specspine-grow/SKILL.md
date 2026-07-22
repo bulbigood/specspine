@@ -60,6 +60,14 @@ must remain usable without those skills.
 2. Classify the operation: initialize, refine, split, merge, rename, or link.
    Identify the canonical owner, specifications whose architectural meaning or
    boundaries change, and context needed only for understanding.
+   For refinement, perform the terminal-depth check immediately after reading
+   the index and relevant specification. If the request explicitly adds no
+   responsibility, boundary, decision, constraint, or open question and asks
+   only for function-by-function flows, internal data structures, SDK calls,
+   pseudocode, configuration fields, or similar implementation instructions,
+   stop without editing. Do not inspect implementation evidence or load
+   additional format resources merely to elaborate the refusal; explain that
+   the requested material belongs in the downstream implementation workflow.
 3. Reuse an existing owner when possible. Create or extract a specification
    only for an independently meaningful or evolving responsibility, boundary,
    behavior, or decision set; never because a file is long or a feature is new.

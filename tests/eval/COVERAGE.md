@@ -23,7 +23,7 @@ The executable set is divided by resource cost and necessity:
 | Category | Manifests | Agent calls | Purpose |
 |---|---:|---:|---|
 | `core` | 6 | 6 | Minimum behavioral regression set |
-| `extended` | 8 | 12 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, and traceability behavior |
+| `extended` | 8 | 11 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, and traceability behavior |
 | `planned` | 8 | 0 | Documentation and future redesign only |
 
 Core and extended cases currently cover:

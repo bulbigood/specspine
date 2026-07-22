@@ -65,7 +65,7 @@ prompt and assertions, while fixture stages model external changes.
 Supported assertions:
 
 - paths/content: `path_exists`, `path_absent`, `glob_count`, `glob_contains`,
-  `file_contains`, `file_not_contains`, `word_budget`;
+  `file_contains`, `file_contains_any`, `file_not_contains`, `word_budget`;
 - response: `response_contains`, `response_contains_any`,
   `response_not_contains`;
 - changes: `unchanged`, `changed_only`, `max_changed_files`;

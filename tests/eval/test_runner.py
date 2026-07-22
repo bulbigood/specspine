@@ -216,6 +216,26 @@ class RunnerTests(unittest.TestCase):
         )
         self.assertFalse(missing.passed)
 
+    def test_file_contains_any_accepts_semantically_equivalent_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            (workspace / "README.md").write_text(
+                "Coverage remains intentionally incomplete.\n", encoding="utf-8"
+            )
+            result = RUNNER.evaluate_assertion(
+                {
+                    "type": "file_contains_any",
+                    "path": "README.md",
+                    "values": ["partial", "incomplete", "not mapped"],
+                },
+                workspace,
+                {},
+                {},
+                "",
+                None,
+            )
+            self.assertTrue(result.passed, result.message)
+
     def test_prompt_declares_eval_language(self):
         case = {
             "scenario": "tests/scenarios/initialize-project.md",

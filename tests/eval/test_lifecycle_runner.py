@@ -139,7 +139,9 @@ class LifecycleRunnerTests(unittest.TestCase):
                 "    reads = ['src/runtime.txt']\n"
                 "else:\n"
                 "    raise SystemExit(2)\n"
-                "Path('.eval/trace.json').write_text(json.dumps({'files_read': reads}), encoding='utf-8')\n",
+                "Path('.eval/trace.json').write_text(json.dumps({"
+                "'files_read': reads, 'commands': ['inspect'], 'duration_seconds': 1.25, "
+                "'token_usage': {'input_tokens': 10, 'output_tokens': 2}}), encoding='utf-8')\n",
                 encoding="utf-8",
             )
             case = self.staged_case()
@@ -157,6 +159,11 @@ class LifecycleRunnerTests(unittest.TestCase):
             )
             self.assertIn("stage 2: external-change (fixture)", output.getvalue())
             self.assertNotIn("stage 2: external-change (agent exit", output.getvalue())
+            self.assertIn(
+                "metrics: stage time: 1.250s; Codex tokens: total 12; input 10; output 2; "
+                "commands 1; files read 1",
+                output.getvalue(),
+            )
             self.assertFalse((workspace / "seed.txt").exists())
             self.assertEqual("implemented\n", (workspace / "src/runtime.txt").read_text(encoding="utf-8"))
             self.assertTrue((workspace / ".eval/stages/01-grow/response.md").is_file())

@@ -119,6 +119,21 @@ def format_metrics(duration_seconds: float, token_usage: dict[str, int]) -> str:
     return f"case time: {duration_seconds:.3f}s; {format_token_usage(token_usage)}"
 
 
+def format_stage_metrics(trace: dict[str, Any]) -> str:
+    duration = trace.get("duration_seconds")
+    duration_text = f"{duration:.3f}s" if isinstance(duration, (int, float)) else "unavailable"
+    usage = trace.get("token_usage")
+    token_text = format_token_usage(usage if isinstance(usage, dict) else {})
+    commands = trace.get("commands")
+    reads = trace.get("files_read")
+    command_count = len(commands) if isinstance(commands, list) else 0
+    read_count = len(set(str(item) for item in reads)) if isinstance(reads, list) else 0
+    return (
+        f"stage time: {duration_text}; {token_text}; "
+        f"commands {command_count}; files read {read_count}"
+    )
+
+
 def summarized_values(values: list[str], maximum: int = 80) -> str:
     rendered = ", ".join(repr(value) for value in values)
     return rendered if len(rendered) <= maximum else rendered[: maximum - 3] + "..."
@@ -437,6 +452,16 @@ def evaluate_assertion(
             if missing
             else f"file_contains {assertion['path']}: found {summarized_values(needles)}",
         )
+    if kind == "file_contains_any":
+        content = path.read_text(encoding="utf-8") if path.is_file() else ""
+        needles = assertion["values"]
+        found = [needle for needle in needles if needle in content]
+        return CheckResult(
+            bool(found),
+            f"file_contains_any {assertion['path']}: found {summarized_values(found)}"
+            if found
+            else f"file_contains_any {assertion['path']} missing alternatives: {summarized_values(needles)}",
+        )
     if kind == "file_not_contains":
         content = path.read_text(encoding="utf-8") if path.is_file() else ""
         needles = assertion.get("values", [assertion.get("value", "")])
@@ -712,6 +737,8 @@ def run_staged_case(
             f"  {'PASS' if stage_passed else 'FAIL'} stage {stage_number}: {stage_id} ({stage_execution})",
             file=output,
         )
+        if trace is not None:
+            print(f"    metrics: {format_stage_metrics(trace)}", file=output)
         print_results(results, "    ", output)
         if stderr:
             print("    agent stderr:", file=output)

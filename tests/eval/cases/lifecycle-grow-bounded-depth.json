@@ -16,27 +16,13 @@
   },
   "stages": [
     {
-      "id": "grow-payment-safety",
+      "id": "grow-payment-and-inventory-safety",
       "skill": "skills/specspine-grow",
-      "prompt": "Evolve only the existing SpecSpine. I accept that each logical payment attempt has one stable idempotency identity across provider retries; record this as `DEC-payment-attempt-idempotency` in the payment owner. Retry timing and attempt limits remain unresolved; preserve that uncertainty as `OQ-payment-retry-policy`. Keep payment-processing.md as a lightweight architectural specification: cover the important rule and boundary without pseudocode, field-by-field schemas, or a walkthrough of implementation functions. Do not create another specification because this is part of the existing payment responsibility. Use only this request and files under specspine/ as architecture sources. Do not inspect or modify other project files, and do not create plans, tasks, acceptance criteria, handoffs, or implementation artifacts.",
+      "prompt": "Evolve only the existing SpecSpine with these accepted rules. Each logical payment attempt has one stable idempotency identity across provider retries; record `DEC-payment-attempt-idempotency` in the payment owner. Retry timing and attempt limits remain unresolved as `OQ-payment-retry-policy`. Inventory reservations expire unless checkout completes; record `CON-inventory-reservation-expiry` in the inventory owner. Checkout releases its reservation after a terminal payment failure; record `DEC-checkout-terminal-failure-release` in the checkout owner. Payment processing reports the terminal outcome but does not own inventory compensation. Keep the existing four-document graph concise, consolidate boundaries instead of repeating the purchase workflow, and add no specifications or implementation detail. Use only this request and files under specspine/.",
       "assertions": [
         {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["**DEC-payment-attempt-idempotency**", "**OQ-payment-retry-policy**"]},
-        {"type": "glob_count", "glob": "specspine/*.md", "min": 4, "max": 4},
-        {"type": "read_only", "paths": ["specspine/**"]},
-        {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md"]},
-        {"type": "changed_only", "paths": ["specspine/**"]},
-        {"type": "markdown_links_valid", "glob": "specspine/*.md"},
-        {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
-      ]
-    },
-    {
-      "id": "grow-inventory-compensation",
-      "skill": "skills/specspine-grow",
-      "prompt": "Deepen the same SpecSpine with these accepted rules. Inventory reservations expire unless checkout completes, expressed as `CON-inventory-reservation-expiry` in the inventory owner. Checkout releases its reservation after a terminal payment failure, expressed as `DEC-checkout-terminal-failure-release` in the checkout owner. Payment processing reports a terminal outcome but does not own inventory compensation. Preserve all existing payment intent, including `DEC-payment-attempt-idempotency` and unresolved `OQ-payment-retry-policy`. Consolidate the workflow and boundaries rather than repeating the complete purchase flow in every file. These rules fit the existing canonical owners; do not add specifications. Use only this request and files under specspine/. Do not inspect or modify other project files or produce downstream work artifacts.",
-      "assertions": [
         {"type": "file_contains", "path": "specspine/inventory-reservations.md", "value": "**CON-inventory-reservation-expiry**"},
         {"type": "file_contains", "path": "specspine/checkout.md", "value": "**DEC-checkout-terminal-failure-release**"},
-        {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["**DEC-payment-attempt-idempotency**", "**OQ-payment-retry-policy**"]},
         {"type": "glob_count", "glob": "specspine/*.md", "min": 4, "max": 4},
         {"type": "read_only", "paths": ["specspine/**"]},
         {"type": "read_includes", "paths": ["specspine/README.md", "specspine/checkout.md", "specspine/payment-processing.md", "specspine/inventory-reservations.md"]},
@@ -48,7 +34,7 @@
     {
       "id": "grow-provider-event-safety",
       "skill": "skills/specspine-grow",
-      "prompt": "Deepen payment processing once more without turning the specification into an implementation manual. Accept `CON-provider-event-deduplication`: duplicate provider events cannot cause duplicate payment transitions. Accept `CON-provider-event-ordering`: an older provider event cannot replace a newer terminal outcome. The retention period for provider-event audit evidence remains unresolved as `OQ-provider-event-audit-retention`. Keep these in payment-processing.md because they govern the existing payment outcome responsibility. Preserve every previously accepted ID and open question across checkout, payment, and inventory. Prefer concise rules and links over repeating algorithms, data structures, configuration values, or the end-to-end workflow. Do not add specifications. Use only this request and files under specspine/; do not inspect or modify other project files or create feature-work artifacts.",
+      "prompt": "Deepen payment processing once more. Accept `CON-provider-event-deduplication`: duplicate provider events cannot cause duplicate payment transitions. Accept `CON-provider-event-ordering`: an older provider event cannot replace a newer terminal outcome. Keep provider-event audit retention unresolved as `OQ-provider-event-audit-retention`. These belong to the existing payment outcome owner. Preserve every previous ID and open question across checkout, payment, and inventory. Keep the four-document graph concise; add no specification, algorithm, schema, configuration copy, or downstream work artifact. Use only this request and files under specspine/.",
       "assertions": [
         {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["**DEC-payment-attempt-idempotency**", "**OQ-payment-retry-policy**", "**CON-provider-event-deduplication**", "**CON-provider-event-ordering**", "**OQ-provider-event-audit-retention**"]},
         {"type": "file_contains", "path": "specspine/checkout.md", "value": "**DEC-checkout-terminal-failure-release**"},

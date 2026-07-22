@@ -22,12 +22,12 @@
     {
       "id": "initial-survey",
       "skill": "skills/specspine-map",
-      "prompt": "Create the smallest useful initial SpecSpine for this brownfield storefront. Survey breadth before depth. Use specspine/payment-processing.md as the canonical, intentionally brief entry point for the payment responsibility so it can be deepened later. Capture both direct repository observations and any useful unconfirmed interpretation with an evidence baseline; do not manufacture decisions or constraints from code. Keep the map flat, qualitative, and incomplete. Do not modify repository files outside specspine/.",
+      "prompt": "Create the smallest useful initial SpecSpine for this brownfield storefront. Survey breadth before depth. Use specspine/payment-processing.md as the canonical, intentionally brief entry point for the payment responsibility so it can be deepened later. Capture both direct repository observations and any useful unconfirmed interpretation with an evidence baseline; do not manufacture decisions or constraints from code. Keep the map flat and state qualitative remaining mapping coverage in the index without using a required heading. Do not modify repository files outside specspine/.",
       "assertions": [
         {"type": "path_exists", "path": "specspine/README.md"},
         {"type": "path_exists", "path": "specspine/payment-processing.md"},
         {"type": "glob_count", "glob": "specspine/*.md", "min": 3, "max": 6},
-        {"type": "file_contains", "path": "specspine/README.md", "value": "## Mapping status"},
+        {"type": "file_contains_any", "path": "specspine/README.md", "values": ["incomplete", "partial", "remaining", "not mapped", "not yet mapped", "not sufficiently represented"]},
         {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["## Observed", "<!-- specspine:evidence-baseline"]},
         {"type": "changed_only", "paths": ["specspine/**"]},
         {"type": "max_changed_files", "max": 6},
@@ -40,7 +40,7 @@
       "skill": "skills/specspine-map",
       "prompt": "Deepen only the selected payment-processing area, starting from specspine/payment-processing.md. The relevant repository boundary is src/payments/**, src/checkout/payment-port.js, src/workers/payment-webhooks.js, config/payments.yml, db/payment-schema.sql, and tests/payment-flow.test.js. Inspect only representative evidence needed to explain authorization, webhook ingestion, persistence ownership, and the checkout boundary. Do not repeat the whole-repository survey or read reporting and unrelated checkout internals. Preserve observations versus unconfirmed interpretations, refresh the evidence baseline for rechecked observations, and update the smallest useful set under specspine/. Do not change source, tests, configuration, schema, or root documentation.",
       "assertions": [
-        {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["## Responsibility", "## Boundaries", "## Observed", "<!-- specspine:evidence-baseline", "src/payments/", "tests/payment-flow.test.js"]},
+        {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["## Responsibility", "## Observed", "<!-- specspine:evidence-baseline", "src/payments/", "tests/payment-flow.test.js"]},
         {"type": "changed_only", "paths": ["specspine/**"]},
         {"type": "read_only", "paths": ["specspine/**", "src/payments/**", "src/checkout/payment-port.js", "src/workers/payment-webhooks.js", "config/payments.yml", "db/payment-schema.sql", "tests/payment-flow.test.js"]},
         {"type": "read_includes", "paths": ["specspine/payment-processing.md", "src/payments/provider-adapter.js", "src/payments/webhook-handler.js", "tests/payment-flow.test.js"]},

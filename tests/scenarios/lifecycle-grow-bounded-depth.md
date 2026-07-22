@@ -7,10 +7,10 @@ payment processing, and inventory reservations already have separate canonical
 owners. Source and configuration outside `specspine/` contain verbose
 implementation details and are not authorized architecture evidence.
 
-This scenario applies three accepted changes to the same Spine:
+This scenario applies two accepted change sets to the same Spine:
 
 ```text
-payment safety -> inventory compensation -> provider-event safety
+payment and inventory safety -> provider-event safety
 ```
 
 Each change adds important architectural meaning, but none introduces a new
