@@ -16,9 +16,9 @@ questions: identity sessions, background job execution, and telemetry export.
 Use `.specspine-map-run/` as the disposable run root and the corresponding
 private roots `.specspine-map-run/staging/identity/`,
 `.specspine-map-run/staging/jobs/`, and
-`.specspine-map-run/staging/telemetry/`. Producers can load the required mapper
-from `.eval/companions/specspine-map/SKILL.md`. There are no other material
-coverage gaps in this fixture. Do not run SpecSpine Doctor.
+`.specspine-map-run/staging/telemetry/`. Give producers complete self-contained
+text commands; they must not load skills or mapping references. There are no
+other material coverage gaps in this fixture. Do not run SpecSpine Doctor.
 ```
 
 ## Expected behavior
@@ -32,6 +32,6 @@ unchanged, normalize once, and remove the successful disposable run root.
 - fewer or more than three producer questions are dispatched;
 - the first two slots are not filled before waiting;
 - a completed candidate is read or moved before the replacement starts;
-- producer prompts omit the mapper or mix several architectural questions;
+- producer prompts omit the inline mapping contract or tell workers to load it;
 - source or tests change;
 - the disposable run root remains after success.

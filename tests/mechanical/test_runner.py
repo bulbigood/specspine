@@ -298,6 +298,7 @@ class RunnerTests(unittest.TestCase):
             {
                 "type": "collab_spawn_prompts",
                 "each_contains": ["specspine-map", "staging/"],
+                "none_contains": ["SKILL.md"],
                 "collectively_contain": ["identity", "jobs", "telemetry"],
                 "partition_values": ["identity", "jobs", "telemetry"],
             },
@@ -333,6 +334,23 @@ class RunnerTests(unittest.TestCase):
             reordered,
         )
         self.assertFalse(violation.passed)
+
+        forbidden_prompt = dict(trace)
+        forbidden_calls = [dict(item) for item in trace["collab_calls"]]
+        forbidden_calls[0]["prompt"] += " Read SKILL.md"
+        forbidden_prompt["collab_calls"] = forbidden_calls
+        forbidden = RUNNER.evaluate_assertion(
+            {
+                "type": "collab_spawn_prompts",
+                "none_contains": ["SKILL.md"],
+            },
+            Path("."),
+            unchanged,
+            unchanged,
+            "",
+            forbidden_prompt,
+        )
+        self.assertFalse(forbidden.passed)
 
         wrong_target = dict(trace)
         wrong_calls = [dict(item) for item in trace["collab_calls"]]

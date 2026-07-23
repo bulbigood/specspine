@@ -24,12 +24,14 @@ splits, or stopping decisions.
 ## Initialize the run
 
 Create one disposable run root outside the live `<spine-root>`. Keep private
-staging roots and a small durable ledger there. Record the source identifier,
-ready, active, blocked, failed, and completed questions, plus published
-destination paths. Update it after every state transition. On resume, reconcile
-published paths, return interrupted active questions to ready, and continue.
-Delete the run root after successful completion. If the run stops incomplete,
-preserve and report its location for resumption.
+staging roots and a small durable append-only ledger there. Record the source
+identifier, question state changes, producer IDs, and published destination
+paths. Append compact events without rereading or rewriting the ledger during
+an uninterrupted run. Batch a checkpoint with the dispatch or publication
+filesystem operation when the environment permits. On resume, read the ledger,
+reconcile published paths, return interrupted active questions to ready, and
+continue. Delete the run root after successful completion. If the run stops
+incomplete, preserve and report its location for resumption.
 
 Inspect only enough repository shape and current Mapping status to seed the run.
 Do not deeply explore the codebase or enumerate every possible area up front.
@@ -71,10 +73,13 @@ must not spawn further workers.
 Treat every agent or thread ID returned by the environment as opaque. Copy the
 exact ID from a successful spawn result into the ledger; never retype, derive,
 or normalize it. Target wait, message, and close operations only with that
-recorded ID. A `not_found` result for an unrecorded or mismatched ID is an
-orchestration error: recover the exact returned ID before declaring the
-producer failed or starting a retry. Never start a duplicate producer while
-the original may still be active.
+recorded ID. A `not_found` result is an orchestration transport error, never a
+producer failure and never grounds for retry. Do not change the active set;
+recover the exact returned ID from the spawn result or stop incomplete if it
+cannot be recovered. Retry only after a recorded producer ID reaches an
+explicit terminal `failed` state and its staging root has no publishable
+result. Never start a duplicate producer while the original may still be
+active.
 
 ## Schedule as producer-consumer
 
@@ -99,6 +104,12 @@ producer-consumer loop:
    producer's acceptable files, then finish queue maintenance from its report.
 5. Wait again only after every safe slot has been refilled and all completed
    results have been consumed.
+
+Use the environment's blocking completion notification or longest safe blocking
+wait. Do not poll worker status, issue a preliminary empty or non-blocking wait,
+or alternate status narration with wait calls. One completion should normally
+cause one return to the orchestrator. If the environment itself returns early
+without a completion, block again without replanning or restating queue state.
 
 Do not wait for all active workers to finish while a ready question and a safe
 worker slot are available. Keep active concurrency at the largest safe level
@@ -125,16 +136,72 @@ because subagents were unavailable.
 ## Isolate producer writes
 
 Create one private staging root per active producer inside the disposable run
-root. Give every subagent worker:
+root. Build the shared topology snapshot, current ownership summary, source
+revision, and applicable project instructions once in the orchestrator. Reuse
+that text for every producer; do not make workers repeat common topology,
+index, instruction, or revision discovery.
 
-- the repository root and immutable source revision;
-- the live `<spine-root>` as read-only context;
-- its private staging root as the only writable documentation location;
-- the relative destination under `<spine-root>` represented by that staging
-  root;
-- the final namespace assigned to its architectural question;
-- one architectural question;
-- `$specspine-map` and applicable project instructions.
+Pass every worker the complete command below as plain text with placeholders
+resolved. Do not mention, invoke, link to, or provide a path for any skill,
+reference, template, or instruction file. Do not ask the worker to load further
+mapping instructions.
+
+```text
+You are a bounded SpecSpine mapping producer.
+
+Repository: <repository-root>
+Immutable source revision: <revision>
+Live Spine, read-only: <spine-root>
+Writable output root: <private-staging-root>
+Final namespace: <relative-destination>
+Shared repository topology: <topology-snapshot>
+Existing architecture ownership: <ownership-summary>
+Applicable project instructions: <project-instructions>
+Bounded architectural question: <one-question>
+
+Do not load or invoke any skill, reference, template, or instruction file. Do
+not spawn another agent. Use only the command above and applicable project
+instructions.
+
+Inspect only evidence relevant to the bounded question. Inspect every source
+you cite. Repository evidence can establish Observed facts and support
+Inferred interpretations; it cannot establish Decisions or Constraints.
+Preserve conflicts with accepted intent. Model stable responsibilities,
+boundaries, runtime or data flows, ownership, and relationships—not source-tree
+shape or implementation procedure.
+
+Create the smallest useful set of publish-ready Markdown specifications only
+under the writable output root. Do not modify source, tests, configuration,
+the live Spine, its README, or another staging root. Do not create a review,
+plan, assessment, task list, implementation status, or Doctor report. It is
+valid to create no file when the live Spine already answers the question or
+further detail would reproduce code.
+
+Each new document needs a clear title, concise summary, Responsibility section,
+and only useful additional sections. Omit empty sections. Put repository-backed
+claims under Observed and include an evidence baseline comment:
+<!-- specspine:evidence-baseline source=<revision>; inspected=<YYYY-MM-DD> -->
+Keep uncertain interpretations under Inferred and unresolved matters under
+Open questions. Never manufacture accepted intent.
+
+Use paths relative to each file's final location under the live Spine, not its
+staging location. Keep links Markdown-relative and omit URL fragments. When a
+semantic ID is useful, use a unique `DEC-`, `CON-`, `OBS-`, or `OQ-` identifier
+with the matching claim kind. A semantic-ID reference must use the plain ID as
+the complete link label and link to its owning Markdown file.
+
+Before finishing, verify that every candidate is a regular non-symlink file,
+has a non-colliding meaningful final path, cites only inspected evidence, and
+can be published unchanged. Do not enumerate hypothetical security, scaling,
+retry, deployment, or operational questions without repository evidence.
+Stop when the bounded architectural question is answered.
+
+Return a compact report containing only: evidence inspected; created files and
+relative final destinations; mapped responsibilities and relationships;
+material follow-up architectural questions with prerequisites; unresolved
+inferences or drift; and whether no useful node was found. Do not repeat the
+document prose.
+```
 
 Workers may read existing specifications to avoid duplicate ownership, but
 must not modify the repository, the live Spine, another worker's staging root,
@@ -158,7 +225,11 @@ code. If a publish-ready path already exists inside its staging root, choose
 another meaningful concept name and report the final path; never overwrite it
 or add an arbitrary numeric suffix.
 
-Require each producer to report:
+Prefer the smallest useful node. Do not enumerate hypothetical security,
+scaling, retry, deployment, or operational questions without repository
+evidence, and do not repeat shared runtime context merely to make a bounded
+node appear exhaustive. Require a compact producer report that does not repeat
+document prose:
 
 - evidence inspected;
 - publish-ready files created and their relative destination paths;
@@ -167,10 +238,12 @@ Require each producer to report:
 - unconfirmed inferences and open questions;
 - whether no useful new node was found.
 
-If a producer terminates or returns an unusable result, preserve diagnostic
-information in the ledger, discard only its disposable incomplete staging,
-requeue the question once, and refill capacity. After a repeated failure,
-record it as failed, continue independent work, and report it as incomplete.
+If a recorded producer reaches an explicit terminal `failed` state or returns
+an unusable result, preserve diagnostic information in the ledger, discard only
+its disposable incomplete staging, requeue the question once, and refill
+capacity. `not_found`, an unknown ID, or a temporarily unavailable status does
+not satisfy this condition. After a repeated confirmed failure, record it as
+failed, continue independent work, and report it as incomplete.
 
 ## Consume and publish results
 
@@ -209,9 +282,10 @@ to make every new node reachable from the architecture index during the same
 operation. Defer navigation cleanup until the single post-saturation
 normalization.
 
-Remove each empty staging root immediately after its files are moved. Record
-publication in the ledger before reusing capacity. Never leave staged copies as
-a second architecture source.
+Remove each empty staging root immediately after its files are moved. When
+possible, perform the move, empty-root removal, and append-only publication
+checkpoint in one filesystem tool call. Do not reread the ledger afterward.
+Never leave staged copies as a second architecture source.
 
 ## Continue to saturation
 
@@ -239,23 +313,25 @@ producer is active or any question remains ready or resolvably blocked.
 
 ## Normalize once after saturation
 
-After saturation, perform one sequential normalization using only files under
-`<spine-root>`; do not inspect repository source. Inventory the complete live
-SpecSpine, run the deterministic checker when available, and process documents
-progressively by current namespace so the complete contents need not remain in
-context at once:
+After saturation, perform one sequential normalization using only the ledger,
+producer reports, and files under `<spine-root>`; do not inspect repository
+source. Treat published destination paths in the ledger as the new-node
+inventory. Run the deterministic checker when available. Do not reread every
+published specification or load the complete Spine contents:
 
 1. Keep the established namespace layout when it remains adequate.
-2. If the flat namespace is difficult to navigate and stable cohesive clusters
-   are now visible, move specifications into a few broad lowercase kebab-case
-   directories, normally with at most one directory layer. Never mirror the
-   source tree.
-3. Update affected relative links and curated `README.md` navigation so every
+2. Use producer reports and destination paths to decide whether stable cohesive
+   clusters already justify the few broad namespaces planned during the run.
+   If not, keep the current layout. Never mirror the source tree.
+3. Read `README.md` and only documents whose paths or links must change. Move
+   specifications only when navigation would otherwise remain materially
+   difficult.
+4. Update affected relative links and curated `README.md` navigation so every
    specification is reachable.
-4. Preserve architectural prose, accepted intent, evidence baselines, semantic
+5. Preserve architectural prose, accepted intent, evidence baselines, semantic
    IDs, unconfirmed inferences, and open questions. Do not merge, reject,
    reinterpret, or otherwise semantically rewrite producer output.
-5. Verify affected links and semantic-ID references, then rerun the
+6. Verify affected links and semantic-ID references, then rerun the
    deterministic SpecSpine checker when it is available.
 
 This normalization is part of completing a large-repository Map request and

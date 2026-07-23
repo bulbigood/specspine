@@ -151,7 +151,7 @@ python3 tests/eval/run.py \
 
 `--case` and `--category` are repeatable and may be combined. There is no
 implicit run-all mode. Planned cases are never executed. Categories are
-disjoint: `core` has 8 executable cases, `extended` has 12, `expensive` has 1,
+disjoint: `core` has 8 executable cases, `extended` has 12, `expensive` has 2,
 and `planned` has 10 documented non-executable cases.
 
 `map-large-rolling-small` makes one top-level call and exactly three nested
@@ -164,6 +164,24 @@ python3 tests/eval/run.py \
   --case map-large-rolling-small --samples 1 --jobs 1 \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py"
 ```
+
+To compare direct Map with orchestrated Map Large on the same controlled
+three-area repository:
+
+```bash
+report_dir=$(mktemp -d -t specspine-map-modes.XXXXXX)
+python3 tests/eval/benchmark_map_modes.py \
+  --output-dir "$report_dir" --samples 1
+```
+
+The arms use identical project files and common quality assertions. The report
+compares pass rate, case and complete-agent-tree wall time, cumulative tree
+input/cache-read/cache-write/uncached/output/reasoning tokens, project reads,
+tool cycles, and spawned agents. Current Codex JSONL exposes only cumulative token usage for the
+orchestrator plus nested producers; it does not expose exact orchestrator-only
+or per-producer token/time breakdowns. The report states this limitation and
+does not estimate missing counters. Keep one sample for routine calibration;
+repeated samples are release-level evidence.
 
 Each case gets a clean temporary workspace. Cases run with concurrency 8 by
 default; change it with `--jobs N`. Workspaces default to

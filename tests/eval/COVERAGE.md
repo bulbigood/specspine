@@ -9,21 +9,21 @@ classified.
 | Area | Documented scenarios | Executable fixtures |
 |---|---:|---:|
 | `specspine-grow` | 9 | 7 |
-| `specspine-map` | 8 | 4 |
+| `specspine-map` | 9 | 5 |
 | `specspine-map-large` | 3 | 1 |
 | `specspine-connect` | 2 | 2 |
 | `specspine-extract` | 5 | 5 |
 | `specspine-doctor` | 3 | 2 |
 | package generator tooling | 1 | 0 |
-| Total | 31 | 21 |
+| Total | 32 | 22 |
 
 `traceable-rule` is assigned to `specspine-map` because its expected result
 includes repository-backed observations.
 
 ### Map coverage
 
-Executable `specspine-map` coverage currently consists of five agent calls
-across four cases:
+Executable `specspine-map` coverage currently consists of six agent calls
+across five cases:
 
 - `lifecycle-survey-deepen`: a shallow initial survey followed by bounded
   deepening without reopening unrelated source;
@@ -33,12 +33,14 @@ across four cases:
   references;
 - `map-staged-producer`: one bounded producer writes a publish-ready candidate
   to a private output root while the live Spine remains read-only.
+- `map-direct-comparison-small`: maps the same controlled three-area repository
+  used by `map-large-rolling-small`, enabling a paired quality/cost benchmark.
 
 `map-large-rolling-small` provides one controlled executable orchestration
 case. One top-level invocation must dispatch exactly three bounded mapper
 producers using two initial worker slots. Codex JSONL collaboration events
-verify initial saturation, mapper/staging handoff, one-question prompt
-partitioning, and replacement dispatch before staged candidate consumption.
+verify initial saturation, mapper handoff, bounded dispatch count, and
+replacement dispatch before staged candidate consumption.
 Final assertions verify move-based publication, source protection, disposable
 run-root cleanup, bounded output, and mechanical Spine validity. This case
 costs one orchestrator plus three producer agents and belongs in the explicit
@@ -68,7 +70,7 @@ The executable set is divided by resource cost and necessity:
 |---|---:|---:|---|
 | `core` | 8 | 8 | Minimum behavioral regression set, including atomic staged Map output |
 | `extended` | 12 | 15 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
-| `expensive` | 1 | 1 | Controlled rolling large-Map orchestration with three nested producers |
+| `expensive` | 2 | 2 | Paired direct Map and rolling Map Large benchmark; the latter has three nested producers |
 | `planned` | 10 | 0 | Documentation and future redesign only |
 
 The table counts harness invocations. `map-large-rolling-small` additionally

@@ -19,8 +19,9 @@ class MapLargeContractTests(unittest.TestCase):
         self.assertNotIn("Normalize once after saturation", mapper)
         self.assertIn("one requested repository scope", mapper)
         self.assertIn("references/orchestration.md", large)
-        self.assertIn("Assign every bounded mapping question to `$specspine-map`", large)
-        self.assertIn("Require `$specspine-map` in the same environment", large)
+        self.assertIn("complete inline producer command", large)
+        self.assertIn("must be passed as text", large)
+        self.assertIn("Do not read another mapping skill", large)
         self.assertIn("allow_implicit_invocation: false", metadata)
 
     def test_parallel_workers_are_isolated_and_single_level(self):
@@ -29,7 +30,7 @@ class MapLargeContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         required = (
             "The orchestrator is the only agent allowed to spawn mapping workers.",
-            "private staging root as the only writable documentation location",
+            "publish-ready Markdown specifications only",
             "must not modify the repository, the live Spine",
             "Schedule as producer-consumer",
             "As soon as each producer finishes",
@@ -85,11 +86,13 @@ class MapLargeContractTests(unittest.TestCase):
             ROOT / "skills/specspine-map-large/references/orchestration.md"
         ).read_text(encoding="utf-8")
         normalized = " ".join(protocol.split())
-        self.assertIn("small durable ledger", normalized)
-        self.assertIn("On resume, reconcile published paths", normalized)
+        self.assertIn("small durable append-only ledger", normalized)
+        self.assertIn("append-only ledger", normalized)
+        self.assertIn("without rereading or rewriting the ledger", normalized)
+        self.assertIn("On resume, read the ledger, reconcile published paths", normalized)
         self.assertIn("return interrupted active questions to ready", normalized)
         self.assertIn("requeue the question once", normalized)
-        self.assertIn("After a repeated failure", normalized)
+        self.assertIn("After a repeated confirmed failure", normalized)
 
     def test_continuously_refills_slots_without_wave_barriers(self):
         protocol = (
@@ -115,6 +118,29 @@ class MapLargeContractTests(unittest.TestCase):
         self.assertIn("Do not invoke SpecSpine Doctor during the mapping run", normalized)
         self.assertIn("agent or thread ID returned by the environment as opaque", normalized)
         self.assertIn("Never start a duplicate producer", normalized)
+        self.assertIn("never grounds for retry", normalized)
+        self.assertIn("explicit terminal `failed` state", normalized)
+        self.assertIn("blocking completion notification", normalized)
+        self.assertIn("Do not poll worker status", normalized)
+
+    def test_parallel_handoff_is_minimal_and_reports_stay_compact(self):
+        protocol = (
+            ROOT / "skills/specspine-map-large/references/orchestration.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(protocol.split())
+        self.assertIn("complete command below as plain text", normalized)
+        self.assertIn("Do not mention, invoke, link to", normalized)
+        self.assertIn("bounded SpecSpine mapping producer", protocol)
+        self.assertIn("Do not load or invoke any skill", protocol)
+        self.assertIn("Require a compact producer report", normalized)
+        self.assertIn("does not repeat document prose", normalized)
+        producer = (
+            protocol.split("You are a bounded SpecSpine mapping producer.", 1)[1]
+            .split("```", 1)[0]
+        )
+        self.assertNotIn("$specspine-map", producer)
+        self.assertNotIn("SKILL.md", producer)
+        self.assertNotIn("references/", producer)
 
     def test_normalizes_once_and_gates_post_map_doctor(self):
         protocol = (
@@ -122,7 +148,9 @@ class MapLargeContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         normalized = " ".join(protocol.split())
         self.assertIn("do not inspect repository source", normalized)
-        self.assertIn("move specifications into a few broad", normalized)
+        self.assertIn("Do not reread every published specification", normalized)
+        self.assertIn("destination paths in the ledger as the new-node inventory", normalized)
+        self.assertIn("only documents whose paths or links must change", normalized)
         self.assertIn("Update affected relative links", normalized)
         self.assertIn("Perform it once, not during continuous mapping", normalized)
         self.assertIn(

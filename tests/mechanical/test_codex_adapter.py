@@ -427,11 +427,16 @@ class CodexAdapterTests(unittest.TestCase):
         stdout = "\n".join(
             [
                 '{"type":"turn.completed","usage":{"input_tokens":120,"output_tokens":30}}',
-                '{"type":"turn.completed","usage":{"input_tokens":200,"cached_input_tokens":80,"output_tokens":50}}',
+                '{"type":"turn.completed","usage":{"input_tokens":200,"cached_input_tokens":80,"cache_write_input_tokens":7,"output_tokens":50}}',
             ]
         )
         self.assertEqual(
-            {"input_tokens": 200, "cached_input_tokens": 80, "output_tokens": 50},
+            {
+                "input_tokens": 200,
+                "cached_input_tokens": 80,
+                "cache_write_input_tokens": 7,
+                "output_tokens": 50,
+            },
             ADAPTER.parse_token_usage(stdout),
         )
 

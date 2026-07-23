@@ -100,6 +100,18 @@ python3 tests/eval/benchmark_extract_agents.py \
   --samples 3 --jobs 4
 ```
 
+Compare direct Map with orchestrated Map Large on an identical controlled
+three-area repository:
+
+```text
+python3 tests/eval/benchmark_map_modes.py \
+  --output-dir /tmp/specspine-map-mode-benchmark \
+  --samples 1
+```
+
+Codex currently reports cumulative tokens and wall time for the complete agent
+tree. It does not expose exact orchestrator-only or per-subagent counters.
+
 ## Agent evals
 
 Use eval cases to verify whether an agent locates context, preserves semantics,

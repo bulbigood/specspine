@@ -93,6 +93,7 @@ class CaseReport:
 TOKEN_FIELDS = (
     "input_tokens",
     "cached_input_tokens",
+    "cache_write_input_tokens",
     "output_tokens",
     "reasoning_output_tokens",
     "total_tokens",
@@ -324,6 +325,8 @@ def format_token_usage(token_usage: dict[str, int]) -> str:
         value = f"input {token_usage['input_tokens']}"
         if "cached_input_tokens" in token_usage:
             value += f" (cached {token_usage['cached_input_tokens']})"
+        if "cache_write_input_tokens" in token_usage:
+            value += f" (cache write {token_usage['cache_write_input_tokens']})"
         parts.append(value)
     if "output_tokens" in token_usage:
         value = f"output {token_usage['output_tokens']}"
@@ -986,6 +989,7 @@ def evaluate_assertion(
         if kind == "collab_spawn_prompts":
             prompts = [str(item.get("prompt") or "") for item in spawns]
             every = assertion.get("each_contains", [])
+            forbidden = assertion.get("none_contains", [])
             collective = assertion.get("collectively_contain", [])
             partition = assertion.get("partition_values", [])
             maximum_per_partition = assertion.get("max_per_partition", 1)
@@ -993,6 +997,11 @@ def evaluate_assertion(
                 value
                 for value in every
                 if any(value not in prompt for prompt in prompts)
+            ]
+            present_forbidden = [
+                value
+                for value in forbidden
+                if any(value in prompt for prompt in prompts)
             ]
             combined = "\n".join(prompts)
             missing_collective = [
@@ -1018,6 +1027,7 @@ def evaluate_assertion(
             passed = (
                 bool(prompts)
                 and not missing_each
+                and not present_forbidden
                 and not missing_collective
                 and partition_valid
             )
@@ -1025,6 +1035,7 @@ def evaluate_assertion(
                 passed,
                 (
                     f"spawn prompts missing per-prompt {missing_each}; "
+                    f"contain forbidden {present_forbidden}; "
                     f"missing collectively {missing_collective}; "
                     f"partition counts {partition_counts}, "
                     f"per-prompt partition counts {prompt_partition_counts}"

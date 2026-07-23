@@ -187,7 +187,8 @@ complete large-repository run.
 Orchestrates an explicitly requested complete or sustained mapping run over a
 large repository. It keeps a bounded backlog, stages mapper output, publishes
 continuously, checkpoints recovery state, reaches saturation, and normalizes
-the final SpecSpine. With subagents it runs several `specspine-map` producers;
+the final SpecSpine. With subagents it sends several producers a self-contained
+inline mapping command;
 without them one agent performs orchestrator, producer, and consumer roles
 sequentially.
 
@@ -774,12 +775,14 @@ specspine/
     │   ├── test_extract_corpus_benchmark.py
     │   ├── test_extract_search.py
     │   ├── test_lifecycle_runner.py
+    │   ├── test_map_mode_benchmark.py
     │   ├── test_npx_install.py
     │   └── test_runner.py
     ├── retrieval-corpora/
     │   └── benchmark.py
     ├── eval/
-    │   └── benchmark_extract_agents.py
+    │   ├── benchmark_extract_agents.py
+    │   └── benchmark_map_modes.py
     └── scenarios/
 ```
 

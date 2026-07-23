@@ -9,23 +9,15 @@ Orchestrate a complete large-repository Map run. Keep execution logic identical
 whether mapping producers run concurrently or the current agent performs every
 role sequentially.
 
-Require `$specspine-map` in the same environment. If it is unavailable, report
-the missing mapper dependency instead of reconstructing its workflow inside
-this skill.
-
 ## Resources
 
 - Read [references/orchestration.md](references/orchestration.md) completely
   before starting or resuming a run. It owns scheduling, staging, publication,
-  recovery, saturation, normalization, and optional post-map Doctor behavior.
-- Read [references/spec-semantics.md](references/spec-semantics.md) before
-  accepting mapped claims or acting as a local mapping producer.
-- Read [references/spec-format.md](references/spec-format.md) before bootstrap,
-  candidate acceptance, or normalization.
-- Read [references/mapping-method.md](references/mapping-method.md) before the
-  shallow topology survey or when acting as a local mapping producer.
-- Use templates under `assets/templates/` when this agent must create an index
-  or specification.
+  recovery, the complete inline producer command, saturation, normalization,
+  and optional post-map Doctor behavior.
+- Do not read another mapping skill or mapping references. The producer command
+  is self-contained and must be passed as text, not as a skill invocation,
+  instruction path, link, or request to load more context.
 
 ## Scope
 
@@ -43,13 +35,13 @@ code/spec conformance, or apply semantic Doctor repairs without approval.
 1. Resolve the repository root and `<spine-root>`. Read the current architecture
    index and only enough repository topology to seed the bounded backlog.
 2. Follow `references/orchestration.md` as the execution contract.
-3. Assign every bounded mapping question to `$specspine-map`. Supply its source
+3. Send each worker the complete inline producer command plus its source
    revision, read-only live Spine, private writable output root, final namespace,
-   and exact architectural question.
-4. When subagents are unavailable, apply `$specspine-map` locally to one queued
-   question at a time, then return to the same consumer, checkpoint, scheduling,
-   saturation, and normalization loop. The current agent is orchestrator,
-   producer, and consumer; only concurrency changes.
+   shared topology/ownership context, and exact architectural question.
+4. When subagents are unavailable, execute the same inline producer command
+   locally for one queued question at a time, then return to the same consumer,
+   checkpoint, scheduling, saturation, and normalization loop. The current
+   agent is orchestrator, producer, and consumer; only concurrency changes.
 5. Report source state, execution limitation when sequential, published files,
    mapped areas, failed or deferred questions, unconfirmed inferences,
    unresolved drift, normalization, mechanical-check results, and qualitative
