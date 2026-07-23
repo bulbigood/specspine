@@ -191,6 +191,22 @@ The report preserves bounded responses, retrieval attempts, effective fixed
 ranking/graph policy, deterministic byte ledgers, tool cycles, and token
 counters.
 
+To compare the complete agent workflow—not ranking variants—run the three fixed
+arms against the same EN/RU/ZH cases:
+
+```bash
+report_dir=$(mktemp -d -t specspine-extract-agents.XXXXXX)
+python3 tests/eval/benchmark_extract_agents.py \
+  --output-dir "$report_dir" --samples 3 --jobs 4
+```
+
+The arms are direct documentation navigation without Extract, Extract with an
+intentionally unavailable disposable accelerator, and production accelerated
+Extract. The benchmark writes one raw JSON report per arm and `comparison.md`
+with behavioral success, duration, tokens, project reads, tool cycles, and
+retrieval bytes. `--retrieval-profile` is evaluator-only and is never exposed
+by the production skill or search CLI.
+
 Case manifests in `cases/*.json` define fixtures, prompts and deterministic
 assertions. A manifest may instead define ordered `stages`; agent stages run a
 prompt and assertions, while fixture stages model external changes.

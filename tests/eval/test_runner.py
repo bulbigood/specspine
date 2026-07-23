@@ -18,6 +18,12 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class RunnerTests(unittest.TestCase):
+    def test_runner_supports_three_extract_benchmark_profiles(self):
+        self.assertEqual(
+            {"extract", "fallback", "no-extract"},
+            RUNNER.EXECUTION_PROFILES,
+        )
+
     def test_compact_trace_preserves_retrieval_policy(self):
         compact = RUNNER.compact_agent_trace(
             {

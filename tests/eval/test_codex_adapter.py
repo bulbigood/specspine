@@ -693,6 +693,19 @@ PATCH"""
             environment_argument,
         )
 
+    def test_codex_command_can_force_benchmark_fallback(self):
+        command = ADAPTER.build_codex_command(
+            "agent-model",
+            "medium",
+            Path("/workspace"),
+            Path("/runtime"),
+            force_retrieval_fallback=True,
+        )
+        environment_argument = next(
+            item for item in command if item.startswith("shell_environment_policy.set=")
+        )
+        self.assertIn('SPECSPINE_CACHE_DIR="/dev/null"', environment_argument)
+
     def test_codex_command_configures_out_of_band_retrieval_telemetry(self):
         command = ADAPTER.build_codex_command(
             "agent-model",

@@ -1095,6 +1095,7 @@ def build_codex_command(
     root: Path,
     runtime_root: Path,
     retrieval_telemetry: str | None = None,
+    force_retrieval_fallback: bool = False,
 ) -> list[str]:
     runtime_root = runtime_root.resolve()
     private_home = runtime_root / "home"
@@ -1125,7 +1126,10 @@ def build_codex_command(
         "XDG_STATE_HOME": str(private_state),
         "ZDOTDIR": str(private_home),
     }
-    environment["SPECSPINE_CACHE_DIR"] = str(runtime_root / "accelerator-cache")
+    environment["SPECSPINE_CACHE_DIR"] = (
+        "/dev/null" if force_retrieval_fallback
+        else str(runtime_root / "accelerator-cache")
+    )
     if retrieval_telemetry:
         environment["SPECSPINE_PRODUCTION_SEARCH"] = str(
             root / ".eval" / "tools" / "search_spine_production.py"
@@ -1208,6 +1212,12 @@ def main() -> int:
         choices=("minimal", "full"),
         help="observe staged retrieval out of band; omitted matches production",
     )
+    parser.add_argument(
+        "--retrieval-profile",
+        choices=("accelerated", "fallback"),
+        default="accelerated",
+        help="benchmark-only: make the disposable accelerator available or unavailable",
+    )
     args = parser.parse_args()
     root = Path.cwd()
     selected_retrieval_script = retrieval_script(root)
@@ -1256,6 +1266,7 @@ def main() -> int:
             root,
             runtime_root,
             args.retrieval_telemetry,
+            args.retrieval_profile == "fallback",
         )
         process_environment = os.environ.copy()
         process_environment["CODEX_HOME"] = str(codex_home)
@@ -1310,6 +1321,7 @@ def main() -> int:
             {
                 "commands": commands,
                 "retrieval_telemetry": args.retrieval_telemetry,
+                "retrieval_profile": args.retrieval_profile,
                 "ranking_system": "normalized",
                 "graph_depth": 1,
                 "graph_limit": 2,

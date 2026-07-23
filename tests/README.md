@@ -88,6 +88,14 @@ python3 tests/eval/run.py \
 The raw report retains responses, retrieval attempts, deterministic byte/cycle
 costs, tool-call counts, and model token counters.
 
+Compare direct navigation, Extract fallback, and accelerated Extract:
+
+```text
+python3 tests/eval/benchmark_extract_agents.py \
+  --output-dir /tmp/specspine-extract-agent-benchmark \
+  --samples 3 --jobs 4
+```
+
 ## Eval tests
 
 Use eval cases to verify whether an agent locates context, preserves semantics,

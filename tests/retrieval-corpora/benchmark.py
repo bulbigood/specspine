@@ -203,6 +203,16 @@ def run_manifest(
                 raise RuntimeError(
                     f"{corpus['id']}/{scenario['id']}: {outcome.reason_code}"
                 )
+            effective_policy = (
+                outcome.ranking_system,
+                SEARCH.GRAPH_DEPTH,
+                SEARCH.GRAPH_LIMIT,
+            )
+            if effective_policy != ("normalized", 1, 2):
+                raise RuntimeError(
+                    f"{corpus['id']}/{scenario['id']}: unexpected retrieval "
+                    f"policy {effective_policy!r}"
+                )
             routed_by_id = {
                 item.identifier: item.outcome for item in outcome.slices
             }

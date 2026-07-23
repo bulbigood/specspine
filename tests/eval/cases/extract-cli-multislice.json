@@ -28,8 +28,9 @@
   "assertions": [
     {"type": "max_changed_files", "max": 0},
     {"type": "read_only", "paths": ["specspine/**"]},
-    {"type": "command_includes", "value": "search_spine.py"},
-    {"type": "trace_equals", "field": "retrieval_attempt_count", "value": 1},
+    {"type": "command_includes", "value": "search_spine.py", "profiles": ["extract", "fallback"]},
+    {"type": "command_excludes", "value": "search_spine.py", "profiles": ["no-extract"]},
+    {"type": "trace_equals", "field": "retrieval_attempt_count", "value": 1, "profiles": ["extract"]},
     {"type": "response_contains", "values": ["specspine/plugin-api.md", "specspine/error-contract.md"]},
     {"type": "response_not_contains", "value": "specspine/local-cache.md"},
     {"type": "response_sections_only", "sections": ["Change intent", "Primary specification", "Required specifications", "Potentially affected specifications", "Architectural decisions and constraints", "Decision sources", "Relevant observations", "Unconfirmed inferences", "Blocking questions", "Expected architectural outcome"]},

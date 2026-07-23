@@ -25,6 +25,9 @@ class ExtractCorpusBenchmarkTests(unittest.TestCase):
 
         self.assertEqual("backend-service-en-01", result["corpus_id"])
         self.assertEqual(6, result["summary"]["ranking_slices"])
+        self.assertEqual("normalized", BENCHMARK.SEARCH.RANKING.RANKING_SYSTEM)
+        self.assertEqual(1, BENCHMARK.SEARCH.GRAPH_DEPTH)
+        self.assertEqual(2, BENCHMARK.SEARCH.GRAPH_LIMIT)
         self.assertEqual(1, result["summary"]["protocol_slices"])
         self.assertEqual(1.0, result["summary"]["status_accuracy"])
         self.assertEqual(1.0, result["summary"]["owner_recall_at_1"])
