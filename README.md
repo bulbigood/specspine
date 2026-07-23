@@ -204,13 +204,14 @@ not a mandatory intermediary for every internal skill operation.
 
 ### Adapter generator
 
-The five publishable packages under `skills/` are the source of truth.
-Repository-only tooling under `tools/specspine-adapter-generator/` synchronizes
-references shared by the coordinated packages and is the only place
-for generating framework-specific SDD adapters. Runtime skills remain
-framework-neutral. The tool contains no canonical skill copies, never generates
-canonical skills from files under `tools/`, and is intentionally not
-discoverable or installable through `npx skills`.
+The five publishable packages under `skills/` and common instructions under
+`shared/references/` are the source of truth. Consuming skill directories expose
+common references through relative symbolic links. Repository-only tooling
+under `tools/specspine-adapter-generator/` validates or repairs those links and
+is the only place for generating framework-specific SDD adapters. Runtime
+skills remain framework-neutral. The tool contains no canonical skill copies,
+never generates canonical skills from files under `tools/`, and is
+intentionally not discoverable or installable through `npx skills`.
 
 ### Extract diagnostics
 
@@ -292,8 +293,7 @@ npx skills add . --skill specspine-map
 npx skills add . --skill specspine-doctor
 ```
 
-Maintainers synchronize shared package resources, verify that derived copies
-match their canonical owner under `skills/`, and run mechanical tests:
+Maintainers validate shared-resource symlinks and run mechanical tests:
 
 ```bash
 tools/specspine-adapter-generator/scripts/generate_resources.py
@@ -644,11 +644,25 @@ Sections are optional. Empty sections should not be added merely to satisfy a te
 specspine/
 ├── README.md
 ├── LICENSE
+├── shared/
+│   └── references/
+│       ├── spec-format.md
+│       ├── spec-semantics.md
+│       ├── specspine-connect/
+│       │   └── bootstrap-contract.md
+│       ├── specspine-doctor/
+│       │   └── review-method.md
+│       ├── specspine-grow/
+│       │   └── examples.md
+│       └── specspine-map/
+│           ├── examples.md
+│           ├── mapping-method.md
+│           └── parallel-mapping.md
 ├── skills/
 │   ├── specspine-connect/
 │   │   ├── SKILL.md
 │   │   ├── references/
-│   │   │   └── bootstrap-contract.md
+│   │   │   └── bootstrap-contract.md -> ../../../shared/references/specspine-connect/bootstrap-contract.md
 │   │   └── assets/
 │   │       └── templates/
 │   │           └── agent-bootstrap.md
@@ -660,9 +674,9 @@ specspine/
 │   ├── specspine-grow/
 │   │   ├── SKILL.md
 │   │   ├── references/
-│   │   │   ├── spec-format.md
-│   │   │   ├── spec-semantics.md
-│   │   │   └── examples.md
+│   │   │   ├── spec-format.md -> ../../../shared/references/spec-format.md
+│   │   │   ├── spec-semantics.md -> ../../../shared/references/spec-semantics.md
+│   │   │   └── examples.md -> ../../../shared/references/specspine-grow/examples.md
 │   │   └── assets/
 │   │       └── templates/
 │   │           ├── architecture-index.md
@@ -670,10 +684,11 @@ specspine/
 │   ├── specspine-map/
 │   │   ├── SKILL.md
 │   │   ├── references/
-│   │   │   ├── mapping-method.md
-│   │   │   ├── spec-format.md
-│   │   │   ├── spec-semantics.md
-│   │   │   └── examples.md
+│   │   │   ├── mapping-method.md -> ../../../shared/references/specspine-map/mapping-method.md
+│   │   │   ├── parallel-mapping.md -> ../../../shared/references/specspine-map/parallel-mapping.md
+│   │   │   ├── spec-format.md -> ../../../shared/references/spec-format.md
+│   │   │   ├── spec-semantics.md -> ../../../shared/references/spec-semantics.md
+│   │   │   └── examples.md -> ../../../shared/references/specspine-map/examples.md
 │   │   └── assets/
 │   │       └── templates/
 │   │           ├── architecture-index.md
@@ -681,9 +696,9 @@ specspine/
 │   └── specspine-doctor/
 │   │   ├── SKILL.md
 │   │   ├── references/
-│   │   │   ├── spec-format.md
-│   │   │   ├── spec-semantics.md
-│   │   │   └── review-method.md
+│   │   │   ├── spec-format.md -> ../../../shared/references/spec-format.md
+│   │   │   ├── spec-semantics.md -> ../../../shared/references/spec-semantics.md
+│   │   │   └── review-method.md -> ../../../shared/references/specspine-doctor/review-method.md
 │   │   └── scripts/
 │   │       └── check_spine.py
 ├── tools/
@@ -715,12 +730,13 @@ specspine/
 ```
 
 The five runtime skills form a coordinated suite with explicit scope and
-degraded-operation boundaries. Each package keeps its own required resources,
-while the connected downstream path prefers `specspine-extract` and falls back
-to the Markdown graph. `specspine-adapter-generator` is maintainer-only tooling:
-it keeps shared rules synchronized and owns framework-specific adapter
-generation without adding environment knowledge or mandatory runtime
-dependencies to canonical skills.
+degraded-operation boundaries. Each package exposes its required references
+through local paths backed by repository-level SSOT symlinks, while the
+connected downstream path prefers `specspine-extract` and falls back to the
+Markdown graph. `specspine-adapter-generator` is maintainer-only tooling: it
+validates shared links and owns framework-specific adapter generation without
+adding environment knowledge or mandatory runtime dependencies to canonical
+skills.
 
 ## What SpecSpine is not
 

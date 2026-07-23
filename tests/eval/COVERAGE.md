@@ -2,19 +2,19 @@
 
 ## Current inventory
 
-The repository has twenty-seven prose behavioral scenarios. Every scenario is
+The repository has twenty-eight prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
 | Area | Documented scenarios | Executable fixtures |
 |---|---:|---:|
 | `specspine-grow` | 9 | 7 |
-| `specspine-map` | 7 | 3 |
+| `specspine-map` | 8 | 3 |
 | `specspine-connect` | 2 | 2 |
 | `specspine-extract` | 5 | 5 |
 | `specspine-doctor` | 3 | 2 |
 | package generator tooling | 1 | 0 |
-| Total | 27 | 19 |
+| Total | 28 | 19 |
 
 `traceable-rule` is assigned to `specspine-map` because its expected result
 includes repository-backed observations.
@@ -25,7 +25,7 @@ The executable set is divided by resource cost and necessity:
 |---|---:|---:|---|
 | `core` | 7 | 7 | Minimum behavioral regression set |
 | `extended` | 12 | 15 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
-| `planned` | 8 | 0 | Documentation and future redesign only |
+| `planned` | 9 | 0 | Documentation and future redesign only |
 
 Core and extended cases currently cover:
 
@@ -65,6 +65,7 @@ test or an existing behavioral case.
 Potential gaps:
 
 - agent navigation efficiency on larger-than-small documentation graphs;
+- parallel Map orchestration and source-aware integration on a large repository;
 - custom `<spine-root>` handling in `grow` and `map`;
 - broken links, unreachable specifications, duplicate IDs, and duplicate
   canonical ownership introduced by an agent.

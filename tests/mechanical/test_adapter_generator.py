@@ -25,15 +25,27 @@ class AdapterGeneratorTests(unittest.TestCase):
             self.assertTrue((skills_root / name / "SKILL.md").is_file(), name)
             self.assertNotEqual({}, GENERATOR.package_files(skills_root, name), name)
 
-    def test_shared_rules_have_one_canonical_owner(self):
+    def test_references_have_canonical_shared_sources_and_skill_symlinks(self):
         skills_root = PROJECT_ROOT / "skills"
-        files = GENERATOR.shared_files(skills_root)
-        for consumer in GENERATOR.SHARED_CONSUMERS:
+        files = GENERATOR.shared_files(PROJECT_ROOT, "specspine-grow")
+        self.assertEqual(
+            PROJECT_ROOT / "shared/references/spec-format.md",
+            files["references/spec-format.md"],
+        )
+        for consumer in GENERATOR.SKILL_REFERENCES:
             self.assertEqual(
                 [],
-                GENERATOR.check_shared_files(files, skills_root / consumer),
+                GENERATOR.check_shared_links(
+                    GENERATOR.shared_files(PROJECT_ROOT, consumer),
+                    skills_root / consumer,
+                ),
                 consumer,
             )
+
+    def test_every_skill_reference_is_a_symlink(self):
+        for root in (PROJECT_ROOT / "skills").glob("specspine-*/references"):
+            for path in root.iterdir():
+                self.assertTrue(path.is_symlink(), str(path))
 
     def test_prompt_budgets_are_enforced_on_canonical_skills(self):
         skills_root = PROJECT_ROOT / "skills"
@@ -49,12 +61,14 @@ class AdapterGeneratorTests(unittest.TestCase):
     def test_cli_synchronizes_only_shared_skill_resources(self):
         with tempfile.TemporaryDirectory() as directory:
             repo_root = Path(directory)
-            shutil.copytree(PROJECT_ROOT / "skills", repo_root / "skills")
-            owner = repo_root / "skills/specspine-grow/references/spec-format.md"
+            shutil.copytree(PROJECT_ROOT / "skills", repo_root / "skills", symlinks=True)
+            shutil.copytree(PROJECT_ROOT / "shared", repo_root / "shared")
+            owner = repo_root / "shared/references/spec-format.md"
             consumer = repo_root / "skills/specspine-map/references/spec-format.md"
             connect = repo_root / "skills/specspine-connect/SKILL.md"
             owner_before = owner.read_bytes()
             connect_before = connect.read_bytes()
+            consumer.unlink()
             consumer.write_text("drift\n", encoding="utf-8")
 
             result = subprocess.run(
@@ -79,20 +93,24 @@ class AdapterGeneratorTests(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(owner_before, owner.read_bytes())
+            self.assertTrue(consumer.is_symlink())
             self.assertEqual(owner_before, consumer.read_bytes())
             self.assertEqual(connect_before, connect.read_bytes())
             self.assertFalse((repo_root / "tools").exists())
 
-    def test_focused_owner_generation_updates_all_shared_consumers(self):
+    def test_focused_generation_repairs_only_selected_skill_links(self):
         with tempfile.TemporaryDirectory() as directory:
             repo_root = Path(directory)
-            shutil.copytree(PROJECT_ROOT / "skills", repo_root / "skills")
-            owner = repo_root / "skills/specspine-grow/references/spec-format.md"
+            shutil.copytree(PROJECT_ROOT / "skills", repo_root / "skills", symlinks=True)
+            shutil.copytree(PROJECT_ROOT / "shared", repo_root / "shared")
+            owner = repo_root / "shared/references/spec-format.md"
             expected = owner.read_bytes()
-            for consumer in GENERATOR.SHARED_CONSUMERS:
-                (repo_root / "skills" / consumer / "references/spec-format.md").write_text(
-                    "drift\n", encoding="utf-8"
-                )
+            selected = repo_root / "skills/specspine-map/references/spec-format.md"
+            untouched = repo_root / "skills/specspine-doctor/references/spec-format.md"
+            selected.unlink()
+            selected.write_text("drift\n", encoding="utf-8")
+            untouched.unlink()
+            untouched.write_text("untouched\n", encoding="utf-8")
 
             subprocess.run(
                 [
@@ -101,15 +119,16 @@ class AdapterGeneratorTests(unittest.TestCase):
                     "--repo-root",
                     str(repo_root),
                     "--skill",
-                    GENERATOR.SHARED_OWNER,
+                    "specspine-map",
                 ],
                 check=True,
                 capture_output=True,
                 text=True,
             )
-            for consumer in GENERATOR.SHARED_CONSUMERS:
-                generated = repo_root / "skills" / consumer / "references/spec-format.md"
-                self.assertEqual(expected, generated.read_bytes())
+            self.assertTrue(selected.is_symlink())
+            self.assertEqual(expected, selected.read_bytes())
+            self.assertFalse(untouched.is_symlink())
+            self.assertEqual("untouched\n", untouched.read_text(encoding="utf-8"))
 
     def test_connect_has_only_framework_neutral_bootstrap_template(self):
         templates = PROJECT_ROOT / "skills" / "specspine-connect" / "assets" / "templates"

@@ -2,9 +2,10 @@
 
 ## Canonical packages
 
-The publishable packages under `<repo-root>/skills/specspine-*` are the only
-canonical skill sources. Edit skill instructions, references, scripts,
-templates, and agent metadata there.
+The publishable packages under `<repo-root>/skills/specspine-*` and common
+references under `<repo-root>/shared/references/` are the canonical runtime
+sources. Edit skill-specific instructions, references, scripts, templates, and
+agent metadata under `skills/`; edit shared rules only under `shared/`.
 
 The maintainer tool must not contain copies or snapshots of those packages. It
 reads canonical skills directly and generates only resources that must be
@@ -12,18 +13,18 @@ duplicated between separately published members of the coordinated suite.
 
 ## Shared rules
 
-`skills/specspine-grow/references/` owns the canonical copies of:
+`shared/references/` owns every additional skill reference. The framework-wide
+rules are:
 
 - `spec-format.md`;
 - `spec-semantics.md`.
 
-The generator synchronizes those files into `specspine-map` and
-`specspine-doctor`. These build-time copies keep package resources local without
-introducing another authoring source or a mandatory runtime file dependency.
-
-Selecting `--skill specspine-grow` synchronizes both consumers. Selecting a
-consumer synchronizes only that consumer. Run the full generator before a
-release.
+Skill-specific references live under matching subdirectories such as
+`shared/references/specspine-map/`. Every file under a runtime skill's
+`references/` directory is a relative symbolic link to its canonical shared
+file. The generator validates or atomically repairs the links; it never copies
+their contents. Selecting `--skill` limits validation or repair to that skill.
+Run the full check before a release.
 
 ## Framework-adapter boundary
 
@@ -43,8 +44,8 @@ bindings and adapters.
 
 ## Safety properties
 
-- Use deterministic byte copying; never use an LLM rewrite.
-- Write files through temporary siblings and atomic replacement.
+- Use deterministic relative symbolic links; never use an LLM rewrite.
+- Repair links through temporary siblings and atomic replacement.
 - Make `--check` read-only and return a non-zero exit code for drift.
 - Never create canonical skill instructions from files under `tools/`.
 - Never persist full skill copies under `tools/`.
@@ -53,8 +54,8 @@ bindings and adapters.
 
 Before publishing:
 
-1. edit canonical files under `skills/`;
-2. synchronize shared resources;
+1. edit skill-specific files under `skills/` and shared rules under `shared/`;
+2. repair shared-resource links;
 3. run generation in `--check` mode;
 4. validate every canonical skill with an available native validator;
 5. run unit tests and the eval-manifest audit;

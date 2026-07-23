@@ -1,0 +1,31 @@
+{
+  "id": "map-parallel-large-repository",
+  "scenario": "tests/scenarios/map-parallel-large-repository.md",
+  "skill": "skills/specspine-map",
+  "status": "planned",
+  "category": "planned",
+  "initial_files": {
+    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Runtime](runtime.md)\n- [Frontend](frontend.md)\n- [Persistence](persistence.md)\n\n## Mapping status\n\n- High-level map: complete\n- Partially mapped areas: identity, jobs, notifications, search\n",
+    "specspine/runtime.md": "# Runtime\n\nOwns HTTP serving and process lifecycle.\n",
+    "specspine/frontend.md": "# Frontend\n\nOwns browser application composition.\n",
+    "specspine/persistence.md": "# Persistence\n\nOwns relational storage access.\n",
+    "src/auth/session.js": "export function createSession(user) { return user; }\n",
+    "src/auth/permissions.js": "export function canAccess(user, resource) { return true; }\n",
+    "src/jobs/runner.js": "export function run(job) { return job.execute(); }\n",
+    "src/jobs/retry.js": "export function retry(job) { return run(job); }\n",
+    "src/notifications/router.js": "export function route(event) { return event.channel; }\n",
+    "src/notifications/email.js": "export function sendEmail(message) { return message; }\n",
+    "src/search/index.js": "export function index(document) { return document; }\n",
+    "src/search/query.js": "export function search(query) { return query; }\n",
+    "tests/auth.test.js": "// sessions and permissions\n",
+    "tests/jobs.test.js": "// execution and retry\n",
+    "tests/notifications.test.js": "// routing and email\n",
+    "tests/search.test.js": "// indexing and querying\n"
+  },
+  "assertions": [
+    {"type": "glob_count", "glob": "specspine/*.md", "min": 5, "max": 12},
+    {"type": "unchanged", "paths": ["src/**", "tests/**"]},
+    {"type": "changed_only", "paths": ["specspine/**"]},
+    {"type": "markdown_links_valid", "glob": "specspine/**/*.md"}
+  ]
+}

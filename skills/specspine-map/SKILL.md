@@ -1,6 +1,6 @@
 ---
 name: specspine-map
-description: Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use for repository surveys, evidence-backed subsystem mapping, selective deepening, refresh after code changes, and drift recording. Do not use to invent or evolve intended architecture (use specspine-grow), perform general integrity audits (use specspine-doctor), extract downstream context, implement changes, or claim code/spec conformance.
+description: Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use for repository surveys, evidence-backed subsystem mapping, selective deepening, large-repository parallel mapping, refresh after code changes, and drift recording. Do not use to invent or evolve intended architecture (use specspine-grow), perform general integrity audits (use specspine-doctor), extract downstream context, implement changes, or claim code/spec conformance.
 ---
 
 # SpecSpine Map
@@ -18,6 +18,8 @@ difference between accepted intent and repository evidence.
   semantic IDs, decomposition, and stopping rules.
 - Read [references/mapping-method.md](references/mapping-method.md) before a
   substantial survey, refresh, or restructuring.
+- Read [references/parallel-mapping.md](references/parallel-mapping.md) before
+  orchestrating subagents for a large repository.
 - Read [references/examples.md](references/examples.md) when mapping depth or a
   specification boundary is unclear.
 - Start new files from the templates under `assets/templates/` and omit empty
@@ -50,7 +52,11 @@ It does not:
    relevant specifications, plus repository documentation or architecture
    records needed to understand existing intent.
 2. Choose the shallowest operation that answers the request: whole-repository
-   survey, selected-area map, deepening, or refresh.
+   survey, selected-area map, deepening, refresh, or a parallel mapping wave.
+   Use parallel mapping only when the repository has several independent
+   architectural areas and subagents are available; follow
+   `references/parallel-mapping.md` as the complete concurrency and integration
+   protocol.
 3. Gather representative evidence. For a survey, prioritize root docs,
    manifests, runtime entry points, composition roots, public interfaces,
    schemas, integrations, deployment configuration, and representative tests.
@@ -65,14 +71,15 @@ It does not:
 5. Treat an explicit mapping, refresh, or restructuring request as approval.
    Ask only before changing accepted intent, resolving a conflict or blocking
    question, or choosing among materially different canonical owners.
-6. Modify only files under `<spine-root>`. Apply the smallest coherent change;
-   preserve unrelated content, accepted intent, useful links, and reachability
-   from the index. Follow `references/spec-format.md` instead of duplicating
-   its document and semantic-ID rules here. Before reporting, verify changed
-   relative links and semantic-ID definitions and references against that
-   format. A semantic-ID reference uses the plain ID as the complete link label
-   and the owning Markdown file as its destination; do not add emphasis or a
-   URL fragment.
+6. Modify only files under `<spine-root>`, except for disposable isolated
+   staging roots used by the parallel protocol. Apply the smallest coherent
+   persistent change; preserve unrelated content, accepted intent, useful
+   links, and reachability from the index. Follow `references/spec-format.md`
+   instead of duplicating its document and semantic-ID rules here. Before
+   reporting, verify changed relative links and semantic-ID definitions and
+   references against that format. A semantic-ID reference uses the plain ID
+   as the complete link label and the owning Markdown file as its destination;
+   do not add emphasis or a URL fragment.
 7. Report evidence inspected, files changed, mapped or deepened areas,
    unconfirmed inferences, unresolved drift, and qualitative remaining
    coverage.

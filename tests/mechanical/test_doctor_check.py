@@ -47,6 +47,25 @@ class DoctorCheckerTests(unittest.TestCase):
             )
             self.assertEqual([], CHECKER.check(root))
 
+    def test_accepts_one_semantic_region_spanning_multiple_sections(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "README.md").write_text(
+                "# Architecture\n\n[Worker](worker.md)\n", encoding="utf-8"
+            )
+            (root / "worker.md").write_text(
+                "# Worker\n\n"
+                "<!-- specspine:evidence-baseline source=commit-abc; inspected=2026-07-23 -->\n"
+                "<!-- specspine:semantic-ids:begin -->\n"
+                "## Observed\n\n"
+                "- **OBS-worker-retries** — Failed jobs are retried.\n\n"
+                "## Inferred\n\n"
+                "- **INF-worker-backoff** — Retry delays appear bounded.\n"
+                "<!-- specspine:semantic-ids:end -->\n",
+                encoding="utf-8",
+            )
+            self.assertEqual([], CHECKER.check(root))
+
     def test_reports_broken_link_unreachable_file_and_invalid_id_section(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
