@@ -19,25 +19,58 @@ class MapParallelContractTests(unittest.TestCase):
             "The orchestrator is the only agent allowed to spawn mapping workers.",
             "private staging root as the only writable documentation location",
             "must not modify the repository, the live Spine",
-            "source-aware Map",
-            "invoke SpecSpine Doctor",
+            "Schedule as producer-consumer",
+            "As soon as each worker finishes",
+            "Worker output is the published output",
+            "Normalize once after saturation",
             "Do not use a requested or desired document count",
         )
         for statement in required:
             with self.subTest(statement=statement):
                 self.assertIn(statement, protocol)
 
-    def test_parallel_protocol_preserves_map_doctor_boundary(self):
+    def test_parallel_publication_skips_integration_and_doctor(self):
         protocol = (
             ROOT / "skills/specspine-map/references/parallel-mapping.md"
         ).read_text(encoding="utf-8")
+        publication = protocol.split("## Consume and publish results", 1)[1].split(
+            "## Continue to saturation", 1
+        )[0]
         doctor = (ROOT / "skills/specspine-doctor/SKILL.md").read_text(
             encoding="utf-8"
         )
-        self.assertIn("Doctor does not inspect repository code", protocol)
-        self.assertIn("Pass the integrated `<spine-root>`", protocol)
+        normalized_publication = " ".join(publication.split())
+        self.assertIn("Do not read or review file contents", normalized_publication)
+        self.assertIn("run SpecSpine Doctor", normalized_publication)
+        self.assertIn("semantic integration", normalized_publication)
         self.assertNotIn("parallel Map", doctor)
         self.assertNotIn("parallel mapping", doctor)
+
+    def test_refills_slots_without_waiting_for_the_batch(self):
+        protocol = (
+            ROOT / "skills/specspine-map/references/parallel-mapping.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(protocol.split())
+        self.assertIn("Immediately launch the next queued independent question", normalized)
+        self.assertIn("Do not wait for all active workers to finish", normalized)
+        self.assertIn("Keep active concurrency at the largest safe level", normalized)
+        self.assertIn("fall back to barrier batches and report that limitation", normalized)
+        self.assertIn("Do not invoke SpecSpine Doctor between waves", normalized)
+
+    def test_normalizes_once_and_gates_post_map_doctor(self):
+        protocol = (
+            ROOT / "skills/specspine-map/references/parallel-mapping.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(protocol.split())
+        self.assertIn("do not inspect repository source", normalized)
+        self.assertIn("move specifications into a few broad", normalized)
+        self.assertIn("Update affected relative links", normalized)
+        self.assertIn("Perform it once, not after every wave", normalized)
+        self.assertIn(
+            "only when the current request explicitly includes a post-map semantic review",
+            normalized,
+        )
+        self.assertIn("Apply semantic repairs only after operator approval", normalized)
 
     def test_doctor_progressively_audits_and_requires_approval_to_write(self):
         doctor = (ROOT / "skills/specspine-doctor/SKILL.md").read_text(

@@ -10,8 +10,9 @@ remain only partially mapped.
 
 ```text
 Continue mapping this large repository in parallel. Use isolated subagents for
-independent architectural areas, then integrate their findings into one
-coherent SpecSpine and run Doctor.
+independent architectural areas, then publish every worker-produced
+specification without re-reading source. After saturation, normalize the
+SpecSpine once and run one final Doctor semantic review.
 ```
 
 ## Expected behavior
@@ -22,20 +23,32 @@ The orchestrator should:
 - use the largest safe number of independent workers;
 - prevent workers from modifying source or the live SpecSpine;
 - accept workers that find no useful new specification;
-- integrate candidate documents itself using repository evidence;
-- reject duplicate or implementation-level candidates;
-- preserve one canonical owner per durable concept;
-- update useful links and curated overview navigation;
-- avoid deep directory mirroring;
-- run mechanical and semantic Doctor review after integration.
+- require workers to create only publish-ready specifications;
+- make each worker responsible for source evidence, ownership, format, and
+  final relative links;
+- consume and publish every worker result as soon as that worker finishes;
+- immediately refill the freed slot from the bounded independent-question
+  queue instead of waiting for the active batch;
+- check destination path collisions without reading document contents;
+- mechanically move every worker file into the live SpecSpine unchanged;
+- skip source-aware integration and per-wave index updates;
+- after saturation, perform one SpecSpine-only normalization of broad
+  directories, relative links, and curated navigation;
+- run the deterministic checker after normalization;
+- invoke Doctor once after the complete map, then request operator approval
+  before applying its proposed semantic repairs.
 
 ## Failure indicators
 
 - workers concurrently edit existing specifications;
 - workers recursively spawn an uncontrolled agent tree;
+- the orchestrator waits for all active workers while an independent question
+  remains queued and a safe slot is free;
+- a freed slot remains idle while the orchestrator reviews a completed result;
 - a requested document count determines decomposition;
 - filename collisions produce arbitrary numbered duplicates;
-- all worker outputs are imported without source-aware review;
-- Doctor is treated as a substitute for repository-backed integration;
-- the result is unreachable, mechanically invalid, or organized like source
-  directories.
+- the orchestrator reads source or candidate contents after workers finish;
+- worker outputs are rejected, merged, rewritten, or selectively imported;
+- the orchestrator reorganizes documents after every wave;
+- normalization inspects repository source or changes architectural meaning;
+- Doctor runs between waves or writes semantic repairs without approval.

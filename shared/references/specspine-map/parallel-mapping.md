@@ -33,6 +33,14 @@ Do not assign two workers competing ownership of the same concept. Resolve
 uncertain assignment overlap before spawning; there is no semantic integration
 stage after workers finish.
 
+After the breadth-first survey, choose a few broad final namespaces only when
+the flat Spine is already difficult to navigate and stable cohesive clusters
+are visible. Keep overview specifications at the root, use at most one
+directory layer in normal cases, and never mirror the source tree. Plan
+architectural questions first, then assign each question the applicable final
+namespace as a publication destination. Reuse this layout across later waves;
+do not reorganize the live Spine between waves.
+
 Use the largest safe concurrency:
 
 ```text
@@ -40,8 +48,31 @@ min(available worker slots, independent questions, safe repository I/O)
 ```
 
 The orchestrator is the only agent allowed to spawn mapping workers. Workers
-must not spawn further workers. Prefer several bounded waves over one exhaustive
-fan-out so later plans can use earlier findings.
+must not spawn further workers.
+
+## Schedule as producer-consumer
+
+Treat each wave as a bounded queue of preplanned independent architectural
+questions. Start the largest safe active set. When the environment can report
+individual worker completion and launch replacements, use a rolling
+producer-consumer loop:
+
+1. Consume each worker result as soon as that worker finishes.
+2. Mechanically publish its files without waiting for other active workers.
+3. Immediately launch the next queued independent question into the freed slot.
+4. Wait again only after publication and slot refill have been handled.
+
+Do not wait for all active workers to finish while the queue still contains an
+independent question and a worker slot is available. Keep active concurrency at
+the largest safe level until the bounded queue is empty. Publication and slot
+refill may be ordered according to the environment's scheduling mechanics, but
+do not leave the slot intentionally idle while reviewing or integrating a
+completed result.
+
+If the environment exposes only barrier-style batch completion or cannot refill
+slots safely, fall back to barrier batches and report that limitation. Do not
+add questions that depend on partial wave results to the active queue; defer
+dependent replanning to the next bounded wave.
 
 ## Isolate worker writes
 
@@ -53,6 +84,7 @@ Create one disposable staging root per worker outside the live
 - its private staging root as the only writable documentation location;
 - the relative destination under `<spine-root>` represented by that staging
   root;
+- the final namespace assigned to its architectural question;
 - one architectural question;
 - the Map skill and applicable project instructions.
 
@@ -85,14 +117,15 @@ Require each worker to report:
 - unconfirmed inferences and open questions;
 - whether no useful new node was found.
 
-## Publish the wave
+## Consume and publish results
 
-After all workers finish, mechanically move every publish-ready file from its
-private staging root to the same relative path under `<spine-root>`. Do not read
-or review file contents, inspect repository source, repeat evidence validation,
-compare ownership, merge or reject documents, rewrite content or links, update
-existing specifications, update `README.md`, run SpecSpine Doctor, or run a
-whole-Spine audit. Worker output is the published output.
+As soon as each worker finishes, mechanically move every publish-ready file
+from its private staging root to the same relative path under `<spine-root>`.
+Do not wait for the rest of the active workers. Do not read or review file
+contents, inspect repository source, repeat evidence validation, compare
+ownership, merge or reject documents, rewrite content or links, update existing
+specifications, update `README.md`, run SpecSpine Doctor, or run a whole-Spine
+audit. Worker output is the published output.
 
 Before moving, compare destination path names only. Never overwrite an existing
 live file or another worker's destination. Return a colliding file to its worker
@@ -101,15 +134,63 @@ mechanical collision check, not semantic integration.
 
 Raw parallel publication is intentionally exempt from the ordinary requirement
 to make every new node reachable from the architecture index during the same
-operation. Navigation cleanup, semantic consolidation, and integrity review are
-separate explicitly requested operations.
+operation. Defer navigation cleanup until the single post-saturation
+normalization.
 
-Remove empty staging roots after their files are moved. Never leave staged
-copies as a second architecture source.
+Remove each empty staging root immediately after its files are moved. Never
+leave staged copies as a second architecture source.
 
-Run another wave only for material gaps identified after publication. Stop when
-the requested questions are answered and additional reading has low
-architectural value. When an external process uses repeated no-change runs as a
-saturation signal, distribute those runs across distinct areas and
-cross-cutting flows; repeated probes of one mature area do not establish
-whole-repository saturation.
+## Continue to saturation
+
+A bounded wave ends only when its queue is empty and all active workers have
+finished. Replan the next wave only for material gaps identified after that
+boundary. Stop spawning workers when the requested questions are answered and
+additional repository reading has low architectural value. When an external
+process uses repeated no-change runs as a saturation signal, distribute those
+runs across distinct areas and cross-cutting flows; repeated probes of one
+mature area do not establish whole-repository saturation.
+
+Do not invoke SpecSpine Doctor between waves. Do not normalize or reorganize
+the live Spine while any mapping worker is active or any bounded question
+remains queued.
+
+## Normalize once after saturation
+
+After the final wave, perform one sequential normalization using only files
+under `<spine-root>`; do not inspect repository source. Read the complete live
+SpecSpine and:
+
+1. Keep the established namespace layout when it remains adequate.
+2. If the flat namespace is difficult to navigate and stable cohesive clusters
+   are now visible, move specifications into a few broad lowercase kebab-case
+   directories, normally with at most one directory layer. Never mirror the
+   source tree.
+3. Update affected relative links and curated `README.md` navigation so every
+   specification is reachable.
+4. Preserve architectural prose, accepted intent, evidence baselines, semantic
+   IDs, unconfirmed inferences, and open questions. Do not merge, reject,
+   reinterpret, or otherwise semantically rewrite worker output.
+5. Verify affected links and semantic-ID references, then run the deterministic
+   SpecSpine checker when it is available.
+
+This normalization is part of completing a parallel Map request and needs no
+separate prompt. Perform it once, not after every wave.
+
+## Optional post-map Doctor
+
+Invoke SpecSpine Doctor only when the current request explicitly includes a
+post-map semantic review. Run it once after saturation, normalization, and
+mechanical checking. Doctor must inspect only `<spine-root>`, must not inspect
+repository source, and must propose an exact repair batch before writing.
+Apply semantic repairs only after operator approval.
+
+Use a Doctor request equivalent to:
+
+```text
+Review the complete mapped and normalized SpecSpine at <spine-root> without
+inspecting repository source. Inspect every specification for duplicate
+ownership, unnecessary fragmentation, stale overview text, hidden direct
+relationships, and excessive implementation detail. Propose an exact repair
+batch, identify decisions that require authority, and ask the operator to
+approve the batch before writing.
+```

@@ -59,11 +59,15 @@ It does not:
    independently, use `references/parallel-mapping.md` and launch the largest
    safe set of workers allowed by its concurrency formula. Do not serialize
    independent investigation merely to avoid write conflicts: workers use
-   private staging roots. Investigation within a wave is parallel; mechanical
-   publication and planning between bounded waves are sequential. Launching only
-   one worker is justified only when exactly one independent question remains
-   or repository I/O or available slots impose that limit; report that reason.
-   Use ordinary sequential mapping for small or tightly coupled scopes.
+   private staging roots. When the environment supports rolling scheduling, use
+   the parallel protocol's producer-consumer loop: publish each completed worker
+   and refill its slot from the bounded question queue without waiting for all
+   active workers. Launching only one worker is justified only when exactly one
+   independent question remains or repository I/O or available slots impose
+   that limit; report that reason. Use ordinary sequential mapping for small or
+   tightly coupled scopes. After the final wave reaches saturation, perform the
+   parallel protocol's single SpecSpine-only normalization before reporting
+   completion.
 3. Gather representative evidence. For a survey, prioritize root docs,
    manifests, runtime entry points, composition roots, public interfaces,
    schemas, integrations, deployment configuration, and representative tests.
@@ -91,7 +95,9 @@ It does not:
    and the owning Markdown file as its destination; do not add emphasis or a
    URL fragment. For a parallel wave, use the raw-publication exception in
    `references/parallel-mapping.md`: workers own content and validation, while
-   the orchestrator only moves their files into `<spine-root>`.
+   the orchestrator only moves their files into `<spine-root>`. Defer navigation
+   repair and any justified directory moves to the one post-saturation
+   normalization; never repeat them after each wave.
 7. Report evidence inspected, files changed, mapped or deepened areas,
    unconfirmed inferences, unresolved drift, and qualitative remaining
    coverage.
