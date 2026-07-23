@@ -23,7 +23,7 @@ except ImportError as error:
     raise SystemExit(2) from error
 
 
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "4"
 FALLBACK_EXIT = 2
 BUILD_LOCK_TIMEOUT_MS = 10_000
 SQLITE_BUSY_TIMEOUT_MS = 10_000
@@ -505,6 +505,25 @@ CREATE VIRTUAL TABLE documents_fts USING fts5(
     body,
     tokenize = 'unicode61 remove_diacritics 2'
 );
+CREATE TABLE normalized_tokens (
+    document_path TEXT NOT NULL REFERENCES documents(path) ON DELETE CASCADE,
+    token TEXT NOT NULL,
+    prefix TEXT NOT NULL,
+    PRIMARY KEY(document_path, token)
+);
+CREATE INDEX normalized_token_idx ON normalized_tokens(token);
+CREATE INDEX normalized_prefix_idx ON normalized_tokens(prefix);
+CREATE TABLE cjk_runs (
+    document_path TEXT NOT NULL REFERENCES documents(path) ON DELETE CASCADE,
+    run TEXT NOT NULL,
+    PRIMARY KEY(document_path, run)
+);
+CREATE TABLE cjk_ngrams (
+    document_path TEXT NOT NULL REFERENCES documents(path) ON DELETE CASCADE,
+    ngram TEXT NOT NULL,
+    PRIMARY KEY(document_path, ngram)
+);
+CREATE INDEX cjk_ngram_idx ON cjk_ngrams(ngram);
 """
 
 
@@ -648,6 +667,34 @@ def insert_document(connection: sqlite3.Connection, document: Document) -> None:
             "\n".join(section.body for section in document.sections),
         ),
     )
+    if document.path != "README.md":
+        searchable = "\n".join((
+            document.title,
+            document.summary,
+            *(section.heading for section in document.sections),
+            *(section.body for section in document.sections),
+        ))
+        tokens, cjk_runs, cjk_ngrams = RANKING.normalized_index_terms(searchable)
+        connection.executemany(
+            "INSERT INTO normalized_tokens(document_path, token, prefix) "
+            "VALUES (?, ?, ?)",
+            (
+                (
+                    document.path,
+                    token,
+                    RANKING.normalized_prefix(token),
+                )
+                for token in tokens
+            ),
+        )
+        connection.executemany(
+            "INSERT INTO cjk_runs(document_path, run) VALUES (?, ?)",
+            ((document.path, run) for run in cjk_runs),
+        )
+        connection.executemany(
+            "INSERT INTO cjk_ngrams(document_path, ngram) VALUES (?, ?)",
+            ((document.path, ngram) for ngram in cjk_ngrams),
+        )
     for section in document.sections:
         connection.execute(
             "INSERT INTO sections(document_path, ordinal, heading, kind, body) VALUES (?, ?, ?, ?, ?)",
@@ -1231,7 +1278,6 @@ def search_faceted(
     graph_depth: int,
     graph_limit: int,
     ranking_system: str = RANKING.FACETED_BM25,
-    normalized_documents: dict[str, object] | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]], str, dict[str, object]]:
     if not RANKING.is_faceted_system(ranking_system):
         raise RANKING.InvalidRankingQuery("faceted search requires a faceted ranker")
@@ -1329,7 +1375,6 @@ def search_faceted(
             connection,
             all_terms,
             term_qualities,
-            normalized_documents,
         )
         if ranking_system == RANKING.FACETED_NORMALIZED
         else None
@@ -1632,7 +1677,6 @@ def run_ranked_search(
     limit: int,
     graph_depth: int,
     graph_limit: int,
-    normalized_documents: dict[str, object] | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]], str, dict[str, object]]:
     if RANKING.is_faceted_system(ranking_system):
         return search_faceted(
@@ -1642,7 +1686,6 @@ def run_ranked_search(
             graph_depth,
             graph_limit,
             ranking_system,
-            normalized_documents,
         )
     return search(connection, query, limit, graph_depth, graph_limit)
 
@@ -1707,11 +1750,6 @@ def execute_search(
                 limit,
                 graph_depth,
                 graph_limit,
-                (
-                    RANKING.load_normalized_documents(connection)
-                    if ranking_system == RANKING.FACETED_NORMALIZED
-                    else None
-                ),
             )
         )
         timings["search_seconds"] = time.perf_counter() - search_started
@@ -1824,11 +1862,6 @@ def execute_searches(
         ).fetchone()[0]
         slices: list[SliceOutcome] = []
         search_seconds = 0.0
-        normalized_documents = (
-            RANKING.load_normalized_documents(connection)
-            if ranking_system == RANKING.FACETED_NORMALIZED
-            else None
-        )
         for query_slice in query_slices:
             query = query_slice.legacy_query()
             search_started = time.perf_counter()
@@ -1840,7 +1873,6 @@ def execute_searches(
                 limit,
                 graph_depth,
                 graph_limit,
-                normalized_documents,
             )
             elapsed = time.perf_counter() - search_started
             search_seconds += elapsed

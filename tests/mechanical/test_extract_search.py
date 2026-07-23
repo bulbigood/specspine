@@ -389,6 +389,24 @@ class ExtractSearchTests(unittest.TestCase):
             routed["direct_matches"][0]["signals"]["match_origins"],
         )
 
+    def test_normalized_cjk_ngrams_verify_full_substring(self):
+        (self.spine / "README.md").write_text("# 根\n", encoding="utf-8")
+        (self.spine / "decoy.md").write_text(
+            "# 干扰\n\n甲乙丙和乙丙丁分别出现，但目标短语并不存在。\n",
+            encoding="utf-8",
+        )
+        slices = [{
+            "id": "full-substring",
+            "must": [["甲乙丙丁"]],
+        }]
+
+        result, payload = self.run_diagnostic_batch(
+            slices, "faceted-normalized", "--graph-depth=0", "--graph-limit=0"
+        )
+
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertEqual([], payload["slices"][0]["direct_matches"])
+
     def test_normalized_facets_preserve_structured_no_match(self):
         (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
         (self.spine / "migration.md").write_text(
@@ -428,6 +446,14 @@ class ExtractSearchTests(unittest.TestCase):
                 "callback",
                 "callbacks",
             )
+        )
+        self.assertEqual(
+            ("retri", "retry"),
+            V2_SEARCH.RANKING.normalized_query_prefixes("retries"),
+        )
+        self.assertEqual(
+            ("studi", "study"),
+            V2_SEARCH.RANKING.normalized_query_prefixes("studies"),
         )
 
     def test_same_facets_support_legacy_and_faceted_ab_comparison(self):
@@ -498,7 +524,7 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertIn("# Alpha owner", output)
         self.assertIn("# Beta owner", output)
 
-    def test_normalized_batch_precomputes_documents_once(self):
+    def test_normalized_batch_uses_materialized_index_without_document_scan(self):
         (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
         (self.spine / "owner.md").write_text(
             "# Owner\n\nOwns callbacks and retries.\n", encoding="utf-8"
@@ -511,11 +537,7 @@ class ExtractSearchTests(unittest.TestCase):
         with patch.dict(
             os.environ,
             {"SPECSPINE_CACHE_DIR": str(self.cache)},
-        ), patch.object(
-            V2_SEARCH.RANKING,
-            "load_normalized_documents",
-            wraps=V2_SEARCH.RANKING.load_normalized_documents,
-        ) as load:
+        ):
             outcome = V2_SEARCH.execute_searches(
                 self.spine,
                 slices,
@@ -523,9 +545,19 @@ class ExtractSearchTests(unittest.TestCase):
                 graph_limit=0,
                 ranking_system="faceted-normalized",
             )
+            index_path = V2_SEARCH.cache_path(self.spine.resolve())
 
         self.assertEqual(0, outcome.exit_code)
-        self.assertEqual(1, load.call_count)
+        connection = V2_SEARCH.connect(index_path)
+        try:
+            self.assertGreater(
+                connection.execute(
+                    "SELECT count(*) FROM normalized_tokens"
+                ).fetchone()[0],
+                0,
+            )
+        finally:
+            connection.close()
 
     def test_should_groups_boost_without_filtering_candidates(self):
         (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
@@ -756,6 +788,39 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertEqual("owner.md", first_payload["slices"][0]["direct_matches"][0]["path"])
         self.assertEqual("incremental_refresh", second_payload["index_state"])
         self.assertEqual("owner.md", second_payload["slices"][0]["direct_matches"][0]["path"])
+
+    def test_normalized_index_refresh_removes_stale_morphology(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        owner = self.spine / "owner.md"
+        owner.write_text(
+            "# Owner\n\nOperators pause callbacks.\n", encoding="utf-8"
+        )
+        slices = [{
+            "id": "callback-pause",
+            "must": [["pause"], ["callback"]],
+        }]
+
+        first, first_payload = self.run_diagnostic_batch(
+            slices, "faceted-normalized", "--graph-depth=0", "--graph-limit=0"
+        )
+        owner.write_text(
+            "# Owner\n\nContains unrelated material.\n", encoding="utf-8"
+        )
+        second, second_payload = self.run_diagnostic_batch(
+            slices, "faceted-normalized", "--graph-depth=0", "--graph-limit=0"
+        )
+
+        self.assertEqual(0, first.returncode, first.stderr)
+        self.assertEqual(
+            ["owner.md"],
+            [
+                item["path"]
+                for item in first_payload["slices"][0]["direct_matches"]
+            ],
+        )
+        self.assertEqual(2, second.returncode, second.stderr)
+        self.assertEqual("incremental_refresh", second_payload["index_state"])
+        self.assertEqual([], second_payload["slices"][0]["direct_matches"])
 
     def test_faceted_ranking_preserves_graph_routing(self):
         (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")

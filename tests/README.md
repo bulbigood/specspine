@@ -69,6 +69,13 @@ and are emitted once even when several slices select the same path. Use
 `--max-output-bytes` to bound document output; whole documents are omitted and
 marked instead of being cut mid-file.
 
+The `faceted-normalized` arm uses derived schema v4. Normalized tokens and
+English/Russian morphology candidates are routed through indexed token and
+prefix tables; Chinese substring candidates use indexed 1–3-grams followed by
+full-run verification. Incremental refresh updates these derived rows with the
+document FTS index. This avoids scanning every document per normalized term
+without changing the production `search_spine.py`.
+
 Representative retrieval corpora live under `tests/retrieval-corpora/corpora`.
 Each immutable corpus contains a natural project fixture, fixed ranker slices,
 agent-level requests, graded relevance judgments, and a SHA-256 document
