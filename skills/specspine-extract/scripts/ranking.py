@@ -26,10 +26,8 @@ MAX_SLICES = 8
 MAX_GROUPS = 8
 MAX_SYNONYMS = 8
 MAX_TERM_LENGTH = 120
-CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]+")
-CYRILLIC_TOKEN_RE = re.compile(r"^[\u0400-\u052f]+$")
-NORMALIZED_PREFIX_LENGTH = 5
-MAX_CJK_NGRAM_LENGTH = 3
+NORMALIZED_PREFIX_LENGTH = 4
+MAX_UNICODE_NGRAM_LENGTH = 3
 SQL_IN_BATCH_SIZE = 500
 
 
@@ -131,34 +129,20 @@ def group_expression(group: tuple[str, ...]) -> str:
     return f"({clauses})"
 
 
-def routing_stem(token: str) -> str:
-    """Normalize common English inflections for metadata reranking only."""
-    value = token.casefold()
-    if len(value) > 4 and value.endswith("ies"):
-        return value[:-3] + "y"
-    if len(value) > 4 and value.endswith("ing"):
-        value = value[:-3]
-        return value[:-1] if len(value) > 2 and value[-1:] == value[-2:-1] else value
-    if len(value) > 3 and value.endswith("ed"):
-        return value[:-2]
-    if len(value) > 3 and value.endswith("s") and not value.endswith("ss"):
-        return value[:-1]
-    return value
-
-
 def normalized_prefix(token: str) -> str:
     return token[:NORMALIZED_PREFIX_LENGTH]
 
 
-def normalized_query_prefixes(token: str) -> tuple[str, ...]:
-    values = [normalized_prefix(token)]
-    if token.isascii():
-        values.append(normalized_prefix(routing_stem(token)))
-    return tuple(dict.fromkeys(values))
-
-
 def normalized_text(value: str) -> str:
-    return unicodedata.normalize("NFKC", value).casefold()
+    decomposed = unicodedata.normalize("NFKD", value).casefold()
+    return unicodedata.normalize(
+        "NFKC",
+        "".join(
+            character
+            for character in decomposed
+            if not unicodedata.combining(character)
+        ),
+    )
 
 
 def expanded_tokens(value: str) -> tuple[str, ...]:
@@ -173,44 +157,35 @@ def expanded_tokens(value: str) -> tuple[str, ...]:
 def morphological_token_match(query_token: str, document_token: str) -> bool:
     if query_token == document_token:
         return True
-    if query_token.isascii() and document_token.isascii():
-        if routing_stem(query_token) == routing_stem(document_token):
-            return True
     if not query_token.isalpha() or not document_token.isalpha():
         return False
     shorter = min(len(query_token), len(document_token))
-    if shorter < 5 or query_token[:1] != document_token[:1]:
+    if shorter < NORMALIZED_PREFIX_LENGTH:
         return False
     shared = 0
     for left, right in zip(query_token, document_token):
         if left != right:
             break
         shared += 1
-    if (
-        CYRILLIC_TOKEN_RE.fullmatch(query_token)
-        and CYRILLIC_TOKEN_RE.fullmatch(document_token)
-    ):
-        return shared >= 5
-    return shared >= max(5, math.ceil(shorter * 0.7))
+    return shared >= max(NORMALIZED_PREFIX_LENGTH, math.ceil(shorter * 0.7))
 
 
 def normalized_index_terms(
     document: str,
 ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
-    """Return deduplicated tokens, CJK runs, and CJK n-grams for indexing."""
+    """Return tokens plus substring runs for every non-ASCII writing system."""
     folded = normalized_text(document)
-    compact = "".join(
-        character for character in folded if not character.isspace()
-    )
     tokens = expanded_tokens(folded)
-    cjk_runs = tuple(dict.fromkeys(CJK_RE.findall(compact)))
-    cjk_ngrams = tuple(dict.fromkeys(
+    unicode_runs = tuple(dict.fromkeys(
+        token for token in tokens if not token.isascii()
+    ))
+    unicode_ngrams = tuple(dict.fromkeys(
         run[index:index + size]
-        for run in cjk_runs
-        for size in range(1, min(MAX_CJK_NGRAM_LENGTH, len(run)) + 1)
+        for run in unicode_runs
+        for size in range(1, min(MAX_UNICODE_NGRAM_LENGTH, len(run)) + 1)
         for index in range(len(run) - size + 1)
     ))
-    return tuple(dict.fromkeys(tokens)), cjk_runs, cjk_ngrams
+    return tuple(dict.fromkeys(tokens)), unicode_runs, unicode_ngrams
 
 
 def indexed_token_paths(
@@ -229,12 +204,10 @@ def indexed_token_paths(
         or not query_token.isalpha()
     ):
         return {path: True for path in exact}
-    prefixes = normalized_query_prefixes(query_token)
-    placeholders = ",".join("?" for _ in prefixes)
     rows = connection.execute(
         "SELECT document_path, token FROM normalized_tokens "
-        f"WHERE prefix IN ({placeholders})",
-        prefixes,
+        "WHERE prefix = ?",
+        (normalized_prefix(query_token),),
     )
     matched = {path: True for path in exact}
     for row in rows:
@@ -245,26 +218,26 @@ def indexed_token_paths(
     return matched
 
 
-def cjk_ngrams(value: str) -> tuple[str, ...]:
-    size = min(MAX_CJK_NGRAM_LENGTH, len(value))
+def unicode_ngrams(value: str) -> tuple[str, ...]:
+    size = min(MAX_UNICODE_NGRAM_LENGTH, len(value))
     return tuple(dict.fromkeys(
         value[index:index + size]
         for index in range(len(value) - size + 1)
     ))
 
 
-def indexed_cjk_paths(
+def indexed_unicode_paths(
     connection: sqlite3.Connection,
     query_runs: tuple[str, ...],
 ) -> set[str]:
     candidates: set[str] | None = None
     for run in query_runs:
-        grams = cjk_ngrams(run)
+        grams = unicode_ngrams(run)
         placeholders = ",".join("?" for _ in grams)
         paths = {
             str(row["document_path"])
             for row in connection.execute(
-                "SELECT document_path FROM cjk_ngrams "
+                "SELECT document_path FROM unicode_ngrams "
                 f"WHERE ngram IN ({placeholders}) "
                 "GROUP BY document_path "
                 "HAVING count(DISTINCT ngram) = ?",
@@ -281,7 +254,7 @@ def indexed_cjk_paths(
         batch = ordered[start:start + SQL_IN_BATCH_SIZE]
         placeholders = ",".join("?" for _ in batch)
         for row in connection.execute(
-            "SELECT document_path, run FROM cjk_runs "
+            "SELECT document_path, run FROM unicode_runs "
             f"WHERE document_path IN ({placeholders})",
             batch,
         ):
@@ -310,36 +283,36 @@ def normalized_term_matches(
     for term in dict.fromkeys(terms):
         strict_paths = strict_qualities.get(term, {})
         folded_term = normalized_text(term)
-        query_runs = tuple(CJK_RE.findall(folded_term))
+        query_tokens = expanded_tokens(folded_term)
+        token_paths: dict[str, bool] | None = None
+        for query_token in query_tokens:
+            paths = indexed_token_paths(connection, query_token)
+            if token_paths is None:
+                token_paths = paths
+            else:
+                token_paths = {
+                    path: token_paths[path] and paths[path]
+                    for path in token_paths.keys() & paths.keys()
+                }
+            if not token_paths:
+                break
+        term_matches = {
+            path: (
+                (0.75, "normalized_tokens")
+                if exact
+                else (0.55, "morphology")
+            )
+            for path, exact in (token_paths or {}).items()
+            if path not in strict_paths
+        }
+        query_runs = tuple(token for token in query_tokens if not token.isascii())
         if query_runs:
-            term_matches = {
-                path: (0.8, "cjk_substring")
-                for path in indexed_cjk_paths(connection, query_runs)
-                if path not in strict_paths
-            }
-        else:
-            query_tokens = expanded_tokens(folded_term)
-            token_paths: dict[str, bool] | None = None
-            for query_token in query_tokens:
-                paths = indexed_token_paths(connection, query_token)
-                if token_paths is None:
-                    token_paths = paths
-                else:
-                    token_paths = {
-                        path: token_paths[path] and paths[path]
-                        for path in token_paths.keys() & paths.keys()
-                    }
-                if not token_paths:
-                    break
-            term_matches = {
-                path: (
-                    (0.75, "normalized_tokens")
-                    if exact
-                    else (0.55, "morphology")
-                )
-                for path, exact in (token_paths or {}).items()
-                if path not in strict_paths
-            }
+            for path in indexed_unicode_paths(connection, query_runs):
+                if path not in strict_paths:
+                    term_matches[path] = max(
+                        term_matches.get(path, (0.0, "")),
+                        (0.8, "unicode_substring"),
+                    )
         document_frequency = len(term_matches) + len(strict_paths)
         idf = math.log1p(
             (document_count + 1.0) / (document_frequency + 0.5)

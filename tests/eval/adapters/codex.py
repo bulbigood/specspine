@@ -673,7 +673,6 @@ def deterministic_cost_ledger(
     """Record stable byte/cycle proxies separately from stochastic token counters."""
     declared_context = [
         root / ".eval" / "skill" / "SKILL.md",
-        root / ".eval" / "skill" / "references" / "context-handoff.md",
     ]
     project_source_bytes = 0
     for relative in reads:

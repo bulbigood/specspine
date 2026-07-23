@@ -79,8 +79,10 @@ class LifecycleRunnerTests(unittest.TestCase):
     def test_project_glob_assertions_ignore_eval_resources(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
-            (workspace / ".eval/skill/references").mkdir(parents=True)
-            (workspace / ".eval/skill/references/context-handoff.md").write_text("bundled\n", encoding="utf-8")
+            (workspace / ".eval/skill").mkdir(parents=True)
+            (workspace / ".eval/skill/bundled-handoff.md").write_text(
+                "bundled\n", encoding="utf-8"
+            )
             (workspace / "specspine").mkdir()
             (workspace / "specspine/payment.md").write_text("OBS-payment-runtime\n", encoding="utf-8")
             count = RUNNER.evaluate_assertion(

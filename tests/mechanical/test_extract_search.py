@@ -22,6 +22,15 @@ SPEC.loader.exec_module(SEARCH)
 
 
 class ExtractSearchTests(unittest.TestCase):
+    def test_skill_keeps_the_success_path_monolithic(self):
+        skill_root = Path(__file__).parents[2] / "skills" / "specspine-extract"
+        skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+        self.assertFalse((skill_root / "references").exists())
+        self.assertIn("invoke the bundled script exactly once", skill)
+        self.assertIn("Do not reread", skill)
+        self.assertIn("prepend the repository-relative", skill)
+        self.assertIn("README.md` before searching only when", skill)
+
     @classmethod
     def setUpClass(cls):
         try:
@@ -146,11 +155,14 @@ class ExtractSearchTests(unittest.TestCase):
             "callbacks.md", outcome.slices[1].outcome.direct_matches[0]["path"]
         )
 
-    def test_normalization_handles_english_russian_and_cjk(self):
+    def test_normalization_handles_diverse_writing_systems(self):
         documents = {
             "english.md": "# English\n\nRetries timed-out provider requests.\n",
             "russian.md": "# Русский\n\nПодтверждённая покупка открывает билет.\n",
             "chinese.md": "# 中文\n\n回填任务必须隔离线上消费组并保存检查点。\n",
+            "japanese.md": "# 日本語\n\n再試行処理は結果の重複を防止する。\n",
+            "korean.md": "# 한국어\n\n재시도작업은중복결과를방지한다.\n",
+            "thai.md": "# ภาษาไทย\n\nการลองใหม่ต้องป้องกันผลลัพธ์ซ้ำ.\n",
         }
         for name, content in documents.items():
             (self.spine / name).write_text(content, encoding="utf-8")
@@ -159,10 +171,20 @@ class ExtractSearchTests(unittest.TestCase):
             {"id": "en", "must": [["request"], ["timed"], ["provider"]]},
             {"id": "ru", "must": [["подтверждение"], ["покупки"], ["билет"]]},
             {"id": "zh", "must": [["回填"], ["隔离线上"], ["检查点"]]},
+            {"id": "ja", "must": [["試行処理"], ["重複"], ["防止"]]},
+            {"id": "ko", "must": [["시도작업"], ["중복결과"], ["방지"]]},
+            {"id": "th", "must": [["ลองใหม่"], ["ป้องกัน"], ["ผลลัพธ์ซ้ำ"]]},
         ], graph_depth=0)
 
         self.assertEqual(
-            ["english.md", "russian.md", "chinese.md"],
+            [
+                "english.md",
+                "russian.md",
+                "chinese.md",
+                "japanese.md",
+                "korean.md",
+                "thai.md",
+            ],
             [item.outcome.direct_matches[0]["path"] for item in outcome.slices],
         )
 
@@ -252,6 +274,60 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertEqual(2, output.count('"path":"shared.md","origin":"direct"'))
         self.assertEqual(1, output.count('DOCUMENT {"path":"shared.md"'))
         self.assertEqual(1, output.count("# Shared"))
+
+    def test_partial_no_match_keeps_other_hits_and_includes_root_once(self):
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns alpha beta.\n", encoding="utf-8"
+        )
+        outcome = self.search([
+            {"id": "found", "must": [["alpha"], ["beta"]]},
+            {"id": "missing", "must": [["absentterm"], ["unknownterm"]]},
+        ], graph_depth=0)
+
+        output = SEARCH.render_batch_output(self.spine, outcome)
+
+        self.assertIn('"id":"found","status":"matched"', output)
+        self.assertIn('"id":"missing","status":"no_match"', output)
+        self.assertIn('"path":"README.md","origin":"root_fallback"', output)
+        self.assertIn('DOCUMENT {"path":"owner.md"', output)
+        self.assertEqual(1, output.count('DOCUMENT {"path":"README.md"'))
+        self.assertIn("# Index", output)
+
+    def test_all_no_match_returns_root_document_successfully(self):
+        result = self.run_cli([
+            {"id": "missing", "must": [["absentterm"], ["unknownterm"]]}
+        ])
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn('"status":"no_match"', result.stdout)
+        self.assertIn('"root_fallback":"README.md"', result.stdout)
+        self.assertIn('DOCUMENT {"path":"README.md"', result.stdout)
+        self.assertIn("# Index", result.stdout)
+
+    def test_technical_fallback_still_returns_root_document(self):
+        environment = os.environ.copy()
+        environment["SPECSPINE_CACHE_DIR"] = "/dev/null"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SEARCH_PATH),
+                str(self.spine),
+                "--queries-json",
+                json.dumps([
+                    {"id": "owner", "must": [["alpha"], ["beta"]]}
+                ]),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=environment,
+            timeout=10,
+        )
+
+        self.assertEqual(SEARCH.FALLBACK_EXIT, result.returncode)
+        self.assertIn('"mode":"fallback"', result.stdout)
+        self.assertIn('"root_fallback":"README.md"', result.stdout)
+        self.assertIn('DOCUMENT {"path":"README.md"', result.stdout)
 
     def test_output_budget_omits_whole_documents_without_cutting_protocol(self):
         (self.spine / "large.md").write_text(

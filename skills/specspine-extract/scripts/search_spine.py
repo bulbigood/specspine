@@ -23,7 +23,7 @@ except ImportError as error:
     raise SystemExit(2) from error
 
 
-SCHEMA_VERSION = "4"
+SCHEMA_VERSION = "6"
 FALLBACK_EXIT = 2
 BUILD_LOCK_TIMEOUT_MS = 10_000
 SQLITE_BUSY_TIMEOUT_MS = 10_000
@@ -517,17 +517,17 @@ CREATE TABLE normalized_tokens (
 );
 CREATE INDEX normalized_token_idx ON normalized_tokens(token);
 CREATE INDEX normalized_prefix_idx ON normalized_tokens(prefix);
-CREATE TABLE cjk_runs (
+CREATE TABLE unicode_runs (
     document_path TEXT NOT NULL REFERENCES documents(path) ON DELETE CASCADE,
     run TEXT NOT NULL,
     PRIMARY KEY(document_path, run)
 );
-CREATE TABLE cjk_ngrams (
+CREATE TABLE unicode_ngrams (
     document_path TEXT NOT NULL REFERENCES documents(path) ON DELETE CASCADE,
     ngram TEXT NOT NULL,
     PRIMARY KEY(document_path, ngram)
 );
-CREATE INDEX cjk_ngram_idx ON cjk_ngrams(ngram);
+CREATE INDEX unicode_ngram_idx ON unicode_ngrams(ngram);
 """
 
 
@@ -678,7 +678,7 @@ def insert_document(connection: sqlite3.Connection, document: Document) -> None:
             *(section.heading for section in document.sections),
             *(section.body for section in document.sections),
         ))
-        tokens, cjk_runs, cjk_ngrams = RANKING.normalized_index_terms(searchable)
+        tokens, unicode_runs, unicode_ngrams = RANKING.normalized_index_terms(searchable)
         connection.executemany(
             "INSERT INTO normalized_tokens(document_path, token, prefix) "
             "VALUES (?, ?, ?)",
@@ -692,12 +692,12 @@ def insert_document(connection: sqlite3.Connection, document: Document) -> None:
             ),
         )
         connection.executemany(
-            "INSERT INTO cjk_runs(document_path, run) VALUES (?, ?)",
-            ((document.path, run) for run in cjk_runs),
+            "INSERT INTO unicode_runs(document_path, run) VALUES (?, ?)",
+            ((document.path, run) for run in unicode_runs),
         )
         connection.executemany(
-            "INSERT INTO cjk_ngrams(document_path, ngram) VALUES (?, ?)",
-            ((document.path, ngram) for ngram in cjk_ngrams),
+            "INSERT INTO unicode_ngrams(document_path, ngram) VALUES (?, ?)",
+            ((document.path, ngram) for ngram in unicode_ngrams),
         )
     for section in document.sections:
         connection.execute(
@@ -1024,7 +1024,7 @@ def search_normalized(
         normalized_origins = sorted({
             item.origin
             for item in (*matched_must, *matched_should)
-            if item.origin in {"morphology", "normalized_tokens", "cjk_substring"}
+            if item.origin in {"morphology", "normalized_tokens", "unicode_substring"}
         })
         add(
             path,
@@ -1236,7 +1236,7 @@ def search_normalized(
             )[:3]
         ]
         item["score"] = round(float(item["score"]), 3)
-    fallback_origins = {"morphology", "normalized_tokens", "cjk_substring"}
+    fallback_origins = {"morphology", "normalized_tokens", "unicode_substring"}
     normalized_direct = sum(
         any(
             origin in fallback_origins
@@ -1354,9 +1354,8 @@ def execute_searches(
             ))
         timings["search_seconds"] = search_seconds
         timings["total_seconds"] = time.perf_counter() - total_started
-        any_matches = any(item.outcome.direct_matches for item in slices)
         return BatchSearchOutcome(
-            0 if any_matches else FALLBACK_EXIT,
+            0,
             "sqlite-fts5",
             RANKING.RANKING_SYSTEM,
             tuple(slices),
@@ -1438,6 +1437,7 @@ def render_batch_output(
     slice_lines: list[str] = []
     selected_paths: list[str] = []
     seen_paths: set[str] = set()
+    root_fallback = False
     if outcome.mode == "sqlite-fts5":
         for item in outcome.slices:
             selection = item.outcome.selection or {}
@@ -1453,6 +1453,13 @@ def render_batch_output(
                     "joint_document_frequency"
                 ]
             slice_lines.append(protocol_marker("SLICE", **slice_metadata))
+            if status == "no_match":
+                root_fallback = True
+                slice_lines.append(protocol_marker(
+                    "HIT",
+                    path="README.md",
+                    origin="root_fallback",
+                ))
             for relative, origin, candidate in selected_documents(item.outcome):
                 metadata: dict[str, object] = {
                     "path": relative,
@@ -1472,6 +1479,17 @@ def render_batch_output(
                     seen_paths.add(relative)
                     selected_paths.append(relative)
             slice_lines.append("<<<SPECSPINE_END_SLICE>>>")
+    elif outcome.mode == "fallback":
+        root_fallback = True
+
+    root = spine_root.resolve()
+    if (
+        root_fallback
+        and (root / "README.md").is_file()
+        and "README.md" not in seen_paths
+    ):
+        seen_paths.add("README.md")
+        selected_paths.append("README.md")
 
     result_metadata: dict[str, object] = {
         "version": 2,
@@ -1480,6 +1498,8 @@ def render_batch_output(
         "graph_depth": GRAPH_DEPTH,
         "graph_limit": GRAPH_LIMIT,
     }
+    if root_fallback and "README.md" in seen_paths:
+        result_metadata["root_fallback"] = "README.md"
     if outcome.reason_code:
         result_metadata["reason"] = outcome.reason_code
     provisional_header = protocol_marker(
@@ -1489,7 +1509,6 @@ def render_batch_output(
     remaining = max_output_bytes - len(
         ("\n".join(base_lines) + "\n").encode("utf-8")
     )
-    root = spine_root.resolve()
     document_lines: list[str] = []
     truncated = False
     for relative in selected_paths:

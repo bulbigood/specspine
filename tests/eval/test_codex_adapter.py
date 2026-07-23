@@ -389,11 +389,8 @@ class CodexAdapterTests(unittest.TestCase):
     def test_cost_ledger_records_stable_byte_proxies(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / ".eval/skill/references").mkdir(parents=True)
+            (root / ".eval/skill").mkdir(parents=True)
             (root / ".eval/skill/SKILL.md").write_text("skill", encoding="utf-8")
-            (root / ".eval/skill/references/context-handoff.md").write_text(
-                "contract", encoding="utf-8"
-            )
             (root / "specspine").mkdir()
             (root / "specspine/owner.md").write_text("source", encoding="utf-8")
             (root / "AGENTS.md").write_text("agent-bootstrap", encoding="utf-8")
@@ -409,7 +406,7 @@ class CodexAdapterTests(unittest.TestCase):
 
         self.assertEqual(len("промпт".encode()), ledger["prompt_utf8_bytes"])
         self.assertEqual(15, ledger["project_agent_instruction_utf8_bytes"])
-        self.assertEqual(13, ledger["declared_skill_context_utf8_bytes"])
+        self.assertEqual(5, ledger["declared_skill_context_utf8_bytes"])
         self.assertEqual(6, ledger["project_source_file_bytes"])
         self.assertEqual(11, ledger["retrieval_output_utf8_bytes"])
         self.assertEqual(2, ledger["tool_cycles"])

@@ -654,8 +654,6 @@ specspine/
 │   │           └── agent-bootstrap.md
 │   ├── specspine-extract/
 │   │   ├── SKILL.md
-│   │   ├── references/
-│   │   │   └── context-handoff.md
 │   │   └── scripts/
 │   │       ├── ranking.py
 │   │       └── search_spine.py

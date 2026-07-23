@@ -45,8 +45,10 @@ def report_command(
     adapter = (
         f"{sys.executable} {EVAL_DIR / 'adapters' / 'codex.py'} "
         f"--model {model} --reasoning-effort {reasoning_effort} "
-        f"--retrieval-profile {retrieval_profile} --retrieval-telemetry minimal"
+        f"--retrieval-profile {retrieval_profile}"
     )
+    if execution_profile != "no-extract":
+        adapter += " --retrieval-telemetry minimal"
     command = [
         sys.executable,
         str(EVAL_DIR / "run.py"),
@@ -94,6 +96,12 @@ def mean(values: list[float]) -> float | None:
 
 def summarize(report: dict[str, Any]) -> dict[str, Any]:
     samples = report["samples"]
+    non_quality_checks = {
+        "command_excludes",
+        "command_includes",
+        "response_sections_only",
+        "trace_equals",
+    }
     required_recalls: list[float] = []
     supporting_recalls: list[float] = []
     handoff_precisions: list[float] = []
@@ -122,11 +130,36 @@ def summarize(report: dict[str, Any]) -> dict[str, Any]:
     return {
         "samples": len(samples),
         "pass_rate": sum(bool(sample.get("passed")) for sample in samples) / len(samples),
+        "quality_pass_rate": sum(
+            not any(
+                check.get("type") not in non_quality_checks
+                for check in sample.get("failed_checks", [])
+            )
+            for sample in samples
+        ) / len(samples),
         "mean_required_recall": mean(required_recalls),
         "mean_supporting_recall": mean(supporting_recalls),
         "mean_handoff_precision": mean(handoff_precisions),
         "mean_duration_seconds": mean(numeric_values(report, ("agent_duration_seconds",))),
-        "mean_total_tokens": mean(numeric_values(report, ("token_usage", "total_tokens"))),
+        "mean_total_tokens": mean([
+            float(usage.get("input_tokens", 0) + usage.get("output_tokens", 0))
+            for sample in samples
+            for usage in [sample.get("token_usage", {})]
+            if isinstance(usage, dict)
+            and (
+                isinstance(usage.get("input_tokens"), int)
+                or isinstance(usage.get("output_tokens"), int)
+            )
+        ]),
+        "mean_uncached_input_tokens": mean([
+            float(usage["input_tokens"] - usage.get("cached_input_tokens", 0))
+            for sample in samples
+            for usage in [sample.get("token_usage", {})]
+            if isinstance(usage, dict) and isinstance(usage.get("input_tokens"), int)
+        ]),
+        "mean_output_tokens": mean(
+            numeric_values(report, ("token_usage", "output_tokens"))
+        ),
         "mean_files_read": mean([
             float(run["files_read"])
             for sample in samples
@@ -160,11 +193,14 @@ def write_comparison(output: Path, reports: dict[str, dict[str, Any]]) -> None:
     summaries = {label: summarize(report) for label, report in reports.items()}
     fields = (
         "pass_rate",
+        "quality_pass_rate",
         "mean_required_recall",
         "mean_supporting_recall",
         "mean_handoff_precision",
         "mean_duration_seconds",
         "mean_total_tokens",
+        "mean_uncached_input_tokens",
+        "mean_output_tokens",
         "mean_files_read",
         "mean_tool_cycles",
         "mean_retrieval_attempts",

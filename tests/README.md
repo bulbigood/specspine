@@ -53,10 +53,10 @@ groups, and optional `should` groups. Stdout contains marked slice results and
 deduplicated complete documents; whole documents are omitted rather than cut
 when the internal output budget is exhausted.
 
-The production normalized ranker uses derived schema v4. English/Russian
-morphology candidates are routed through indexed token and prefix tables;
-Chinese substring candidates use indexed 1–3-grams followed by full-run
-verification. Incremental refresh updates these rows with the document index.
+The production normalized ranker uses derived schema v6. Alphabetic morphology
+candidates use indexed Unicode tokens and prefixes; every non-ASCII writing
+system also gets indexed 1–3-grams with full-run verification. Incremental
+refresh updates these rows with the document index.
 
 Representative retrieval corpora live under `tests/retrieval-corpora/corpora`.
 Each immutable corpus contains a natural project fixture, fixed query slices,
