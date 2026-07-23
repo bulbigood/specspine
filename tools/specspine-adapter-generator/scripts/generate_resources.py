@@ -38,10 +38,7 @@ SKILL_REFERENCES = {
         "spec-semantics.md": "spec-semantics.md",
     },
     "specspine-map-large": {
-        "mapping-method.md": "specspine-map/mapping-method.md",
         "orchestration.md": "specspine-map-large/orchestration.md",
-        "spec-format.md": "spec-format.md",
-        "spec-semantics.md": "spec-semantics.md",
     },
     "specspine-doctor": {
         "review-method.md": "specspine-doctor/review-method.md",

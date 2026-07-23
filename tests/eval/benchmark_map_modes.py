@@ -19,6 +19,10 @@ ARMS = (
     ("map", "map-direct-comparison-small"),
     ("map-large", "map-large-rolling-small"),
 )
+DEFAULT_ORCHESTRATOR_MODEL = "gpt-5.6-terra"
+DEFAULT_ORCHESTRATOR_REASONING_EFFORT = "medium"
+DEFAULT_SUBAGENT_MODEL = "gpt-5.6-luna"
+DEFAULT_SUBAGENT_REASONING_EFFORT = "medium"
 
 
 def load_case(case_id: str) -> dict[str, Any]:
@@ -41,12 +45,16 @@ def report_command(
     samples: int,
     model: str,
     reasoning_effort: str,
+    subagent_model: str,
+    subagent_reasoning_effort: str,
     timestamp: str,
 ) -> tuple[list[str], Path]:
     report = output_dir / f"{label}.json"
     adapter = (
         f"{sys.executable} {EVAL_DIR / 'adapters' / 'codex.py'} "
-        f"--model {model} --reasoning-effort {reasoning_effort}"
+        f"--model {model} --reasoning-effort {reasoning_effort} "
+        f"--subagent-model {subagent_model} "
+        f"--subagent-reasoning-effort {subagent_reasoning_effort}"
     )
     return [
         sys.executable, str(EVAL_DIR / "run.py"),
@@ -62,6 +70,11 @@ def report_command(
 
 def mean(values: list[float]) -> float | None:
     return statistics.fmean(values) if values else None
+
+
+def common_value(values: list[Any]) -> Any:
+    unique = {value for value in values if value is not None}
+    return next(iter(unique)) if len(unique) == 1 else ("mixed" if unique else None)
 
 
 def summarize(report: dict[str, Any]) -> dict[str, Any]:
@@ -86,6 +99,16 @@ def summarize(report: dict[str, Any]) -> dict[str, Any]:
         if isinstance(run, dict)
     ]
     return {
+        "orchestrator_model": common_value([run.get("model") for run in runs]),
+        "orchestrator_reasoning_effort": common_value(
+            [run.get("reasoning_effort") for run in runs]
+        ),
+        "subagent_model": common_value(
+            [run.get("subagent_model") for run in runs]
+        ),
+        "subagent_reasoning_effort": common_value(
+            [run.get("subagent_reasoning_effort") for run in runs]
+        ),
         "pass_rate": mean([float(bool(sample.get("passed"))) for sample in samples]),
         "quality_pass_rate": mean([
             float(not any(
@@ -179,8 +202,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--samples", type=int, default=1)
-    parser.add_argument("--model", default="gpt-5.6-luna")
-    parser.add_argument("--reasoning-effort", default="medium")
+    parser.add_argument("--model", default=DEFAULT_ORCHESTRATOR_MODEL)
+    parser.add_argument(
+        "--reasoning-effort", default=DEFAULT_ORCHESTRATOR_REASONING_EFFORT
+    )
+    parser.add_argument("--subagent-model", default=DEFAULT_SUBAGENT_MODEL)
+    parser.add_argument(
+        "--subagent-reasoning-effort",
+        default=DEFAULT_SUBAGENT_REASONING_EFFORT,
+    )
     args = parser.parse_args()
     if args.samples < 1:
         parser.error("--samples must be positive")
@@ -195,6 +225,8 @@ def main() -> int:
             samples=args.samples,
             model=args.model,
             reasoning_effort=args.reasoning_effort,
+            subagent_model=args.subagent_model,
+            subagent_reasoning_effort=args.subagent_reasoning_effort,
             timestamp=timestamp,
         )
         print("+", " ".join(command), flush=True)

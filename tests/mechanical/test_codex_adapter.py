@@ -17,6 +17,12 @@ SPEC.loader.exec_module(ADAPTER)
 
 
 class CodexAdapterTests(unittest.TestCase):
+    def test_default_model_routing_uses_terra_orchestrator_and_luna_subagents(self):
+        self.assertEqual("gpt-5.6-terra", ADAPTER.DEFAULT_ORCHESTRATOR_MODEL)
+        self.assertEqual("medium", ADAPTER.DEFAULT_ORCHESTRATOR_REASONING_EFFORT)
+        self.assertEqual("gpt-5.6-luna", ADAPTER.DEFAULT_SUBAGENT_MODEL)
+        self.assertEqual("medium", ADAPTER.DEFAULT_SUBAGENT_REASONING_EFFORT)
+
     def test_retrieval_entrypoint_comes_from_staged_skill_marker(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -295,24 +301,70 @@ class CodexAdapterTests(unittest.TestCase):
         )
 
     def test_event_metrics_count_completed_spawned_agents(self):
+        items = [
+            {
+                "id": "spawn-1",
+                "type": "collab_tool_call",
+                "tool": "spawn_agent",
+                "receiver_thread_ids": ["worker-1"],
+                "agents_states": {"worker-1": {"status": "pending_init"}},
+                "status": "completed",
+            },
+            {
+                "id": "spawn-2",
+                "type": "collab_tool_call",
+                "tool": "spawn_agent",
+                "receiver_thread_ids": ["worker-2"],
+                "agents_states": {"worker-2": {"status": "pending_init"}},
+                "status": "completed",
+            },
+            {
+                "id": "wait-1",
+                "type": "collab_tool_call",
+                "tool": "wait",
+                "receiver_thread_ids": ["worker-1", "worker-2"],
+                "agents_states": {
+                    "worker-1": {"status": "completed"},
+                    "worker-2": {"status": "not_found"},
+                },
+                "status": "completed",
+            },
+            {
+                "id": "close-1",
+                "type": "collab_tool_call",
+                "tool": "close_agent",
+                "receiver_thread_ids": ["worker-1"],
+                "agents_states": {"worker-1": {"status": "shutdown"}},
+                "status": "completed",
+            },
+            {
+                "id": "spawn-failed",
+                "type": "collab_tool_call",
+                "tool": "spawn_agent",
+                "receiver_thread_ids": [],
+                "status": "failed",
+            },
+        ]
         stdout = "\n".join(
-            json.dumps(
-                {
-                    "type": "item.completed",
-                    "item": {
-                        "id": f"spawn-{number}",
-                        "type": "collab_tool_call",
-                        "tool": "spawn_agent",
-                        "receiver_thread_ids": [f"worker-{number}"],
-                        "status": "completed",
-                    },
-                }
-            )
-            for number in (1, 2)
+            json.dumps({"type": "item.completed", "item": item}) for item in items
         )
         metrics = ADAPTER.parse_event_metrics(stdout, [])
-        self.assertEqual(2, metrics["collab_tool_count"])
+        self.assertEqual(5, metrics["collab_tool_count"])
         self.assertEqual(2, metrics["spawned_agent_count"])
+        self.assertEqual(2, metrics["initial_spawned_agent_count"])
+        self.assertEqual(0, metrics["additional_spawned_agent_count"])
+        self.assertEqual(
+            {"close_agent": 1, "spawn_agent": 3, "wait": 1},
+            metrics["collab_tool_counts"],
+        )
+        self.assertEqual(1, metrics["failed_spawn_call_count"])
+        self.assertEqual(1, metrics["wait_call_count"])
+        self.assertEqual(1, metrics["close_call_count"])
+        self.assertEqual(1, metrics["transport_not_found_count"])
+        self.assertEqual(
+            {"not_found": 1, "shutdown": 1},
+            metrics["producer_latest_status_counts"],
+        )
 
     def test_records_marker_protocol_and_batched_queries(self):
         queries = json.dumps(
@@ -754,7 +806,8 @@ PATCH"""
 
     def test_codex_command_uses_restricted_permission_profile(self):
         command = ADAPTER.build_codex_command(
-            "agent-model", "medium", Path("/workspace"), Path("/runtime")
+            "agent-model", "medium", "worker-model", "low",
+            Path("/workspace"), Path("/runtime")
         )
         rendered = " ".join(command)
         self.assertIn('default_permissions="specspine_eval"', command)
@@ -777,13 +830,18 @@ PATCH"""
         self.assertIn("--ignore-user-config", command)
         self.assertIn("--ignore-rules", command)
         self.assertIn("allow_login_shell=false", command)
+        self.assertIn('agents.default_subagent_model="worker-model"', command)
+        self.assertIn(
+            'agents.default_subagent_reasoning_effort="low"', command
+        )
         self.assertNotIn("workspace-write", rendered)
         self.assertNotIn('.agents"="read', rendered)
         self.assertNotIn('.codex"="read', rendered)
 
     def test_codex_command_uses_private_accelerator_cache(self):
         command = ADAPTER.build_codex_command(
-            "agent-model", "medium", Path("/workspace"), Path("/runtime")
+            "agent-model", "medium", "worker-model", "low",
+            Path("/workspace"), Path("/runtime")
         )
         environment_argument = next(
             item for item in command if item.startswith("shell_environment_policy.set=")
@@ -798,6 +856,8 @@ PATCH"""
         command = ADAPTER.build_codex_command(
             "agent-model",
             "medium",
+            "worker-model",
+            "low",
             Path("/workspace"),
             Path("/runtime"),
             force_retrieval_fallback=True,
@@ -811,6 +871,8 @@ PATCH"""
         command = ADAPTER.build_codex_command(
             "agent-model",
             "medium",
+            "worker-model",
+            "low",
             Path("/workspace"),
             Path("/runtime"),
             retrieval_telemetry="minimal",

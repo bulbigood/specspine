@@ -1,11 +1,11 @@
 ---
 name: specspine-map
-description: Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use for initial repository surveys, one bounded architectural question, evidence-backed subsystem mapping, selective deepening, local refresh after code changes, and drift recording. Do not orchestrate complete or sustained large-repository runs; the operator must explicitly invoke specspine-map-large for that operation. Do not invent intended architecture, perform general integrity audits, extract downstream context, implement changes, or claim code/spec conformance.
+description: Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use for initial repository surveys, one or more architectural questions, evidence-backed subsystem mapping, selective deepening, local refresh after code changes, and drift recording. Do not invent intended architecture, perform general integrity audits, extract downstream context, implement changes, or claim code/spec conformance.
 ---
 
 # SpecSpine Map
 
-Map one requested repository scope into the smallest useful set of linked
+Map the requested repository scope into the smallest useful set of linked
 architectural specifications. Map breadth before depth and preserve the
 difference between accepted intent and repository evidence.
 
@@ -23,10 +23,8 @@ difference between accepted intent and repository evidence.
 
 ## Authority and scope
 
-Use this skill for an initial high-level survey, one selected area, deepening,
-refresh, or drift recording. Do not select or orchestrate a continuous
-large-repository run; only an explicit operator invocation of
-`$specspine-map-large` starts that operation.
+Use this skill for an initial high-level survey, one or more selected areas or
+questions, deepening, refresh, or drift recording.
 
 Repository evidence may establish observations and support inferences. It does
 not establish decisions or constraints and never overrides accepted intent.
@@ -47,7 +45,7 @@ Do not:
 1. Resolve `<spine-root>` using `references/spec-format.md`. Read its index,
    relevant specifications, and only the repository documentation or
    architecture records needed to understand existing intent.
-2. Choose the shallowest operation that answers the bounded request. For an
+2. Choose the shallowest operation that answers the request. For an
    initial survey, inspect whole-system shape but create only a few useful entry
    points. For a selected area or refresh, begin with the named specification
    and relevant changed paths.
@@ -58,7 +56,7 @@ Do not:
 4. Model stable responsibilities, boundaries, runtime and data-flow shape, and
    relationships rather than directories or implementation details. Classify
    claims with `references/spec-semantics.md`.
-5. Treat the explicit bounded mapping, refresh, or restructuring request as
+5. Treat the explicit mapping, refresh, or restructuring request as
    approval. Ask only before changing accepted intent or choosing among
    materially different canonical owners.
 6. Write only under the explicitly supplied writable documentation root. By
@@ -77,5 +75,5 @@ Do not:
    remaining coverage. It is valid to create no document when the live Spine
    already answers the question or further detail would reproduce code.
 
-Stop when the requested architectural question is answered and additional
-reading would have low architectural value or mostly reproduce implementation.
+Stop when the requested architectural scope is answered and additional reading
+would have low architectural value or mostly reproduce implementation.

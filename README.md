@@ -175,12 +175,12 @@ never modifies source code.
 
 ### `specspine-map`
 
-Maps a bounded part of an existing brownfield project: an initial survey, one
-architectural question, a selected subsystem, deepening, refresh, or drift.
+Maps a requested part of an existing brownfield project: an initial survey,
+one or more architectural questions, selected subsystems, deepening, refresh,
+or drift.
 
 It records observed repository evidence separately from intended architectural
-decisions and preserves disagreements. It does not choose or orchestrate a
-complete large-repository run.
+decisions and preserves disagreements.
 
 ### `specspine-map-large`
 
@@ -432,7 +432,7 @@ canonical ownership is genuinely ambiguous, or a conflict must be resolved.
 
 ### Map a brownfield repository
 
-Use `specspine-map` for a bounded operation:
+Use `specspine-map` for direct mapping:
 
 ```text
 Survey this repository and create a high-level SpecSpine.
@@ -445,8 +445,8 @@ Use $specspine-map-large to map this complete large repository.
 ```
 
 The large orchestrator uses parallel producers when available and the same
-checkpointed queue with one local producer otherwise. Ordinary Map never
-promotes itself to this mode.
+checkpointed queue with one local producer otherwise. Select it explicitly
+when its orchestration overhead is justified.
 
 ### Prepare an architecture context handoff
 
@@ -740,14 +740,7 @@ specspine/
 │   ├── specspine-map-large/
 │   │   ├── SKILL.md
 │   │   ├── references/
-│   │   │   ├── mapping-method.md -> ../../../shared/references/specspine-map/mapping-method.md
-│   │   │   ├── orchestration.md -> ../../../shared/references/specspine-map-large/orchestration.md
-│   │   │   ├── spec-format.md -> ../../../shared/references/spec-format.md
-│   │   │   └── spec-semantics.md -> ../../../shared/references/spec-semantics.md
-│   │   └── assets/
-│   │       └── templates/
-│   │           ├── architecture-index.md
-│   │           └── specification.md
+│   │   │   └── orchestration.md -> ../../../shared/references/specspine-map-large/orchestration.md
 │   └── specspine-doctor/
 │   │   ├── SKILL.md
 │   │   ├── references/

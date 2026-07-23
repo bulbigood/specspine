@@ -13,6 +13,14 @@ SPEC.loader.exec_module(BENCHMARK)
 
 
 class MapModeBenchmarkTests(unittest.TestCase):
+    def test_default_model_routing_uses_terra_orchestrator_and_luna_subagents(self):
+        self.assertEqual("gpt-5.6-terra", BENCHMARK.DEFAULT_ORCHESTRATOR_MODEL)
+        self.assertEqual(
+            "medium", BENCHMARK.DEFAULT_ORCHESTRATOR_REASONING_EFFORT
+        )
+        self.assertEqual("gpt-5.6-luna", BENCHMARK.DEFAULT_SUBAGENT_MODEL)
+        self.assertEqual("medium", BENCHMARK.DEFAULT_SUBAGENT_REASONING_EFFORT)
+
     def test_arms_share_the_exact_fixture(self):
         BENCHMARK.validate_equal_fixtures()
         self.assertEqual(["map", "map-large"], [label for label, _ in BENCHMARK.ARMS])
@@ -20,12 +28,20 @@ class MapModeBenchmarkTests(unittest.TestCase):
     def test_commands_use_one_case_and_serial_execution(self):
         command, report = BENCHMARK.report_command(
             Path("/reports"), "map", "map-direct-comparison-small",
-            samples=2, model="model", reasoning_effort="medium", timestamp="stamp",
+            samples=2, model="model", reasoning_effort="medium",
+            subagent_model="worker-model",
+            subagent_reasoning_effort="medium", timestamp="stamp",
         )
         rendered = " ".join(command)
         self.assertIn("--case map-direct-comparison-small", rendered)
         self.assertIn("--samples 2", rendered)
         self.assertIn("--jobs 1", rendered)
+        self.assertIn("--model model --reasoning-effort medium", rendered)
+        self.assertIn(
+            "--subagent-model worker-model "
+            "--subagent-reasoning-effort medium",
+            rendered,
+        )
         self.assertEqual(Path("/reports/map.json"), report)
 
     def test_comparison_contains_quality_cost_and_parallelism(self):
@@ -43,6 +59,10 @@ class MapModeBenchmarkTests(unittest.TestCase):
             "agent_runs": [{
                 "files_read": 6,
                 "spawned_agent_count": 3,
+                "model": "gpt-5.6-terra",
+                "reasoning_effort": "medium",
+                "subagent_model": "gpt-5.6-luna",
+                "subagent_reasoning_effort": "medium",
                 "cost_ledger": {"tool_cycles": 5},
             }],
         }
@@ -55,6 +75,8 @@ class MapModeBenchmarkTests(unittest.TestCase):
             BENCHMARK.write_comparison(target, reports)
             text = target.read_text(encoding="utf-8")
         for value in (
+            "orchestrator_model", "orchestrator_reasoning_effort",
+            "subagent_model", "subagent_reasoning_effort",
             "pass_rate", "quality_pass_rate", "mean_case_wall_time_seconds",
             "mean_agent_tree_wall_time_seconds", "mean_agent_tree_total_tokens",
             "mean_agent_tree_input_tokens", "mean_agent_tree_cached_input_tokens",

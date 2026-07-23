@@ -16,9 +16,13 @@
     "tests/telemetry/exporter.test.js": "// completed spans are sent to the configured sink\n"
   },
   "assertions": [
+    {"type": "trace_equals", "field": "model", "value": "gpt-5.6-terra"},
+    {"type": "trace_equals", "field": "reasoning_effort", "value": "medium"},
+    {"type": "trace_equals", "field": "subagent_model", "value": "gpt-5.6-luna"},
+    {"type": "trace_equals", "field": "subagent_reasoning_effort", "value": "medium"},
     {"type": "collab_spawn_count", "min": 3, "max": 4},
     {"type": "collab_initial_spawn_count", "min": 2, "max": 2},
-    {"type": "collab_spawn_prompts", "each_contains": ["bounded SpecSpine mapping producer", "Live Spine, read-only:", "Writable output root:", "Do not load or invoke any skill", "evidence baseline comment"], "none_contains": ["$specspine-map", ".eval/", "SKILL.md", "references/"], "collectively_contain": ["identity", "job", "telemetry"]},
+    {"type": "collab_spawn_prompts", "each_contains": ["SpecSpine mapping producer", "Live Spine, read-only:", "Assignment:", "Architectural zone and question:", "Writable output root:", "Do not load or invoke any skill", "evidence baseline comment"], "none_contains": ["$specspine-map", ".eval/", "SKILL.md", "references/"], "collectively_contain": ["identity", "job", "telemetry"], "partition_values": ["identity", "job", "telemetry"], "partition_after": "Assignment:", "max_per_partition": 2},
     {"type": "collab_targets_spawned_agents"},
     {"type": "collab_refill_before_staging_consume", "path": ".specspine-map-run/staging/"},
     {"type": "command_includes", "value": "mv "},

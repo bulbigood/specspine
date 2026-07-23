@@ -139,14 +139,15 @@ python3 tests/eval/run.py \
 ```
 
 `run.py` does not select a model itself; it executes the command supplied by
-`--agent-command`. The standard Codex adapter defaults to `gpt-5.6-luna` with
-`medium` reasoning. Pass a model and reasoning effort through the quoted
-adapter command. This example states the adapter defaults explicitly:
+`--agent-command`. The standard Codex adapter defaults the top-level agent
+(the Map Large orchestrator) to `gpt-5.6-terra` with `medium` reasoning and
+spawned agents to `gpt-5.6-luna` with `medium` reasoning. Pass overrides
+through the quoted adapter command. This example states all defaults explicitly:
 
 ```bash
 python3 tests/eval/run.py \
   --category core \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium"
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium --subagent-model gpt-5.6-luna --subagent-reasoning-effort medium"
 ```
 
 `--case` and `--category` are repeatable and may be combined. There is no
@@ -154,10 +155,14 @@ implicit run-all mode. Planned cases are never executed. Categories are
 disjoint: `core` has 8 executable cases, `extended` has 12, `expensive` has 2,
 and `planned` has 10 documented non-executable cases.
 
-`map-large-rolling-small` makes one top-level call and exactly three nested
-producer calls. It is isolated in `expensive`, so ordinary `core` and
+`map-large-rolling-small` makes one top-level call and normally three nested
+producer calls; one retry is tolerated. It is isolated in `expensive`, so ordinary `core` and
 `extended` runs never select it. Run it with one sample during ordinary
 iteration; use repeated samples only for release calibration.
+
+The Codex adapter defaults the top-level agent to `gpt-5.6-terra` with medium
+reasoning and nested agents to `gpt-5.6-luna` with medium reasoning. The
+Map-Large case asserts all four values from the runtime trace.
 
 ```bash
 python3 tests/eval/run.py \
@@ -177,7 +182,8 @@ python3 tests/eval/benchmark_map_modes.py \
 The arms use identical project files and common quality assertions. The report
 compares pass rate, case and complete-agent-tree wall time, cumulative tree
 input/cache-read/cache-write/uncached/output/reasoning tokens, project reads,
-tool cycles, and spawned agents. Current Codex JSONL exposes only cumulative token usage for the
+tool cycles, spawned agents, and sanitized collaboration lifecycle counts
+(spawn/wait/close outcomes and latest producer statuses). Current Codex JSONL exposes only cumulative token usage for the
 orchestrator plus nested producers; it does not expose exact orchestrator-only
 or per-producer token/time breakdowns. The report states this limitation and
 does not estimate missing counters. Keep one sample for routine calibration;

@@ -163,6 +163,8 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         "file_paths_read": sorted(set(map(str, files_read))) if isinstance(files_read, list) else [],
         "model": trace.get("model"),
         "reasoning_effort": trace.get("reasoning_effort"),
+        "subagent_model": trace.get("subagent_model"),
+        "subagent_reasoning_effort": trace.get("subagent_reasoning_effort"),
         "cache_scope": trace.get("cache_scope"),
         "runtime": trace.get("runtime") if isinstance(trace.get("runtime"), dict) else {},
         "environment_errors": trace.get("environment_errors", []),
@@ -992,6 +994,7 @@ def evaluate_assertion(
             forbidden = assertion.get("none_contains", [])
             collective = assertion.get("collectively_contain", [])
             partition = assertion.get("partition_values", [])
+            partition_after = assertion.get("partition_after")
             maximum_per_partition = assertion.get("max_per_partition", 1)
             missing_each = [
                 value
@@ -1007,12 +1010,21 @@ def evaluate_assertion(
             missing_collective = [
                 value for value in collective if value not in combined
             ]
+            partition_prompts = [
+                (
+                    prompt.split(partition_after, 1)[1]
+                    if partition_after and partition_after in prompt
+                    else prompt
+                )
+                for prompt in prompts
+            ]
             partition_counts = {
-                value: sum(value in prompt for prompt in prompts)
+                value: sum(value in prompt for prompt in partition_prompts)
                 for value in partition
             }
             prompt_partition_counts = [
-                sum(value in prompt for value in partition) for prompt in prompts
+                sum(value in prompt for value in partition)
+                for prompt in partition_prompts
             ]
             partition_valid = (
                 not partition

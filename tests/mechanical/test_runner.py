@@ -301,6 +301,7 @@ class RunnerTests(unittest.TestCase):
                 "none_contains": ["SKILL.md"],
                 "collectively_contain": ["identity", "jobs", "telemetry"],
                 "partition_values": ["identity", "jobs", "telemetry"],
+                "partition_after": "Assignment:",
             },
             {
                 "type": "collab_refill_before_staging_consume",

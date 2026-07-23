@@ -32,6 +32,10 @@ FORBIDDEN_SCOPE_MARKERS = (
 
 SANDBOX_PROTECTED_NAMES = (".git", ".agents", ".codex")
 RETRIEVAL_SCRIPT_NAME = "search_spine.py"
+DEFAULT_ORCHESTRATOR_MODEL = "gpt-5.6-terra"
+DEFAULT_ORCHESTRATOR_REASONING_EFFORT = "medium"
+DEFAULT_SUBAGENT_MODEL = "gpt-5.6-luna"
+DEFAULT_SUBAGENT_REASONING_EFFORT = "medium"
 
 
 def retrieval_script(root: Path) -> Path:
@@ -351,6 +355,11 @@ def parse_event_metrics(stdout: str, candidates: list[str]) -> dict[str, object]
     turn_count = 0
     collab_tool_count = 0
     spawned_agent_count = 0
+    collab_tool_counts: dict[str, int] = {}
+    collab_call_status_counts: dict[str, int] = {}
+    latest_agent_statuses: dict[str, str] = {}
+    first_wait_seen = False
+    initial_spawned_agent_count = 0
     for line in stdout.splitlines():
         try:
             event = json.loads(line)
@@ -378,9 +387,26 @@ def parse_event_metrics(stdout: str, candidates: list[str]) -> dict[str, object]
             continue
         if item_type in {"collab_tool_call", "collab_agent_tool_call"}:
             collab_tool_count += 1
-            if item.get("tool") == "spawn_agent" and item.get("status") == "completed":
+            tool = str(item.get("tool") or "unknown")
+            call_status = str(item.get("status") or "unknown")
+            collab_tool_counts[tool] = collab_tool_counts.get(tool, 0) + 1
+            status_key = f"{tool}:{call_status}"
+            collab_call_status_counts[status_key] = (
+                collab_call_status_counts.get(status_key, 0) + 1
+            )
+            states = item.get("agents_states", {})
+            if isinstance(states, dict):
+                for thread_id, state in states.items():
+                    if isinstance(state, dict) and state.get("status"):
+                        latest_agent_statuses[str(thread_id)] = str(state["status"])
+            if tool == "spawn_agent" and call_status == "completed":
                 receivers = item.get("receiver_thread_ids", [])
-                spawned_agent_count += len(receivers) if isinstance(receivers, list) else 0
+                receiver_count = len(receivers) if isinstance(receivers, list) else 0
+                spawned_agent_count += receiver_count
+                if not first_wait_seen:
+                    initial_spawned_agent_count += receiver_count
+            elif tool == "wait":
+                first_wait_seen = True
             continue
         if item_type != "command_execution":
             continue
@@ -415,6 +441,27 @@ def parse_event_metrics(stdout: str, candidates: list[str]) -> dict[str, object]
         "command_metrics": command_metrics,
         "collab_tool_count": collab_tool_count,
         "spawned_agent_count": spawned_agent_count,
+        "initial_spawned_agent_count": initial_spawned_agent_count,
+        "additional_spawned_agent_count": max(
+            0, spawned_agent_count - initial_spawned_agent_count
+        ),
+        "collab_tool_counts": dict(sorted(collab_tool_counts.items())),
+        "collab_call_status_counts": dict(sorted(collab_call_status_counts.items())),
+        "producer_latest_status_counts": {
+            status: sum(value == status for value in latest_agent_statuses.values())
+            for status in sorted(set(latest_agent_statuses.values()))
+        },
+        "failed_spawn_call_count": collab_call_status_counts.get(
+            "spawn_agent:failed", 0
+        ),
+        "confirmed_failed_producer_count": sum(
+            status == "failed" for status in latest_agent_statuses.values()
+        ),
+        "transport_not_found_count": sum(
+            status == "not_found" for status in latest_agent_statuses.values()
+        ),
+        "wait_call_count": collab_tool_counts.get("wait", 0),
+        "close_call_count": collab_tool_counts.get("close_agent", 0),
         "agent_message_count": agent_message_count,
         "turn_count": turn_count,
     }
@@ -1173,6 +1220,8 @@ def stage_runtime_tools(runtime_root: Path) -> None:
 def build_codex_command(
     model: str,
     reasoning_effort: str,
+    subagent_model: str,
+    subagent_reasoning_effort: str,
     root: Path,
     runtime_root: Path,
     retrieval_telemetry: str | None = None,
@@ -1231,6 +1280,13 @@ def build_codex_command(
         "--config",
         f'model_reasoning_effort="{reasoning_effort}"',
         "--config",
+        f'agents.default_subagent_model="{subagent_model}"',
+        "--config",
+        (
+            "agents.default_subagent_reasoning_effort="
+            f'"{subagent_reasoning_effort}"'
+        ),
+        "--config",
         'default_permissions="specspine_eval"',
         "--config",
         f"permissions.specspine_eval.workspace_roots={workspace_roots}",
@@ -1286,8 +1342,15 @@ def enable_retrieval_telemetry(root: Path, level: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", default="gpt-5.6-luna")
-    parser.add_argument("--reasoning-effort", default="medium")
+    parser.add_argument("--model", default=DEFAULT_ORCHESTRATOR_MODEL)
+    parser.add_argument(
+        "--reasoning-effort", default=DEFAULT_ORCHESTRATOR_REASONING_EFFORT
+    )
+    parser.add_argument("--subagent-model", default=DEFAULT_SUBAGENT_MODEL)
+    parser.add_argument(
+        "--subagent-reasoning-effort",
+        default=DEFAULT_SUBAGENT_REASONING_EFFORT,
+    )
     parser.add_argument(
         "--retrieval-telemetry",
         choices=("minimal", "full"),
@@ -1344,6 +1407,8 @@ def main() -> int:
         command = build_codex_command(
             args.model,
             args.reasoning_effort,
+            args.subagent_model,
+            args.subagent_reasoning_effort,
             root,
             runtime_root,
             args.retrieval_telemetry,
@@ -1432,6 +1497,8 @@ def main() -> int:
                 "scope_violations": boundary_violations,
                 "model": args.model,
                 "reasoning_effort": args.reasoning_effort,
+                "subagent_model": args.subagent_model,
+                "subagent_reasoning_effort": args.subagent_reasoning_effort,
                 "cache_scope": "private-per-sample",
                 "runtime": {
                     "adapter_sha256": file_sha256(Path(__file__)),

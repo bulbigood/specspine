@@ -17,21 +17,35 @@ class MapLargeContractTests(unittest.TestCase):
         self.assertNotIn("references/orchestration.md", mapper)
         self.assertNotIn("producer-consumer", mapper)
         self.assertNotIn("Normalize once after saturation", mapper)
-        self.assertIn("one requested repository scope", mapper)
+        self.assertNotIn("specspine-map-large", mapper)
+        self.assertIn("the requested repository scope", mapper)
+        self.assertIn(
+            "one or more selected areas or questions", " ".join(mapper.split())
+        )
         self.assertIn("references/orchestration.md", large)
         self.assertIn("complete inline producer command", large)
         self.assertIn("must be passed as text", large)
         self.assertIn("Do not read another mapping skill", large)
         self.assertIn("allow_implicit_invocation: false", metadata)
+        self.assertEqual(
+            ["orchestration.md"],
+            sorted(
+                path.name
+                for path in (
+                    ROOT / "skills/specspine-map-large/references"
+                ).iterdir()
+            ),
+        )
+        self.assertFalse((ROOT / "skills/specspine-map-large/assets").exists())
 
     def test_parallel_workers_are_isolated_and_single_level(self):
         protocol = (
             ROOT / "skills/specspine-map-large/references/orchestration.md"
         ).read_text(encoding="utf-8")
         required = (
-            "The orchestrator is the only agent allowed to spawn mapping workers.",
+            "spawns mapping workers, and workers never spawn.",
             "publish-ready Markdown specifications only",
-            "must not modify the repository, the live Spine",
+            "Do not modify source, tests, configuration",
             "Schedule as producer-consumer",
             "As soon as each producer finishes",
             "Normalize once after saturation",
@@ -107,13 +121,10 @@ class MapLargeContractTests(unittest.TestCase):
         )
         self.assertLess(refill, acceptance)
         self.assertIn("dependency-aware ready queue", normalized)
-        self.assertIn(
-            "Candidate acceptance and publication must not precede refilling a safe slot",
-            normalized,
-        )
         self.assertIn("Do not wait for all active workers to finish", normalized)
-        self.assertIn("Keep active concurrency at the largest safe level", normalized)
-        self.assertIn("barrier primitive as a transport limitation", normalized)
+        self.assertIn("start the largest safe active set", normalized)
+        self.assertIn("Before reading or publishing any candidate file", normalized)
+        self.assertIn("If only barrier completion is available", normalized)
         self.assertIn("do not introduce conceptual waves", normalized)
         self.assertIn("Do not invoke SpecSpine Doctor during the mapping run", normalized)
         self.assertIn("agent or thread ID returned by the environment as opaque", normalized)
@@ -122,6 +133,11 @@ class MapLargeContractTests(unittest.TestCase):
         self.assertIn("explicit terminal `failed` state", normalized)
         self.assertIn("blocking completion notification", normalized)
         self.assertIn("Do not poll worker status", normalized)
+        self.assertIn("Set role/model in spawn metadata", normalized)
+        self.assertIn("harness pins subagent defaults", protocol)
+        self.assertIn("fork_turns=none", protocol)
+        self.assertIn("do not override model or reasoning", protocol)
+        self.assertNotIn("gpt-5.6-luna", protocol)
 
     def test_parallel_handoff_is_minimal_and_reports_stay_compact(self):
         protocol = (
@@ -129,18 +145,43 @@ class MapLargeContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         normalized = " ".join(protocol.split())
         self.assertIn("complete command below as plain text", normalized)
-        self.assertIn("Do not mention, invoke, link to", normalized)
-        self.assertIn("bounded SpecSpine mapping producer", protocol)
+        self.assertIn("Never add names or paths of skills", normalized)
+        self.assertIn("SpecSpine mapping producer", protocol)
         self.assertIn("Do not load or invoke any skill", protocol)
-        self.assertIn("Require a compact producer report", normalized)
-        self.assertIn("does not repeat document prose", normalized)
+        self.assertIn("Do not repeat the document prose", normalized)
         producer = (
-            protocol.split("You are a bounded SpecSpine mapping producer.", 1)[1]
+            protocol.split("You are a SpecSpine mapping producer.", 1)[1]
             .split("```", 1)[0]
         )
         self.assertNotIn("$specspine-map", producer)
         self.assertNotIn("SKILL.md", producer)
         self.assertNotIn("references/", producer)
+        self.assertIn("(DEC|CON|OBS|INF|OQ)-[a-z0-9]+", producer)
+        self.assertIn("never use an ID-looking label for an ordinary relationship", producer)
+        self.assertLess(producer.index("Do not load or invoke"), producer.index("Assignment:"))
+        self.assertLess(producer.index("Shared repository topology:"), producer.index("Assignment:"))
+        self.assertLess(producer.index("Assignment:"), producer.index("Writable output root:"))
+
+    def test_each_producer_receives_one_architectural_zone(self):
+        protocol = (
+            ROOT / "skills/specspine-map-large/references/orchestration.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(protocol.split())
+        self.assertIn("exactly one coherent architectural zone", normalized)
+        self.assertIn("never combine independent zones", normalized)
+        self.assertIn("one zone-specific coverage probe", normalized)
+        self.assertNotIn("small bundle of independent", normalized)
+        self.assertLessEqual(len(protocol.splitlines()), 320)
+
+    def test_live_eval_prompt_uses_pinned_context_free_producers(self):
+        scenario = (
+            ROOT / "tests/scenarios/map-large-rolling-small.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(scenario.split())
+        self.assertIn("fork_turns=none", normalized)
+        self.assertIn("Do not override its model, reasoning effort, or agent type", normalized)
+        self.assertIn("harness-pinned subagent defaults", normalized)
+        self.assertIn("outside the producer command", normalized)
 
     def test_normalizes_once_and_gates_post_map_doctor(self):
         protocol = (
@@ -158,6 +199,7 @@ class MapLargeContractTests(unittest.TestCase):
             normalized,
         )
         self.assertIn("Apply semantic repairs only after operator approval", normalized)
+        self.assertIn("batch the final deterministic check", normalized)
 
     def test_doctor_progressively_audits_and_requires_approval_to_write(self):
         doctor = (ROOT / "skills/specspine-doctor/SKILL.md").read_text(

@@ -37,13 +37,15 @@ across five cases:
   used by `map-large-rolling-small`, enabling a paired quality/cost benchmark.
 
 `map-large-rolling-small` provides one controlled executable orchestration
-case. One top-level invocation must dispatch exactly three bounded mapper
-producers using two initial worker slots. Codex JSONL collaboration events
-verify initial saturation, mapper handoff, bounded dispatch count, and
-replacement dispatch before staged candidate consumption.
+case. One top-level invocation must dispatch three single-zone mapper producers
+using two initial worker slots. Codex JSONL collaboration events verify initial
+saturation, self-contained handoff, one-zone partitioning, rolling refill
+before candidate consumption, bounded dispatch count, and valid targeting. The
+runtime trace pins the orchestrator to Terra/medium and producers to
+Luna/medium.
 Final assertions verify move-based publication, source protection, disposable
 run-root cleanup, bounded output, and mechanical Spine validity. This case
-costs one orchestrator plus three producer agents and belongs in the explicit
+normally costs one orchestrator plus three producer agents and belongs in the explicit
 `expensive` category.
 
 Remaining distinct behavioral gaps are:
@@ -70,11 +72,12 @@ The executable set is divided by resource cost and necessity:
 |---|---:|---:|---|
 | `core` | 8 | 8 | Minimum behavioral regression set, including atomic staged Map output |
 | `extended` | 12 | 15 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
-| `expensive` | 2 | 2 | Paired direct Map and rolling Map Large benchmark; the latter has three nested producers |
+| `expensive` | 2 | 2 | Paired direct Map and rolling Map Large benchmark; the latter normally has three nested producers |
 | `planned` | 10 | 0 | Documentation and future redesign only |
 
 The table counts harness invocations. `map-large-rolling-small` additionally
-spawns exactly three producer agents, enforced by its trace assertions. Its
+spawns three producer agents, with at most one confirmed retry permitted by its
+trace assertions. Its
 separate category prevents ordinary `core` or `extended` runs from selecting
 it.
 

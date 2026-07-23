@@ -25,6 +25,10 @@ Use this skill only through explicit operator selection. Do not activate it
 merely because a repository appears large or a normal Map request contains
 several areas.
 
+Run the orchestrator on a medium-capability agent. Configure its model and the
+producer model in the execution environment or harness; model names do not
+belong in producer task text.
+
 Own orchestration, not architectural invention. Repository evidence may
 establish observations and support inferences, but never establishes accepted
 decisions or constraints. Do not modify production code, claim complete
@@ -37,7 +41,8 @@ code/spec conformance, or apply semantic Doctor repairs without approval.
 2. Follow `references/orchestration.md` as the execution contract.
 3. Send each worker the complete inline producer command plus its source
    revision, read-only live Spine, private writable output root, final namespace,
-   shared topology/ownership context, and exact architectural question.
+   shared topology/ownership context, and exactly one coherent architectural
+   zone with its question.
 4. When subagents are unavailable, execute the same inline producer command
    locally for one queued question at a time, then return to the same consumer,
    checkpoint, scheduling, saturation, and normalization loop. The current
