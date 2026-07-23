@@ -162,6 +162,12 @@ producer calls; one retry is tolerated. It is isolated in `expensive`, so ordina
 `extended` runs never select it. Run it with one sample during ordinary
 iteration; use repeated samples only for release calibration.
 
+The harness installs Map as a companion only for the Map Large orchestrator.
+The orchestrator runs the generic skill bundler once. It strips Map
+frontmatter, concatenates the complete Map body and every UTF-8 file under Map
+`references/`, and embeds that generated text in producer commands. Producers
+do not load Map, references, or templates.
+
 The Codex adapter defaults the top-level agent to `gpt-5.6-terra` with medium
 reasoning and nested agents to `gpt-5.6-luna` with medium reasoning. The
 Map-Large case asserts all four values from the runtime trace.

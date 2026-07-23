@@ -13,11 +13,14 @@ current agent performs every role sequentially.
 
 - Read [references/orchestration.md](references/orchestration.md) completely
   before starting or resuming a run. It owns scheduling, staging, publication,
-  recovery, the complete inline producer command, saturation, normalization,
-  and optional post-map Doctor behavior.
-- Do not read another mapping skill or mapping references. The producer command
-  is self-contained and must be passed as text, not as a skill invocation,
-  instruction path, link, or request to load more context.
+  recovery, producer-command composition, saturation, normalization, and
+  optional post-map Doctor behavior.
+- Run `scripts/bundle_skill.py` once with the installed `specspine-map` root
+  and a file under the disposable run root. The generic script strips Map
+  frontmatter and concatenates its complete body with every UTF-8 file under
+  Map `references/`. Read the generated file once and embed it in every
+  producer command. Producers must not load skills, references, or templates
+  themselves.
 
 ## Scope
 
@@ -35,10 +38,11 @@ code/spec conformance, or apply semantic Doctor repairs without approval.
 1. Resolve the repository root and `<spine-root>`. Read the current architecture
    index and only enough repository topology to seed the bounded backlog.
 2. Follow `references/orchestration.md` as the execution contract.
-3. Send each worker the complete inline producer command plus its source
-   revision, read-only live Spine, private writable output root, final namespace,
-   shared topology/ownership context, and exactly one coherent architectural
-   zone with its question.
+3. Send each worker the complete self-contained producer command composed from
+   the generated Map instruction bundle, staging contract, source revision,
+   read-only live Spine, private writable output root, final namespace, shared
+   topology/ownership context, and exactly one coherent architectural zone with
+   its question.
 4. When concurrent producers are unavailable, execute the same inline producer command
    locally for one queued question at a time, then return to the same consumer,
    checkpoint, saturation, and normalization loop. The current agent is

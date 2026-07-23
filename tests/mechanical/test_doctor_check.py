@@ -424,6 +424,30 @@ class DoctorCheckerTests(unittest.TestCase):
             )
             self.assertEqual([], CHECKER.check_candidates(spine, staging))
 
+    def test_candidate_preflight_uses_mirrored_final_namespace(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spine = root / "specspine"
+            staging = root / "staging"
+            (staging / "jobs").mkdir(parents=True)
+            spine.mkdir()
+            (spine / "README.md").write_text(
+                "# Architecture\n\n[Runtime](runtime.md)\n", encoding="utf-8"
+            )
+            (spine / "runtime.md").write_text(
+                "# Runtime\n\nRuntime composition.\n\n"
+                "## Responsibility\n\nOwns process lifecycle.\n",
+                encoding="utf-8",
+            )
+            (staging / "jobs/runner.md").write_text(
+                "# Jobs\n\nBackground execution architecture.\n\n"
+                "## Responsibility\n\nOwns queued job execution.\n\n"
+                "## Relationships\n\n[Runtime](../runtime.md)\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual([], CHECKER.check_candidates(spine, staging))
+
     def test_candidate_preflight_rejects_structure_link_and_collision_defects(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

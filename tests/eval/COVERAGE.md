@@ -43,7 +43,9 @@ within two available worker slots. Codex JSONL collaboration events verify
 self-contained completion without prescribing agent-lifecycle mechanics.
 Generated artifacts verify the three-zone partition through their evidence
 coverage. The runtime trace pins the orchestrator to Terra/medium and configures
-producers as Luna/medium.
+producers as Luna/medium. Map is installed only so the orchestrator can embed
+one generated bundle containing the complete Map body and every UTF-8 file
+under Map `references/`; producers must not load those source files themselves.
 Final assertions verify move-based publication, source protection, disposable
 run-root cleanup, and mechanical Spine validity. Document length is observed,
 not bounded. The paired benchmark adds one blind holistic documentation-quality

@@ -89,49 +89,49 @@ revision, and applicable project instructions once in the orchestrator. Reuse
 that text for every producer; do not make workers repeat common topology,
 index, instruction, or revision discovery.
 
+Build the complete Map instruction bundle once as directed by the parent skill,
+at `<run-root>/producer-instructions.md`. The builder includes every Map
+reference without optional-reference filtering. Read that generated file once.
+Build and load it in one filesystem tool call when possible:
+
+```text
+python3 <map-large-skill-root>/scripts/bundle_skill.py \
+  <map-skill-root> <run-root>/producer-instructions.md
+```
+
 Pass every worker the complete command below as plain text with placeholders
-resolved. Keep its shared prefix byte-identical and append producer-specific
-assignment fields only at the end for prompt caching. Never add names or paths
-of skills, references, templates, or instruction files.
+resolved and the bundle inserted. Keep its shared prefix byte-identical and
+append producer-specific assignment fields only at the end for prompt caching.
+Do not append instructions that send producers back to source skills,
+references, templates, or instruction files.
 
 ```text
 You are a SpecSpine mapping producer.
 
-Do not load or invoke any skill, reference, template, or instruction file. Use
-only this command and the project instructions embedded below.
+<complete-generated-map-instructions>
 
-Inspect only evidence relevant to the assigned scope. Inspect every source
-you cite. Repository evidence can establish Observed facts and support
-Inferred interpretations; it cannot establish Decisions or Constraints.
-Preserve conflicts with accepted intent. Model stable responsibilities,
-boundaries, runtime or data flows, ownership, and relationships—not source-tree
-shape or implementation procedure.
+Producer execution override:
 
-Create the smallest useful set of publish-ready Markdown specifications only
-under the writable output root. Do not modify source, tests, configuration,
-the live Spine, its README, or another staging root. Do not create a review,
-plan, assessment, task list, implementation status, or Doctor report. It is
-valid to create no file when the live Spine already answers the question or
-further detail would reproduce code.
+All Map instructions and references needed for this assignment are embedded
+above. Do not load or invoke any skill, reference, template, or instruction
+file. Inspect only evidence relevant to the assigned scope. Create
+publish-ready Markdown only under the writable output root. Keep source, tests,
+configuration, the live Spine, its README, and every other staging root
+read-only. This execution override controls output location and publication
+when the embedded general Map instructions describe live writes.
 
-Each new document needs a clear title, concise summary, Responsibility section,
-and only useful additional sections. Omit empty sections. Put repository-backed
-claims under Observed and include an evidence baseline comment:
-<!-- specspine:evidence-baseline source=<revision>; inspected=<YYYY-MM-DD> -->
-Keep uncertain interpretations under Inferred and unresolved matters under
-Open questions. Never manufacture accepted intent.
+Do not omit material architectural boundaries, relationships to known owners
+or overview specifications, or evidence-supported unknowns merely for brevity.
+Semantic IDs remain optional; do not define one whose text merely names a path,
+file, or heading.
 
-Use final-live-location relative links without URL fragments. Create semantic
-IDs only when useful; use `(DEC|CON|OBS|INF|OQ)-[a-z0-9]+` with optional
-lowercase kebab suffixes. Define bold ID bullets under matching sections inside
-one `specspine:semantic-ids:begin`/`end` region. Reference the exact plain ID and
-its defining file; never use an ID-looking label for an ordinary relationship.
-
-Before finishing, verify that every candidate is a regular non-symlink file,
-has a non-colliding meaningful final path, cites only inspected evidence, and
-can be published unchanged. Do not enumerate hypothetical security, scaling,
-retry, deployment, or operational questions without repository evidence.
-Stop when the assigned architectural zone is answered.
+The writable root mirrors `<spine-root>`: create every candidate at its exact
+final path relative to the writable root, including the final namespace. For
+example, final `jobs/runner.md` must be staged as
+`<private-staging-root>/jobs/runner.md`, not
+`<private-staging-root>/runner.md`. Verify that every candidate is a regular
+non-symlink file, has a non-colliding meaningful destination, and can be moved
+unchanged to the same relative path under the live Spine.
 
 Return a compact report containing only: evidence inspected; created files and
 relative final destinations; mapped responsibilities and relationships;
@@ -147,7 +147,7 @@ Existing architecture ownership: <ownership-summary>
 Applicable project instructions: <project-instructions>
 
 Assignment:
-Writable output root: <private-staging-root>
+Writable output root mirroring the Spine: <private-staging-root>
 Final namespace: <relative-destination>
 Architectural zone and question: <one-zone>
 ```
@@ -168,7 +168,9 @@ python3 <checker-path>/check_spine.py <spine-root> \
   --candidates <private-staging-root> --json
 ```
 
-Resolve `<checker-path>` once and reuse it. The candidate preflight owns regular
+Resolve `<checker-path>` once and reuse it. Because each private staging root
+mirrors the Spine, the checker evaluates every link and collision at its actual
+future live path. The candidate preflight owns regular
 file and symlink safety, Markdown paths, `README.md` exclusion, destination
 collisions, title/summary/Responsibility structure, evidence baselines, links,
 and semantic-ID mechanics against the live Spine. It ignores only deferred
@@ -237,8 +239,10 @@ Spine contents:
 3. Read `README.md` and only documents whose paths or links must change. Move
    specifications only when navigation would otherwise remain materially
    difficult.
-4. Update affected relative links and curated `README.md` navigation so every
-   specification is reachable.
+4. Use compact producer summaries to add concise descriptions to curated
+   `README.md` navigation and confirmed navigation relationships to affected
+   overview documents. Update affected relative links so every specification is
+   reachable. Do not infer new architecture while doing so.
 5. Preserve architectural prose, accepted intent, evidence baselines, semantic
    IDs, unconfirmed inferences, and open questions. Do not merge, reject,
    reinterpret, or otherwise semantically rewrite producer output.
@@ -246,9 +250,11 @@ Spine contents:
 
 This normalization is part of completing a large-repository Map request and
 needs no separate prompt. Perform it once, not during continuous mapping.
-When tooling permits, batch the final deterministic check, source-fingerprint
-verification, successful run-root deletion, and final source-state verification
-into one conditional filesystem command rather than separate model/tool cycles.
+Run the full deterministic checker exactly once after normalization; do not
+repeat it during cleanup. When tooling permits, batch that check,
+source-fingerprint verification, successful run-root deletion, and final
+source-state verification into one conditional filesystem command rather than
+separate model/tool cycles.
 
 ## Optional post-map Doctor
 

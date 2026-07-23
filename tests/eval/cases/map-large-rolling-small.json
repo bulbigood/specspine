@@ -8,6 +8,7 @@
   "eval_tools": {
     "check_spine.py": "skills/specspine-doctor/scripts/check_spine.py"
   },
+  "companion_skills": ["skills/specspine-map"],
   "report_artifacts": ["specspine/**/*.md"],
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Runtime](runtime.md)\n\n## Mapping status\n\n- High-level runtime mapped\n- Unmapped: identity sessions, background jobs, telemetry export\n",

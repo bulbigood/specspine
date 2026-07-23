@@ -23,9 +23,10 @@ class MapLargeContractTests(unittest.TestCase):
             "one or more selected areas or questions", " ".join(mapper.split())
         )
         self.assertIn("references/orchestration.md", large)
-        self.assertIn("complete inline producer command", large)
-        self.assertIn("must be passed as text", large)
-        self.assertIn("Do not read another mapping skill", large)
+        self.assertIn("complete self-contained producer command", large)
+        self.assertIn("bundle_skill.py", large)
+        self.assertIn("complete body with every UTF-8", large)
+        self.assertNotIn("specspine:map-core:", mapper)
         self.assertIn("allow_implicit_invocation: false", metadata)
         self.assertEqual(
             ["orchestration.md"],
@@ -43,8 +44,8 @@ class MapLargeContractTests(unittest.TestCase):
             ROOT / "skills/specspine-map-large/references/orchestration.md"
         ).read_text(encoding="utf-8")
         required = (
-            "publish-ready Markdown specifications only",
-            "Do not modify source, tests, configuration",
+            "publish-ready Markdown only",
+            "Keep source, tests,",
             "Schedule as producer-consumer",
             "Consume completed results",
             "Normalize once after saturation",
@@ -67,6 +68,7 @@ class MapLargeContractTests(unittest.TestCase):
         normalized_publication = " ".join(publication.split())
         self.assertIn("without reading candidate prose or repository source", normalized_publication)
         self.assertIn("--candidates <private-staging-root> --json", normalized_publication)
+        self.assertIn("private staging root mirrors the Spine", normalized_publication)
         self.assertIn("Publish only after a successful empty result", normalized_publication)
         self.assertIn("must not repeat that work", normalized_publication)
         self.assertIn("filesystem move/rename tool", normalized_publication)
@@ -135,7 +137,7 @@ class MapLargeContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         normalized = " ".join(protocol.split())
         self.assertIn("complete command below as plain text", normalized)
-        self.assertIn("Never add names or paths of skills", normalized)
+        self.assertIn("Do not append instructions that send producers back", normalized)
         self.assertIn("SpecSpine mapping producer", protocol)
         self.assertIn("Do not load or invoke any skill", protocol)
         self.assertIn("Do not repeat the document prose", normalized)
@@ -143,14 +145,20 @@ class MapLargeContractTests(unittest.TestCase):
             protocol.split("You are a SpecSpine mapping producer.", 1)[1]
             .split("```", 1)[0]
         )
+        normalized_producer = " ".join(producer.split())
         self.assertNotIn("$specspine-map", producer)
         self.assertNotIn("SKILL.md", producer)
         self.assertNotIn("references/", producer)
-        self.assertIn("(DEC|CON|OBS|INF|OQ)-[a-z0-9]+", producer)
-        self.assertIn("never use an ID-looking label for an ordinary relationship", producer)
+        self.assertIn("<complete-generated-map-instructions>", producer)
+        self.assertIn("All Map instructions and references", producer)
+        self.assertIn("exact final path relative to the writable root", normalized_producer)
+        self.assertIn("<private-staging-root>/jobs/runner.md", producer)
         self.assertLess(producer.index("Do not load or invoke"), producer.index("Assignment:"))
         self.assertLess(producer.index("Shared repository topology:"), producer.index("Assignment:"))
-        self.assertLess(producer.index("Assignment:"), producer.index("Writable output root:"))
+        self.assertLess(
+            producer.index("Assignment:"),
+            producer.index("Writable output root mirroring the Spine:"),
+        )
 
     def test_each_producer_receives_one_architectural_zone(self):
         protocol = (
@@ -187,7 +195,9 @@ class MapLargeContractTests(unittest.TestCase):
             normalized,
         )
         self.assertIn("Apply semantic repairs only after operator approval", normalized)
-        self.assertIn("batch the final deterministic check", normalized)
+        self.assertIn("full deterministic checker exactly once", normalized)
+        self.assertIn("batch that check", normalized)
+        self.assertIn("concise descriptions to curated `README.md` navigation", normalized)
 
     def test_doctor_progressively_audits_and_requires_approval_to_write(self):
         doctor = (ROOT / "skills/specspine-doctor/SKILL.md").read_text(
