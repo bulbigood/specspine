@@ -2,22 +2,66 @@
 
 ## Current inventory
 
-The repository has twenty-eight prose behavioral scenarios. Every scenario is
+The repository has twenty-nine prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
 | Area | Documented scenarios | Executable fixtures |
 |---|---:|---:|
 | `specspine-grow` | 9 | 7 |
-| `specspine-map` | 8 | 3 |
+| `specspine-map` | 7 | 3 |
+| `specspine-map-large` | 2 | 0 |
 | `specspine-connect` | 2 | 2 |
 | `specspine-extract` | 5 | 5 |
 | `specspine-doctor` | 3 | 2 |
 | package generator tooling | 1 | 0 |
-| Total | 28 | 19 |
+| Total | 29 | 19 |
 
 `traceable-rule` is assigned to `specspine-map` because its expected result
 includes repository-backed observations.
+
+### Map coverage
+
+Executable `specspine-map` coverage currently consists of four agent calls
+across three cases:
+
+- `lifecycle-survey-deepen`: a shallow initial survey followed by bounded
+  deepening without reopening unrelated source;
+- `lifecycle-drift-refresh`: a narrow refresh that preserves accepted intent,
+  records changed implementation as observation, and leaves disagreement open;
+- `traceable-rule`: evidence-backed semantic-ID ownership and cross-document
+  references.
+
+There is no executable `specspine-map-large` case. Its scheduling, isolated
+staging, move-only publication, recovery, saturation, normalization, and
+sequential fallback are currently protected only by deterministic contract
+tests. The two registered large-Map scenarios remain planned because their
+file-result assertions cannot observe subagent dispatch, concurrency, refill
+ordering, or recovery and would therefore be expensive without accurately
+testing the orchestration contract.
+
+Distinct behavioral gaps worth considering are:
+
+- atomic Map writing publish-ready candidates only to an explicitly supplied
+  staging root while keeping the live Spine read-only;
+- atomic Map returning no new document when the live Spine already answers the
+  bounded question;
+- custom `<spine-root>` handling;
+- large-Map handoff of every bounded question to the companion
+  `$specspine-map`;
+- rolling replacement dispatch before candidate acceptance, isolated producer
+  writes, report-driven backlog growth, retry/resume behavior, and move-only
+  publication;
+- a controlled no-subagent execution mode that proves the same protocol is
+  retained sequentially;
+- post-saturation normalization without source rereads and optional Doctor
+  gating.
+
+Do not make a large-Map scenario executable until the adapter records
+subagent lifecycle and ordering or supplies a deterministic controlled
+producer. Final-file assertions alone are insufficient. Prefer one small
+staged-output Map case and, after that instrumentation exists, one two-producer
+large-Map case that covers the orchestration path end to end.
 
 The executable set is divided by resource cost and necessity:
 
@@ -25,7 +69,7 @@ The executable set is divided by resource cost and necessity:
 |---|---:|---:|---|
 | `core` | 7 | 7 | Minimum behavioral regression set |
 | `extended` | 12 | 15 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
-| `planned` | 9 | 0 | Documentation and future redesign only |
+| `planned` | 10 | 0 | Documentation and future redesign only |
 
 Core and extended cases currently cover:
 
@@ -65,7 +109,7 @@ test or an existing behavioral case.
 Potential gaps:
 
 - agent navigation efficiency on larger-than-small documentation graphs;
-- parallel Map orchestration and source-aware integration on a large repository;
+- executable large-Map orchestration, recovery, and staged publication;
 - custom `<spine-root>` handling in `grow` and `map`;
 - broken links, unreachable specifications, duplicate IDs, and duplicate
   canonical ownership introduced by an agent.

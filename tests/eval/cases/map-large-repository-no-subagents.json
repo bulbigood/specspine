@@ -1,0 +1,23 @@
+{
+  "id": "map-large-repository-no-subagents",
+  "scenario": "tests/scenarios/map-large-repository-no-subagents.md",
+  "skill": "skills/specspine-map-large",
+  "companion_skills": ["skills/specspine-map"],
+  "status": "planned",
+  "category": "planned",
+  "initial_files": {
+    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Runtime](runtime.md)\n\n## Mapping status\n\n- High-level map: partial\n",
+    "specspine/runtime.md": "# Runtime\n\nOwns process startup and request serving.\n",
+    "src/runtime/server.js": "export function start() { return 'ready'; }\n",
+    "src/jobs/worker.js": "export function consume(job) { return job.run(); }\n",
+    "src/data/store.js": "export function save(record) { return record; }\n",
+    "deploy/service.yaml": "kind: Deployment\n",
+    "config/telemetry.yaml": "tracing: true\n"
+  },
+  "assertions": [
+    {"type": "glob_count", "glob": "specspine/**/*.md", "min": 3, "max": 12},
+    {"type": "unchanged", "paths": ["src/**", "deploy/**", "config/**"]},
+    {"type": "changed_only", "paths": ["specspine/**"]},
+    {"type": "markdown_links_valid", "glob": "specspine/**/*.md"}
+  ]
+}

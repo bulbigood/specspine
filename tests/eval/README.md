@@ -152,7 +152,7 @@ python3 tests/eval/run.py \
 `--case` and `--category` are repeatable and may be combined. There is no
 implicit run-all mode. Planned cases are never executed. Categories are
 disjoint: `core` has 7 executable cases, `extended` has 12, and `planned` has
-8 documented non-executable cases.
+10 documented non-executable cases.
 
 Each case gets a clean temporary workspace. Cases run with concurrency 8 by
 default; change it with `--jobs N`. Workspaces default to

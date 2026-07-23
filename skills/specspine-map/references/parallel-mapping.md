@@ -1,1 +1,0 @@
-../../../shared/references/specspine-map/parallel-mapping.md

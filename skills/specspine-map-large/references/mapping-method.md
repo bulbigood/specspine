@@ -1,0 +1,1 @@
+../../../shared/references/specspine-map/mapping-method.md

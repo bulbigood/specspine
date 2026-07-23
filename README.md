@@ -175,10 +175,21 @@ never modifies source code.
 
 ### `specspine-map`
 
-Builds a SpecSpine for an existing brownfield project by progressively mapping the codebase from a high-level overview toward selected implementation details.
+Maps a bounded part of an existing brownfield project: an initial survey, one
+architectural question, a selected subsystem, deepening, refresh, or drift.
 
 It records observed repository evidence separately from intended architectural
-decisions and preserves disagreements.
+decisions and preserves disagreements. It does not choose or orchestrate a
+complete large-repository run.
+
+### `specspine-map-large`
+
+Orchestrates an explicitly requested complete or sustained mapping run over a
+large repository. It keeps a bounded backlog, stages mapper output, publishes
+continuously, checkpoints recovery state, reaches saturation, and normalizes
+the final SpecSpine. With subagents it runs several `specspine-map` producers;
+without them one agent performs orchestrator, producer, and consumer roles
+sequentially.
 
 ### `specspine-extract`
 
@@ -204,14 +215,19 @@ not a mandatory intermediary for every internal skill operation.
 
 ### Adapter generator
 
-The five publishable packages under `skills/` and common instructions under
-`shared/references/` are the source of truth. Consuming skill directories expose
-common references through relative symbolic links. Repository-only tooling
-under `tools/specspine-adapter-generator/` validates or repairs those links and
-is the only place for generating framework-specific SDD adapters. Runtime
-skills remain framework-neutral. The tool contains no canonical skill copies,
-never generates canonical skills from files under `tools/`, and is
-intentionally not discoverable or installable through `npx skills`.
+The six publishable packages under `skills/` and canonical instructions under
+`shared/references/` are the source of truth. Every file under a runtime
+skill's `references/` directory must be a relative symbolic link to its
+canonical file under `shared/references/`; never keep a copied regular file
+there. Add framework-wide references at the shared root and skill-specific
+references under the matching shared subdirectory, then register the consuming
+link in `tools/specspine-adapter-generator/scripts/generate_resources.py`.
+Repository-only tooling under `tools/specspine-adapter-generator/` validates or
+atomically repairs those links and is the only place for generating
+framework-specific SDD adapters. Runtime skills remain framework-neutral. The
+tool contains no canonical skill copies, never generates canonical skills from
+files under `tools/`, and is intentionally not discoverable or installable
+through `npx skills`.
 
 ### Extract diagnostics
 
@@ -257,6 +273,13 @@ Install `specspine-map` from this repository:
 npx skills add bulbigood/specspine --skill specspine-map
 ```
 
+Install the explicit large-repository orchestrator together with its mapper:
+
+```bash
+npx skills add bulbigood/specspine --skill specspine-map
+npx skills add bulbigood/specspine --skill specspine-map-large
+```
+
 Install `specspine-doctor` from this repository:
 
 ```bash
@@ -276,6 +299,7 @@ npx skills add bulbigood/specspine --skill specspine-connect
 npx skills add bulbigood/specspine --skill specspine-extract
 npx skills add bulbigood/specspine --skill specspine-grow
 npx skills add bulbigood/specspine --skill specspine-map
+npx skills add bulbigood/specspine --skill specspine-map-large
 npx skills add bulbigood/specspine --skill specspine-doctor
 ```
 
@@ -290,6 +314,7 @@ npx skills add . --skill specspine-connect
 npx skills add . --skill specspine-extract
 npx skills add . --skill specspine-grow
 npx skills add . --skill specspine-map
+npx skills add . --skill specspine-map-large
 npx skills add . --skill specspine-doctor
 ```
 
@@ -403,6 +428,24 @@ Applied from the explicit request; no redundant confirmation is required.
 
 The agent asks only when the request does not decide a normative choice,
 canonical ownership is genuinely ambiguous, or a conflict must be resolved.
+
+### Map a brownfield repository
+
+Use `specspine-map` for a bounded operation:
+
+```text
+Survey this repository and create a high-level SpecSpine.
+```
+
+Explicitly select `specspine-map-large` for a complete sustained run:
+
+```text
+Use $specspine-map-large to map this complete large repository.
+```
+
+The large orchestrator uses parallel producers when available and the same
+checkpointed queue with one local producer otherwise. Ordinary Map never
+promotes itself to this mode.
 
 ### Prepare an architecture context handoff
 
@@ -654,10 +697,11 @@ specspine/
 │       │   └── review-method.md
 │       ├── specspine-grow/
 │       │   └── examples.md
-│       └── specspine-map/
-│           ├── examples.md
-│           ├── mapping-method.md
-│           └── parallel-mapping.md
+│       ├── specspine-map/
+│       │   ├── examples.md
+│       │   └── mapping-method.md
+│       └── specspine-map-large/
+│           └── orchestration.md
 ├── skills/
 │   ├── specspine-connect/
 │   │   ├── SKILL.md
@@ -685,10 +729,20 @@ specspine/
 │   │   ├── SKILL.md
 │   │   ├── references/
 │   │   │   ├── mapping-method.md -> ../../../shared/references/specspine-map/mapping-method.md
-│   │   │   ├── parallel-mapping.md -> ../../../shared/references/specspine-map/parallel-mapping.md
 │   │   │   ├── spec-format.md -> ../../../shared/references/spec-format.md
 │   │   │   ├── spec-semantics.md -> ../../../shared/references/spec-semantics.md
 │   │   │   └── examples.md -> ../../../shared/references/specspine-map/examples.md
+│   │   └── assets/
+│   │       └── templates/
+│   │           ├── architecture-index.md
+│   │           └── specification.md
+│   ├── specspine-map-large/
+│   │   ├── SKILL.md
+│   │   ├── references/
+│   │   │   ├── mapping-method.md -> ../../../shared/references/specspine-map/mapping-method.md
+│   │   │   ├── orchestration.md -> ../../../shared/references/specspine-map-large/orchestration.md
+│   │   │   ├── spec-format.md -> ../../../shared/references/spec-format.md
+│   │   │   └── spec-semantics.md -> ../../../shared/references/spec-semantics.md
 │   │   └── assets/
 │   │       └── templates/
 │   │           ├── architecture-index.md
@@ -729,7 +783,7 @@ specspine/
     └── scenarios/
 ```
 
-The five runtime skills form a coordinated suite with explicit scope and
+The six runtime skills form a coordinated suite with explicit scope and
 degraded-operation boundaries. Each package exposes its required references
 through local paths backed by repository-level SSOT symlinks, while the
 connected downstream path prefers `specspine-extract` and falls back to the
@@ -805,6 +859,7 @@ The most important success criterion is:
 * [x] Create `specspine-grow`
 * [x] Add a repeatable evaluation harness
 * [x] Create `specspine-map` for brownfield projects
+* [x] Split explicit large-repository Map orchestration from atomic mapping
 * [x] Create `specspine-doctor` for integrity diagnosis and guarded repair
 * [x] Coordinate canonical runtime skills through explicit handoff and fallback contracts
 * [x] Add optional mechanical integrity checks

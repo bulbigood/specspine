@@ -1,0 +1,7 @@
+interface:
+  display_name: "SpecSpine Map Large"
+  short_description: "Orchestrate complete large-repository mapping"
+  default_prompt: "Use $specspine-map-large to map this complete large repository with continuous staged orchestration."
+
+policy:
+  allow_implicit_invocation: false
