@@ -20,7 +20,7 @@ SEARCH_PATH = (
     ROOT / "skills" / "specspine-extract" / "scripts" / "search_spine_v2.py"
 )
 VALIDATOR_PATH = ROOT / "tools" / "specspine-extract" / "validate_corpus.py"
-RANKINGS = ("legacy", "faceted-bm25")
+RANKINGS = ("legacy", "faceted-bm25", "faceted-normalized")
 
 
 def load_module(name: str, path: Path) -> ModuleType:

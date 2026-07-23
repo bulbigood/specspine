@@ -905,6 +905,23 @@ PATCH"""
             environment_argument,
         )
 
+    def test_codex_command_configures_normalized_v2_ranking(self):
+        command = ADAPTER.build_codex_command(
+            "agent-model",
+            "medium",
+            Path("/workspace"),
+            Path("/runtime"),
+            ranking_system="faceted-normalized",
+        )
+        environment_argument = next(
+            item for item in command if item.startswith("shell_environment_policy.set=")
+        )
+
+        self.assertIn(
+            'SPECSPINE_EXTRACT_V2_RANKING="faceted-normalized"',
+            environment_argument,
+        )
+
     def test_codex_command_configures_v2_sidecar_telemetry(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

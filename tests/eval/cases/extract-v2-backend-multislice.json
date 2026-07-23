@@ -1,0 +1,38 @@
+{
+  "id": "extract-v2-backend-multislice",
+  "scenario": "tests/scenarios/extract-v2-backend-multislice.md",
+  "skill": "tests/eval/skills/specspine-extract-v2",
+  "status": "executable",
+  "category": "extended",
+  "runs": 1,
+  "initial_tree": "tests/retrieval-corpora/corpora/backend-service-en-01/project",
+  "handoff_judgments": {
+    "required": [
+      "specspine/incident-response.md",
+      "specspine/order-lifecycle.md",
+      "specspine/webhook-delivery.md"
+    ],
+    "supporting": [
+      "specspine/persistence.md"
+    ],
+    "relevant": [
+      "specspine/configuration.md",
+      "specspine/incident-response.md",
+      "specspine/observability.md",
+      "specspine/order-lifecycle.md",
+      "specspine/payment-processing.md",
+      "specspine/persistence.md",
+      "specspine/webhook-delivery.md"
+    ],
+    "hard_negatives": []
+  },
+  "assertions": [
+    {"type": "max_changed_files", "max": 0},
+    {"type": "read_only", "paths": ["specspine/**"]},
+    {"type": "command_includes", "value": "search_spine_v2.py"},
+    {"type": "trace_equals", "field": "retrieval_attempt_count", "value": 1},
+    {"type": "response_contains", "values": ["specspine/order-lifecycle.md", "specspine/webhook-delivery.md", "specspine/incident-response.md"]},
+    {"type": "response_sections_only", "sections": ["Change intent", "Primary specification", "Required specifications", "Potentially affected specifications", "Architectural decisions and constraints", "Decision sources", "Relevant observations", "Unconfirmed inferences", "Blocking questions", "Expected architectural outcome"]},
+    {"type": "response_word_budget", "max": 500}
+  ]
+}

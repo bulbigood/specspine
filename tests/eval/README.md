@@ -288,6 +288,46 @@ removed. Token counters come only from the final top-level
 `turn.completed.usage` event; nested counters in tool payloads are ignored.
 Treat the result as a measurement, not a stable CI pass/fail threshold.
 
+### Compare Extract v2 ranking systems
+
+The four `extract-v2-*-multislice` cases reuse the immutable retrieval corpora
+and exercise two English project types plus Russian and Chinese documentation.
+Their hidden `handoff_judgments` distinguish canonical owners, grade-2
+supporting specifications, the broader relevant set, and hard negatives. The
+runner copies this gold metadata into JSON reports but never exposes it to the
+evaluated workspace or prompt.
+
+Run all three ranking arms:
+
+```bash
+report_dir=$(mktemp -d -t specspine-extract-ranking-ab.XXXXXX)
+python3 tests/eval/run_extract_ranking_ab.py \
+  --output-dir "$report_dir" \
+  --samples 3 \
+  --jobs 4 \
+  --model gpt-5.6-luna \
+  --reasoning-effort medium
+```
+
+Each arm receives identical cases, prompts, benchmark-only skill, model
+settings, and sample identities. Arms are intentionally sequential so service
+load from one ranker cannot distort another; independent cases and samples
+inside an arm remain parallel. `comparison.md` contains macro agent-level
+quality and cost metrics, while `legacy.json`, `faceted-bm25.json`, and
+`faceted-normalized.json` preserve bounded responses, retrieval attempts, and
+deterministic byte ledgers.
+
+For an existing subset of two or three compatible reports:
+
+```bash
+python3 tests/eval/compare_extract_rankings.py \
+  legacy.json faceted-bm25.json faceted-normalized.json \
+  --output comparison.md
+```
+
+The comparator rejects different case/skill fingerprints, adapter files,
+runtime metadata, commands beyond `--ranking`, or sample identities.
+
 Case manifests in `cases/*.json` define fixtures, prompts and deterministic
 assertions. A manifest may instead define ordered `stages`; agent stages run a
 prompt and assertions, while fixture stages model external changes.

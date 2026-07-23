@@ -132,6 +132,7 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
     return {
         "evaluation_profile": trace.get("evaluation_profile"),
         "accelerator_mode": trace.get("accelerator_mode"),
+        "ranking_system": trace.get("ranking_system"),
         "retrieval_telemetry": trace.get("retrieval_telemetry"),
         "retrieval_mode": trace.get("retrieval_mode"),
         "retrieval_attempts": attempts if isinstance(attempts, list) else [],
@@ -261,7 +262,14 @@ def write_json_report(
     payload = {
         "agent_command": agent_command,
         "cases": {
-            case_id: {"fingerprint": case_fingerprint(case_by_id[case_id])}
+            case_id: {
+                "fingerprint": case_fingerprint(case_by_id[case_id]),
+                **(
+                    {"handoff_judgments": case_by_id[case_id]["handoff_judgments"]}
+                    if "handoff_judgments" in case_by_id[case_id]
+                    else {}
+                ),
+            }
             for case_id in sorted({report.case_id for report in reports})
         },
         "jobs": jobs,
@@ -378,6 +386,44 @@ def validate_case(case: dict[str, Any]) -> list[str]:
         errors.append("executable cases cannot use category planned")
     if not isinstance(case.get("runs", 1), int) or case.get("runs", 1) < 1:
         errors.append("runs must be a positive integer")
+    judgments = case.get("handoff_judgments")
+    if judgments is not None:
+        if not isinstance(judgments, dict):
+            errors.append("handoff_judgments must be an object")
+        else:
+            allowed = {"required", "supporting", "relevant", "hard_negatives"}
+            unexpected = sorted(set(judgments) - allowed)
+            if unexpected:
+                errors.append(
+                    "handoff_judgments has unsupported fields: "
+                    + ", ".join(unexpected)
+                )
+            for field in sorted(allowed):
+                values = judgments.get(field, [])
+                if (
+                    not isinstance(values, list)
+                    or any(not isinstance(value, str) or not value for value in values)
+                    or len(values) != len(set(values))
+                ):
+                    errors.append(
+                        f"handoff_judgments.{field} must be a unique string list"
+                    )
+            required = set(judgments.get("required", []))
+            supporting = set(judgments.get("supporting", []))
+            relevant = set(judgments.get("relevant", []))
+            hard_negatives = set(judgments.get("hard_negatives", []))
+            if not required:
+                errors.append("handoff_judgments.required must not be empty")
+            if not required | supporting <= relevant:
+                errors.append(
+                    "handoff_judgments.relevant must contain required and supporting paths"
+                )
+            overlap = relevant & hard_negatives
+            if overlap:
+                errors.append(
+                    "handoff_judgments relevant/hard-negative overlap: "
+                    + ", ".join(sorted(overlap))
+                )
     scenario = ROOT / case["scenario"]
     if not scenario.is_file():
         errors.append(f"scenario does not exist: {case['scenario']}")

@@ -1,0 +1,36 @@
+{
+  "id": "extract-v2-mobile-multislice-ru",
+  "scenario": "tests/scenarios/extract-v2-mobile-multislice-ru.md",
+  "skill": "tests/eval/skills/specspine-extract-v2",
+  "status": "executable",
+  "category": "extended",
+  "runs": 1,
+  "initial_tree": "tests/retrieval-corpora/corpora/mobile-app-ru-01/project",
+  "handoff_judgments": {
+    "required": [
+      "specspine/deep-links.md",
+      "specspine/payments.md"
+    ],
+    "supporting": [
+      "specspine/navigation.md"
+    ],
+    "relevant": [
+      "specspine/deep-links.md",
+      "specspine/incident-playbook.md",
+      "specspine/local-storage.md",
+      "specspine/navigation.md",
+      "specspine/payments.md",
+      "specspine/push-notifications.md"
+    ],
+    "hard_negatives": []
+  },
+  "assertions": [
+    {"type": "max_changed_files", "max": 0},
+    {"type": "read_only", "paths": ["specspine/**"]},
+    {"type": "command_includes", "value": "search_spine_v2.py"},
+    {"type": "trace_equals", "field": "retrieval_attempt_count", "value": 1},
+    {"type": "response_contains", "values": ["specspine/payments.md", "specspine/deep-links.md"]},
+    {"type": "response_sections_only", "sections": ["Change intent", "Primary specification", "Required specifications", "Potentially affected specifications", "Architectural decisions and constraints", "Decision sources", "Relevant observations", "Unconfirmed inferences", "Blocking questions", "Expected architectural outcome"]},
+    {"type": "response_word_budget", "max": 500}
+  ]
+}

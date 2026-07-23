@@ -1230,7 +1230,11 @@ def search_faceted(
     limit: int,
     graph_depth: int,
     graph_limit: int,
+    ranking_system: str = RANKING.FACETED_BM25,
+    normalized_documents: dict[str, object] | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]], str, dict[str, object]]:
+    if not RANKING.is_faceted_system(ranking_system):
+        raise RANKING.InvalidRankingQuery("faceted search requires a faceted ranker")
     candidates: dict[str, dict[str, object]] = {}
 
     def add(
@@ -1320,12 +1324,32 @@ def search_faceted(
         exact_matches[term] = matches
 
     term_qualities = RANKING.faceted_term_qualities(connection, all_terms)
+    normalized_matches = (
+        RANKING.normalized_term_matches(
+            connection,
+            all_terms,
+            term_qualities,
+            normalized_documents,
+        )
+        if ranking_system == RANKING.FACETED_NORMALIZED
+        else None
+    )
     must_matches = tuple(
-        RANKING.faceted_group_matches(group, term_qualities, exact_matches)
+        RANKING.faceted_group_matches(
+            group,
+            term_qualities,
+            exact_matches,
+            normalized_matches,
+        )
         for group in query.must
     )
     should_matches = tuple(
-        RANKING.faceted_group_matches(group, term_qualities, exact_matches)
+        RANKING.faceted_group_matches(
+            group,
+            term_qualities,
+            exact_matches,
+            normalized_matches,
+        )
         for group in query.should
     )
     candidate_paths = set(must_matches[0])
@@ -1338,14 +1362,21 @@ def search_faceted(
         matched_should = tuple(
             group[path] for group in should_matches if path in group
         )
-        quality = (
-            sum(item.score for item in matched_must)
-            + 0.25 * sum(item.score for item in matched_should)
+        should_quality = (
+            0.5 * sum(min(item.score, 4.0) for item in matched_should)
+            if ranking_system == RANKING.FACETED_NORMALIZED
+            else 0.25 * sum(item.score for item in matched_should)
         )
+        quality = sum(item.score for item in matched_must) + should_quality
         exact_origins = sorted({
             item.origin
             for item in (*matched_must, *matched_should)
-            if item.origin != "bm25"
+            if item.origin in {"exact_path", "exact_title", "semantic_id"}
+        })
+        normalized_origins = sorted({
+            item.origin
+            for item in (*matched_must, *matched_should)
+            if item.origin in {"morphology", "normalized_tokens", "cjk_substring"}
         })
         add(
             path,
@@ -1363,6 +1394,7 @@ def search_faceted(
                     item.origin for item in (*matched_must, *matched_should)
                 ],
                 "exact_match_origins": exact_origins,
+                "normalized_match_origins": normalized_origins,
                 "joint_document_frequency": joint_document_frequency,
                 "ranking_quality": quality,
             },
@@ -1390,7 +1422,7 @@ def search_faceted(
         limit=limit,
         strong_match=False,
         weak_limit=0,
-        ranking_system=RANKING.FACETED_BM25,
+        ranking_system=ranking_system,
     )
     frontier = [str(item["path"]) for item in preliminary_direct]
     visited = set(frontier)
@@ -1492,10 +1524,10 @@ def search_faceted(
         limit=limit,
         strong_match=False,
         weak_limit=0,
-        ranking_system=RANKING.FACETED_BM25,
+        ranking_system=ranking_system,
     )
     direct_cutoff_score = RANKING.direct_cutoff(
-        ranked_direct, False, RANKING.FACETED_BM25
+        ranked_direct, False, ranking_system
     )
     returned_direct_paths = {str(item["path"]) for item in direct}
     usable_graph: list[dict[str, object]] = []
@@ -1562,11 +1594,20 @@ def search_faceted(
             )[:3]
         ]
         item["score"] = round(float(item["score"]), 3)
+    fallback_origins = {"morphology", "normalized_tokens", "cjk_substring"}
+    normalized_direct = sum(
+        any(
+            origin in fallback_origins
+            for origin in item.get("signals", {}).get("match_origins", ())
+        )
+        for item in direct
+    )
     selection = {
-        "ranking_system": RANKING.FACETED_BM25,
-        "match_tier": "strict",
+        "ranking_system": ranking_system,
+        "match_tier": "normalized" if normalized_direct else "strict",
         "joint_document_frequency": joint_document_frequency,
         "term_queries": len(all_terms),
+        "normalized_direct": normalized_direct,
         "direct_considered": len(ranked_direct),
         "direct_returned": len(direct),
         "direct_cutoff_score": (
@@ -1580,7 +1621,7 @@ def search_faceted(
             round(graph_threshold, 3) if graph_threshold is not None else None
         ),
     }
-    return direct, graph, RANKING.FACETED_BM25, selection
+    return direct, graph, ranking_system, selection
 
 
 def run_ranked_search(
@@ -1591,14 +1632,17 @@ def run_ranked_search(
     limit: int,
     graph_depth: int,
     graph_limit: int,
+    normalized_documents: dict[str, object] | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]], str, dict[str, object]]:
-    if ranking_system == RANKING.FACETED_BM25:
+    if RANKING.is_faceted_system(ranking_system):
         return search_faceted(
             connection,
             query_slice or RANKING.plain_query_slice(query),
             limit,
             graph_depth,
             graph_limit,
+            ranking_system,
+            normalized_documents,
         )
     return search(connection, query, limit, graph_depth, graph_limit)
 
@@ -1648,7 +1692,7 @@ def execute_search(
     connection: sqlite3.Connection | None = None
     try:
         ranking_system = RANKING.validate_ranking_system(ranking_system)
-        if ranking_system == RANKING.FACETED_BM25:
+        if RANKING.is_faceted_system(ranking_system):
             query_slice = query_slice or RANKING.plain_query_slice(query)
         probe_fts5()
         index_path = cache_path(root)
@@ -1663,6 +1707,11 @@ def execute_search(
                 limit,
                 graph_depth,
                 graph_limit,
+                (
+                    RANKING.load_normalized_documents(connection)
+                    if ranking_system == RANKING.FACETED_NORMALIZED
+                    else None
+                ),
             )
         )
         timings["search_seconds"] = time.perf_counter() - search_started
@@ -1775,6 +1824,11 @@ def execute_searches(
         ).fetchone()[0]
         slices: list[SliceOutcome] = []
         search_seconds = 0.0
+        normalized_documents = (
+            RANKING.load_normalized_documents(connection)
+            if ranking_system == RANKING.FACETED_NORMALIZED
+            else None
+        )
         for query_slice in query_slices:
             query = query_slice.legacy_query()
             search_started = time.perf_counter()
@@ -1786,6 +1840,7 @@ def execute_searches(
                 limit,
                 graph_depth,
                 graph_limit,
+                normalized_documents,
             )
             elapsed = time.perf_counter() - search_started
             search_seconds += elapsed

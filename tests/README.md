@@ -55,6 +55,7 @@ Compare the same structured workload under both Extract ranking systems with:
 ```text
 python3 tests/mechanical/benchmark_extract_search.py --ranking legacy
 python3 tests/mechanical/benchmark_extract_search.py --ranking faceted-bm25
+python3 tests/mechanical/benchmark_extract_search.py --ranking faceted-normalized
 ```
 
 The skill-facing `search_spine.py` remains unchanged. Experimental queries use
@@ -85,7 +86,23 @@ documentation language and project type.
 The benchmark-only Extract skill is
 `tests/eval/skills/specspine-extract-v2`; it is not a production or installable
 skill. The eval adapter selects its ranking arm with
-`--ranking legacy|faceted-bm25`.
+`--ranking legacy|faceted-bm25|faceted-normalized`.
+
+Run the representative agent-level A/B across backend, CLI, Russian mobile,
+and Chinese pipeline multi-slice tasks with:
+
+```text
+python3 tests/eval/run_extract_ranking_ab.py \
+  --output-dir /tmp/specspine-extract-ranking-ab \
+  --samples 3
+```
+
+The three arms run sequentially to avoid cross-arm service-load bias; cases and
+samples within each arm use the configured parallel job limit. The generated
+`comparison.md` reports canonical-owner and owner-plus-support recall, handoff
+document precision, hard negatives, retrieval calls and repeats, final handoff
+bytes, retrieval output bytes, and model tokens. Raw per-sample JSON remains
+beside it.
 
 ## Eval tests
 

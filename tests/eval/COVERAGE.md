@@ -2,7 +2,7 @@
 
 ## Current inventory
 
-The repository has twenty-two prose behavioral scenarios. Every scenario is
+The repository has twenty-eight prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
@@ -11,10 +11,10 @@ classified.
 | `specspine-grow` | 9 | 7 |
 | `specspine-map` | 7 | 3 |
 | `specspine-connect` | 2 | 2 |
-| `specspine-extract` | 2 | 2 |
+| `specspine-extract` | 6 | 6 |
 | `specspine-doctor` | 3 | 2 |
 | package generator tooling | 1 | 0 |
-| Total | 24 | 16 |
+| Total | 28 | 20 |
 
 `traceable-rule` is assigned to `specspine-map` because its expected result
 includes repository-backed observations.
@@ -24,7 +24,7 @@ The executable set is divided by resource cost and necessity:
 | Category | Manifests | Agent calls | Purpose |
 |---|---:|---:|---|
 | `core` | 8 | 8 | Minimum behavioral regression set |
-| `extended` | 8 | 11 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, and traceability behavior |
+| `extended` | 12 | 15 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract v2 ranking behavior |
 | `planned` | 8 | 0 | Documentation and future redesign only |
 
 Core and extended cases currently cover:
@@ -36,6 +36,9 @@ Core and extended cases currently cover:
 - accelerated extraction of a bounded architecture handoff, fallback after one
   failed acceleration attempt, direct navigation without Extract, and native
   Markdown navigation when project configuration disables acceleration;
+- benchmark-only multi-slice Extract v2 handoffs for backend and CLI projects
+  in English, a mobile project in Russian, and a data pipeline in Chinese,
+  with hidden owner/support/relevance judgments for ranking A/B;
 - semantic-ID references and representative repository evidence;
 - semantic Doctor diagnosis and bounded mechanical repair without runtime companions;
 - recursive Doctor link and marker-bounded semantic-ID validation across
@@ -63,8 +66,7 @@ test or an existing behavioral case.
 
 Potential gaps:
 
-- agent navigation efficiency on larger documentation graphs, including read
-  and context-size budgets;
+- agent navigation efficiency on larger-than-small documentation graphs;
 - custom `<spine-root>` handling in `grow` and `map`;
 - broken links, unreachable specifications, duplicate IDs, and duplicate
   canonical ownership introduced by an agent.

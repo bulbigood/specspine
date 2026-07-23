@@ -143,7 +143,7 @@ def main() -> int:
     parser.add_argument("--max-output-bytes", type=int, default=1_000_000)
     parser.add_argument(
         "--ranking",
-        choices=("legacy", "faceted-bm25"),
+        choices=("legacy", "faceted-bm25", "faceted-normalized"),
         default="legacy",
     )
     parser.add_argument("--rebuild", action="store_true")

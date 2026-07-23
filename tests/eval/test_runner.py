@@ -23,6 +23,7 @@ class RunnerTests(unittest.TestCase):
             {
                 "cache_profile": "prewarmed",
                 "prewarm_seconds": 0.125,
+                "ranking_system": "faceted-normalized",
                 "cost_ledger": {"prompt_utf8_bytes": 12},
                 "retrieval_usefulness": {"returned_direct": 2},
             }
@@ -30,6 +31,7 @@ class RunnerTests(unittest.TestCase):
 
         self.assertEqual("prewarmed", compact["cache_profile"])
         self.assertEqual(0.125, compact["prewarm_seconds"])
+        self.assertEqual("faceted-normalized", compact["ranking_system"])
         self.assertEqual(12, compact["cost_ledger"]["prompt_utf8_bytes"])
         self.assertEqual(2, compact["retrieval_usefulness"]["returned_direct"])
 

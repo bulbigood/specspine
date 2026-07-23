@@ -203,7 +203,7 @@ def main() -> int:
     parser.add_argument("--jobs", type=int, default=0, help="parallel scales; 0 selects automatically")
     parser.add_argument(
         "--ranking",
-        choices=("legacy", "faceted-bm25"),
+        choices=("legacy", "faceted-bm25", "faceted-normalized"),
         default="legacy",
     )
     args = parser.parse_args()

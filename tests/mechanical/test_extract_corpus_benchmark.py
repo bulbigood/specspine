@@ -23,16 +23,21 @@ class ExtractCorpusBenchmarkTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             cache = Path(directory)
             legacy = BENCHMARK.run_manifest(MANIFEST, "legacy", cache)
-            faceted = BENCHMARK.run_manifest(
-                MANIFEST, "faceted-bm25", cache
-            )
+        faceted = BENCHMARK.run_manifest(
+            MANIFEST, "faceted-bm25", cache
+        )
+        normalized = BENCHMARK.run_manifest(
+            MANIFEST, "faceted-normalized", cache
+        )
 
         self.assertEqual("backend-service-en-01", legacy["corpus_id"])
         self.assertEqual("backend-service-en-01", faceted["corpus_id"])
+        self.assertEqual("backend-service-en-01", normalized["corpus_id"])
         self.assertEqual(6, legacy["summary"]["ranking_slices"])
         self.assertEqual(1, legacy["summary"]["protocol_slices"])
         self.assertEqual(1.0, legacy["summary"]["status_accuracy"])
         self.assertEqual(1.0, faceted["summary"]["status_accuracy"])
+        self.assertEqual(1.0, normalized["summary"]["status_accuracy"])
         self.assertEqual(
             [
                 scenario["id"]
@@ -42,6 +47,10 @@ class ExtractCorpusBenchmarkTests(unittest.TestCase):
                 scenario["id"]
                 for scenario in faceted["scenarios"]
             ],
+        )
+        self.assertEqual(
+            [scenario["id"] for scenario in legacy["scenarios"]],
+            [scenario["id"] for scenario in normalized["scenarios"]],
         )
 
     def test_ndcg_rewards_owner_first(self):

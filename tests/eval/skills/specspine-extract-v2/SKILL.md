@@ -74,6 +74,8 @@ Run:
 python3 <skill-root>/scripts/search_spine_v2.py <spine-root> --ranking "${SPECSPINE_EXTRACT_V2_RANKING:-faceted-bm25}" --queries-json '<compact-json>'
 ```
 
+Benchmark arms are `legacy`, `faceted-bm25`, and `faceted-normalized`.
+
 Resolve `<skill-root>` as the directory containing this `SKILL.md`. Never
 discover or substitute another copy. The environment-controlled ranking value
 is part of the benchmark arm; do not override it or run both strategies.

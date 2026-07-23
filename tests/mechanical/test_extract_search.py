@@ -311,6 +311,125 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertNotIn("provider-only.md", output)
         self.assertNotIn("timeout-only.md", output)
 
+    def test_normalized_facets_match_english_inflection(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        (self.spine / "incident.md").write_text(
+            "# Incident\n\nOperators pause callbacks during an incident.\n",
+            encoding="utf-8",
+        )
+        slices = [{
+            "id": "callback-pause",
+            "must": [["incident"], ["pause"], ["callback"]],
+        }]
+
+        strict_result, strict = self.run_diagnostic_batch(
+            slices, "faceted-bm25", "--graph-depth=0", "--graph-limit=0"
+        )
+        result, payload = self.run_diagnostic_batch(
+            slices, "faceted-normalized", "--graph-depth=0", "--graph-limit=0"
+        )
+
+        self.assertEqual(2, strict_result.returncode, strict_result.stderr)
+        self.assertEqual([], strict["slices"][0]["direct_matches"])
+        self.assertEqual(0, result.returncode, result.stderr)
+        routed = payload["slices"][0]
+        self.assertEqual("normalized", routed["selection"]["match_tier"])
+        self.assertEqual(["incident.md"], [
+            item["path"] for item in routed["direct_matches"]
+        ])
+        self.assertIn(
+            "morphology",
+            routed["direct_matches"][0]["signals"]["match_origins"],
+        )
+
+    def test_normalized_facets_match_russian_word_forms(self):
+        (self.spine / "README.md").write_text("# Корень\n", encoding="utf-8")
+        (self.spine / "incident.md").write_text(
+            "# Инцидент\n\nВыключатель останавливает создание рассылки.\n",
+            encoding="utf-8",
+        )
+        slices = [{
+            "id": "pause",
+            "must": [["инцидент"], ["остановить"], ["рассылка"]],
+        }]
+
+        result, payload = self.run_diagnostic_batch(
+            slices, "faceted-normalized", "--graph-depth=0", "--graph-limit=0"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        routed = payload["slices"][0]
+        self.assertEqual(["incident.md"], [
+            item["path"] for item in routed["direct_matches"]
+        ])
+        self.assertEqual("normalized", routed["selection"]["match_tier"])
+
+    def test_normalized_facets_match_cjk_substrings(self):
+        (self.spine / "README.md").write_text("# 根\n", encoding="utf-8")
+        (self.spine / "event-time.md").write_text(
+            "# 事件时间与水位线\n\n迟到事件写入 late-event 隔离流。\n",
+            encoding="utf-8",
+        )
+        slices = [{
+            "id": "late-events",
+            "must": [["水位线"], ["迟到事件"], ["隔离流"]],
+        }]
+
+        result, payload = self.run_diagnostic_batch(
+            slices, "faceted-normalized", "--graph-depth=0", "--graph-limit=0"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        routed = payload["slices"][0]
+        self.assertEqual(["event-time.md"], [
+            item["path"] for item in routed["direct_matches"]
+        ])
+        self.assertIn(
+            "cjk_substring",
+            routed["direct_matches"][0]["signals"]["match_origins"],
+        )
+
+    def test_normalized_facets_preserve_structured_no_match(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        (self.spine / "migration.md").write_text(
+            "# Migration\n\nMigration workers use a local process lock.\n",
+            encoding="utf-8",
+        )
+        slices = [{
+            "id": "remote",
+            "must": [
+                ["Kubernetes"],
+                ["migration workers"],
+                ["availability zones"],
+            ],
+        }]
+
+        result, output = self.run_batch(
+            slices, "faceted-normalized", "--graph-depth=0", "--graph-limit=0"
+        )
+
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn(
+            '<<<SPECSPINE_SLICE {"id":"remote","status":"no_match",'
+            '"match_tier":"strict","joint_df":0}>>>',
+            output,
+        )
+        self.assertNotIn("SPECSPINE_HIT", output)
+
+    def test_normalized_morphology_does_not_blur_identifiers(self):
+        self.assertFalse(
+            V2_SEARCH.RANKING.morphological_token_match(
+                "invariant0",
+                "invariant1",
+            )
+        )
+        self.assertTrue(
+            V2_SEARCH.RANKING.morphological_token_match(
+                "callback",
+                "callbacks",
+            )
+        )
+
     def test_same_facets_support_legacy_and_faceted_ab_comparison(self):
         (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
         (self.spine / "owner.md").write_text(
@@ -378,6 +497,35 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertEqual(2, output.count("<<<SPECSPINE_SLICE "))
         self.assertIn("# Alpha owner", output)
         self.assertIn("# Beta owner", output)
+
+    def test_normalized_batch_precomputes_documents_once(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns callbacks and retries.\n", encoding="utf-8"
+        )
+        slices = V2_SEARCH.RANKING.parse_query_slices(json.dumps([
+            {"id": "callbacks", "must": [["callback"]]},
+            {"id": "retries", "must": [["retry"]]},
+        ]))
+
+        with patch.dict(
+            os.environ,
+            {"SPECSPINE_CACHE_DIR": str(self.cache)},
+        ), patch.object(
+            V2_SEARCH.RANKING,
+            "load_normalized_documents",
+            wraps=V2_SEARCH.RANKING.load_normalized_documents,
+        ) as load:
+            outcome = V2_SEARCH.execute_searches(
+                self.spine,
+                slices,
+                graph_depth=0,
+                graph_limit=0,
+                ranking_system="faceted-normalized",
+            )
+
+        self.assertEqual(0, outcome.exit_code)
+        self.assertEqual(1, load.call_count)
 
     def test_should_groups_boost_without_filtering_candidates(self):
         (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")

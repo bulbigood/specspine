@@ -6,6 +6,7 @@ import json
 import math
 import re
 import sqlite3
+import unicodedata
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
@@ -16,18 +17,22 @@ ID_QUERY_RE = re.compile(
 )
 LEGACY = "legacy"
 FACETED_BM25 = "faceted-bm25"
-RANKING_SYSTEMS = (LEGACY, FACETED_BM25)
+FACETED_NORMALIZED = "faceted-normalized"
+RANKING_SYSTEMS = (LEGACY, FACETED_BM25, FACETED_NORMALIZED)
 DEFAULT_RANKING_SYSTEM = LEGACY
 BM25_EXPRESSION = "bm25(sections_fts, 0.0, 10.0, 5.0, 3.0, 1.0)"
 DOCUMENT_BM25_EXPRESSION = "bm25(documents_fts, 0.0, 10.0, 5.0, 3.0, 1.0)"
 EXACT_MATCH_SCORE = 100.0
 EXACT_PATH_SCORE = 110.0
 SEMANTIC_ID_SCORE = 120.0
+NORMALIZED_RELATIVE_CUTOFF = 0.65
 RARE_TOKEN_MAX_DOCUMENTS = 1
 MAX_SLICES = 8
 MAX_GROUPS = 8
 MAX_SYNONYMS = 8
 MAX_TERM_LENGTH = 120
+CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]+")
+CYRILLIC_TOKEN_RE = re.compile(r"^[\u0400-\u052f]+$")
 
 
 class InvalidRankingQuery(ValueError):
@@ -59,6 +64,11 @@ def validate_ranking_system(value: str) -> str:
             f"ranking system must be one of: {', '.join(RANKING_SYSTEMS)}"
         )
     return value
+
+
+def is_faceted_system(value: str) -> bool:
+    validate_ranking_system(value)
+    return value in {FACETED_BM25, FACETED_NORMALIZED}
 
 
 def normalize_group(value: object, field: str) -> tuple[str, ...]:
@@ -235,6 +245,135 @@ def routing_stem(token: str) -> str:
     return value
 
 
+def normalized_text(value: str) -> str:
+    return unicodedata.normalize("NFKC", value).casefold()
+
+
+def expanded_tokens(value: str) -> tuple[str, ...]:
+    return tuple(
+        part
+        for token in QUERY_TOKEN_RE.findall(normalized_text(value))
+        for part in token.split("-")
+        if part
+    )
+
+
+def morphological_token_match(query_token: str, document_token: str) -> bool:
+    if query_token == document_token:
+        return True
+    if query_token.isascii() and document_token.isascii():
+        if routing_stem(query_token) == routing_stem(document_token):
+            return True
+    if not query_token.isalpha() or not document_token.isalpha():
+        return False
+    shorter = min(len(query_token), len(document_token))
+    if shorter < 5 or query_token[:1] != document_token[:1]:
+        return False
+    shared = 0
+    for left, right in zip(query_token, document_token):
+        if left != right:
+            break
+        shared += 1
+    if (
+        CYRILLIC_TOKEN_RE.fullmatch(query_token)
+        and CYRILLIC_TOKEN_RE.fullmatch(document_token)
+    ):
+        return shared >= 5
+    return shared >= max(5, math.ceil(shorter * 0.7))
+
+
+def normalized_document_features(
+    document: str,
+) -> tuple[str, str, tuple[str, ...]]:
+    folded = normalized_text(document)
+    compact = "".join(
+        character for character in folded if not character.isspace()
+    )
+    return folded, compact, expanded_tokens(folded)
+
+
+def normalized_term_quality_from_features(
+    term: str,
+    features: tuple[str, str, tuple[str, ...]],
+) -> tuple[float, str] | None:
+    folded_term = normalized_text(term)
+    _, compact_document, document_tokens = features
+    cjk_runs = CJK_RE.findall(folded_term)
+    if cjk_runs:
+        if all(run in compact_document for run in cjk_runs):
+            return 0.8, "cjk_substring"
+        return None
+
+    query_tokens = expanded_tokens(folded_term)
+    if not query_tokens:
+        return None
+    exact = all(token in document_tokens for token in query_tokens)
+    if exact:
+        return 0.75, "normalized_tokens"
+    if all(
+        any(
+            morphological_token_match(query_token, document_token)
+            for document_token in document_tokens
+        )
+        for query_token in query_tokens
+    ):
+        return 0.55, "morphology"
+    return None
+
+
+def normalized_term_quality(term: str, document: str) -> tuple[float, str] | None:
+    return normalized_term_quality_from_features(
+        term,
+        normalized_document_features(document),
+    )
+
+
+def load_normalized_documents(
+    connection: sqlite3.Connection,
+) -> dict[str, tuple[str, str, tuple[str, ...]]]:
+    return {
+        str(row["path"]): normalized_document_features(
+            "\n".join(
+                str(row[column] or "")
+                for column in ("title", "summary", "headings", "body")
+            )
+        )
+        for row in connection.execute(
+            "SELECT path, title, summary, headings, body "
+            "FROM documents_fts WHERE path != 'README.md'"
+        )
+    }
+
+
+def normalized_term_matches(
+    connection: sqlite3.Connection,
+    terms: Iterable[str],
+    strict_qualities: dict[str, dict[str, float]],
+    documents: dict[str, tuple[str, str, tuple[str, ...]]] | None = None,
+) -> dict[str, dict[str, GroupMatch]]:
+    documents = documents or load_normalized_documents(connection)
+    document_count = len(documents)
+    matches: dict[str, dict[str, GroupMatch]] = {}
+    for term in dict.fromkeys(terms):
+        term_matches: dict[str, tuple[float, str]] = {}
+        strict_paths = strict_qualities.get(term, {})
+        for path, features in documents.items():
+            if path in strict_paths:
+                continue
+            quality = normalized_term_quality_from_features(term, features)
+            if quality is not None:
+                term_matches[path] = quality
+        document_frequency = len(term_matches) + len(strict_paths)
+        idf = math.log1p(
+            (document_count + 1.0) / (document_frequency + 0.5)
+        )
+        matches[term] = {
+            path: GroupMatch(idf * quality, term, origin)
+            for path, (quality, origin) in term_matches.items()
+        }
+    return matches
+
+
 def direct_fts_score(
     document_rank: int,
     query_tokens: int,
@@ -274,6 +413,7 @@ def faceted_group_matches(
     group: tuple[str, ...],
     term_qualities: dict[str, dict[str, float]],
     exact_matches: dict[str, dict[str, GroupMatch]],
+    normalized_matches: dict[str, dict[str, GroupMatch]] | None = None,
 ) -> dict[str, GroupMatch]:
     matches: dict[str, GroupMatch] = {}
     for term in group:
@@ -284,6 +424,10 @@ def faceted_group_matches(
         for path, candidate in exact_matches.get(term, {}).items():
             if path not in matches or candidate.score > matches[path].score:
                 matches[path] = candidate
+        if normalized_matches is not None:
+            for path, candidate in normalized_matches.get(term, {}).items():
+                if path not in matches or candidate.score > matches[path].score:
+                    matches[path] = candidate
     return matches
 
 
@@ -303,7 +447,7 @@ def weak_direct(
     item: dict[str, object], ranking_system: str = DEFAULT_RANKING_SYSTEM
 ) -> bool:
     validate_ranking_system(ranking_system)
-    if ranking_system == FACETED_BM25:
+    if is_faceted_system(ranking_system):
         return False
     signals = item["signals"]
     assert isinstance(signals, dict)
@@ -332,6 +476,8 @@ def direct_cutoff(
     validate_ranking_system(ranking_system)
     if strong_match or not ranked:
         return None
+    if ranking_system == FACETED_NORMALIZED:
+        return float(ranked[0]["score"]) * NORMALIZED_RELATIVE_CUTOFF
     if ranking_system == FACETED_BM25:
         return 0.0
     return max(5.0, float(ranked[0]["score"]) * 0.1)

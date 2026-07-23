@@ -1,0 +1,39 @@
+{
+  "id": "extract-v2-pipeline-multislice-zh-cn",
+  "scenario": "tests/scenarios/extract-v2-pipeline-multislice-zh-cn.md",
+  "skill": "tests/eval/skills/specspine-extract-v2",
+  "status": "executable",
+  "category": "extended",
+  "runs": 1,
+  "initial_tree": "tests/retrieval-corpora/corpora/data-pipeline-zh-cn-01/project",
+  "handoff_judgments": {
+    "required": [
+      "specspine/backfill.md",
+      "specspine/exactly-once-sinks.md"
+    ],
+    "supporting": [
+      "specspine/capacity-planning.md",
+      "specspine/data-quality.md"
+    ],
+    "relevant": [
+      "specspine/backfill.md",
+      "specspine/capacity-planning.md",
+      "specspine/checkpoint-recovery.md",
+      "specspine/data-quality.md",
+      "specspine/exactly-once-sinks.md"
+    ],
+    "hard_negatives": [
+      "specspine/event-ingestion.md"
+    ]
+  },
+  "assertions": [
+    {"type": "max_changed_files", "max": 0},
+    {"type": "read_only", "paths": ["specspine/**"]},
+    {"type": "command_includes", "value": "search_spine_v2.py"},
+    {"type": "trace_equals", "field": "retrieval_attempt_count", "value": 1},
+    {"type": "response_contains", "values": ["specspine/backfill.md", "specspine/exactly-once-sinks.md"]},
+    {"type": "response_not_contains", "value": "specspine/event-ingestion.md"},
+    {"type": "response_sections_only", "sections": ["Change intent", "Primary specification", "Required specifications", "Potentially affected specifications", "Architectural decisions and constraints", "Decision sources", "Relevant observations", "Unconfirmed inferences", "Blocking questions", "Expected architectural outcome"]},
+    {"type": "response_word_budget", "max": 500}
+  ]
+}

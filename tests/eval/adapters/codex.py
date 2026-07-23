@@ -32,7 +32,7 @@ FORBIDDEN_SCOPE_MARKERS = (
 
 SANDBOX_PROTECTED_NAMES = (".git", ".agents", ".codex")
 RETRIEVAL_SCRIPT_NAMES = ("search_spine.py", "search_spine_v2.py")
-V2_RANKING_SYSTEMS = ("legacy", "faceted-bm25")
+V2_RANKING_SYSTEMS = ("legacy", "faceted-bm25", "faceted-normalized")
 
 
 def retrieval_script(root: Path) -> Path:
@@ -1325,7 +1325,8 @@ def main() -> int:
         )
         if ranking_system not in V2_RANKING_SYSTEMS:
             parser.error(
-                "SPECSPINE_EXTRACT_V2_RANKING must be legacy or faceted-bm25"
+                "SPECSPINE_EXTRACT_V2_RANKING must be one of: "
+                + ", ".join(V2_RANKING_SYSTEMS)
             )
     elif args.ranking:
         parser.error("--ranking requires benchmark skill v2")
