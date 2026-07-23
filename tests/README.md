@@ -68,6 +68,22 @@ and are emitted once even when several slices select the same path. Use
 `--max-output-bytes` to bound document output; whole documents are omitted and
 marked instead of being cut mid-file.
 
+Representative retrieval corpora live under `tests/retrieval-corpora/corpora`.
+Each immutable corpus contains a natural project fixture, fixed ranker slices,
+agent-level requests, graded relevance judgments, and a SHA-256 document
+inventory. Validate and run the paired ranker benchmark with:
+
+```text
+python3 tools/specspine-extract/validate_corpus.py \
+  tests/retrieval-corpora/corpora/*/manifest.json
+python3 tests/retrieval-corpora/benchmark.py
+```
+
+The benchmark-only Extract skill is
+`tests/eval/skills/specspine-extract-v2`; it is not a production or installable
+skill. The eval adapter selects its ranking arm with
+`--ranking legacy|faceted-bm25`.
+
 ## Eval tests
 
 Use eval cases to verify whether an agent locates context, preserves semantics,

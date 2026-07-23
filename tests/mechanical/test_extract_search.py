@@ -119,6 +119,9 @@ class ExtractSearchTests(unittest.TestCase):
         environment = os.environ.copy()
         environment["SPECSPINE_CACHE_DIR"] = str(self.cache)
         environment["SPECSPINE_PRODUCTION_SEARCH"] = str(V2_MODULE_PATH)
+        sidecar = self.base / "batch-retrieval.jsonl"
+        sidecar.unlink(missing_ok=True)
+        environment["SPECSPINE_RETRIEVAL_TELEMETRY_FILE"] = str(sidecar)
         result = subprocess.run(
             [
                 sys.executable,
@@ -138,7 +141,8 @@ class ExtractSearchTests(unittest.TestCase):
             env=environment,
             timeout=5,
         )
-        return result, json.loads(result.stdout)
+        telemetry = json.loads(sidecar.read_text(encoding="utf-8"))
+        return result, telemetry
 
     def test_default_payload_omits_diagnostics(self):
         (self.spine / "README.md").write_text(
@@ -359,6 +363,8 @@ class ExtractSearchTests(unittest.TestCase):
         )
 
         self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("<<<SPECSPINE_RESULT ", result.stdout)
+        self.assertNotEqual("{", result.stdout.lstrip()[:1])
         self.assertEqual("cold_build", payload["index_state"])
         self.assertEqual(2, payload["slice_count"])
         self.assertEqual(
@@ -503,6 +509,36 @@ class ExtractSearchTests(unittest.TestCase):
             '"match_tier":"strict","joint_df":0}>>>',
             output,
         )
+
+    def test_legacy_batch_keeps_valid_absent_terms_as_no_match(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns presentneedle.\n", encoding="utf-8"
+        )
+
+        result, output = self.run_batch(
+            [
+                {"id": "found", "must": [["presentneedle"]]},
+                {
+                    "id": "missing",
+                    "must": [["warehouse"], ["barcode"], ["cycle count"]],
+                },
+            ],
+            "legacy",
+            "--graph-depth=0",
+            "--graph-limit=0",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(
+            '<<<SPECSPINE_SLICE {"id":"found","status":"matched"}>>>',
+            output,
+        )
+        self.assertIn(
+            '<<<SPECSPINE_SLICE {"id":"missing","status":"no_match"}>>>',
+            output,
+        )
+        self.assertNotIn('"mode":"fallback"', output)
 
     def test_output_budget_omits_whole_documents_without_cutting_protocol(self):
         (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")

@@ -92,6 +92,9 @@ def invoke(
     environment = os.environ.copy()
     environment["SPECSPINE_CACHE_DIR"] = str(cache)
     environment["SPECSPINE_PRODUCTION_SEARCH"] = str(V2_SEARCH)
+    sidecar = cache.parent / "retrieval-telemetry.jsonl"
+    sidecar.unlink(missing_ok=True)
+    environment["SPECSPINE_RETRIEVAL_TELEMETRY_FILE"] = str(sidecar)
     completed = subprocess.run(
         [
             sys.executable,
@@ -116,7 +119,7 @@ def invoke(
         env=environment,
         timeout=120,
     )
-    payload = json.loads(completed.stdout)
+    payload = json.loads(sidecar.read_text(encoding="utf-8"))
     if completed.returncode != 0:
         raise RuntimeError(payload)
     return payload, int(payload["production_output_utf8_bytes"])

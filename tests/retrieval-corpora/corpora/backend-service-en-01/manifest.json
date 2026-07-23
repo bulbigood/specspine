@@ -1,0 +1,394 @@
+{
+  "schema_version": 1,
+  "corpus": {
+    "id": "backend-service-en-01",
+    "project_type": "backend-service",
+    "documentation_language": "en",
+    "size_tier": "small",
+    "seed": 41021,
+    "axes": {
+      "boilerplate": "medium",
+      "lexical_overlap": "high",
+      "ownership": "mixed",
+      "graph_density": "medium"
+    }
+  },
+  "documents": {
+    "README.md": "sha256:0e92e6ae88371adc95c662247e8c63597c9faf5bb0865ea4505d13bc3fdf2aa4",
+    "authentication.md": "sha256:968e7761baa7c5f85ca1fafe7b1ab5a9a221e3c06f7201250caa6c883dfcc502",
+    "authorization.md": "sha256:50d32cc95d7b54581d884797da30bd255ed549f808f910d31b01b74e065f2cb8",
+    "background-jobs.md": "sha256:d83120ef14e21c245ba6eb320a1c48dcbd58b218cbce3c11b943a28dc31ba97e",
+    "carrier-integration.md": "sha256:8d90806daffb40a65a3ef480430f85927cd69b74c3bf7a35add9c10ed6845d80",
+    "configuration.md": "sha256:27ad4befc7c7841b6808a6a9671d2be63830bec92c94675d0d4e96bcfa4a0b07",
+    "http-request-pipeline.md": "sha256:e3b5a106aa9fcadfc07e31a118e7030c8217cfc0d8ad5fdd983591996a10881c",
+    "incident-response.md": "sha256:cd4b764d7d7d6007b7a7780ee7747c75815d2a92fe12134aba9b41e120c87cca",
+    "observability.md": "sha256:fcfeebde304c56ef55e43512e1a36c6d0f28e453bd3f7109f0907d96749a1742",
+    "order-lifecycle.md": "sha256:020cf9cda902b2507e49cd4175d1a1ab8f6cee6e6ec9411fa7315137f5093c20",
+    "payment-processing.md": "sha256:469734a2ce1768c762c1eac0394ffcd6b222f7b58d3036538b09b8b9615ee147",
+    "persistence.md": "sha256:6d3612a7340c700b20694c597f229a69f0555ade5dbfd6cc74e3977db9fa1e9e",
+    "rate-limits.md": "sha256:62ed386b93ff7100824f4431d2dd56a40c1221601e0bca6f00933fab85eef7cc",
+    "retry-policy.md": "sha256:a4c204d17fdb79dce962486157239bbfdc472fc1a3444f11cf3d40c9025e3a85",
+    "webhook-delivery.md": "sha256:eaf80d92731e86c33bf92a6f3d9953b48ec29e777f5ee393aa786f5544abf56b"
+  },
+  "scenarios": [
+    {
+      "id": "external-retry-owner",
+      "tags": [
+        "partial-match-decoys",
+        "short-owner-long-consumer"
+      ],
+      "request": {
+        "language": "en",
+        "text": "Find the authoritative rules for retrying failed carrier calls, especially exponential delay, jitter, and attempt limits. I need to change those defaults without confusing the carrier adapter with the policy owner."
+      },
+      "search": {
+        "limit": 5,
+        "graph_depth": 1,
+        "graph_limit": 3
+      },
+      "slices": [
+        {
+          "id": "retry-rules",
+          "must": [
+            [
+              "retry",
+              "retries"
+            ],
+            [
+              "exponential backoff"
+            ],
+            [
+              "jitter"
+            ]
+          ],
+          "should": [
+            [
+              "classification"
+            ],
+            [
+              "attempt budget",
+              "attempt limits"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "retry-policy.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "carrier-integration.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "background-jobs.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "configuration.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "rate-limits.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            },
+            {
+              "path": "incident-response.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "webhook-secret-rollover",
+      "tags": [
+        "synonym",
+        "partial-match-decoys"
+      ],
+      "request": {
+        "language": "en",
+        "text": "How do merchants verify callbacks while we rotate their webhook signing secret? Include the overlap behavior and how the receiver selects a key."
+      },
+      "search": {
+        "limit": 4,
+        "graph_depth": 1,
+        "graph_limit": 2
+      },
+      "slices": [
+        {
+          "id": "callback-secret-rotation",
+          "must": [
+            [
+              "webhook",
+              "callback"
+            ],
+            [
+              "signature",
+              "signing"
+            ],
+            [
+              "rotation",
+              "rotate"
+            ]
+          ],
+          "should": [
+            [
+              "overlap window",
+              "overlap"
+            ],
+            [
+              "secret",
+              "key"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "webhook-delivery.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "authentication.md",
+              "grade": 0,
+              "origin": "direct",
+              "hard_negative": true
+            },
+            {
+              "path": "configuration.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "refund-semantic-constraint",
+      "tags": [
+        "exact-id"
+      ],
+      "request": {
+        "language": "en",
+        "text": "Retrieve the owner and meaning of semantic constraint CON-refund-idempotent before changing refund replay behavior."
+      },
+      "search": {
+        "limit": 3,
+        "graph_depth": 0,
+        "graph_limit": 0
+      },
+      "slices": [
+        {
+          "id": "refund-id",
+          "must": [
+            [
+              "CON-refund-idempotent"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "payment-processing.md",
+              "grade": 3,
+              "origin": "direct"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cancel-order-and-notify",
+      "tags": [
+        "multi-slice",
+        "partial-match-decoys"
+      ],
+      "request": {
+        "language": "en",
+        "text": "Plan an order-cancellation change and the outbound callback that tells the merchant. I need the transactional rule for cancellation, the callback attempt history and endpoint suspension threshold, and the operational incident control for pausing callback traffic."
+      },
+      "search": {
+        "limit": 4,
+        "graph_depth": 1,
+        "graph_limit": 3
+      },
+      "slices": [
+        {
+          "id": "cancellation-transaction",
+          "must": [
+            [
+              "cancel",
+              "cancellation"
+            ],
+            [
+              "transaction",
+              "atomic"
+            ],
+            [
+              "after commit",
+              "commit"
+            ]
+          ],
+          "should": [
+            [
+              "state transition",
+              "state version"
+            ],
+            [
+              "carrier cleanup"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "order-lifecycle.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "persistence.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "payment-processing.md",
+              "grade": 1,
+              "origin": "either"
+            }
+          ]
+        },
+        {
+          "id": "callback-attempts",
+          "must": [
+            [
+              "callback",
+              "webhook"
+            ],
+            [
+              "attempt history",
+              "delivery attempts"
+            ],
+            [
+              "threshold",
+              "suspension threshold"
+            ]
+          ],
+          "should": [
+            [
+              "endpoint health"
+            ],
+            [
+              "suspension",
+              "suspend"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "webhook-delivery.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "observability.md",
+              "grade": 1,
+              "origin": "either"
+            }
+          ]
+        },
+        {
+          "id": "incident-callback-pause",
+          "must": [
+            [
+              "incident"
+            ],
+            [
+              "pause",
+              "suspend"
+            ],
+            [
+              "callback",
+              "webhook"
+            ]
+          ],
+          "should": [
+            [
+              "mitigation"
+            ],
+            [
+              "unhealthy endpoint",
+              "endpoint"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "incident-response.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "webhook-delivery.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "configuration.md",
+              "grade": 1,
+              "origin": "either"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unsupported-warehouse-inventory",
+      "tags": [
+        "no-match"
+      ],
+      "request": {
+        "language": "en",
+        "text": "Find the architecture owner for warehouse barcode cycle counts and reconciliation of physical inventory."
+      },
+      "search": {
+        "limit": 3,
+        "graph_depth": 0,
+        "graph_limit": 0
+      },
+      "slices": [
+        {
+          "id": "warehouse-cycle-count",
+          "must": [
+            [
+              "warehouse"
+            ],
+            [
+              "barcode"
+            ],
+            [
+              "cycle count"
+            ]
+          ],
+          "evaluation": "protocol",
+          "expected_status": "no_match",
+          "judgments": []
+        }
+      ]
+    }
+  ]
+}

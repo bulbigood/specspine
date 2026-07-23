@@ -1,0 +1,4 @@
+interface:
+  display_name: "SpecSpine Extract V2"
+  short_description: "Benchmark batched architecture retrieval"
+  default_prompt: "Use $specspine-extract-v2 to benchmark a batched SpecSpine architecture context handoff."

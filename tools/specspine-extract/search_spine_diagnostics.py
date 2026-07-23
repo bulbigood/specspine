@@ -206,7 +206,7 @@ def main() -> int:
     )
     telemetry["telemetry_level"] = args.telemetry
     append_sidecar(telemetry)
-    if args.telemetry == "minimal":
+    if args.telemetry == "minimal" or args.queries_json is not None:
         print(production_output, end="")
     else:
         print(json.dumps(telemetry, ensure_ascii=False))

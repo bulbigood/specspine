@@ -31,6 +31,42 @@ FORBIDDEN_SCOPE_MARKERS = (
 )
 
 SANDBOX_PROTECTED_NAMES = (".git", ".agents", ".codex")
+RETRIEVAL_SCRIPT_NAMES = ("search_spine.py", "search_spine_v2.py")
+V2_RANKING_SYSTEMS = ("legacy", "faceted-bm25")
+
+
+def retrieval_script(root: Path) -> Path:
+    scripts = root / ".eval" / "skill" / "scripts"
+    skill = root / ".eval" / "skill" / "SKILL.md"
+    if skill.is_file():
+        content = skill.read_text(encoding="utf-8")
+        selected = [
+            name
+            for name in RETRIEVAL_SCRIPT_NAMES
+            if f"python3 <skill-root>/scripts/{name}" in content
+        ]
+        if len(selected) > 1:
+            raise RuntimeError(
+                "retrieval command is ambiguous in staged skill instructions"
+            )
+        if selected:
+            candidate = scripts / selected[0]
+            if not candidate.is_file():
+                raise RuntimeError(
+                    f"staged retrieval script is missing: {candidate}"
+                )
+            return candidate
+    for name in RETRIEVAL_SCRIPT_NAMES:
+        candidate = scripts / name
+        if candidate.is_file():
+            return candidate
+    return scripts / "search_spine.py"
+
+
+def is_retrieval_command(command: str) -> bool:
+    source = shell_source(command)
+    return any(name in source for name in RETRIEVAL_SCRIPT_NAMES)
+
 
 def relative_files(root: Path) -> list[str]:
     return sorted(
@@ -235,7 +271,7 @@ def parse_events(stdout: str, candidates: list[str]) -> tuple[set[str], list[str
 
 def command_category(command: str, inferred_reads: set[str]) -> str:
     source = shell_source(command)
-    if "search_spine.py" in source:
+    if is_retrieval_command(source):
         return "retrieval"
     if any(marker in source for marker in (".eval/skill/", ".eval/companions/", ".eval/tools/")):
         return "skill_context"
@@ -335,6 +371,107 @@ def command_option(command: str, option: str) -> str | None:
     return None
 
 
+def parse_protocol_marker(line: str) -> tuple[str, dict[str, object]] | None:
+    match = re.fullmatch(r"<<<SPECSPINE_([A-Z_]+)(?: (.*))?>>>", line.strip())
+    if not match:
+        return None
+    name, raw_metadata = match.groups()
+    if not raw_metadata:
+        return name, {}
+    try:
+        metadata = json.loads(raw_metadata)
+    except json.JSONDecodeError:
+        return None
+    return (name, metadata) if isinstance(metadata, dict) else None
+
+
+def retrieval_spine_root(command: str) -> str | None:
+    try:
+        tokens = shlex.split(shell_source(command))
+    except ValueError:
+        return None
+    for index, token in enumerate(tokens[:-1]):
+        if Path(token).name in RETRIEVAL_SCRIPT_NAMES:
+            value = tokens[index + 1]
+            return value.rstrip("/") if not value.startswith("-") else None
+    return None
+
+
+def qualify_candidate_path(path: str, spine_root: str | None) -> str:
+    if not spine_root or Path(path).is_absolute():
+        return path
+    normalized_root = spine_root.removeprefix("./")
+    normalized_path = path.removeprefix("./")
+    if normalized_path == normalized_root or normalized_path.startswith(
+        normalized_root + "/"
+    ):
+        return normalized_path
+    return f"{normalized_root}/{normalized_path}"
+
+
+def parse_v2_protocol(raw_output: str, command: str) -> dict[str, object] | None:
+    result: dict[str, object] | None = None
+    slices: list[dict[str, object]] = []
+    direct_matches: list[dict[str, object]] = []
+    graph_neighbors: list[dict[str, object]] = []
+    inline_documents: list[dict[str, object]] = []
+    omitted_documents: list[dict[str, object]] = []
+    current_slice: dict[str, object] | None = None
+    spine_root = retrieval_spine_root(command)
+    for line in raw_output.splitlines():
+        marker = parse_protocol_marker(line)
+        if marker is None:
+            continue
+        name, metadata = marker
+        if name == "RESULT":
+            result = dict(metadata)
+        elif name == "SLICE":
+            current_slice = dict(metadata)
+            current_slice["hits"] = []
+            slices.append(current_slice)
+        elif name == "HIT":
+            if not isinstance(metadata.get("path"), str):
+                continue
+            candidate = dict(metadata)
+            candidate["path"] = qualify_candidate_path(
+                str(candidate["path"]), spine_root
+            )
+            if current_slice is not None:
+                candidate["slice_id"] = current_slice.get("id")
+                current_slice["hits"].append(candidate)
+            if candidate.get("origin") == "graph":
+                graph_neighbors.append(candidate)
+            else:
+                direct_matches.append(candidate)
+        elif name == "DOCUMENT_OMITTED" and isinstance(metadata.get("path"), str):
+            omitted = dict(metadata)
+            omitted["path"] = qualify_candidate_path(
+                str(omitted["path"]), spine_root
+            )
+            omitted_documents.append(omitted)
+        elif name == "DOCUMENT" and isinstance(metadata.get("path"), str):
+            document = dict(metadata)
+            document["path"] = qualify_candidate_path(
+                str(document["path"]), spine_root
+            )
+            inline_documents.append(document)
+        elif name == "END_SLICE":
+            current_slice = None
+    if result is None:
+        return None
+    return {
+        "mode": result.get("mode", "unknown"),
+        "ranking_system": result.get("ranking"),
+        "reason_code": result.get("reason"),
+        "truncated": bool(result.get("truncated", False)),
+        "slices": slices,
+        "direct_matches": direct_matches,
+        "graph_neighbors": graph_neighbors,
+        "inline_documents": inline_documents,
+        "omitted_documents": omitted_documents,
+    }
+
+
 def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
     attempts: list[dict[str, object]] = []
     completed_item_ids: set[str] = set()
@@ -353,21 +490,23 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
                 continue
             completed_item_ids.add(item_id)
         command = str(item.get("command", ""))
-        if item.get("type") != "command_execution" or "search_spine.py" not in command:
+        if item.get("type") != "command_execution" or not is_retrieval_command(command):
             continue
         raw_output = str(item.get("aggregated_output", ""))
-        payload = None
+        payload = parse_v2_protocol(raw_output, command)
+        protocol_v2 = payload is not None
         parsed_json = False
-        for output_line in raw_output.splitlines():
-            try:
-                candidate = json.loads(output_line.strip())
-            except json.JSONDecodeError:
-                continue
-            parsed_json = True
-            if isinstance(candidate, dict) and candidate.get("mode") in {
-                "sqlite-fts5", "fallback", "error"
-            }:
-                payload = candidate
+        if payload is None:
+            for output_line in raw_output.splitlines():
+                try:
+                    candidate = json.loads(output_line.strip())
+                except json.JSONDecodeError:
+                    continue
+                parsed_json = True
+                if isinstance(candidate, dict) and candidate.get("mode") in {
+                    "sqlite-fts5", "fallback", "error"
+                }:
+                    payload = candidate
         direct_documents = (
             payload.get("direct_matches", [])
             if isinstance(payload, dict)
@@ -391,7 +530,19 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
             direct_matches.append(
                 {
                     key: candidate[key]
-                    for key in ("path", "score", "origins", "signals", "headings", "title")
+                    for key in (
+                        "path",
+                        "score",
+                        "origins",
+                        "signals",
+                        "headings",
+                        "title",
+                        "origin",
+                        "slice_id",
+                        "matched_must_terms",
+                        "matched_should_terms",
+                        "exact_match_origins",
+                    )
                     if key in candidate
                 }
             )
@@ -409,17 +560,44 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
                         "title",
                         "relevance",
                         "transitions",
+                        "origin",
+                        "slice_id",
                     )
                     if key in candidate
                 }
             )
         candidates = direct_matches + graph_neighbors
+        query = command_option(command, "--query")
+        queries_json = command_option(command, "--queries-json")
+        query_slices = None
+        if queries_json:
+            try:
+                parsed_queries = json.loads(queries_json)
+            except json.JSONDecodeError:
+                parsed_queries = None
+            if isinstance(parsed_queries, list):
+                query_slices = parsed_queries
         attempts.append(
             {
                 "attempt_number": len(attempts) + 1,
                 "event_id": str(item_id) if item_id is not None else None,
                 "mode": payload.get("mode", "unknown") if isinstance(payload, dict) else "unknown",
-                "query": command_option(command, "--query"),
+                "query": query,
+                "queries_json": queries_json,
+                "query_slices": query_slices,
+                "query_sha256": (
+                    hashlib.sha256(
+                        (queries_json or query or "").encode("utf-8")
+                    ).hexdigest()
+                    if queries_json or query
+                    else None
+                ),
+                "protocol_version": 2 if protocol_v2 else 1,
+                "ranking_system": (
+                    payload.get("ranking_system")
+                    if protocol_v2 and isinstance(payload, dict)
+                    else command_option(command, "--ranking")
+                ),
                 "candidate_count": len(candidates),
                 "candidate_paths": [candidate["path"] for candidate in candidates],
                 "candidates": candidates,
@@ -438,6 +616,15 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
                 "selection": payload.get("selection", {}) if isinstance(payload, dict) else {},
                 "timings": payload.get("timings", {}) if isinstance(payload, dict) else {},
                 "runtime": payload.get("runtime", {}) if isinstance(payload, dict) else {},
+                "slices": payload.get("slices", []) if protocol_v2 else [],
+                "truncated": payload.get("truncated") if protocol_v2 else None,
+                "inline_documents": (
+                    payload.get("inline_documents", []) if protocol_v2 else []
+                ),
+                "omitted_documents": (
+                    payload.get("omitted_documents", []) if protocol_v2 else []
+                ),
+                "telemetry_level": "marker-protocol" if protocol_v2 else None,
                 "output_chars": len(raw_output),
                 "output_utf8_bytes": len(raw_output.encode("utf-8")),
                 "output_excerpt": raw_output.strip()[:1000] if payload is None else None,
@@ -922,6 +1109,7 @@ def build_codex_command(
     runtime_root: Path,
     accelerator_mode: str = "enabled",
     retrieval_telemetry: str | None = None,
+    ranking_system: str | None = None,
 ) -> list[str]:
     runtime_root = runtime_root.resolve()
     private_home = runtime_root / "home"
@@ -956,6 +1144,8 @@ def build_codex_command(
         environment["SPECSPINE_CACHE_DIR"] = str(runtime_root / "accelerator-unavailable")
     else:
         environment["SPECSPINE_CACHE_DIR"] = str(runtime_root / "accelerator-cache")
+    if ranking_system:
+        environment["SPECSPINE_EXTRACT_V2_RANKING"] = ranking_system
     if retrieval_telemetry:
         environment["SPECSPINE_PRODUCTION_SEARCH"] = str(
             root / ".eval" / "tools" / "search_spine_production.py"
@@ -1004,20 +1194,33 @@ def build_codex_command(
     ]
 
 
-def prewarm_accelerator(root: Path, runtime_root: Path) -> None:
-    script = root / ".eval" / "skill" / "scripts" / "search_spine.py"
+def prewarm_accelerator(
+    root: Path, runtime_root: Path, ranking_system: str | None = None
+) -> None:
+    script = retrieval_script(root)
     python = shutil.which("python3", path=sandbox_path(runtime_root))
     if not python:
         raise RuntimeError("python3 is unavailable for accelerator prewarm")
     environment = os.environ.copy()
     environment["SPECSPINE_CACHE_DIR"] = str(runtime_root / "accelerator-cache")
     environment["TMPDIR"] = str(runtime_root / "tmp")
+    search_arguments = (
+        [
+            "--queries-json",
+            '[{"id":"prewarm","must":[["README"]]}]',
+            "--ranking",
+            ranking_system
+            or os.environ.get("SPECSPINE_EXTRACT_V2_RANKING", "faceted-bm25"),
+        ]
+        if script.name == "search_spine_v2.py"
+        else ["--query=README.md"]
+    )
     completed = subprocess.run(
         [
             python,
             str(script),
             str(root / "specspine"),
-            "--query=README.md",
+            *search_arguments,
             "--limit=1",
             "--graph-depth=0",
             "--graph-limit=0",
@@ -1028,7 +1231,19 @@ def prewarm_accelerator(root: Path, runtime_root: Path) -> None:
         env=environment,
         timeout=60,
     )
-    if completed.returncode != 0:
+    v2_index_built_without_hits = (
+        script.name == "search_spine_v2.py"
+        and completed.returncode == 2
+        and any(
+            (
+                marker := parse_protocol_marker(line)
+            ) is not None
+            and marker[0] == "RESULT"
+            and marker[1].get("mode") == "sqlite-fts5"
+            for line in completed.stdout.splitlines()
+        )
+    )
+    if completed.returncode != 0 and not v2_index_built_without_hits:
         detail = completed.stderr.strip() or completed.stdout.strip()
         raise RuntimeError(f"accelerator prewarm failed: {detail}")
 
@@ -1036,7 +1251,8 @@ def prewarm_accelerator(root: Path, runtime_root: Path) -> None:
 def enable_retrieval_telemetry(root: Path, level: str) -> None:
     """Observe the disposable staged script without changing agent instructions."""
     skill = root / ".eval" / "skill" / "SKILL.md"
-    marker = "python3 <skill-root>/scripts/search_spine.py"
+    production = retrieval_script(root)
+    marker = f"python3 <skill-root>/scripts/{production.name}"
     content = skill.read_text(encoding="utf-8")
     if content.count(marker) != 1:
         raise RuntimeError(
@@ -1048,11 +1264,15 @@ def enable_retrieval_telemetry(root: Path, level: str) -> None:
         / "specspine-extract"
         / "search_spine_diagnostics.py"
     )
-    production = root / ".eval" / "skill" / "scripts" / "search_spine.py"
     preserved = root / ".eval" / "tools" / "search_spine_production.py"
     preserved.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(production, preserved)
-    shutil.copy2(production.with_name("ranking.py"), preserved.with_name("ranking.py"))
+    ranking_name = (
+        "ranking_v2.py" if production.name == "search_spine_v2.py" else "ranking.py"
+    )
+    shutil.copy2(
+        production.with_name(ranking_name), preserved.with_name(ranking_name)
+    )
     shutil.copy2(source, production)
 
 
@@ -1077,6 +1297,14 @@ def main() -> int:
         choices=("minimal", "full"),
         help="observe staged retrieval out of band; omitted matches production",
     )
+    parser.add_argument(
+        "--ranking",
+        choices=V2_RANKING_SYSTEMS,
+        help=(
+            "set SPECSPINE_EXTRACT_V2_RANKING for benchmark skill v2; "
+            "defaults to the existing environment or faceted-bm25"
+        ),
+    )
     args = parser.parse_args()
     if args.accelerator_mode == "fallback" and args.cache_profile != "isolated-cold":
         parser.error("fallback mode supports only isolated-cold cache profile")
@@ -1087,6 +1315,20 @@ def main() -> int:
         parser.error("no-extract profile cannot enable retrieval telemetry")
 
     root = Path.cwd()
+    selected_retrieval_script = retrieval_script(root)
+    ranking_system: str | None = None
+    if selected_retrieval_script.name == "search_spine_v2.py":
+        ranking_system = (
+            args.ranking
+            or os.environ.get("SPECSPINE_EXTRACT_V2_RANKING")
+            or "faceted-bm25"
+        )
+        if ranking_system not in V2_RANKING_SYSTEMS:
+            parser.error(
+                "SPECSPINE_EXTRACT_V2_RANKING must be legacy or faceted-bm25"
+            )
+    elif args.ranking:
+        parser.error("--ranking requires benchmark skill v2")
     prompt = sys.stdin.read()
     candidates = relative_files(root)
     eval_dir = root / ".eval"
@@ -1129,7 +1371,7 @@ def main() -> int:
             (runtime_root / "accelerator-unavailable").touch()
         elif args.cache_profile == "prewarmed":
             prewarm_started = time.monotonic()
-            prewarm_accelerator(root, runtime_root)
+            prewarm_accelerator(root, runtime_root, ranking_system)
             prewarm_seconds = time.monotonic() - prewarm_started
         if args.retrieval_telemetry:
             enable_retrieval_telemetry(root, args.retrieval_telemetry)
@@ -1140,6 +1382,7 @@ def main() -> int:
             runtime_root,
             args.accelerator_mode,
             args.retrieval_telemetry,
+            ranking_system,
         )
         process_environment = os.environ.copy()
         process_environment["CODEX_HOME"] = str(codex_home)
@@ -1196,6 +1439,7 @@ def main() -> int:
                 "evaluation_profile": evaluation_profile,
                 "accelerator_mode": args.accelerator_mode,
                 "retrieval_telemetry": args.retrieval_telemetry,
+                "ranking_system": ranking_system,
                 "retrieval_attempts": retrieval_attempts,
                 "retrieval_mode": retrieval_attempts[-1]["mode"] if retrieval_attempts else None,
                 "retrieval_attempt_count": len(retrieval_attempts),
@@ -1226,11 +1470,22 @@ def main() -> int:
                         root / ".eval" / "skill" / "SKILL.md"
                     ),
                     "retrieval_tool_sha256": (
-                        optional_file_sha256(
-                            root / ".eval" / "skill" / "scripts" / "search_spine.py"
+                        optional_file_sha256(selected_retrieval_script)
+                    ),
+                    "retrieval_production_sha256": optional_file_sha256(
+                        (
+                            root / ".eval" / "tools" / "search_spine_production.py"
+                            if args.retrieval_telemetry
+                            else selected_retrieval_script
                         )
-                        if args.retrieval_telemetry
-                        else None
+                    ),
+                    "retrieval_ranking_sha256": optional_file_sha256(
+                        selected_retrieval_script.with_name(
+                            "ranking_v2.py"
+                            if selected_retrieval_script.name
+                            == "search_spine_v2.py"
+                            else "ranking.py"
+                        )
                     ),
                     "codex_cli": codex_version,
                     "python": platform.python_version(),

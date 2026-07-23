@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specspine.local/schemas/retrieval-corpus-v1.json",
+  "title": "SpecSpine retrieval benchmark corpus",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "corpus", "documents", "scenarios"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "corpus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "project_type",
+        "documentation_language",
+        "size_tier",
+        "seed",
+        "axes"
+      ],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+        "project_type": {
+          "enum": [
+            "backend-service",
+            "web-frontend",
+            "mobile-app",
+            "cli-sdk",
+            "data-pipeline",
+            "infrastructure-monorepo"
+          ]
+        },
+        "documentation_language": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-[A-Z]{2}|-[0-9]{3})?$"
+        },
+        "size_tier": {"enum": ["small", "medium", "large"]},
+        "seed": {"type": "integer", "minimum": 0},
+        "axes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "boilerplate",
+            "lexical_overlap",
+            "ownership",
+            "graph_density"
+          ],
+          "properties": {
+            "boilerplate": {"enum": ["low", "medium", "high"]},
+            "lexical_overlap": {"enum": ["low", "medium", "high"]},
+            "ownership": {"enum": ["single", "distributed", "mixed"]},
+            "graph_density": {"enum": ["none", "low", "medium", "high"]}
+          }
+        }
+      }
+    },
+    "documents": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+\\.md$"},
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/scenario"}
+    }
+  },
+  "$defs": {
+    "term_group": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 120}
+    },
+    "judgment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "grade", "origin"],
+      "properties": {
+        "path": {"type": "string"},
+        "grade": {"type": "integer", "minimum": 0, "maximum": 3},
+        "origin": {"enum": ["direct", "graph", "either"]},
+        "hard_negative": {"type": "boolean"}
+      }
+    },
+    "slice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "must",
+        "evaluation",
+        "expected_status",
+        "judgments"
+      ],
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 64},
+        "must": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {"$ref": "#/$defs/term_group"}
+        },
+        "should": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {"$ref": "#/$defs/term_group"}
+        },
+        "evaluation": {"enum": ["ranking", "protocol"]},
+        "expected_status": {"enum": ["matched", "no_match"]},
+        "judgments": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/judgment"}
+        }
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "tags", "request", "search", "slices"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+        "tags": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "exact-id",
+              "exact-path",
+              "exact-title",
+              "synonym",
+              "morphology",
+              "spam",
+              "partial-match-decoys",
+              "short-owner-long-consumer",
+              "graph-only",
+              "multi-slice",
+              "shared-document",
+              "no-match",
+              "wrong-must",
+              "cross-language",
+              "output-budget"
+            ]
+          }
+        },
+        "request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["language", "text"],
+          "properties": {
+            "language": {"type": "string"},
+            "text": {"type": "string", "minLength": 1}
+          }
+        },
+        "search": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["limit", "graph_depth", "graph_limit"],
+          "properties": {
+            "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+            "graph_depth": {"type": "integer", "minimum": 0, "maximum": 2},
+            "graph_limit": {"type": "integer", "minimum": 0, "maximum": 50},
+            "max_output_bytes": {
+              "type": "integer",
+              "minimum": 4096,
+              "maximum": 10000000
+            }
+          }
+        },
+        "slices": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {"$ref": "#/$defs/slice"}
+        }
+      }
+    }
+  }
+}
