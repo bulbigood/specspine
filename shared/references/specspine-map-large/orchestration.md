@@ -20,21 +20,20 @@ splits, or stopping decisions.
 
 Create one disposable run root outside the live `<spine-root>`. Keep private
 staging roots and a small durable append-only ledger there. Record the source
-identifier, question state changes, producer IDs, and published destination
-paths. Append compact events without rereading or rewriting the ledger during
-an uninterrupted run. Batch a checkpoint with the dispatch or publication
-filesystem operation when the environment permits. On resume, read the ledger,
-reconcile published paths, return interrupted active questions to ready, and
-continue. Delete the run root after successful completion. If the run stops
-incomplete, preserve and report its location for resumption.
+identifier, question state changes, producer assignments, and published
+destination paths. Append compact events without rereading or rewriting the
+ledger during an uninterrupted run. Batch a checkpoint with the assignment or
+publication filesystem operation when the environment permits. On resume, read
+the ledger, reconcile published paths, return interrupted active questions to
+ready, and continue. Delete the run root after successful completion. If the
+run stops incomplete, preserve and report its location for resumption.
 
 Inspect only enough repository shape and current Mapping status to seed the run.
 Do not deeply explore the codebase or enumerate every possible area up front.
-Build only enough ready architectural questions to fill current producer
-capacity plus a small reserve. Extend this bounded backlog from producer
-reports. Assign exactly one coherent architectural zone to each producer. A
-zone may contain related questions, but never combine independent zones merely
-to amortize producer startup. Each assignment should have:
+Build only a small bounded backlog of ready architectural questions. Extend it
+from producer reports. Assign exactly one coherent architectural zone to each
+producer. A zone may contain related questions, but never combine independent
+zones merely to amortize producer startup. Each assignment should have:
 
 - a durable responsibility, runtime boundary, cross-cutting flow, or ownership
   problem to investigate;
@@ -55,69 +54,24 @@ architectural questions first, then assign each question the applicable final
 namespace as a publication destination. Reuse this layout throughout the run;
 do not reorganize the live Spine while mapping remains active.
 
-When subagents are available, use the largest safe concurrency:
-`min(actual worker slots, independent ready questions, safe repository I/O)`.
-
-Reserve orchestrator capacity when the environment counts it in the total
-concurrency limit. Assume available repository I/O is safe unless a documented
-limit or observed contention requires less concurrency; report any reduction.
-Set role/model in spawn metadata, never producer commands. Honor explicit
-routing; otherwise use the cheapest reliable read-heavy role, not the stronger
-orchestrator by inheritance. When a harness pins subagent defaults, use
-`fork_turns=none` and do not override model or reasoning; the inline command is
-self-contained. Otherwise select the cheapest reliable role in spawn metadata.
-The orchestrator alone spawns mapping workers, and workers never spawn.
-
-Treat every agent or thread ID returned by the environment as opaque. Copy the
-exact ID from a successful spawn result into the ledger; never retype, derive,
-or normalize it. Target wait, message, and close operations only with that
-recorded ID. A `not_found` result is an orchestration transport error, never a
-producer failure and never grounds for retry. Do not change the active set;
-recover the exact returned ID from the spawn result or stop incomplete if it
-cannot be recovered. Retry only after a recorded producer ID reaches an
-explicit terminal `failed` state and its staging root has no publishable
-result. Never start a duplicate producer while the original may still be
-active.
+Run independent ready questions concurrently when the environment supports it.
+Keep production within safe repository I/O limits. Execution environments own
+agent lifecycle, routing, completion notification, and concurrency mechanics;
+do not encode those mechanics in producer commands.
 
 ## Schedule as producer-consumer
 
-Maintain one continuous dependency-aware ready queue, active worker set, and
-blocked-question set. Keep the backlog bounded to material architectural
+Maintain one continuous dependency-aware ready queue and a blocked-question
+set. Keep the backlog bounded to material architectural
 questions. A completed producer report is the primary discovery mechanism: add
 its material adjacent areas and cross-cutting questions to ready or blocked
 without rereading repository source.
 
-With subagents, start the largest safe active set. When the environment can
-report individual worker completion and launch replacements, use a rolling
-producer-consumer loop:
-
-1. Record each completion report and its immutable staging root as soon as that
-   worker finishes.
-2. Before reading or publishing any candidate file, immediately launch the
-   next already-ready question into the freed slot.
-3. If no question is ready, inspect only enough of the completion report to
-   update dependencies and enqueue material follow-up questions, then launch
-   the next newly-ready question before candidate acceptance.
-4. While the replacement producer runs, inspect and publish the completed
-   producer's acceptable files, then finish queue maintenance from its report.
-5. Wait again only after every safe slot has been refilled and all completed
-   results have been consumed.
-
-Use the environment's blocking completion notification or longest safe blocking
-wait. Do not poll worker status, issue a preliminary empty or non-blocking wait,
-or alternate status narration with wait calls. One completion should normally
-cause one return to the orchestrator. If the environment itself returns early
-without a completion, block again without replanning or restating queue state.
-
-Do not wait for all active workers to finish while a ready question and a safe
-worker slot are available. If the environment cannot refill before consuming a
-completed result, report that transport limitation.
-
-If only barrier completion is available, report that transport limitation; do
-not introduce conceptual waves or delay already-ready work
-beyond what the environment requires. Move a blocked question to ready as soon
-as its prerequisites are satisfied. Keep questions that require unfinished
-results, authority, or boundary resolution blocked rather than speculating.
+Consume completed results and continue ready independent work without waiting
+for an entire batch. Do not introduce conceptual waves. Move a blocked question
+to ready as soon as its prerequisites are satisfied. Keep questions that
+require unfinished results, authority, or boundary resolution blocked rather
+than speculating.
 
 When subagents are unavailable, use the same ledger, staging, publication,
 backlog-growth, and saturation rules with the orchestrator as one local
@@ -143,9 +97,8 @@ of skills, references, templates, or instruction files.
 ```text
 You are a SpecSpine mapping producer.
 
-Do not load or invoke any skill, reference, template, or instruction file. Do
-not spawn another agent. Use only this command and the project instructions
-embedded below.
+Do not load or invoke any skill, reference, template, or instruction file. Use
+only this command and the project instructions embedded below.
 
 Inspect only evidence relevant to the assigned scope. Inspect every source
 you cite. Repository evidence can establish Observed facts and support
@@ -199,34 +152,34 @@ Final namespace: <relative-destination>
 Architectural zone and question: <one-zone>
 ```
 
-For a producer failure covered by the retry policy above or an unusable result,
-preserve diagnostics, discard only incomplete staging, requeue the question
-once, and refill capacity. After a repeated confirmed failure, continue
-independent work and report it as incomplete.
+For a failed or unusable producer result, preserve diagnostics and incomplete
+staging. Retry once only when duplicate work cannot occur. After a repeated
+failure, continue independent work and report the question as incomplete.
 
 ## Consume and publish results
 
-As soon as each producer finishes, consume its report and inspect every reported
-candidate file once. Do not inspect repository source or repeat evidence
-validation. Check that the candidate:
+As soon as each producer finishes, consume its compact report without reading
+candidate prose or repository source. If it reports no useful node and staging
+is empty, record that result and remove the staging root. Otherwise run the
+bundled deterministic checker once against that producer's entire staging root:
 
-- is a regular, non-symlink Markdown file inside its staging root;
-- has a normalized destination inside `<spine-root>`, is not `README.md`, and
-  does not overwrite an existing path;
-- is a publishable specification for the assigned architectural question, not
-  an assessment, plan, integration note, empty template, or obviously malformed
-  artifact;
-- contains a useful summary and responsibility, baselines `Observed` claims,
-  and uses valid final-location links and semantic IDs;
-- does not conflict with its assigned ownership or an obvious owner in the
-  current architecture index and relevant linked specifications.
+```text
+python3 <checker-path>/check_spine.py <spine-root> \
+  --candidates <private-staging-root> --json
+```
 
-This is a bounded acceptance read, not source-aware integration or a whole-Spine
-audit. Do not merge, semantically rewrite, or selectively copy candidate
-content. Return a rejected candidate as a focused correction question; if its
-producer is no longer available, enqueue the correction like other ready work.
-Keep its staging path recorded until corrected or explicitly failed. Do not
-leave the freed producer slot idle while that correction is pending.
+Resolve `<checker-path>` once and reuse it. The candidate preflight owns regular
+file and symlink safety, Markdown paths, `README.md` exclusion, destination
+collisions, title/summary/Responsibility structure, evidence baselines, links,
+and semantic-ID mechanics against the live Spine. It ignores only deferred
+index reachability and translated semantic-section names. The producer owns
+source evidence and semantic fitness for its assigned zone; the orchestrator
+must not repeat that work.
+
+Candidate mode exits nonzero for any finding. Publish only after a successful
+empty result. Treat findings as a focused correction question and keep its
+staging path recorded until corrected or explicitly failed. Do not manually
+reread, merge, semantically rewrite, or selectively copy candidate content.
 
 Publish each acceptable candidate unchanged to the same relative destination
 under `<spine-root>` using an available filesystem move/rename tool, for example

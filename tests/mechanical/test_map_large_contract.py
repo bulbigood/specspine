@@ -38,16 +38,15 @@ class MapLargeContractTests(unittest.TestCase):
         )
         self.assertFalse((ROOT / "skills/specspine-map-large/assets").exists())
 
-    def test_parallel_workers_are_isolated_and_single_level(self):
+    def test_parallel_producers_are_isolated(self):
         protocol = (
             ROOT / "skills/specspine-map-large/references/orchestration.md"
         ).read_text(encoding="utf-8")
         required = (
-            "spawns mapping workers, and workers never spawn.",
             "publish-ready Markdown specifications only",
             "Do not modify source, tests, configuration",
             "Schedule as producer-consumer",
-            "As soon as each producer finishes",
+            "Consume completed results",
             "Normalize once after saturation",
             "Do not use a requested or desired document count",
         )
@@ -55,7 +54,7 @@ class MapLargeContractTests(unittest.TestCase):
             with self.subTest(statement=statement):
                 self.assertIn(statement, protocol)
 
-    def test_staged_publication_reads_once_then_moves_unchanged(self):
+    def test_staged_publication_preflights_without_model_read_then_moves_unchanged(self):
         protocol = (
             ROOT / "skills/specspine-map-large/references/orchestration.md"
         ).read_text(encoding="utf-8")
@@ -66,12 +65,14 @@ class MapLargeContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         normalized_publication = " ".join(publication.split())
-        self.assertIn("inspect every reported candidate file once", normalized_publication)
-        self.assertIn("Do not inspect repository source", normalized_publication)
+        self.assertIn("without reading candidate prose or repository source", normalized_publication)
+        self.assertIn("--candidates <private-staging-root> --json", normalized_publication)
+        self.assertIn("Publish only after a successful empty result", normalized_publication)
+        self.assertIn("must not repeat that work", normalized_publication)
         self.assertIn("filesystem move/rename tool", normalized_publication)
         self.assertIn("never reconstruct the file", normalized_publication)
         self.assertIn("do not reread it after the move", normalized_publication)
-        self.assertIn("Do not merge, semantically rewrite", normalized_publication)
+        self.assertIn("Do not manually reread, merge, semantically rewrite", normalized_publication)
         self.assertNotIn("parallel Map", doctor)
         self.assertNotIn("parallel mapping", doctor)
 
@@ -91,7 +92,7 @@ class MapLargeContractTests(unittest.TestCase):
         self.assertIn("one local producer", normalized)
         self.assertIn("Never attempt to hold the whole repository map", normalized)
         self.assertIn("Do not deeply explore the codebase", normalized)
-        self.assertIn("capacity plus a small reserve", normalized)
+        self.assertIn("small bounded backlog", normalized)
         self.assertIn("primary discovery mechanism", normalized)
         self.assertIn("without rereading repository source", normalized)
 
@@ -105,39 +106,28 @@ class MapLargeContractTests(unittest.TestCase):
         self.assertIn("without rereading or rewriting the ledger", normalized)
         self.assertIn("On resume, read the ledger, reconcile published paths", normalized)
         self.assertIn("return interrupted active questions to ready", normalized)
-        self.assertIn("requeue the question once", normalized)
-        self.assertIn("After a repeated confirmed failure", normalized)
+        self.assertIn("Retry once only when duplicate work cannot occur", normalized)
+        self.assertIn("After a repeated failure", normalized)
 
-    def test_continuously_refills_slots_without_wave_barriers(self):
+    def test_continuous_pipeline_has_no_wave_barriers_or_tool_mechanics(self):
         protocol = (
             ROOT / "skills/specspine-map-large/references/orchestration.md"
         ).read_text(encoding="utf-8")
         normalized = " ".join(protocol.split())
-        refill = normalized.index(
-            "Before reading or publishing any candidate file, immediately launch"
-        )
-        acceptance = normalized.index(
-            "While the replacement producer runs, inspect and publish"
-        )
-        self.assertLess(refill, acceptance)
         self.assertIn("dependency-aware ready queue", normalized)
-        self.assertIn("Do not wait for all active workers to finish", normalized)
-        self.assertIn("start the largest safe active set", normalized)
-        self.assertIn("Before reading or publishing any candidate file", normalized)
-        self.assertIn("If only barrier completion is available", normalized)
-        self.assertIn("do not introduce conceptual waves", normalized)
+        self.assertIn("without waiting for an entire batch", normalized)
+        self.assertIn("Do not introduce conceptual waves", protocol)
         self.assertIn("Do not invoke SpecSpine Doctor during the mapping run", normalized)
-        self.assertIn("agent or thread ID returned by the environment as opaque", normalized)
-        self.assertIn("Never start a duplicate producer", normalized)
-        self.assertIn("never grounds for retry", normalized)
-        self.assertIn("explicit terminal `failed` state", normalized)
-        self.assertIn("blocking completion notification", normalized)
-        self.assertIn("Do not poll worker status", normalized)
-        self.assertIn("Set role/model in spawn metadata", normalized)
-        self.assertIn("harness pins subagent defaults", protocol)
-        self.assertIn("fork_turns=none", protocol)
-        self.assertIn("do not override model or reasoning", protocol)
-        self.assertNotIn("gpt-5.6-luna", protocol)
+        for implementation_detail in (
+            "spawn metadata",
+            "fork_turns",
+            "agent or thread ID",
+            "blocking completion notification",
+            "poll worker status",
+            "wait call",
+        ):
+            with self.subTest(implementation_detail=implementation_detail):
+                self.assertNotIn(implementation_detail, protocol)
 
     def test_parallel_handoff_is_minimal_and_reports_stay_compact(self):
         protocol = (
@@ -173,15 +163,13 @@ class MapLargeContractTests(unittest.TestCase):
         self.assertNotIn("small bundle of independent", normalized)
         self.assertLessEqual(len(protocol.splitlines()), 320)
 
-    def test_live_eval_prompt_uses_pinned_context_free_producers(self):
+    def test_live_eval_prompt_keeps_model_routing_out_of_producer_commands(self):
         scenario = (
             ROOT / "tests/scenarios/map-large-rolling-small.md"
         ).read_text(encoding="utf-8")
         normalized = " ".join(scenario.split())
-        self.assertIn("fork_turns=none", normalized)
-        self.assertIn("Do not override its model, reasoning effort, or agent type", normalized)
-        self.assertIn("harness-pinned subagent defaults", normalized)
-        self.assertIn("outside the producer command", normalized)
+        self.assertIn("harness configures producer models outside their commands", normalized)
+        self.assertNotIn("fork_turns", normalized)
 
     def test_normalizes_once_and_gates_post_map_doctor(self):
         protocol = (

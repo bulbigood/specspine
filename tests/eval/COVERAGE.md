@@ -34,17 +34,20 @@ across five cases:
 - `map-staged-producer`: one bounded producer writes a publish-ready candidate
   to a private output root while the live Spine remains read-only.
 - `map-direct-comparison-small`: maps the same controlled three-area repository
-  used by `map-large-rolling-small`, enabling a paired quality/cost benchmark.
+  used by `map-large-rolling-small`, enabling a paired semantic-quality/cost
+  benchmark.
 
 `map-large-rolling-small` provides one controlled executable orchestration
 case. One top-level invocation must dispatch three single-zone mapper producers
-using two initial worker slots. Codex JSONL collaboration events verify initial
-saturation, self-contained handoff, one-zone partitioning, rolling refill
-before candidate consumption, bounded dispatch count, and valid targeting. The
-runtime trace pins the orchestrator to Terra/medium and producers to
-Luna/medium.
+within two available worker slots. Codex JSONL collaboration events verify
+self-contained completion without prescribing agent-lifecycle mechanics.
+Generated artifacts verify the three-zone partition through their evidence
+coverage. The runtime trace pins the orchestrator to Terra/medium and configures
+producers as Luna/medium.
 Final assertions verify move-based publication, source protection, disposable
-run-root cleanup, bounded output, and mechanical Spine validity. This case
+run-root cleanup, and mechanical Spine validity. Document length is observed,
+not bounded. The paired benchmark adds one blind holistic documentation-quality
+judgment per sample pair. This case
 normally costs one orchestrator plus three producer agents and belongs in the explicit
 `expensive` category.
 
@@ -76,8 +79,7 @@ The executable set is divided by resource cost and necessity:
 | `planned` | 10 | 0 | Documentation and future redesign only |
 
 The table counts harness invocations. `map-large-rolling-small` additionally
-spawns three producer agents, with at most one confirmed retry permitted by its
-trace assertions. Its
+creates three producer tasks. Its
 separate category prevents ordinary `core` or `extended` runs from selecting
 it.
 

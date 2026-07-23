@@ -16,22 +16,20 @@ disposable run root and private roots `.specspine-map-run/staging/identity/`,
 `.specspine-map-run/staging/jobs/`, and
 `.specspine-map-run/staging/telemetry/`. Give producers complete self-contained
 text commands; they must not load skills or mapping references. There are no
-other material coverage gaps in this fixture. Spawn every producer with
-`fork_turns=none`. Do not override its model, reasoning effort, or agent type:
-use the harness-pinned subagent defaults. Keep model routing outside the
-producer command. Do not run SpecSpine Doctor.
+other material coverage gaps in this fixture. The harness configures producer
+models outside their commands. Use `.eval/tools/check_spine.py` for candidate
+preflight. Do not run SpecSpine Doctor.
 ```
 
 ## Expected behavior
 
-The orchestrator should start two independent producers, refill the first freed
-slot with the third zone before consuming staged files, publish candidates
-unchanged, normalize once, and remove the successful disposable run root.
+The orchestrator should process the three independent zones concurrently within
+the available capacity, publish candidates as they complete without a batch
+barrier, normalize once, and remove the successful disposable run root.
 
 ## Failure indicators
 
 - fewer than three zone assignments or more than one retry are dispatched;
-- the first two slots are not filled before waiting;
 - one producer receives more than one architectural zone;
 - producer prompts omit the inline mapping contract or tell workers to load it;
 - source or tests change;

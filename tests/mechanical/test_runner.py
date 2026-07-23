@@ -208,6 +208,59 @@ class RunnerTests(unittest.TestCase):
             self.assertFalse(per_file_failure.passed)
             self.assertFalse(total_failure.passed)
 
+    def test_report_artifacts_collects_only_explicit_globs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            (workspace / "specspine").mkdir()
+            (workspace / "src").mkdir()
+            (workspace / "specspine/README.md").write_text(
+                "# Architecture\n", encoding="utf-8"
+            )
+            (workspace / "src/private.py").write_text(
+                "secret = True\n", encoding="utf-8"
+            )
+            artifacts = RUNNER.report_artifacts(
+                {"report_artifacts": ["specspine/**/*.md"]},
+                workspace,
+            )
+            self.assertEqual(
+                {"specspine/README.md": "# Architecture\n"},
+                artifacts,
+            )
+
+    def test_install_stage_skill_copies_explicit_evaluator_tools(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "workspace"
+            workspace.mkdir()
+            stage = {
+                "skill": "skills/specspine-map-large",
+                "eval_tools": {
+                    "check_spine.py": "skills/specspine-doctor/scripts/check_spine.py"
+                },
+            }
+
+            RUNNER.install_stage_skill(stage, workspace)
+
+            installed = workspace / ".eval/tools/check_spine.py"
+            self.assertTrue(installed.is_file())
+            self.assertEqual(
+                (
+                    RUNNER.ROOT
+                    / "skills/specspine-doctor/scripts/check_spine.py"
+                ).read_bytes(),
+                installed.read_bytes(),
+            )
+
+    def test_eval_tools_reject_unsafe_or_missing_paths(self):
+        self.assertEqual([], RUNNER.validate_eval_tools({
+            "check_spine.py": "skills/specspine-doctor/scripts/check_spine.py"
+        }))
+        errors = RUNNER.validate_eval_tools({
+            "../escape.py": "missing.py",
+        })
+        self.assertTrue(any("unsafe evaluator tool filename" in item for item in errors))
+        self.assertTrue(any("evaluator tool does not exist" in item for item in errors))
+
     def test_word_budget_fails_when_target_is_missing(self):
         with tempfile.TemporaryDirectory() as directory:
             result = RUNNER.evaluate_assertion(
@@ -984,6 +1037,7 @@ class RunnerTests(unittest.TestCase):
             queue_seconds=0.25,
             response="response-sentinel",
             stderr="stderr-sentinel",
+            artifacts={"specspine/runtime.md": "# Runtime\n"},
         )
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "report.json"
@@ -993,7 +1047,7 @@ class RunnerTests(unittest.TestCase):
             )
 
             payload = json.loads(target.read_text(encoding="utf-8"))
-        self.assertEqual(2, payload["schema_version"])
+        self.assertEqual(3, payload["schema_version"])
         self.assertEqual(8, payload["jobs"])
         self.assertFalse(payload["samples"][0]["passed"])
         self.assertEqual(10.0, payload["samples"][0]["agent_duration_seconds"])
@@ -1015,6 +1069,10 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(0.25, payload["samples"][0]["queue_seconds"])
         self.assertEqual(
             "response-sentinel", payload["samples"][0]["diagnostics"]["response"]
+        )
+        self.assertEqual(
+            "# Runtime\n",
+            payload["samples"][0]["artifacts"]["specspine/runtime.md"],
         )
 
     def test_agent_execution_requires_case_or_category(self):

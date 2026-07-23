@@ -5,10 +5,14 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import json
+import shlex
 import statistics
 import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +27,14 @@ DEFAULT_ORCHESTRATOR_MODEL = "gpt-5.6-terra"
 DEFAULT_ORCHESTRATOR_REASONING_EFFORT = "medium"
 DEFAULT_SUBAGENT_MODEL = "gpt-5.6-luna"
 DEFAULT_SUBAGENT_REASONING_EFFORT = "medium"
+QUALITY_DIMENSIONS = (
+    "architectural_fidelity",
+    "evidence_and_epistemic_discipline",
+    "responsibility_and_boundary_clarity",
+    "coverage_of_material_concerns",
+    "coherence_navigation_and_relationships",
+    "signal_to_noise_and_usefulness",
+)
 
 
 def load_case(case_id: str) -> dict[str, Any]:
@@ -84,7 +96,6 @@ def summarize(report: dict[str, Any]) -> dict[str, Any]:
         "glob_contains",
         "unchanged",
         "changed_only",
-        "word_budget",
         "markdown_links_valid",
         "semantic_ids_valid",
         "workspace_boundary",
@@ -98,9 +109,24 @@ def summarize(report: dict[str, Any]) -> dict[str, Any]:
         run for sample in samples for run in sample.get("agent_runs", [])
         if isinstance(run, dict)
     ]
+    artifact_sets = [
+        sample.get("artifacts", {})
+        for sample in samples
+        if isinstance(sample.get("artifacts"), dict)
+    ]
+    per_document_words = [
+        len(content.split())
+        for artifacts in artifact_sets
+        for content in artifacts.values()
+        if isinstance(content, str)
+    ]
+    total_document_words = [
+        sum(len(content.split()) for content in artifacts.values() if isinstance(content, str))
+        for artifacts in artifact_sets
+    ]
     return {
-        "orchestrator_model": common_value([run.get("model") for run in runs]),
-        "orchestrator_reasoning_effort": common_value(
+        "top_level_model": common_value([run.get("model") for run in runs]),
+        "top_level_reasoning_effort": common_value(
             [run.get("reasoning_effort") for run in runs]
         ),
         "subagent_model": common_value(
@@ -110,13 +136,15 @@ def summarize(report: dict[str, Any]) -> dict[str, Any]:
             [run.get("subagent_reasoning_effort") for run in runs]
         ),
         "pass_rate": mean([float(bool(sample.get("passed"))) for sample in samples]),
-        "quality_pass_rate": mean([
+        "mechanical_quality_pass_rate": mean([
             float(not any(
                 check.get("type") in quality_checks
                 for check in sample.get("failed_checks", [])
             ))
             for sample in samples
         ]),
+        "mean_document_words": mean([float(value) for value in per_document_words]),
+        "mean_total_document_words": mean([float(value) for value in total_document_words]),
         "mean_case_wall_time_seconds": mean([
             float(sample["case_duration_seconds"]) for sample in samples
             if isinstance(sample.get("case_duration_seconds"), (int, float))
@@ -164,14 +192,182 @@ def summarize(report: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def quality_prompt(
+    fixture: dict[str, str],
+    candidate_a: dict[str, str],
+    candidate_b: dict[str, str],
+) -> str:
+    rubric = "\n".join(f"- {name}: integer 1-10" for name in QUALITY_DIMENSIONS)
+    return f"""Act as a blind senior architecture-documentation reviewer.
+Compare two SpecSpine outputs produced from the same small repository. Use the
+rubric and ordinary engineering judgment. Judge architectural documentation,
+not the implementation strategy that produced it.
+
+Score:
+{rubric}
+- overall: integer 1-10 based on the whole result, not a mechanical average
+
+Prefer accurate, evidence-grounded, clear, complete, coherent, useful
+architecture documentation. Do not penalize length by itself: a longer document
+is often better when the additional text adds architectural meaning. Penalize
+only repetition, irrelevant implementation detail, unsupported claims, or text
+that makes the Spine less usable. Do not reward brevity by itself. Mechanical
+validity is already checked separately.
+
+Return exactly one JSON object with this schema and no Markdown:
+{{"A":{{"<dimension>":1,"overall":1}},"B":{{"<dimension>":1,"overall":1}},
+"preferred":"A|B|tie","rationale":"concise evidence-based explanation"}}
+
+Repository fixture:
+{json.dumps(fixture, ensure_ascii=False, sort_keys=True)}
+
+Candidate A:
+{json.dumps(candidate_a, ensure_ascii=False, sort_keys=True)}
+
+Candidate B:
+{json.dumps(candidate_b, ensure_ascii=False, sort_keys=True)}
+"""
+
+
+def parse_quality_judgment(text: str) -> dict[str, Any]:
+    start = text.find("{")
+    end = text.rfind("}")
+    if start < 0 or end < start:
+        raise ValueError("quality judge returned no JSON object")
+    result = json.loads(text[start : end + 1])
+    expected_scores = {*QUALITY_DIMENSIONS, "overall"}
+    for label in ("A", "B"):
+        scores = result.get(label)
+        if not isinstance(scores, dict) or set(scores) != expected_scores:
+            raise ValueError(f"quality judge {label} scores do not match rubric")
+        if any(
+            not isinstance(value, int)
+            or isinstance(value, bool)
+            or not 1 <= value <= 10
+            for value in scores.values()
+        ):
+            raise ValueError(f"quality judge {label} scores must be integers 1..10")
+    if result.get("preferred") not in {"A", "B", "tie"}:
+        raise ValueError("quality judge preference must be A, B, or tie")
+    if not isinstance(result.get("rationale"), str) or not result["rationale"].strip():
+        raise ValueError("quality judge rationale is missing")
+    return result
+
+
+def judge_reports(
+    reports: dict[str, dict[str, Any]],
+    command: str,
+    fixture: dict[str, str],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    by_arm = {
+        label: {
+            int(sample["sample_number"]): sample
+            for sample in report["samples"]
+        }
+        for label, report in reports.items()
+    }
+    sample_numbers = sorted(set(by_arm["map"]) & set(by_arm["map-large"]))
+    judgments: list[dict[str, Any]] = []
+    token_usage: dict[str, int] = {}
+    started = time.monotonic()
+    for sample_number in sample_numbers:
+        order_material = json.dumps(
+            {
+                label: by_arm[label][sample_number].get("artifacts", {})
+                for label in ("map", "map-large")
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        order = (
+            ("map", "map-large")
+            if hashlib.sha256(order_material.encode()).digest()[0] % 2
+            else ("map-large", "map")
+        )
+        with tempfile.TemporaryDirectory(prefix="specspine-map-quality-judge-") as directory:
+            workspace = Path(directory)
+            completed = subprocess.run(
+                shlex.split(command),
+                cwd=workspace,
+                input=quality_prompt(
+                    fixture,
+                    by_arm[order[0]][sample_number].get("artifacts", {}),
+                    by_arm[order[1]][sample_number].get("artifacts", {}),
+                ),
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            if completed.returncode:
+                raise RuntimeError(
+                    f"quality judge failed for sample {sample_number}: "
+                    f"{completed.stderr.strip()}"
+                )
+            raw = parse_quality_judgment(completed.stdout)
+            trace_path = workspace / ".eval" / "trace.json"
+            if trace_path.is_file():
+                usage = json.loads(trace_path.read_text(encoding="utf-8")).get(
+                    "token_usage", {}
+                )
+                for field, value in usage.items():
+                    if isinstance(value, int) and not isinstance(value, bool):
+                        token_usage[field] = token_usage.get(field, 0) + value
+        scores = {
+            order[0]: raw["A"],
+            order[1]: raw["B"],
+        }
+        preferred = (
+            "tie"
+            if raw["preferred"] == "tie"
+            else order[0 if raw["preferred"] == "A" else 1]
+        )
+        judgments.append(
+            {
+                "sample_number": sample_number,
+                "blind_order": {"A": order[0], "B": order[1]},
+                "scores": scores,
+                "preferred": preferred,
+                "rationale": raw["rationale"],
+            }
+        )
+    return judgments, {
+        "wall_time_seconds": time.monotonic() - started,
+        "token_usage": token_usage,
+    }
+
+
 def format_value(value: Any) -> str:
     if value is None:
         return "n/a"
     return f"{value:.2f}" if isinstance(value, float) else str(value)
 
 
-def write_comparison(output: Path, reports: dict[str, dict[str, Any]]) -> None:
+def write_comparison(
+    output: Path,
+    reports: dict[str, dict[str, Any]],
+    judgments: list[dict[str, Any]] | None = None,
+    judge_cost: dict[str, Any] | None = None,
+) -> None:
     summaries = {label: summarize(report) for label, report in reports.items()}
+    judgments = judgments or []
+    for label in summaries:
+        for dimension in (*QUALITY_DIMENSIONS, "overall"):
+            summaries[label][f"documentation_quality_{dimension}"] = mean(
+                [
+                    float(item["scores"][label][dimension])
+                    for item in judgments
+                    if label in item.get("scores", {})
+                ]
+            )
+        summaries[label]["documentation_quality_preference_rate"] = mean(
+            [
+                1.0 if item.get("preferred") == label else 0.5
+                if item.get("preferred") == "tie" else 0.0
+                for item in judgments
+            ]
+        )
     lines = [
         "# Map vs Map Large benchmark",
         "",
@@ -185,6 +381,10 @@ def write_comparison(output: Path, reports: dict[str, dict[str, Any]]) -> None:
         )
     lines.extend((
         "",
+        "Documentation quality is a blind holistic LLM judgment over the complete "
+        "generated Spine. Scores use common architecture-writing criteria and do "
+        "not penalize length by itself.",
+        "",
         "Token counters are cumulative for the complete agent tree: orchestrator "
         "plus every nested producer.",
         "",
@@ -195,6 +395,18 @@ def write_comparison(output: Path, reports: dict[str, dict[str, Any]]) -> None:
         "Raw reports: `map.json`, `map-large.json`.",
         "",
     ))
+    if judge_cost:
+        usage = judge_cost.get("token_usage", {})
+        lines.extend(
+            (
+                "Quality-judge cost is excluded from both benchmark arms.",
+                "",
+                f"- wall time: {format_value(judge_cost.get('wall_time_seconds'))} seconds",
+                f"- input tokens: {usage.get('input_tokens', 'n/a')}",
+                f"- output tokens: {usage.get('output_tokens', 'n/a')}",
+                "",
+            )
+        )
     output.write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -210,6 +422,15 @@ def main() -> int:
     parser.add_argument(
         "--subagent-reasoning-effort",
         default=DEFAULT_SUBAGENT_REASONING_EFFORT,
+    )
+    parser.add_argument(
+        "--judge-command",
+        help="command that accepts the blind quality-review prompt on stdin; defaults to the Codex adapter",
+    )
+    parser.add_argument(
+        "--skip-quality-judge",
+        action="store_true",
+        help="run only mechanical/cost comparison; documentation quality will be unscored",
     )
     args = parser.parse_args()
     if args.samples < 1:
@@ -235,8 +456,35 @@ def main() -> int:
             return completed.returncode or 2
         reports[label] = json.loads(report_path.read_text(encoding="utf-8"))
         failed |= completed.returncode != 0
+    judgments: list[dict[str, Any]] = []
+    judge_cost: dict[str, Any] = {}
+    if not args.skip_quality_judge:
+        judge_command = args.judge_command or (
+            f"{sys.executable} {EVAL_DIR / 'adapters' / 'codex.py'} "
+            f"--model {args.model} --reasoning-effort {args.reasoning_effort} "
+            f"--subagent-model {args.subagent_model} "
+            f"--subagent-reasoning-effort {args.subagent_reasoning_effort}"
+        )
+        try:
+            judgments, judge_cost = judge_reports(
+                reports,
+                judge_command,
+                load_case(ARMS[0][1])["initial_files"],
+            )
+        except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
+            print(f"Quality judge failed: {error}", file=sys.stderr)
+            return 2
+        (args.output_dir / "quality-judgments.json").write_text(
+            json.dumps(
+                {"judgments": judgments, "cost": judge_cost},
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
     comparison = args.output_dir / "comparison.md"
-    write_comparison(comparison, reports)
+    write_comparison(comparison, reports, judgments, judge_cost)
     print(comparison)
     return 1 if failed else 0
 

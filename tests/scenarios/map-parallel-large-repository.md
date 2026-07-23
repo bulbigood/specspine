@@ -33,7 +33,8 @@ The orchestrator should:
 - add material follow-up questions from completion reports without stopping
   active workers;
 - extend the backlog primarily from worker reports without rereading source;
-- read each candidate once for bounded acceptance without validating its source;
+- run one deterministic candidate preflight per completed staging root without
+  reading candidate prose or validating its source;
 - publish every acceptable worker file unchanged using a filesystem move tool,
   without reconstructing or rereading it;
 - maintain a disposable recovery ledger and retry a failed question once;
@@ -55,6 +56,7 @@ The orchestrator should:
 - a requested document count determines decomposition;
 - filename collisions produce arbitrary numbered duplicates;
 - the orchestrator deeply explores or rereads source after dispatch begins;
+- the orchestrator manually reads candidate prose instead of using preflight;
 - the orchestrator reconstructs candidate files instead of moving them;
 - the orchestrator rereads a candidate after moving it;
 - an acceptable worker output is merged, rewritten, or selectively copied;

@@ -729,6 +729,11 @@ PATCH"""
             "grep -RIn --exclude-dir=.eval TODO .",
             "grep -RIn --exclude-dir '.eval' TODO .",
             "find . -path './.eval' -prune -o -type f -print",
+            (
+                "find . -mindepth 1 -maxdepth 2 "
+                "\\( -path './.git' -o -path './.eval' -o -path './specspine' \\) "
+                "-prune -o -print"
+            ),
             "find . -maxdepth 1 -type d -not -name .eval -print",
             "rg --files -g '!.eval/**'",
             "rg --files -g '! .eval/**'",

@@ -20,7 +20,7 @@ import tempfile
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -88,6 +88,7 @@ class CaseReport:
     queue_seconds: float = 0.0
     response: str = ""
     stderr: str = ""
+    artifacts: dict[str, str] = field(default_factory=dict)
 
 
 TOKEN_FIELDS = (
@@ -204,8 +205,10 @@ def case_fingerprint(case: dict[str, Any]) -> str:
         stage["skill"] for stage in case.get("stages", []) if "skill" in stage
     }
     companion_paths = set(case.get("companion_skills", []))
+    evaluator_tools = dict(case.get("eval_tools", {}))
     for stage in case.get("stages", []):
         companion_paths.update(stage.get("companion_skills", []))
+        evaluator_tools.update(stage.get("eval_tools", {}))
     payload = {
         "manifest": manifest,
         "prompts": prompts,
@@ -217,6 +220,10 @@ def case_fingerprint(case: dict[str, Any]) -> str:
         "skills": {path: directory_digest(ROOT / path) for path in sorted(skill_paths)},
         "companions": {
             path: directory_digest(ROOT / path) for path in sorted(companion_paths)
+        },
+        "evaluator_tools": {
+            name: hashlib.sha256((ROOT / source).read_bytes()).hexdigest()
+            for name, source in sorted(evaluator_tools.items())
         },
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -263,6 +270,7 @@ def write_json_report(
                     "response": report.response[:20_000],
                     "stderr": report.stderr[:4_000],
                 },
+                "artifacts": report.artifacts,
             }
         )
     command_fingerprints: dict[str, str] = {}
@@ -289,7 +297,7 @@ def write_json_report(
         "label": label,
         "samples": samples,
         "samples_requested": samples_requested,
-        "schema_version": 2,
+        "schema_version": 3,
         "run": {
             "run_id": run_id or str(uuid.uuid4()),
             "started_at": started_at,
@@ -432,6 +440,18 @@ def validate_case(case: dict[str, Any]) -> list[str]:
     scenario = ROOT / case["scenario"]
     if not scenario.is_file():
         errors.append(f"scenario does not exist: {case['scenario']}")
+    artifact_patterns = case.get("report_artifacts", [])
+    if (
+        not isinstance(artifact_patterns, list)
+        or any(
+            not isinstance(pattern, str)
+            or not pattern
+            or Path(pattern).is_absolute()
+            or ".." in Path(pattern).parts
+            for pattern in artifact_patterns
+        )
+    ):
+        errors.append("report_artifacts must be a list of safe relative glob strings")
     stages = case.get("stages")
     if stages is not None:
         if not isinstance(stages, list) or not stages:
@@ -453,6 +473,7 @@ def validate_case(case: dict[str, Any]) -> list[str]:
             errors.append("non-staged case requires skill and assertions")
         else:
             errors.extend(validate_skill(case["skill"], case.get("entrypoint", "SKILL.md"), case.get("companion_skills", [])))
+            errors.extend(validate_eval_tools(case.get("eval_tools", {})))
             if case["status"] == "executable" and not case["assertions"]:
                 errors.append("executable case has no assertions")
         if "prompt" not in case and scenario.is_file():
@@ -531,6 +552,24 @@ def validate_skill(skill: str, entrypoint: str, companions: list[str]) -> list[s
     return errors
 
 
+def validate_eval_tools(tools: Any) -> list[str]:
+    if not isinstance(tools, dict):
+        return ["eval_tools must be an object mapping filenames to repository paths"]
+    errors: list[str] = []
+    for name, source in tools.items():
+        if (
+            not isinstance(name, str)
+            or Path(name).name != name
+            or not safe_relative_path(name)
+        ):
+            errors.append(f"unsafe evaluator tool filename: {name}")
+        if not isinstance(source, str) or not safe_relative_path(source):
+            errors.append(f"unsafe evaluator tool source: {source}")
+        elif not (ROOT / source).is_file():
+            errors.append(f"evaluator tool does not exist: {source}")
+    return errors
+
+
 def validate_stage(stage: Any, index: int) -> list[str]:
     label = f"stage {index}"
     if not isinstance(stage, dict):
@@ -553,6 +592,7 @@ def validate_stage(stage: Any, index: int) -> list[str]:
                 stage.get("companion_skills", []),
             )
         )
+        errors.extend(validate_eval_tools(stage.get("eval_tools", {})))
     else:
         fixture = stage["fixture"]
         if not isinstance(fixture, dict):
@@ -615,6 +655,7 @@ def write_fixture(case: dict[str, Any], workspace: Path) -> None:
 def install_stage_skill(stage: dict[str, Any], workspace: Path) -> None:
     skill_target = workspace / ".eval" / "skill"
     companions_target = workspace / ".eval" / "companions"
+    tools_target = workspace / ".eval" / "tools"
     if skill_target.exists():
         shutil.rmtree(skill_target)
     if companions_target.exists():
@@ -623,6 +664,9 @@ def install_stage_skill(stage: dict[str, Any], workspace: Path) -> None:
     for companion in stage.get("companion_skills", []):
         companion_source = ROOT / companion
         shutil.copytree(companion_source, companions_target / companion_source.name)
+    for name, source in stage.get("eval_tools", {}).items():
+        tools_target.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / source, tools_target / name)
 
 
 def apply_fixture_mutation(fixture: dict[str, Any], workspace: Path) -> None:
@@ -689,6 +733,16 @@ def project_files(workspace: Path, glob: str) -> list[Path]:
         for path in workspace.glob(glob)
         if path.is_file() and ".eval" not in path.relative_to(workspace).parts
     ]
+
+
+def report_artifacts(case: dict[str, Any], workspace: Path) -> dict[str, str]:
+    artifacts: dict[str, str] = {}
+    for pattern in case.get("report_artifacts", []):
+        for path in project_files(workspace, pattern):
+            artifacts[path.relative_to(workspace).as_posix()] = path.read_text(
+                encoding="utf-8"
+            )
+    return artifacts
 
 
 def doctor_findings(workspace: Path, spine_path: str = "specspine") -> tuple[list[dict[str, Any]] | None, str]:
@@ -1432,6 +1486,7 @@ def run_case(
                     token_usage=dict(token_usage),
                     response="",
                     stderr="",
+                    artifacts=report_artifacts(case, temp),
                 )
             print(f"{'PASS' if passed else 'FAIL'} {case['id']}", file=output)
             print(
@@ -1505,6 +1560,7 @@ def run_case(
                 token_usage=dict(token_usage),
                 response=response,
                 stderr=stderr,
+                artifacts=report_artifacts(case, temp),
             )
         print(
             f"{'PASS' if passed else 'FAIL'} {case['id']} "
@@ -1555,6 +1611,7 @@ def run_case_captured(
         queue_seconds=queue_seconds,
         response=str(metrics.get("response", "")),
         stderr=str(metrics.get("stderr", "")),
+        artifacts=dict(metrics.get("artifacts", {})),
     )
 
 

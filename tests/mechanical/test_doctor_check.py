@@ -1,5 +1,6 @@
 import importlib.util
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -396,6 +397,137 @@ class DoctorCheckerTests(unittest.TestCase):
             (root / "owner.md").write_text("# Owner\n", encoding="utf-8")
             codes = {finding.code for finding in CHECKER.check(root)}
             self.assertTrue({"INVALID_ID_REFERENCE", "ID_FRAGMENT", "UNRESOLVED_ID"} <= codes)
+
+    def test_candidate_preflight_accepts_links_to_live_spine_without_reachability(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spine = root / "specspine"
+            staging = root / "staging"
+            spine.mkdir()
+            staging.mkdir()
+            (spine / "README.md").write_text(
+                "# Architecture\n\n[Runtime](runtime.md)\n", encoding="utf-8"
+            )
+            (spine / "runtime.md").write_text(
+                "# Runtime\n\nRuntime composition.\n\n"
+                "## Responsibility\n\nOwns process lifecycle.\n",
+                encoding="utf-8",
+            )
+            (staging / "jobs.md").write_text(
+                "# Jobs\n\nBackground execution architecture.\n\n"
+                "## Responsibility\n\nOwns queued job execution.\n\n"
+                "## Observed\n\n"
+                "<!-- specspine:evidence-baseline source=commit-abc; inspected=2026-07-24 -->\n"
+                "Workers execute queued jobs.\n\n"
+                "## Relationships\n\n[Runtime](runtime.md)\n",
+                encoding="utf-8",
+            )
+            self.assertEqual([], CHECKER.check_candidates(spine, staging))
+
+    def test_candidate_preflight_rejects_structure_link_and_collision_defects(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spine = root / "specspine"
+            staging = root / "staging"
+            spine.mkdir()
+            staging.mkdir()
+            (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+            (spine / "existing.md").write_text("# Existing\n", encoding="utf-8")
+            (staging / "existing.md").write_text("# Collision\n", encoding="utf-8")
+            (staging / "broken.md").write_text(
+                "# Broken\n\n## Responsibility\n\n[Missing](missing.md)\n",
+                encoding="utf-8",
+            )
+            codes = {
+                finding.code
+                for finding in CHECKER.check_candidates(spine, staging)
+            }
+            self.assertTrue(
+                {
+                    "DESTINATION_COLLISION",
+                    "MISSING_SUMMARY",
+                    "BROKEN_LINK",
+                }
+                <= codes
+            )
+
+    def test_candidate_preflight_rejects_symlinks_and_missing_responsibility(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spine = root / "specspine"
+            staging = root / "staging"
+            spine.mkdir()
+            staging.mkdir()
+            (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+            outside = root / "outside.md"
+            outside.write_text("# Outside\n", encoding="utf-8")
+            (staging / "linked.md").symlink_to(outside)
+            (staging / "owner.md").write_text(
+                "# Owner\n\nArchitecture summary.\n", encoding="utf-8"
+            )
+            codes = {
+                finding.code
+                for finding in CHECKER.check_candidates(spine, staging)
+            }
+            self.assertTrue({"STAGED_SYMLINK", "MISSING_RESPONSIBILITY"} <= codes)
+
+    def test_candidate_preflight_accepts_empty_no_useful_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spine = root / "specspine"
+            staging = root / "staging"
+            spine.mkdir()
+            staging.mkdir()
+            (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+            self.assertEqual([], CHECKER.check_candidates(spine, staging))
+
+    def test_candidate_cli_fails_on_warning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spine = root / "specspine"
+            staging = root / "staging"
+            spine.mkdir()
+            staging.mkdir()
+            (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+            (staging / "jobs.md").write_text(
+                "# Jobs\n\nBackground execution.\n\n"
+                "## Responsibility\n\nOwns jobs.\n\n"
+                "## Observed\n\nWorkers execute jobs.\n",
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(MODULE_PATH),
+                    str(spine),
+                    "--candidates",
+                    str(staging),
+                    "--json",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(1, completed.returncode)
+            self.assertIn("MISSING_BASELINE", completed.stdout)
+
+    def test_candidate_preflight_rejects_symlinked_staging_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spine = root / "specspine"
+            actual = root / "actual-staging"
+            linked = root / "linked-staging"
+            spine.mkdir()
+            actual.mkdir()
+            linked.symlink_to(actual, target_is_directory=True)
+            (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+            self.assertEqual(
+                ["STAGED_SYMLINK"],
+                [
+                    finding.code
+                    for finding in CHECKER.check_candidates(spine, linked)
+                ],
+            )
 
 
 if __name__ == "__main__":

@@ -81,7 +81,9 @@ harmless rewrite.
   transitions is the contract under test.
 - Keep authorized evidence narrow and enforce it with `read_includes`,
   `max_files_read`, and scope assertions when relevant.
-- Use `word_budget` when uncontrolled artifact growth is a regression risk.
+- Use `word_budget` only when uncontrolled artifact growth is itself a product
+  regression. Do not use it as a proxy for documentation quality; record word
+  counts and judge whether the added text improves architectural meaning.
 - During authoring, run only the focused case with one sample. Do not run a
   category merely to debug one manifest.
 - Inspect reported wall time, files read, agent calls, and token usage. Reject
@@ -179,15 +181,30 @@ python3 tests/eval/benchmark_map_modes.py \
   --output-dir "$report_dir" --samples 1
 ```
 
-The arms use identical project files and common quality assertions. The report
-compares pass rate, case and complete-agent-tree wall time, cumulative tree
+Both arms use the same top-level model and reasoning effort: Terra/medium by
+default. Only Map Large creates producers; those use Luna/medium by default.
+Model overrides apply symmetrically to both top-level arms.
+
+The arms use identical project files and common mechanical assertions. For each
+paired sample, one additional blind judge compares the complete generated
+Spines using architectural fidelity, evidence and epistemic discipline,
+responsibility and boundary clarity, material coverage, coherence/navigation,
+signal-to-noise/usefulness, and holistic overall quality. Length is reported but
+is not a failure or quality penalty by itself. Use `--skip-quality-judge` only
+for mechanical harness debugging.
+
+The report compares documentation-quality scores and preference, pass rate,
+word counts, case and complete-agent-tree wall time, cumulative tree
 input/cache-read/cache-write/uncached/output/reasoning tokens, project reads,
 tool cycles, spawned agents, and sanitized collaboration lifecycle counts
-(spawn/wait/close outcomes and latest producer statuses). Current Codex JSONL exposes only cumulative token usage for the
+(spawn/wait/close outcomes and latest producer statuses). Judge time and tokens
+are reported separately and excluded from both arms. Current Codex JSONL exposes only cumulative token usage for the
 orchestrator plus nested producers; it does not expose exact orchestrator-only
 or per-producer token/time breakdowns. The report states this limitation and
 does not estimate missing counters. Keep one sample for routine calibration;
-repeated samples are release-level evidence.
+repeated samples are release-level evidence. Successful reports include only
+the explicitly requested `specspine/**/*.md` snapshots needed by the blind
+judge.
 
 Each case gets a clean temporary workspace. Cases run with concurrency 8 by
 default; change it with `--jobs N`. Workspaces default to

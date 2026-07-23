@@ -5,6 +5,7 @@
   "status": "executable",
   "category": "expensive",
   "timeout_seconds": 600,
+  "report_artifacts": ["specspine/**/*.md"],
   "initial_files": {
     "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Runtime](runtime.md)\n\n## Mapping status\n\n- High-level runtime mapped\n- Unmapped: identity sessions, background jobs, telemetry export\n",
     "specspine/runtime.md": "# Runtime\n\n## Responsibility\n\nOwns process composition and lifecycle.\n",
@@ -20,7 +21,6 @@
     {"type": "glob_contains", "glob": "specspine/**/*.md", "values": ["src/identity/session.js", "src/jobs/runner.js", "src/telemetry/exporter.js"]},
     {"type": "unchanged", "paths": ["src/**", "tests/**"]},
     {"type": "changed_only", "paths": ["specspine/**"]},
-    {"type": "word_budget", "glob": "specspine/**/*.md", "max_each": 500, "max_total": 1800},
     {"type": "markdown_links_valid", "glob": "specspine/**/*.md"},
     {"type": "semantic_ids_valid", "glob": "specspine/**/*.md"}
   ]

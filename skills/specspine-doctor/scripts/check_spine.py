@@ -6,8 +6,11 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import re
+import shutil
 import sys
+import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -483,12 +486,154 @@ def check(root: Path) -> list[Finding]:
     return sorted(findings, key=lambda item: (order[item.severity], item.path, item.line or 0, item.code))
 
 
+def _finding_key(finding: Finding) -> tuple[str, str, str, int | None, str]:
+    return (
+        finding.severity,
+        finding.code,
+        finding.path,
+        finding.line,
+        finding.message,
+    )
+
+
+def _link_or_copy(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.link(source, destination)
+    except OSError:
+        shutil.copy2(source, destination)
+
+
+def _candidate_sections(path: Path, root: Path) -> list[Finding]:
+    findings: list[Finding] = []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError):
+        return findings
+
+    h1_line: int | None = None
+    first_h2: int | None = None
+    responsibility_line: int | None = None
+    next_heading: int | None = None
+    visible: list[tuple[int, str]] = []
+    in_comment = False
+    in_fence = False
+    fence_char = ""
+    fence_length = 0
+    code_delimiter = 0
+
+    for line_number, raw_line in enumerate(lines, 1):
+        fence = FENCE_RE.match(raw_line)
+        if in_fence:
+            if fence and fence.group(1)[0] == fence_char and len(fence.group(1)) >= fence_length:
+                in_fence = False
+            continue
+        if fence and not in_comment and code_delimiter == 0:
+            in_fence = True
+            fence_char = fence.group(1)[0]
+            fence_length = len(fence.group(1))
+            continue
+        masked, code_delimiter = mask_code_spans(raw_line, code_delimiter)
+        line, in_comment = strip_comments(masked, in_comment)
+        stripped = line.strip()
+        if not stripped:
+            continue
+        heading = ATX_HEADING_RE.match(line)
+        if heading:
+            level = len(heading.group(1))
+            title = re.sub(r"[ \t]+#+[ \t]*$", "", heading.group(2) or "").strip()
+            if level == 1 and h1_line is None:
+                h1_line = line_number
+            elif level == 2:
+                if first_h2 is None:
+                    first_h2 = line_number
+                if responsibility_line is None and title == "Responsibility":
+                    responsibility_line = line_number
+                elif responsibility_line is not None and next_heading is None:
+                    next_heading = line_number
+            continue
+        visible.append((line_number, stripped))
+
+    summary_end = first_h2 or len(lines) + 1
+    if h1_line is not None and not any(h1_line < number < summary_end for number, _ in visible):
+        add(findings, "error", "MISSING_SUMMARY", path, root, "candidate has no summary below its title")
+    if responsibility_line is None:
+        add(findings, "error", "MISSING_RESPONSIBILITY", path, root, "candidate has no Responsibility section")
+    else:
+        responsibility_end = next_heading or len(lines) + 1
+        if not any(responsibility_line < number < responsibility_end for number, _ in visible):
+            add(findings, "error", "EMPTY_RESPONSIBILITY", path, root, "candidate Responsibility section is empty")
+    return findings
+
+
+def check_candidates(spine_root: Path, staging_root: Path) -> list[Finding]:
+    """Check staged Markdown against the live Spine without publishing it."""
+    spine_root = spine_root.resolve()
+    staging_root = staging_root.absolute()
+    findings: list[Finding] = []
+    if not spine_root.is_dir():
+        return [Finding("error", "ROOT_MISSING", ".", None, f"SpecSpine root does not exist: {spine_root}")]
+    if staging_root.is_symlink():
+        return [Finding("error", "STAGED_SYMLINK", ".", None, "staging root must not be a symlink")]
+    if not staging_root.is_dir():
+        return [Finding("error", "STAGING_MISSING", ".", None, f"staging root does not exist: {staging_root}")]
+
+    candidates: list[tuple[Path, Path]] = []
+    for path in sorted(staging_root.rglob("*")):
+        relative = path.relative_to(staging_root)
+        if path.is_symlink():
+            add(findings, "error", "STAGED_SYMLINK", path, staging_root, "staged entries must not be symlinks")
+            continue
+        if path.is_dir():
+            continue
+        if not path.is_file():
+            add(findings, "error", "STAGED_SPECIAL_FILE", path, staging_root, "staged entries must be regular files")
+            continue
+        if path.suffix != ".md":
+            add(findings, "error", "STAGED_NON_MARKDOWN", path, staging_root, "staging may contain only Markdown files")
+            continue
+        if relative == Path("README.md"):
+            add(findings, "error", "STAGED_INDEX", path, staging_root, "a producer must not replace README.md")
+            continue
+        destination = spine_root / relative
+        if destination.exists() or destination.is_symlink():
+            add(findings, "error", "DESTINATION_COLLISION", path, staging_root, f"destination already exists: {relative}")
+            continue
+        candidates.append((path, relative))
+        findings.extend(_candidate_sections(path, staging_root))
+
+    if not candidates:
+        return findings
+
+    baseline = {_finding_key(item) for item in check(spine_root)}
+    ignored_overlay_codes = {"ID_SECTION_UNVERIFIED", "UNREACHABLE_SPEC"}
+    with tempfile.TemporaryDirectory(prefix="specspine-candidate-check-") as directory:
+        overlay = Path(directory)
+        for live in sorted(spine_root.rglob("*.md")):
+            if live.is_file() and not live.is_symlink():
+                _link_or_copy(live, overlay / live.relative_to(spine_root))
+        for source, relative in candidates:
+            _link_or_copy(source, overlay / relative)
+        for item in check(overlay):
+            if item.code in ignored_overlay_codes or _finding_key(item) in baseline:
+                continue
+            findings.append(item)
+
+    order = {"error": 0, "warning": 1, "note": 2}
+    return sorted(findings, key=lambda item: (order[item.severity], item.path, item.line or 0, item.code))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("spine_root", type=Path)
+    parser.add_argument("--candidates", type=Path, help="check a private staging root against the live Spine")
     parser.add_argument("--json", action="store_true", help="emit a JSON array")
     args = parser.parse_args()
-    findings = check(args.spine_root)
+    findings = (
+        check_candidates(args.spine_root, args.candidates)
+        if args.candidates
+        else check(args.spine_root)
+    )
     if args.json:
         print(json.dumps([asdict(item) for item in findings], indent=2))
     elif not findings:
@@ -497,7 +642,7 @@ def main() -> int:
         for item in findings:
             location = f"{item.path}:{item.line}" if item.line else item.path
             print(f"{item.severity.upper()} {item.code} {location} — {item.message}")
-    return 1 if any(item.severity == "error" for item in findings) else 0
+    return 1 if findings and (args.candidates or any(item.severity == "error" for item in findings)) else 0
 
 
 if __name__ == "__main__":

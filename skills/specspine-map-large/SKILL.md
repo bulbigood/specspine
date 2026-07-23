@@ -1,13 +1,13 @@
 ---
 name: specspine-map-large
-description: Orchestrate a deliberate end-to-end mapping run for a large brownfield repository using a bounded backlog, staged producers, continuous publication, recovery checkpoints, saturation, and final normalization. Use only when the operator explicitly invokes $specspine-map-large for complete or sustained repository mapping; do not infer this mode from repository size or an ordinary mapping request. Works with parallel subagents or one local producer. Do not use for a focused survey, subsystem map, deepening, or refresh (use specspine-map).
+description: Orchestrate a deliberate end-to-end mapping run for a large brownfield repository using a bounded backlog, isolated staged producers, continuous publication, recovery checkpoints, saturation, and final normalization. Use only when the operator explicitly invokes $specspine-map-large for complete or sustained repository mapping; do not infer this mode from repository size or an ordinary mapping request. Works with concurrent producers or one local producer. Do not use for a focused survey, subsystem map, deepening, or refresh (use specspine-map).
 ---
 
 # SpecSpine Map Large
 
-Orchestrate a complete large-repository Map run. Keep execution logic identical
-whether mapping producers run concurrently or the current agent performs every
-role sequentially.
+Orchestrate a complete large-repository Map run. Keep the mapping and
+publication contract identical whether producers run concurrently or the
+current agent performs every role sequentially.
 
 ## Resources
 
@@ -25,10 +25,6 @@ Use this skill only through explicit operator selection. Do not activate it
 merely because a repository appears large or a normal Map request contains
 several areas.
 
-Run the orchestrator on a medium-capability agent. Configure its model and the
-producer model in the execution environment or harness; model names do not
-belong in producer task text.
-
 Own orchestration, not architectural invention. Repository evidence may
 establish observations and support inferences, but never establishes accepted
 decisions or constraints. Do not modify production code, claim complete
@@ -43,10 +39,10 @@ code/spec conformance, or apply semantic Doctor repairs without approval.
    revision, read-only live Spine, private writable output root, final namespace,
    shared topology/ownership context, and exactly one coherent architectural
    zone with its question.
-4. When subagents are unavailable, execute the same inline producer command
+4. When concurrent producers are unavailable, execute the same inline producer command
    locally for one queued question at a time, then return to the same consumer,
-   checkpoint, scheduling, saturation, and normalization loop. The current
-   agent is orchestrator, producer, and consumer; only concurrency changes.
+   checkpoint, saturation, and normalization loop. The current agent is
+   orchestrator, producer, and consumer; only concurrency changes.
 5. Report source state, execution limitation when sequential, published files,
    mapped areas, failed or deferred questions, unconfirmed inferences,
    unresolved drift, normalization, mechanical-check results, and qualitative

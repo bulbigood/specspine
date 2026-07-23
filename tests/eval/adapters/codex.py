@@ -994,6 +994,20 @@ def scope_violations(
             r"(?:-g|--glob)(?:=|\s+)[\"']*![^\"']*\.eval[^\"']*[\"']*",
         ):
             allowed_eval = re.sub(pattern, "<EVAL_EXCLUSION>", allowed_eval)
+        # `find` commonly groups several excluded roots and applies one
+        # trailing `-prune` to the whole group.
+        def mask_pruned_group(match: re.Match[str]) -> str:
+            return re.sub(
+                r"(?:\./)?\.eval(?:/?)(?=[\"']?(?:\s|$))",
+                "<EVAL_EXCLUSION>",
+                match.group(0),
+            )
+
+        allowed_eval = re.sub(
+            r"\\?\([^;&|\r\n)]*(?:\./)?\.eval[^;&|\r\n)]*\\?\)\s+-prune\b",
+            mask_pruned_group,
+            allowed_eval,
+        )
         # A depth-one directory listing cannot descend into evaluator files.
         # Permit excluding the `.eval` directory by name in that bounded form,
         # but keep rejecting the same predicate on an unbounded `find`.

@@ -44,6 +44,26 @@ class MapModeBenchmarkTests(unittest.TestCase):
         )
         self.assertEqual(Path("/reports/map.json"), report)
 
+    def test_both_arms_use_the_same_top_level_model(self):
+        rendered = []
+        for label, case_id in BENCHMARK.ARMS:
+            command, _ = BENCHMARK.report_command(
+                Path("/reports"),
+                label,
+                case_id,
+                samples=1,
+                model="gpt-5.6-terra",
+                reasoning_effort="medium",
+                subagent_model="gpt-5.6-luna",
+                subagent_reasoning_effort="medium",
+                timestamp="stamp",
+            )
+            rendered.append(" ".join(command))
+
+        self.assertTrue(all("--model gpt-5.6-terra" in item for item in rendered))
+        self.assertTrue(all("--reasoning-effort medium" in item for item in rendered))
+        self.assertTrue(all("--subagent-model gpt-5.6-luna" in item for item in rendered))
+
     def test_comparison_contains_quality_cost_and_parallelism(self):
         sample = {
             "passed": True,
@@ -75,19 +95,69 @@ class MapModeBenchmarkTests(unittest.TestCase):
             BENCHMARK.write_comparison(target, reports)
             text = target.read_text(encoding="utf-8")
         for value in (
-            "orchestrator_model", "orchestrator_reasoning_effort",
+            "top_level_model", "top_level_reasoning_effort",
             "subagent_model", "subagent_reasoning_effort",
-            "pass_rate", "quality_pass_rate", "mean_case_wall_time_seconds",
+            "pass_rate", "mechanical_quality_pass_rate", "mean_case_wall_time_seconds",
             "mean_agent_tree_wall_time_seconds", "mean_agent_tree_total_tokens",
             "mean_agent_tree_input_tokens", "mean_agent_tree_cached_input_tokens",
             "mean_agent_tree_cache_write_input_tokens",
             "mean_agent_tree_uncached_input_tokens",
             "mean_agent_tree_output_tokens", "mean_agent_tree_reasoning_tokens",
+            "mean_document_words", "mean_total_document_words",
             "mean_files_read", "mean_tool_cycles", "mean_spawned_agents",
+            "documentation_quality_architectural_fidelity",
+            "documentation_quality_evidence_and_epistemic_discipline",
+            "documentation_quality_responsibility_and_boundary_clarity",
+            "documentation_quality_coverage_of_material_concerns",
+            "documentation_quality_coherence_navigation_and_relationships",
+            "documentation_quality_signal_to_noise_and_usefulness",
+            "documentation_quality_overall",
+            "documentation_quality_preference_rate",
         ):
             self.assertIn(value, text)
         self.assertIn("orchestrator plus every nested producer", text)
         self.assertIn("per-thread token usage", text)
+        self.assertIn("do not penalize length by itself", text)
+
+    def test_quality_rubric_uses_holistic_scores_and_does_not_reward_brevity(self):
+        prompt = BENCHMARK.quality_prompt(
+            {"src/a.py": "behavior"},
+            {"specspine/a.md": "long useful architecture"},
+            {"specspine/a.md": "short"},
+        )
+        self.assertIn("ordinary engineering judgment", prompt)
+        self.assertIn("Do not penalize length by itself", prompt)
+        self.assertIn("Do not reward brevity by itself", prompt)
+        for dimension in BENCHMARK.QUALITY_DIMENSIONS:
+            self.assertIn(dimension, prompt)
+
+    def test_quality_judgment_parser_rejects_incomplete_scores(self):
+        scores = {
+            dimension: 8 for dimension in BENCHMARK.QUALITY_DIMENSIONS
+        }
+        scores["overall"] = 9
+        parsed = BENCHMARK.parse_quality_judgment(
+            json.dumps(
+                {
+                    "A": scores,
+                    "B": {**scores, "overall": 7},
+                    "preferred": "A",
+                    "rationale": "A is clearer and better grounded.",
+                }
+            )
+        )
+        self.assertEqual("A", parsed["preferred"])
+        with self.assertRaises(ValueError):
+            BENCHMARK.parse_quality_judgment(
+                json.dumps(
+                    {
+                        "A": {"overall": 9},
+                        "B": scores,
+                        "preferred": "A",
+                        "rationale": "Incomplete.",
+                    }
+                )
+            )
 
 
 if __name__ == "__main__":
