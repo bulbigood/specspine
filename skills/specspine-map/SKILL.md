@@ -52,11 +52,18 @@ It does not:
    relevant specifications, plus repository documentation or architecture
    records needed to understand existing intent.
 2. Choose the shallowest operation that answers the request: whole-repository
-   survey, selected-area map, deepening, refresh, or a parallel mapping wave.
-   Use parallel mapping only when the repository has several independent
-   architectural areas and subagents are available; follow
-   `references/parallel-mapping.md` as the complete concurrency and integration
-   protocol.
+   survey, selected-area map, deepening, refresh, or parallel mapping waves.
+   For a large repository with subagents available, explicitly enumerate
+   independent architectural questions and available worker slots before
+   choosing execution shape. When two or more questions can be investigated
+   independently, use `references/parallel-mapping.md` and launch the largest
+   safe set of workers allowed by its concurrency formula. Do not serialize
+   independent investigation merely to avoid write conflicts: workers use
+   private staging roots. Investigation within a wave is parallel; source-aware
+   integration and planning between bounded waves are sequential. Launching
+   only one worker is justified only when exactly one independent question
+   remains or repository I/O or available slots impose that limit; report that
+   reason. Use ordinary sequential mapping for small or tightly coupled scopes.
 3. Gather representative evidence. For a survey, prioritize root docs,
    manifests, runtime entry points, composition roots, public interfaces,
    schemas, integrations, deployment configuration, and representative tests.
