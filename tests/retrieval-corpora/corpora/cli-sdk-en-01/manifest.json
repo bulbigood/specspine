@@ -42,11 +42,6 @@
         "language": "en",
         "text": "Find the authoritative configuration merge rules. I need the priority of defaults, files, profiles, environment variables and flags, plus what an explicit null does to an inherited optional setting and when credential references are resolved."
       },
-      "search": {
-        "limit": 5,
-        "graph_depth": 1,
-        "graph_limit": 3
-      },
       "slices": [
         {
           "id": "config-precedence-unset",
@@ -120,11 +115,6 @@
       "request": {
         "language": "en",
         "text": "Before modifying the plan command, locate the rule for dry-running migrations. What may it read, what must it print, and which writes, locks, and SQL execution are forbidden?"
-      },
-      "search": {
-        "limit": 5,
-        "graph_depth": 1,
-        "graph_limit": 3
       },
       "slices": [
         {
@@ -203,11 +193,6 @@
         "language": "en",
         "text": "How may a second CLI process take over a stale migration lock? Find the owner of lease expiry, the authoritative clock, and the generation compare-and-swap safeguard."
       },
-      "search": {
-        "limit": 5,
-        "graph_depth": 1,
-        "graph_limit": 3
-      },
       "slices": [
         {
           "id": "lease-reclaim-cas",
@@ -281,11 +266,6 @@
       "request": {
         "language": "en",
         "text": "Change plugin startup diagnostics. I need the discovery and API-range compatibility rules, and separately the stable exit status and JSON diagnostic envelope used when a plugin is incompatible."
-      },
-      "search": {
-        "limit": 5,
-        "graph_depth": 1,
-        "graph_limit": 4
       },
       "slices": [
         {
@@ -411,11 +391,6 @@
         "language": "en",
         "text": "Find the rules for profiles inheriting from parents, including child overrides and cyclic inheritance. Do not confuse named configuration profiles with performance profiling or telemetry."
       },
-      "search": {
-        "limit": 5,
-        "graph_depth": 1,
-        "graph_limit": 3
-      },
       "slices": [
         {
           "id": "profile-inheritance-cycle",
@@ -483,11 +458,6 @@
       "request": {
         "language": "en",
         "text": "What happens while reversing several applied migrations if one down step fails? Include reversal ordering, retained progress, and constraints that force cannot bypass."
-      },
-      "search": {
-        "limit": 5,
-        "graph_depth": 1,
-        "graph_limit": 3
       },
       "slices": [
         {
@@ -563,11 +533,6 @@
       "request": {
         "language": "en",
         "text": "Find the documented policy for executing migration workers inside a remote Kubernetes cluster and scheduling pods across availability zones."
-      },
-      "search": {
-        "limit": 4,
-        "graph_depth": 1,
-        "graph_limit": 2
       },
       "slices": [
         {

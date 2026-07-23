@@ -149,7 +149,7 @@ python3 tests/eval/run.py \
 
 `--case` and `--category` are repeatable and may be combined. There is no
 implicit run-all mode. Planned cases are never executed. Categories are
-disjoint: `core` has 8 executable cases, `extended` has 8, and `planned` has
+disjoint: `core` has 7 executable cases, `extended` has 12, and `planned` has
 8 documented non-executable cases.
 
 Each case gets a clean temporary workspace. Cases run with concurrency 8 by
@@ -163,170 +163,33 @@ workspaces and report its success rate. This differs from a manifest's `runs`:
 those are sequential agent calls inside one workspace and test repeated or
 lifecycle behavior.
 
-### Compare extract retrieval cost
+### Evaluate production Extract
 
-Do not create another eval case for performance comparison. Run the existing
-`extract-accelerated-handoff` case against the same fixture and scenario in four
-profiles: no Extract skill, forced fallback, isolated cold, and prewarmed. The
-no-Extract profile does not stage a skill or retrieval instructions; it measures
-direct project-documentation search. Profile-specific assertions remove only
-the Extract response schema, retrieval command, and accelerator read budget.
-The required documents, semantic constraint, exclusions, read-only behavior,
-and response budget remain checked. The adapter's
-`fallback` mode makes only the disposable cache
-unavailable, so the skill exercises its normal Markdown-link fallback.
-Every benchmark corpus root must include an `AGENTS.md` rendered from the
-`specspine-connect` bootstrap with its real Spine path and documentation
-language. Codex loads this project instruction in every profile. The no-Extract
-profile therefore has the same persistent discovery route as the Extract
-profiles, while only the staged skill and its prompt scaffolding differ. The
-runner validates the managed markers, resolved index path, and absence of
-template placeholders. The deterministic ledger reports `AGENTS.md` bytes
-separately from skill context bytes.
-
-Run all groups concurrently and save their per-sample reports:
-
-```bash
-report_dir=$(mktemp -d -t specspine-extract-eval.XXXXXX)
-run_id="extract-ab-$(date -u +%Y%m%dT%H%M%SZ)"
-python3 tests/eval/run.py \
-  --case extract-accelerated-handoff --samples 5 \
-  --execution-profile no-extract \
-  --run-id "$run_id-no-extract" \
-  --report-label no-extract --report-json "$report_dir/no-extract.json" \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium --accelerator-mode enabled" &
-no_extract_pid=$!
-python3 tests/eval/run.py \
-  --case extract-accelerated-handoff --samples 5 \
-  --run-id "$run_id-fallback" \
-  --report-label forced-fallback --report-json "$report_dir/fallback.json" \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium --accelerator-mode fallback" &
-fallback_pid=$!
-python3 tests/eval/run.py \
-  --case extract-accelerated-handoff --samples 5 \
-  --run-id "$run_id-cold" \
-  --report-label accelerated-cold --report-json "$report_dir/cold.json" \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium --accelerator-mode enabled" &
-cold_pid=$!
-python3 tests/eval/run.py \
-  --case extract-accelerated-handoff --samples 5 \
-  --run-id "$run_id-warm" \
-  --report-label accelerated-prewarmed --report-json "$report_dir/warm.json" \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-luna --reasoning-effort medium --accelerator-mode enabled --cache-profile prewarmed" &
-warm_pid=$!
-fallback_status=0
-cold_status=0
-warm_status=0
-no_extract_status=0
-wait "$no_extract_pid" || no_extract_status=$?
-wait "$fallback_pid" || fallback_status=$?
-wait "$cold_pid" || cold_status=$?
-wait "$warm_pid" || warm_status=$?
-python3 tests/eval/compare_extract_metrics.py \
-  --no-extract "$report_dir/no-extract.json" \
-  --fallback "$report_dir/fallback.json" \
-  --accelerated "$report_dir/cold.json" \
-  --warm "$report_dir/warm.json"
-test "$no_extract_status" -eq 0 -a "$fallback_status" -eq 0 -a "$cold_status" -eq 0 -a "$warm_status" -eq 0
-```
-
-Each adapter invocation uses a private disposable runtime and cache. The cold
-group leaves that cache empty; the prewarmed group builds the exact workspace
-index before starting the agent. Sharing one cache directory between samples
-would not create a warm index because production cache keys include each
-workspace's absolute Spine path. The report records both profiles explicitly.
-Prewarm setup is excluded from agent duration and shown separately per sample.
-Cold and prewarmed samples are also compared directly, independently of their
-comparisons against fallback.
-The report compares no Extract separately with forced fallback and the cold
-accelerator. This distinguishes the value and cost of Extract's navigation
-instructions from the additional effect of SQLite routing. The no-Extract
-profile must record zero retrieval attempts; otherwise the comparator rejects
-the reports.
-Use the prewarmed group when cache lifecycle, locking, refresh, or index startup
-changes. For routine retrieval-quality A/B runs, omit that group and `--warm`;
-warm state should not change agent tokens when routing output is identical.
-
-The analyzer prints the absolute source-report directory and records it in the
-generated Markdown, so every snapshot can be traced back to its JSON inputs.
-By default it creates a timestamped, never-overwritten report under
-`tests/eval/reports/`. `--output PATH` selects a preferred location, but if that
-path exists the analyzer adds a numeric suffix instead of replacing it. Raw JSON
-reports stay in the unique system temporary directory created by `mktemp`; the
-runner and analyzer do not remove them, leaving eventual cleanup to the
-operating system. It performs no agent calls. It
-rejects reports with incompatible case/skill or adapter fingerprints, models,
-reasoning effort, Codex CLI versions, sample identities, or configured
-parallelism. Pairwise cold comparisons also require identical cache profiles;
-the explicit prewarmed comparison permits only that intentional difference.
-Sample numbers verify completeness but independent
-stochastic calls are not treated as statistical pairs. Environment-invalid
-samples are reported and excluded. Agent time comes from adapter traces rather
-than fixture setup or assertions. The Markdown is a compact median-first
-summary; means stay beside medians to expose outlier influence, and bootstrap
-intervals apply to median differences. It retains concise sample outcomes,
-routing/usefulness aggregates, failures, byte/cycle proxies, agent-message
-events, and observed concurrency. Agent-message events are a better proxy for
-repeated model interaction than parallel shell-command count. Detailed attempts
-and commands remain in the raw JSON. Normal A/B
-runs omit retrieval telemetry and therefore execute the exact compact
-production command. For an instrumented A/B, add `--retrieval-telemetry
-minimal` to every adapter command. The adapter stages a repository-only tool
-that transparently observes the disposable production script without changing
-the staged `SKILL.md` command. It writes compact cache state and timings to a
-sidecar while preserving production stdout byte-for-byte; telemetry does not
-enter model context. Use
-`tools/specspine-extract/search_spine_diagnostics.py --telemetry full` only in
-mechanical tests or direct investigations that need ranking signals, candidate
-details, runtime versions, and failure reasons.
-It also keeps a deterministic byte/cycle cost ledger and relates returned
-direct/graph candidates to conservatively inferred subsequent document reads.
-These proxies explain context growth but are not model tokens.
-Ledger rows overlap and must not be summed into a synthetic total.
-Raw JSON also retains bounded response/stderr diagnostics after workspaces are
-removed. Token counters come only from the final top-level
-`turn.completed.usage` event; nested counters in tool payloads are ignored.
-Treat the result as a measurement, not a stable CI pass/fail threshold.
-
-### Compare Extract v2 ranking systems
-
-The four `extract-v2-*-multislice` cases reuse the immutable retrieval corpora
-and exercise two English project types plus Russian and Chinese documentation.
+The four `extract-*-multislice` cases reuse the immutable retrieval corpora and
+exercise two English project types plus Russian and Chinese documentation.
 Their hidden `handoff_judgments` distinguish canonical owners, grade-2
 supporting specifications, the broader relevant set, and hard negatives. The
 runner copies this gold metadata into JSON reports but never exposes it to the
 evaluated workspace or prompt.
 
-Run all three ranking arms:
+Run the single production policy:
 
 ```bash
-report_dir=$(mktemp -d -t specspine-extract-ranking-ab.XXXXXX)
-python3 tests/eval/run_extract_ranking_ab.py \
-  --output-dir "$report_dir" \
+report=$(mktemp -t specspine-extract.XXXXXX.json)
+python3 tests/eval/run.py \
+  --case extract-backend-multislice \
+  --case extract-cli-multislice \
+  --case extract-mobile-multislice-ru \
+  --case extract-pipeline-multislice-zh-cn \
   --samples 3 \
   --jobs 4 \
-  --model gpt-5.6-luna \
-  --reasoning-effort medium
+  --report-json "$report" \
+  --agent-command 'python3 tests/eval/adapters/codex.py'
 ```
 
-Each arm receives identical cases, prompts, benchmark-only skill, model
-settings, and sample identities. Arms are intentionally sequential so service
-load from one ranker cannot distort another; independent cases and samples
-inside an arm remain parallel. `comparison.md` contains macro agent-level
-quality and cost metrics, while `legacy.json`, `faceted-bm25.json`, and
-`faceted-normalized.json` preserve bounded responses, retrieval attempts, and
-deterministic byte ledgers.
-
-For an existing subset of two or three compatible reports:
-
-```bash
-python3 tests/eval/compare_extract_rankings.py \
-  legacy.json faceted-bm25.json faceted-normalized.json \
-  --output comparison.md
-```
-
-The comparator rejects different case/skill fingerprints, adapter files,
-runtime metadata, commands beyond `--ranking`, or sample identities.
+The report preserves bounded responses, retrieval attempts, effective fixed
+ranking/graph policy, deterministic byte ledgers, tool cycles, and token
+counters.
 
 Case manifests in `cases/*.json` define fixtures, prompts and deterministic
 assertions. A manifest may instead define ordered `stages`; agent stages run a

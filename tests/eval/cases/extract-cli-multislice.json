@@ -1,7 +1,7 @@
 {
-  "id": "extract-v2-cli-multislice",
-  "scenario": "tests/scenarios/extract-v2-cli-multislice.md",
-  "skill": "tests/eval/skills/specspine-extract-v2",
+  "id": "extract-cli-multislice",
+  "scenario": "tests/scenarios/extract-cli-multislice.md",
+  "skill": "skills/specspine-extract",
   "status": "executable",
   "category": "extended",
   "runs": 1,
@@ -28,7 +28,7 @@
   "assertions": [
     {"type": "max_changed_files", "max": 0},
     {"type": "read_only", "paths": ["specspine/**"]},
-    {"type": "command_includes", "value": "search_spine_v2.py"},
+    {"type": "command_includes", "value": "search_spine.py"},
     {"type": "trace_equals", "field": "retrieval_attempt_count", "value": 1},
     {"type": "response_contains", "values": ["specspine/plugin-api.md", "specspine/error-contract.md"]},
     {"type": "response_not_contains", "value": "specspine/local-cache.md"},

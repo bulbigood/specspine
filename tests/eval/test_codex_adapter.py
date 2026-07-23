@@ -23,29 +23,22 @@ class CodexAdapterTests(unittest.TestCase):
             skill = root / ".eval" / "skill" / "SKILL.md"
             scripts = skill.parent / "scripts"
             scripts.mkdir(parents=True)
-            (scripts / "search_spine.py").write_text("# v1\n", encoding="utf-8")
-            (scripts / "search_spine_v2.py").write_text("# v2\n", encoding="utf-8")
+            (scripts / "search_spine.py").write_text(
+                "# production\n", encoding="utf-8"
+            )
 
             skill.write_text(
-                "python3 <skill-root>/scripts/search_spine.py spine --query x\n",
+                "python3 <skill-root>/scripts/search_spine.py spine "
+                "--queries-json '[]'\n",
                 encoding="utf-8",
             )
             self.assertEqual("search_spine.py", ADAPTER.retrieval_script(root).name)
 
-            skill.write_text(
-                "python3 <skill-root>/scripts/search_spine_v2.py spine "
-                "--queries-json '[]'\n",
-                encoding="utf-8",
-            )
-            self.assertEqual(
-                "search_spine_v2.py", ADAPTER.retrieval_script(root).name
-            )
-
-    def test_classifies_v2_search_as_retrieval(self):
+    def test_classifies_search_as_retrieval(self):
         self.assertEqual(
             "retrieval",
             ADAPTER.command_category(
-                "python3 .eval/skill/scripts/search_spine_v2.py specspine "
+                "python3 .eval/skill/scripts/search_spine.py specspine "
                 "--queries-json '[]'",
                 set(),
             ),
@@ -57,7 +50,8 @@ class CodexAdapterTests(unittest.TestCase):
             skill = root / ".eval" / "skill" / "SKILL.md"
             skill.parent.mkdir(parents=True)
             skill.write_text(
-                "python3 <skill-root>/scripts/search_spine.py spine --query intent\n",
+                "python3 <skill-root>/scripts/search_spine.py spine "
+                "--queries-json '[]'\n",
                 encoding="utf-8",
             )
             production = root / ".eval" / "skill" / "scripts" / "search_spine.py"
@@ -70,7 +64,8 @@ class CodexAdapterTests(unittest.TestCase):
             ADAPTER.enable_retrieval_telemetry(root, "minimal")
 
             self.assertEqual(
-                "python3 <skill-root>/scripts/search_spine.py spine --query intent\n",
+                "python3 <skill-root>/scripts/search_spine.py spine "
+                "--queries-json '[]'\n",
                 skill.read_text(encoding="utf-8"),
             )
             self.assertEqual(
@@ -84,41 +79,6 @@ class CodexAdapterTests(unittest.TestCase):
                 (root / ".eval/tools/ranking.py").read_text(encoding="utf-8"),
             )
             self.assertIn("minimal_telemetry", production.read_text(encoding="utf-8"))
-
-    def test_v2_telemetry_wraps_script_and_preserves_v2_dependencies(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            skill = root / ".eval" / "skill" / "SKILL.md"
-            skill.parent.mkdir(parents=True)
-            skill.write_text(
-                "python3 <skill-root>/scripts/search_spine_v2.py spine "
-                "--queries-json '[]'\n",
-                encoding="utf-8",
-            )
-            production = skill.parent / "scripts" / "search_spine_v2.py"
-            production.parent.mkdir()
-            production.write_text("# v2 production\n", encoding="utf-8")
-            production.with_name("ranking_v2.py").write_text(
-                "# v2 ranking\n", encoding="utf-8"
-            )
-
-            ADAPTER.enable_retrieval_telemetry(root, "full")
-
-            self.assertEqual(
-                "# v2 production\n",
-                (root / ".eval" / "tools" / "search_spine_production.py").read_text(
-                    encoding="utf-8"
-                ),
-            )
-            self.assertEqual(
-                "# v2 ranking\n",
-                (root / ".eval" / "tools" / "ranking_v2.py").read_text(
-                    encoding="utf-8"
-                ),
-            )
-            self.assertIn(
-                "minimal_telemetry", production.read_text(encoding="utf-8")
-            )
 
     def test_relative_files_excludes_eval_and_git_internals(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -255,109 +215,7 @@ class CodexAdapterTests(unittest.TestCase):
         )
         self.assertEqual([], messages)
 
-    def test_records_actual_retrieval_result(self):
-        payload = {
-            "mode": "sqlite-fts5",
-            "retrieval_strategy": "hybrid-fts",
-            "selection": {"direct_considered": 4, "direct_returned": 1},
-            "direct_matches": [
-                {
-                    "path": "specspine/owner.md",
-                    "signals": {"token_hits": 2, "query_tokens": 2},
-                }
-            ],
-            "graph_neighbors": [
-                {
-                    "path": "specspine/worker.md",
-                    "relevance": 5,
-                    "transitions": [
-                        {
-                            "source_path": "specspine/owner.md",
-                            "direction": "outgoing",
-                            "depth": 1,
-                        }
-                    ],
-                }
-            ],
-        }
-        stdout = json.dumps(
-            {
-                "type": "item.completed",
-                "item": {
-                    "id": "retrieval-1",
-                    "type": "command_execution",
-                    "command": "python3 search_spine.py specspine --query 'rare intent'",
-                    "exit_code": 0,
-                    "aggregated_output": json.dumps(payload) + "\n",
-                },
-            }
-        )
-
-        attempts = ADAPTER.parse_retrieval_attempts(stdout)
-
-        self.assertEqual("sqlite-fts5", attempts[0]["mode"])
-        self.assertEqual("rare intent", attempts[0]["query"])
-        self.assertEqual(
-            ["specspine/owner.md", "specspine/worker.md"],
-            attempts[0]["candidate_paths"],
-        )
-        self.assertEqual(2, attempts[0]["candidate_count"])
-        self.assertEqual(1, attempts[0]["direct_count"])
-        self.assertEqual(1, attempts[0]["graph_count"])
-        self.assertEqual(1, attempts[0]["attempt_number"])
-        self.assertIsNone(attempts[0]["failure_kind"])
-        self.assertEqual("hybrid-fts", attempts[0]["retrieval_strategy"])
-        self.assertEqual(4, attempts[0]["selection"]["direct_considered"])
-        self.assertEqual(2, attempts[0]["direct_matches"][0]["signals"]["token_hits"])
-        self.assertEqual(
-            "specspine/owner.md",
-            attempts[0]["graph_neighbors"][0]["transitions"][0]["source_path"],
-        )
-        self.assertEqual(5, attempts[0]["graph_neighbors"][0]["relevance"])
-        self.assertGreater(attempts[0]["output_utf8_bytes"], 0)
-
-    def test_records_compact_retrieval_result_without_diagnostics(self):
-        payload = {
-            "schema_version": 2,
-            "mode": "sqlite-fts5",
-            "direct_matches": [{"path": "specspine/owner.md"}],
-            "graph_neighbors": [
-                {
-                    "path": "specspine/worker.md",
-                    "transitions": [
-                        {
-                            "root_path": "specspine/owner.md",
-                            "source_path": "specspine/owner.md",
-                            "direction": "outgoing",
-                            "depth": 1,
-                        }
-                    ],
-                }
-            ],
-        }
-        stdout = json.dumps({
-            "type": "item.completed",
-            "item": {
-                "id": "retrieval-1",
-                "type": "command_execution",
-                "command": "python3 search_spine.py specspine --query intent",
-                "exit_code": 0,
-                "aggregated_output": json.dumps(payload) + "\n",
-            },
-        })
-
-        attempt = ADAPTER.parse_retrieval_attempts(stdout)[0]
-
-        self.assertEqual("sqlite-fts5", attempt["mode"])
-        self.assertEqual(
-            ["specspine/owner.md", "specspine/worker.md"],
-            attempt["candidate_paths"],
-        )
-        self.assertEqual({}, attempt["selection"])
-        self.assertEqual({}, attempt["timings"])
-        self.assertIsNone(attempt["reason_code"])
-
-    def test_records_v2_marker_protocol_and_batched_queries(self):
+    def test_records_marker_protocol_and_batched_queries(self):
         queries = json.dumps(
             [
                 {
@@ -370,7 +228,8 @@ class CodexAdapterTests(unittest.TestCase):
         output = "\n".join(
             [
                 '<<<SPECSPINE_RESULT {"version":2,"mode":"sqlite-fts5",'
-                '"ranking":"faceted-bm25","truncated":true}>>>',
+                '"ranking":"normalized","graph_depth":1,'
+                '"graph_limit":2,"truncated":true}>>>',
                 '<<<SPECSPINE_SLICE {"id":"retry-owner","status":"matched",'
                 '"match_tier":"strict","joint_df":1}>>>',
                 '<<<SPECSPINE_HIT {"path":"owner.md","origin":"direct",'
@@ -389,11 +248,11 @@ class CodexAdapterTests(unittest.TestCase):
             {
                 "type": "item.completed",
                 "item": {
-                    "id": "retrieval-v2",
+                    "id": "retrieval",
                     "type": "command_execution",
                     "command": (
-                        "python3 search_spine_v2.py specspine "
-                        f"--ranking faceted-bm25 --queries-json '{queries}'"
+                        "python3 search_spine.py specspine "
+                        f"--queries-json '{queries}'"
                     ),
                     "exit_code": 0,
                     "aggregated_output": output,
@@ -404,7 +263,9 @@ class CodexAdapterTests(unittest.TestCase):
         attempt = ADAPTER.parse_retrieval_attempts(stdout)[0]
 
         self.assertEqual(2, attempt["protocol_version"])
-        self.assertEqual("faceted-bm25", attempt["ranking_system"])
+        self.assertEqual("normalized", attempt["ranking_system"])
+        self.assertEqual(1, attempt["graph_depth"])
+        self.assertEqual(2, attempt["graph_limit"])
         self.assertEqual(json.loads(queries), attempt["query_slices"])
         self.assertEqual(
             ["specspine/owner.md", "specspine/support.md"],
@@ -421,8 +282,8 @@ class CodexAdapterTests(unittest.TestCase):
         )
 
     def test_merges_out_of_band_minimal_retrieval_telemetry(self):
-        query = "change retries"
-        attempts = [{"query": query}]
+        query = '[{"id":"retry","must":[["change"],["retries"]]}]'
+        attempts = [{"queries_json": query}]
         records = [{
             "query_sha256": ADAPTER.hashlib.sha256(query.encode()).hexdigest(),
             "telemetry_level": "minimal",
@@ -440,30 +301,6 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertEqual(63, attempts[0]["documents"])
         self.assertEqual(512, attempts[0]["production_output_utf8_bytes"])
 
-    def test_records_unquoted_multiword_retrieval_query(self):
-        stdout = json.dumps({
-            "type": "item.completed",
-            "item": {
-                "id": "retrieval-1",
-                "type": "command_execution",
-                "command": (
-                    "python3 search_spine.py specspine --query delayed retries "
-                    "after timeouts --limit 3"
-                ),
-                "exit_code": 0,
-                "aggregated_output": json.dumps({
-                    "schema_version": 2,
-                    "mode": "sqlite-fts5",
-                    "direct_matches": [{"path": "owner.md"}],
-                    "graph_neighbors": [],
-                }),
-            },
-        })
-
-        attempt = ADAPTER.parse_retrieval_attempts(stdout)[0]
-
-        self.assertEqual("delayed retries after timeouts", attempt["query"])
-
     def test_classifies_malformed_retrieval_output(self):
         stdout = json.dumps(
             {
@@ -471,7 +308,10 @@ class CodexAdapterTests(unittest.TestCase):
                 "item": {
                     "id": "retrieval-1",
                     "type": "command_execution",
-                    "command": "python3 search_spine.py specspine --query intent",
+                    "command": (
+                        "python3 search_spine.py specspine "
+                        "--queries-json '[]'"
+                    ),
                     "exit_code": 2,
                     "aggregated_output": "not-json\n",
                 },
@@ -840,19 +680,6 @@ PATCH"""
         self.assertNotIn('.agents"="read', rendered)
         self.assertNotIn('.codex"="read', rendered)
 
-    def test_codex_command_can_force_accelerator_fallback(self):
-        command = ADAPTER.build_codex_command(
-            "agent-model", "medium", Path("/workspace"), Path("/runtime"), "fallback"
-        )
-        environment_argument = next(
-            item for item in command if item.startswith("shell_environment_policy.set=")
-        )
-
-        self.assertIn(
-            'SPECSPINE_CACHE_DIR="/runtime/accelerator-unavailable"',
-            environment_argument,
-        )
-
     def test_codex_command_uses_private_accelerator_cache(self):
         command = ADAPTER.build_codex_command(
             "agent-model", "medium", Path("/workspace"), Path("/runtime")
@@ -890,118 +717,6 @@ PATCH"""
             'SPECSPINE_RETRIEVAL_TELEMETRY_LEVEL="minimal"',
             environment_argument,
         )
-
-    def test_codex_command_configures_v2_ranking(self):
-        command = ADAPTER.build_codex_command(
-            "agent-model", "medium", Path("/workspace"), Path("/runtime"),
-            ranking_system="legacy",
-        )
-        environment_argument = next(
-            item for item in command if item.startswith("shell_environment_policy.set=")
-        )
-
-        self.assertIn(
-            'SPECSPINE_EXTRACT_V2_RANKING="legacy"',
-            environment_argument,
-        )
-
-    def test_codex_command_configures_normalized_v2_ranking(self):
-        command = ADAPTER.build_codex_command(
-            "agent-model",
-            "medium",
-            Path("/workspace"),
-            Path("/runtime"),
-            ranking_system="faceted-normalized",
-        )
-        environment_argument = next(
-            item for item in command if item.startswith("shell_environment_policy.set=")
-        )
-
-        self.assertIn(
-            'SPECSPINE_EXTRACT_V2_RANKING="faceted-normalized"',
-            environment_argument,
-        )
-
-    def test_codex_command_configures_v2_sidecar_telemetry(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            skill = root / ".eval" / "skill" / "SKILL.md"
-            scripts = skill.parent / "scripts"
-            scripts.mkdir(parents=True)
-            skill.write_text(
-                "python3 <skill-root>/scripts/search_spine_v2.py spine "
-                "--queries-json '[]'\n",
-                encoding="utf-8",
-            )
-            (scripts / "search_spine_v2.py").write_text("", encoding="utf-8")
-
-            command = ADAPTER.build_codex_command(
-                "agent-model",
-                "medium",
-                root,
-                Path("/runtime"),
-                retrieval_telemetry="full",
-                ranking_system="faceted-bm25",
-            )
-
-        environment_argument = next(
-            item for item in command if item.startswith("shell_environment_policy.set=")
-        )
-        self.assertIn("SPECSPINE_PRODUCTION_SEARCH=", environment_argument)
-        self.assertIn("SPECSPINE_RETRIEVAL_TELEMETRY_FILE=", environment_argument)
-
-    def test_prewarm_uses_workspace_spine_and_private_cache(self):
-        completed = ADAPTER.subprocess.CompletedProcess([], 0, "{}\n", "")
-        with mock.patch.object(
-            ADAPTER.subprocess, "run", return_value=completed
-        ) as run:
-            ADAPTER.prewarm_accelerator(Path("/workspace"), Path("/runtime"))
-
-        command = run.call_args.args[0]
-        environment = run.call_args.kwargs["env"]
-        self.assertIn("/workspace/.eval/skill/scripts/search_spine.py", command)
-        self.assertIn("/workspace/specspine", command)
-        self.assertEqual("/runtime/accelerator-cache", environment["SPECSPINE_CACHE_DIR"])
-
-    def test_prewarm_v2_uses_structured_query_and_ranking(self):
-        completed = ADAPTER.subprocess.CompletedProcess([], 0, "", "")
-        with mock.patch.object(
-            ADAPTER,
-            "retrieval_script",
-            return_value=Path("/workspace/.eval/skill/scripts/search_spine_v2.py"),
-        ), mock.patch.object(
-            ADAPTER.shutil, "which", return_value="/usr/bin/python3"
-        ), mock.patch.object(
-            ADAPTER.subprocess, "run", return_value=completed
-        ) as run:
-            ADAPTER.prewarm_accelerator(
-                Path("/workspace"), Path("/runtime"), "legacy"
-            )
-
-        command = run.call_args.args[0]
-        self.assertIn("--queries-json", command)
-        self.assertIn('[{"id":"prewarm","must":[["README"]]}]', command)
-        self.assertEqual("legacy", command[command.index("--ranking") + 1])
-
-    def test_prewarm_v2_accepts_no_match_after_successful_index_build(self):
-        output = (
-            '<<<SPECSPINE_RESULT {"version":2,"mode":"sqlite-fts5",'
-            '"ranking":"faceted-bm25","truncated":false}>>>\n'
-            "<<<SPECSPINE_END_RESULT>>>\n"
-        )
-        completed = ADAPTER.subprocess.CompletedProcess([], 2, output, "")
-        with mock.patch.object(
-            ADAPTER,
-            "retrieval_script",
-            return_value=Path("/workspace/.eval/skill/scripts/search_spine_v2.py"),
-        ), mock.patch.object(
-            ADAPTER.shutil, "which", return_value="/usr/bin/python3"
-        ), mock.patch.object(
-            ADAPTER.subprocess, "run", return_value=completed
-        ):
-            ADAPTER.prewarm_accelerator(
-                Path("/workspace"), Path("/runtime"), "faceted-bm25"
-            )
 
     def test_staging_bundles_external_macos_dependencies(self):
         with tempfile.TemporaryDirectory() as directory:

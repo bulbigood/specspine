@@ -38,11 +38,6 @@
         "language": "zh-CN",
         "text": "请找出事件时间水位线和迟到数据的权威规则：允许迟到多久、什么时候修正窗口、超迟事件最终去哪里。不要把监控指标当成语义定义。"
       },
-      "search": {
-        "limit": 5,
-        "graph_depth": 1,
-        "graph_limit": 3
-      },
       "slices": [
         {
           "id": "watermark-late-events",
@@ -73,11 +68,6 @@
         "language": "zh-CN",
         "text": "我们准备给事件 Schema 新增字段。请确认默认兼容模式、默认值要求和字段改名的处理方式，并指出接入层在这里负责什么。"
       },
-      "search": {
-        "limit": 4,
-        "graph_depth": 1,
-        "graph_limit": 2
-      },
       "slices": [
         {
           "id": "schema-backward-default",
@@ -107,11 +97,6 @@
       "request": {
         "language": "zh-CN",
         "text": "我要重放一个月的历史数据。需要同时确认回填如何与线上任务隔离，以及重试写入时怎样避免产生重复可见结果；请覆盖 run、consumer group、checkpoint、幂等键和 staging 发布。"
-      },
-      "search": {
-        "limit": 5,
-        "graph_depth": 1,
-        "graph_limit": 3
       },
       "slices": [
         {
@@ -163,11 +148,6 @@
         "language": "zh-CN",
         "text": "分析数据仍要支持同一用户的关联，但不能泄露 PII。请找到令牌化规则，并说明日志、指标标签和 trace 属性有什么限制。"
       },
-      "search": {
-        "limit": 4,
-        "graph_depth": 1,
-        "graph_limit": 2
-      },
       "slices": [
         {
           "id": "pii-masking-telemetry",
@@ -198,11 +178,6 @@
         "language": "zh-CN",
         "text": "在修改恢复流程前，请定位语义决策 DEC-checkpoint-aligned-restore 的所有者并解释约束。"
       },
-      "search": {
-        "limit": 3,
-        "graph_depth": 0,
-        "graph_limit": 0
-      },
       "slices": [
         {
           "id": "checkpoint-decision-id",
@@ -223,11 +198,6 @@
       "request": {
         "language": "zh-CN",
         "text": "查找 GPU 模型在线推理的动态批处理、显存配额和模型热更新规则。"
-      },
-      "search": {
-        "limit": 4,
-        "graph_depth": 1,
-        "graph_limit": 2
       },
       "slices": [
         {

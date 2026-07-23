@@ -19,7 +19,7 @@ Each corpus is immutable benchmark input with this layout:
 Every scenario contains both:
 
 - a natural user request for agent-level Extract evaluation;
-- fixed structured slices for ranker-only A/B evaluation.
+- fixed structured slices for deterministic production-ranker evaluation.
 
 Judgment grades are:
 
@@ -32,9 +32,9 @@ Unlisted documents are ordinary irrelevant documents. A grade-3 owner in a
 ranking scenario must be a direct result. Model distributed ownership as
 multiple slices, not multiple grade-3 documents in one slice.
 
-Use `evaluation: ranking` for cases that compare ordered retrieval results.
-Use `evaluation: protocol` for `no_match`, malformed-input, output-budget, and
-other cases whose expected behavior is not a ranking metric.
+Use `evaluation: ranking` for cases that check ordered retrieval results.
+Use `evaluation: protocol` for `no_match` and other cases whose expected
+behavior is not an ordered-ranking metric.
 
 Do not encode expected numeric scores or timings. Do not make normal scenarios
 trivial with generated unique tokens. Reserve exact paths, titles, and semantic

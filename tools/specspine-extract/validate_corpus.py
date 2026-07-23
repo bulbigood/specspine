@@ -15,10 +15,10 @@ from types import ModuleType
 
 ROOT = Path(__file__).resolve().parents[2]
 RANKING_PATH = (
-    ROOT / "skills" / "specspine-extract" / "scripts" / "ranking_v2.py"
+    ROOT / "skills" / "specspine-extract" / "scripts" / "ranking.py"
 )
 SEARCH_PATH = (
-    ROOT / "skills" / "specspine-extract" / "scripts" / "search_spine_v2.py"
+    ROOT / "skills" / "specspine-extract" / "scripts" / "search_spine.py"
 )
 ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 LANGUAGE_RE = re.compile(
@@ -56,7 +56,6 @@ TAGS = {
     "no-match",
     "wrong-must",
     "cross-language",
-    "output-budget",
 }
 
 
@@ -66,7 +65,7 @@ class CorpusValidationError(ValueError):
 
 def load_ranking() -> ModuleType:
     spec = importlib.util.spec_from_file_location(
-        "specspine_corpus_ranking_v2", RANKING_PATH
+        "specspine_corpus_ranking", RANKING_PATH
     )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load ranking policy: {RANKING_PATH}")
@@ -81,7 +80,7 @@ RANKING = load_ranking()
 
 def load_search() -> ModuleType:
     spec = importlib.util.spec_from_file_location(
-        "specspine_corpus_search_v2_validator", SEARCH_PATH
+        "specspine_corpus_search_validator", SEARCH_PATH
     )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load search implementation: {SEARCH_PATH}")
@@ -314,7 +313,7 @@ def validate_scenario(
     scenario = object_fields(
         raw,
         location,
-        {"id", "tags", "request", "search", "slices"},
+        {"id", "tags", "request", "slices"},
     )
     identifier = nonempty_string(scenario["id"], f"{location}.id")
     if not ID_RE.fullmatch(identifier):
@@ -336,22 +335,6 @@ def validate_scenario(
     if not LANGUAGE_RE.fullmatch(request_language):
         fail(f"{location}.request.language", "must be a basic BCP-47 tag")
     nonempty_string(request["text"], f"{location}.request.text")
-    search = object_fields(
-        scenario["search"],
-        f"{location}.search",
-        {"limit", "graph_depth", "graph_limit"},
-        {"max_output_bytes"},
-    )
-    integer_between(search["limit"], f"{location}.search.limit", 1, 50)
-    integer_between(search["graph_depth"], f"{location}.search.graph_depth", 0, 2)
-    integer_between(search["graph_limit"], f"{location}.search.graph_limit", 0, 50)
-    if "max_output_bytes" in search:
-        integer_between(
-            search["max_output_bytes"],
-            f"{location}.search.max_output_bytes",
-            4096,
-            10_000_000,
-        )
     slices = scenario["slices"]
     if not isinstance(slices, list) or not 1 <= len(slices) <= 8:
         fail(f"{location}.slices", "must contain 1 to 8 slices")

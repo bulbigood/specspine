@@ -31,8 +31,7 @@ FORBIDDEN_SCOPE_MARKERS = (
 )
 
 SANDBOX_PROTECTED_NAMES = (".git", ".agents", ".codex")
-RETRIEVAL_SCRIPT_NAMES = ("search_spine.py", "search_spine_v2.py")
-V2_RANKING_SYSTEMS = ("legacy", "faceted-bm25", "faceted-normalized")
+RETRIEVAL_SCRIPT_NAME = "search_spine.py"
 
 
 def retrieval_script(root: Path) -> Path:
@@ -40,32 +39,19 @@ def retrieval_script(root: Path) -> Path:
     skill = root / ".eval" / "skill" / "SKILL.md"
     if skill.is_file():
         content = skill.read_text(encoding="utf-8")
-        selected = [
-            name
-            for name in RETRIEVAL_SCRIPT_NAMES
-            if f"python3 <skill-root>/scripts/{name}" in content
-        ]
-        if len(selected) > 1:
-            raise RuntimeError(
-                "retrieval command is ambiguous in staged skill instructions"
-            )
-        if selected:
-            candidate = scripts / selected[0]
+        if f"python3 <skill-root>/scripts/{RETRIEVAL_SCRIPT_NAME}" in content:
+            candidate = scripts / RETRIEVAL_SCRIPT_NAME
             if not candidate.is_file():
                 raise RuntimeError(
                     f"staged retrieval script is missing: {candidate}"
                 )
             return candidate
-    for name in RETRIEVAL_SCRIPT_NAMES:
-        candidate = scripts / name
-        if candidate.is_file():
-            return candidate
-    return scripts / "search_spine.py"
+    return scripts / RETRIEVAL_SCRIPT_NAME
 
 
 def is_retrieval_command(command: str) -> bool:
     source = shell_source(command)
-    return any(name in source for name in RETRIEVAL_SCRIPT_NAMES)
+    return RETRIEVAL_SCRIPT_NAME in source
 
 
 def relative_files(root: Path) -> list[str]:
@@ -297,7 +283,7 @@ def parse_event_metrics(stdout: str, candidates: list[str]) -> dict[str, object]
             event = json.loads(line)
         except json.JSONDecodeError:
             continue
-        event_type = str(event.get("type") or "legacy")
+        event_type = str(event.get("type") or "unknown")
         event_counts[event_type] = event_counts.get(event_type, 0) + 1
         if event_type == "turn.completed":
             turn_count += 1
@@ -391,7 +377,7 @@ def retrieval_spine_root(command: str) -> str | None:
     except ValueError:
         return None
     for index, token in enumerate(tokens[:-1]):
-        if Path(token).name in RETRIEVAL_SCRIPT_NAMES:
+        if Path(token).name == RETRIEVAL_SCRIPT_NAME:
             value = tokens[index + 1]
             return value.rstrip("/") if not value.startswith("-") else None
     return None
@@ -409,7 +395,9 @@ def qualify_candidate_path(path: str, spine_root: str | None) -> str:
     return f"{normalized_root}/{normalized_path}"
 
 
-def parse_v2_protocol(raw_output: str, command: str) -> dict[str, object] | None:
+def parse_retrieval_protocol(
+    raw_output: str, command: str
+) -> dict[str, object] | None:
     result: dict[str, object] | None = None
     slices: list[dict[str, object]] = []
     direct_matches: list[dict[str, object]] = []
@@ -462,6 +450,8 @@ def parse_v2_protocol(raw_output: str, command: str) -> dict[str, object] | None
     return {
         "mode": result.get("mode", "unknown"),
         "ranking_system": result.get("ranking"),
+        "graph_depth": result.get("graph_depth"),
+        "graph_limit": result.get("graph_limit"),
         "reason_code": result.get("reason"),
         "truncated": bool(result.get("truncated", False)),
         "slices": slices,
@@ -493,20 +483,7 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
         if item.get("type") != "command_execution" or not is_retrieval_command(command):
             continue
         raw_output = str(item.get("aggregated_output", ""))
-        payload = parse_v2_protocol(raw_output, command)
-        protocol_v2 = payload is not None
-        parsed_json = False
-        if payload is None:
-            for output_line in raw_output.splitlines():
-                try:
-                    candidate = json.loads(output_line.strip())
-                except json.JSONDecodeError:
-                    continue
-                parsed_json = True
-                if isinstance(candidate, dict) and candidate.get("mode") in {
-                    "sqlite-fts5", "fallback", "error"
-                }:
-                    payload = candidate
+        payload = parse_retrieval_protocol(raw_output, command)
         direct_documents = (
             payload.get("direct_matches", [])
             if isinstance(payload, dict)
@@ -519,8 +496,6 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
             failure_kind = None
         elif not raw_output.strip():
             failure_kind = "missing_output"
-        elif parsed_json:
-            failure_kind = "invalid_payload"
         else:
             failure_kind = "malformed_output"
         direct_matches = []
@@ -567,7 +542,6 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
                 }
             )
         candidates = direct_matches + graph_neighbors
-        query = command_option(command, "--query")
         queries_json = command_option(command, "--queries-json")
         query_slices = None
         if queries_json:
@@ -582,21 +556,30 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
                 "attempt_number": len(attempts) + 1,
                 "event_id": str(item_id) if item_id is not None else None,
                 "mode": payload.get("mode", "unknown") if isinstance(payload, dict) else "unknown",
-                "query": query,
                 "queries_json": queries_json,
                 "query_slices": query_slices,
                 "query_sha256": (
                     hashlib.sha256(
-                        (queries_json or query or "").encode("utf-8")
+                        queries_json.encode("utf-8")
                     ).hexdigest()
-                    if queries_json or query
+                    if queries_json
                     else None
                 ),
-                "protocol_version": 2 if protocol_v2 else 1,
+                "protocol_version": 2,
                 "ranking_system": (
                     payload.get("ranking_system")
-                    if protocol_v2 and isinstance(payload, dict)
-                    else command_option(command, "--ranking")
+                    if isinstance(payload, dict)
+                    else None
+                ),
+                "graph_depth": (
+                    payload.get("graph_depth")
+                    if isinstance(payload, dict)
+                    else None
+                ),
+                "graph_limit": (
+                    payload.get("graph_limit")
+                    if isinstance(payload, dict)
+                    else None
                 ),
                 "candidate_count": len(candidates),
                 "candidate_paths": [candidate["path"] for candidate in candidates],
@@ -616,15 +599,19 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
                 "selection": payload.get("selection", {}) if isinstance(payload, dict) else {},
                 "timings": payload.get("timings", {}) if isinstance(payload, dict) else {},
                 "runtime": payload.get("runtime", {}) if isinstance(payload, dict) else {},
-                "slices": payload.get("slices", []) if protocol_v2 else [],
-                "truncated": payload.get("truncated") if protocol_v2 else None,
+                "slices": payload.get("slices", []) if isinstance(payload, dict) else [],
+                "truncated": payload.get("truncated") if isinstance(payload, dict) else None,
                 "inline_documents": (
-                    payload.get("inline_documents", []) if protocol_v2 else []
+                    payload.get("inline_documents", [])
+                    if isinstance(payload, dict)
+                    else []
                 ),
                 "omitted_documents": (
-                    payload.get("omitted_documents", []) if protocol_v2 else []
+                    payload.get("omitted_documents", [])
+                    if isinstance(payload, dict)
+                    else []
                 ),
-                "telemetry_level": "marker-protocol" if protocol_v2 else None,
+                "telemetry_level": "marker-protocol" if payload else None,
                 "output_chars": len(raw_output),
                 "output_utf8_bytes": len(raw_output.encode("utf-8")),
                 "output_excerpt": raw_output.strip()[:1000] if payload is None else None,
@@ -651,7 +638,7 @@ def merge_retrieval_telemetry(
     attempts: list[dict[str, object]], records: list[dict[str, object]]
 ) -> None:
     for attempt, record in zip(attempts, records):
-        query = attempt.get("query")
+        query = attempt.get("queries_json")
         expected_hash = (
             hashlib.sha256(str(query).encode("utf-8")).hexdigest() if query else None
         )
@@ -1107,9 +1094,7 @@ def build_codex_command(
     reasoning_effort: str,
     root: Path,
     runtime_root: Path,
-    accelerator_mode: str = "enabled",
     retrieval_telemetry: str | None = None,
-    ranking_system: str | None = None,
 ) -> list[str]:
     runtime_root = runtime_root.resolve()
     private_home = runtime_root / "home"
@@ -1140,12 +1125,7 @@ def build_codex_command(
         "XDG_STATE_HOME": str(private_state),
         "ZDOTDIR": str(private_home),
     }
-    if accelerator_mode == "fallback":
-        environment["SPECSPINE_CACHE_DIR"] = str(runtime_root / "accelerator-unavailable")
-    else:
-        environment["SPECSPINE_CACHE_DIR"] = str(runtime_root / "accelerator-cache")
-    if ranking_system:
-        environment["SPECSPINE_EXTRACT_V2_RANKING"] = ranking_system
+    environment["SPECSPINE_CACHE_DIR"] = str(runtime_root / "accelerator-cache")
     if retrieval_telemetry:
         environment["SPECSPINE_PRODUCTION_SEARCH"] = str(
             root / ".eval" / "tools" / "search_spine_production.py"
@@ -1194,60 +1174,6 @@ def build_codex_command(
     ]
 
 
-def prewarm_accelerator(
-    root: Path, runtime_root: Path, ranking_system: str | None = None
-) -> None:
-    script = retrieval_script(root)
-    python = shutil.which("python3", path=sandbox_path(runtime_root))
-    if not python:
-        raise RuntimeError("python3 is unavailable for accelerator prewarm")
-    environment = os.environ.copy()
-    environment["SPECSPINE_CACHE_DIR"] = str(runtime_root / "accelerator-cache")
-    environment["TMPDIR"] = str(runtime_root / "tmp")
-    search_arguments = (
-        [
-            "--queries-json",
-            '[{"id":"prewarm","must":[["README"]]}]',
-            "--ranking",
-            ranking_system
-            or os.environ.get("SPECSPINE_EXTRACT_V2_RANKING", "faceted-bm25"),
-        ]
-        if script.name == "search_spine_v2.py"
-        else ["--query=README.md"]
-    )
-    completed = subprocess.run(
-        [
-            python,
-            str(script),
-            str(root / "specspine"),
-            *search_arguments,
-            "--limit=1",
-            "--graph-depth=0",
-            "--graph-limit=0",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=environment,
-        timeout=60,
-    )
-    v2_index_built_without_hits = (
-        script.name == "search_spine_v2.py"
-        and completed.returncode == 2
-        and any(
-            (
-                marker := parse_protocol_marker(line)
-            ) is not None
-            and marker[0] == "RESULT"
-            and marker[1].get("mode") == "sqlite-fts5"
-            for line in completed.stdout.splitlines()
-        )
-    )
-    if completed.returncode != 0 and not v2_index_built_without_hits:
-        detail = completed.stderr.strip() or completed.stdout.strip()
-        raise RuntimeError(f"accelerator prewarm failed: {detail}")
-
-
 def enable_retrieval_telemetry(root: Path, level: str) -> None:
     """Observe the disposable staged script without changing agent instructions."""
     skill = root / ".eval" / "skill" / "SKILL.md"
@@ -1267,11 +1193,8 @@ def enable_retrieval_telemetry(root: Path, level: str) -> None:
     preserved = root / ".eval" / "tools" / "search_spine_production.py"
     preserved.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(production, preserved)
-    ranking_name = (
-        "ranking_v2.py" if production.name == "search_spine_v2.py" else "ranking.py"
-    )
     shutil.copy2(
-        production.with_name(ranking_name), preserved.with_name(ranking_name)
+        production.with_name("ranking.py"), preserved.with_name("ranking.py")
     )
     shutil.copy2(source, production)
 
@@ -1281,55 +1204,13 @@ def main() -> int:
     parser.add_argument("--model", default="gpt-5.6-luna")
     parser.add_argument("--reasoning-effort", default="medium")
     parser.add_argument(
-        "--accelerator-mode",
-        choices=("enabled", "fallback"),
-        default="enabled",
-        help="make the optional retrieval cache available or force its normal fallback",
-    )
-    parser.add_argument(
-        "--cache-profile",
-        choices=("isolated-cold", "prewarmed"),
-        default="isolated-cold",
-        help="start with a private empty cache or prebuild the private index before the agent",
-    )
-    parser.add_argument(
         "--retrieval-telemetry",
         choices=("minimal", "full"),
         help="observe staged retrieval out of band; omitted matches production",
     )
-    parser.add_argument(
-        "--ranking",
-        choices=V2_RANKING_SYSTEMS,
-        help=(
-            "set SPECSPINE_EXTRACT_V2_RANKING for benchmark skill v2; "
-            "defaults to the existing environment or faceted-bm25"
-        ),
-    )
     args = parser.parse_args()
-    if args.accelerator_mode == "fallback" and args.cache_profile != "isolated-cold":
-        parser.error("fallback mode supports only isolated-cold cache profile")
-    evaluation_profile = os.environ.get("SPECSPINE_EVAL_PROFILE", "extract")
-    if evaluation_profile == "no-extract" and args.cache_profile != "isolated-cold":
-        parser.error("no-extract profile supports only isolated-cold cache profile")
-    if evaluation_profile == "no-extract" and args.retrieval_telemetry:
-        parser.error("no-extract profile cannot enable retrieval telemetry")
-
     root = Path.cwd()
     selected_retrieval_script = retrieval_script(root)
-    ranking_system: str | None = None
-    if selected_retrieval_script.name == "search_spine_v2.py":
-        ranking_system = (
-            args.ranking
-            or os.environ.get("SPECSPINE_EXTRACT_V2_RANKING")
-            or "faceted-bm25"
-        )
-        if ranking_system not in V2_RANKING_SYSTEMS:
-            parser.error(
-                "SPECSPINE_EXTRACT_V2_RANKING must be one of: "
-                + ", ".join(V2_RANKING_SYSTEMS)
-            )
-    elif args.ranking:
-        parser.error("--ranking requires benchmark skill v2")
     prompt = sys.stdin.read()
     candidates = relative_files(root)
     eval_dir = root / ".eval"
@@ -1338,7 +1219,6 @@ def main() -> int:
     runtime_parent.mkdir(parents=True, exist_ok=True)
     runtime_root = Path(tempfile.mkdtemp(prefix="specspine-runtime-", dir=runtime_parent))
     workspace_mountpoints: list[Path] = []
-    prewarm_seconds = 0.0
     retrieval_telemetry: list[dict[str, object]] = []
     try:
         for directory in (
@@ -1368,12 +1248,6 @@ def main() -> int:
         for name, target in tool_targets.items():
             if target.is_file():
                 (runtime_root / "bin" / name).symlink_to(target)
-        if args.accelerator_mode == "fallback":
-            (runtime_root / "accelerator-unavailable").touch()
-        elif args.cache_profile == "prewarmed":
-            prewarm_started = time.monotonic()
-            prewarm_accelerator(root, runtime_root, ranking_system)
-            prewarm_seconds = time.monotonic() - prewarm_started
         if args.retrieval_telemetry:
             enable_retrieval_telemetry(root, args.retrieval_telemetry)
         command = build_codex_command(
@@ -1381,9 +1255,7 @@ def main() -> int:
             args.reasoning_effort,
             root,
             runtime_root,
-            args.accelerator_mode,
             args.retrieval_telemetry,
-            ranking_system,
         )
         process_environment = os.environ.copy()
         process_environment["CODEX_HOME"] = str(codex_home)
@@ -1437,10 +1309,10 @@ def main() -> int:
         json.dumps(
             {
                 "commands": commands,
-                "evaluation_profile": evaluation_profile,
-                "accelerator_mode": args.accelerator_mode,
                 "retrieval_telemetry": args.retrieval_telemetry,
-                "ranking_system": ranking_system,
+                "ranking_system": "normalized",
+                "graph_depth": 1,
+                "graph_limit": 2,
                 "retrieval_attempts": retrieval_attempts,
                 "retrieval_mode": retrieval_attempts[-1]["mode"] if retrieval_attempts else None,
                 "retrieval_attempt_count": len(retrieval_attempts),
@@ -1462,9 +1334,7 @@ def main() -> int:
                 "scope_violations": boundary_violations,
                 "model": args.model,
                 "reasoning_effort": args.reasoning_effort,
-                "cache_profile": args.cache_profile,
                 "cache_scope": "private-per-sample",
-                "prewarm_seconds": round(prewarm_seconds, 6),
                 "runtime": {
                     "adapter_sha256": file_sha256(Path(__file__)),
                     "effective_skill_sha256": optional_file_sha256(
@@ -1481,12 +1351,7 @@ def main() -> int:
                         )
                     ),
                     "retrieval_ranking_sha256": optional_file_sha256(
-                        selected_retrieval_script.with_name(
-                            "ranking_v2.py"
-                            if selected_retrieval_script.name
-                            == "search_spine_v2.py"
-                            else "ranking.py"
-                        )
+                        selected_retrieval_script.with_name("ranking.py")
                     ),
                     "codex_cli": codex_version,
                     "python": platform.python_version(),

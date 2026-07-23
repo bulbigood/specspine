@@ -131,8 +131,9 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
     usefulness = trace.get("retrieval_usefulness")
     return {
         "evaluation_profile": trace.get("evaluation_profile"),
-        "accelerator_mode": trace.get("accelerator_mode"),
         "ranking_system": trace.get("ranking_system"),
+        "graph_depth": trace.get("graph_depth"),
+        "graph_limit": trace.get("graph_limit"),
         "retrieval_telemetry": trace.get("retrieval_telemetry"),
         "retrieval_mode": trace.get("retrieval_mode"),
         "retrieval_attempts": attempts if isinstance(attempts, list) else [],
@@ -150,9 +151,7 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         "file_paths_read": sorted(set(map(str, files_read))) if isinstance(files_read, list) else [],
         "model": trace.get("model"),
         "reasoning_effort": trace.get("reasoning_effort"),
-        "cache_profile": trace.get("cache_profile"),
         "cache_scope": trace.get("cache_scope"),
-        "prewarm_seconds": trace.get("prewarm_seconds"),
         "runtime": trace.get("runtime") if isinstance(trace.get("runtime"), dict) else {},
         "environment_errors": trace.get("environment_errors", []),
         "scope_violations": trace.get("scope_violations", []),
@@ -281,16 +280,6 @@ def write_json_report(
             "run_id": run_id or str(uuid.uuid4()),
             "started_at": started_at,
             "finished_at": finished_at,
-            "cache_profile": sorted(
-                set().union(*(
-                    {
-                        str(run.get("cache_profile"))
-                        for run in report.agent_runs
-                        if run.get("cache_profile")
-                    }
-                    for report in reports
-                ))
-            ),
             "execution_profile": sorted({execution_profile(case) for case in cases}),
             "prompt_fingerprints": {
                 case["id"]: hashlib.sha256(

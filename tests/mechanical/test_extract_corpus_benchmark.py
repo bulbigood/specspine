@@ -19,39 +19,17 @@ SPEC.loader.exec_module(BENCHMARK)
 
 
 class ExtractCorpusBenchmarkTests(unittest.TestCase):
-    def test_pilot_runs_both_rankings_against_identical_slices(self):
+    def test_production_ranker_runs_manifest_and_reports_quality(self):
         with tempfile.TemporaryDirectory() as directory:
-            cache = Path(directory)
-            legacy = BENCHMARK.run_manifest(MANIFEST, "legacy", cache)
-        faceted = BENCHMARK.run_manifest(
-            MANIFEST, "faceted-bm25", cache
-        )
-        normalized = BENCHMARK.run_manifest(
-            MANIFEST, "faceted-normalized", cache
-        )
+            result = BENCHMARK.run_manifest(MANIFEST, Path(directory))
 
-        self.assertEqual("backend-service-en-01", legacy["corpus_id"])
-        self.assertEqual("backend-service-en-01", faceted["corpus_id"])
-        self.assertEqual("backend-service-en-01", normalized["corpus_id"])
-        self.assertEqual(6, legacy["summary"]["ranking_slices"])
-        self.assertEqual(1, legacy["summary"]["protocol_slices"])
-        self.assertEqual(1.0, legacy["summary"]["status_accuracy"])
-        self.assertEqual(1.0, faceted["summary"]["status_accuracy"])
-        self.assertEqual(1.0, normalized["summary"]["status_accuracy"])
-        self.assertEqual(
-            [
-                scenario["id"]
-                for scenario in legacy["scenarios"]
-            ],
-            [
-                scenario["id"]
-                for scenario in faceted["scenarios"]
-            ],
-        )
-        self.assertEqual(
-            [scenario["id"] for scenario in legacy["scenarios"]],
-            [scenario["id"] for scenario in normalized["scenarios"]],
-        )
+        self.assertEqual("backend-service-en-01", result["corpus_id"])
+        self.assertEqual(6, result["summary"]["ranking_slices"])
+        self.assertEqual(1, result["summary"]["protocol_slices"])
+        self.assertEqual(1.0, result["summary"]["status_accuracy"])
+        self.assertEqual(1.0, result["summary"]["owner_recall_at_1"])
+        self.assertIn("mean_graph_core_precision", result["summary"])
+        self.assertIn("returned_hard_negative_rate", result["summary"])
 
     def test_ndcg_rewards_owner_first(self):
         grades = {"owner.md": 3, "support.md": 2, "context.md": 1}
@@ -66,28 +44,17 @@ class ExtractCorpusBenchmarkTests(unittest.TestCase):
         self.assertEqual(1.0, ideal)
         self.assertLess(reversed_order, ideal)
 
-    def test_aggregate_by_preserves_paired_rankings(self):
-        results = [
-            {
-                "documentation_language": "en",
-                "ranking_system": ranking,
-                "scenarios": [],
-            }
-            for ranking in ("legacy", "faceted-bm25")
-        ]
-
+    def test_aggregate_by_groups_the_single_production_policy(self):
         grouped = BENCHMARK.aggregate_by(
-            results,
+            [{
+                "documentation_language": "en",
+                "scenarios": [],
+            }],
             "documentation_language",
-            ("legacy", "faceted-bm25"),
         )
 
         self.assertEqual(["en"], list(grouped))
-        self.assertEqual(
-            ["legacy", "faceted-bm25"],
-            [item["ranking_system"] for item in grouped["en"]],
-        )
-        self.assertEqual([1, 1], [item["corpora"] for item in grouped["en"]])
+        self.assertEqual(1, grouped["en"]["corpora"])
 
 
 if __name__ == "__main__":

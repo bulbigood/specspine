@@ -41,11 +41,6 @@
         "language": "en",
         "text": "Find the authoritative rules for retrying failed carrier calls, especially exponential delay, jitter, and attempt limits. I need to change those defaults without confusing the carrier adapter with the policy owner."
       },
-      "search": {
-        "limit": 5,
-        "graph_depth": 1,
-        "graph_limit": 3
-      },
       "slices": [
         {
           "id": "retry-rules",
@@ -119,11 +114,6 @@
         "language": "en",
         "text": "How do merchants verify callbacks while we rotate their webhook signing secret? Include the overlap behavior and how the receiver selects a key."
       },
-      "search": {
-        "limit": 4,
-        "graph_depth": 1,
-        "graph_limit": 2
-      },
       "slices": [
         {
           "id": "callback-secret-rotation",
@@ -184,11 +174,6 @@
         "language": "en",
         "text": "Retrieve the owner and meaning of semantic constraint CON-refund-idempotent before changing refund replay behavior."
       },
-      "search": {
-        "limit": 3,
-        "graph_depth": 0,
-        "graph_limit": 0
-      },
       "slices": [
         {
           "id": "refund-id",
@@ -218,11 +203,6 @@
       "request": {
         "language": "en",
         "text": "Plan an order-cancellation change and the outbound callback that tells the merchant. I need the transactional rule for cancellation, the callback attempt history and endpoint suspension threshold, and the operational incident control for pausing callback traffic."
-      },
-      "search": {
-        "limit": 4,
-        "graph_depth": 1,
-        "graph_limit": 3
       },
       "slices": [
         {
@@ -364,11 +344,6 @@
       "request": {
         "language": "en",
         "text": "Find the architecture owner for warehouse barcode cycle counts and reconciliation of physical inventory."
-      },
-      "search": {
-        "limit": 3,
-        "graph_depth": 0,
-        "graph_limit": 0
       },
       "slices": [
         {

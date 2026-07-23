@@ -78,11 +78,6 @@ class ExtractCorpusValidatorTests(unittest.TestCase):
                     "language": "en",
                     "text": "Find the provider retry owner.",
                 },
-                "search": {
-                    "limit": 5,
-                    "graph_depth": 1,
-                    "graph_limit": 2,
-                },
                 "slices": [{
                     "id": "retry-owner",
                     "must": [
@@ -152,7 +147,7 @@ class ExtractCorpusValidatorTests(unittest.TestCase):
         ):
             VALIDATOR.validate_manifest(self.path)
 
-    def test_structured_query_limits_are_reused_from_ranking_v2(self):
+    def test_structured_query_limits_are_reused_from_ranking_policy(self):
         self.manifest["scenarios"][0]["slices"][0]["must"] = []
         self.write_manifest()
 

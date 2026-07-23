@@ -1,7 +1,7 @@
 {
-  "id": "extract-v2-mobile-multislice-ru",
-  "scenario": "tests/scenarios/extract-v2-mobile-multislice-ru.md",
-  "skill": "tests/eval/skills/specspine-extract-v2",
+  "id": "extract-mobile-multislice-ru",
+  "scenario": "tests/scenarios/extract-mobile-multislice-ru.md",
+  "skill": "skills/specspine-extract",
   "status": "executable",
   "category": "extended",
   "runs": 1,
@@ -27,7 +27,7 @@
   "assertions": [
     {"type": "max_changed_files", "max": 0},
     {"type": "read_only", "paths": ["specspine/**"]},
-    {"type": "command_includes", "value": "search_spine_v2.py"},
+    {"type": "command_includes", "value": "search_spine.py"},
     {"type": "trace_equals", "field": "retrieval_attempt_count", "value": 1},
     {"type": "response_contains", "values": ["specspine/payments.md", "specspine/deep-links.md"]},
     {"type": "response_sections_only", "sections": ["Change intent", "Primary specification", "Required specifications", "Potentially affected specifications", "Architectural decisions and constraints", "Decision sources", "Relevant observations", "Unconfirmed inferences", "Blocking questions", "Expected architectural outcome"]},

@@ -18,20 +18,20 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class RunnerTests(unittest.TestCase):
-    def test_compact_trace_preserves_cache_profile_timing(self):
+    def test_compact_trace_preserves_retrieval_policy(self):
         compact = RUNNER.compact_agent_trace(
             {
-                "cache_profile": "prewarmed",
-                "prewarm_seconds": 0.125,
-                "ranking_system": "faceted-normalized",
+                "ranking_system": "normalized",
+                "graph_depth": 1,
+                "graph_limit": 2,
                 "cost_ledger": {"prompt_utf8_bytes": 12},
                 "retrieval_usefulness": {"returned_direct": 2},
             }
         )
 
-        self.assertEqual("prewarmed", compact["cache_profile"])
-        self.assertEqual(0.125, compact["prewarm_seconds"])
-        self.assertEqual("faceted-normalized", compact["ranking_system"])
+        self.assertEqual("normalized", compact["ranking_system"])
+        self.assertEqual(1, compact["graph_depth"])
+        self.assertEqual(2, compact["graph_limit"])
         self.assertEqual(12, compact["cost_ledger"]["prompt_utf8_bytes"])
         self.assertEqual(2, compact["retrieval_usefulness"]["returned_direct"])
 
@@ -47,25 +47,6 @@ class RunnerTests(unittest.TestCase):
         }
         self.assertEqual({}, failures)
         self.assertEqual([], RUNNER.validate_collection(RUNNER.load_cases()))
-
-    def test_all_nonempty_benchmark_corpora_have_agent_bootstrap(self):
-        indexes = sorted(
-            (
-                RUNNER.ROOT / "tests" / "eval" / "context-bundles"
-            ).glob("**/specspine/README.md")
-        )
-        self.assertTrue(indexes)
-        failures = {
-            str(index.parent.parent.relative_to(RUNNER.ROOT)): errors
-            for index in indexes
-            if (
-                errors := RUNNER.validate_agent_bootstrap(
-                    index.parent.parent,
-                    index.parent.relative_to(index.parent.parent).as_posix(),
-                )
-            )
-        }
-        self.assertEqual({}, failures)
 
     def test_detects_broken_markdown_link(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -254,16 +235,21 @@ class RunnerTests(unittest.TestCase):
             {},
             {},
             "",
-            {"commands": ["python3 .eval/skill/scripts/search_spine.py specspine --query retry"]},
+            {
+                "commands": [
+                    "python3 .eval/skill/scripts/search_spine.py specspine "
+                    "--queries-json '[]'"
+                ]
+            },
         )
         self.assertTrue(excluded.passed, excluded.message)
         self.assertFalse(forbidden.passed)
 
-    def test_trace_condition_limits_reads_only_in_enabled_mode(self):
+    def test_trace_condition_limits_reads_only_in_fts_mode(self):
         assertion = {
             "type": "max_files_read",
             "max": 12,
-            "when_trace": {"accelerator_mode": "enabled"},
+            "when_trace": {"retrieval_mode": "sqlite-fts5"},
         }
         enabled = RUNNER.evaluate_assertion(
             assertion,
@@ -271,7 +257,7 @@ class RunnerTests(unittest.TestCase):
             {},
             {},
             "",
-            {"accelerator_mode": "enabled", "files_read": [f"{index}.md" for index in range(13)]},
+            {"retrieval_mode": "sqlite-fts5", "files_read": [f"{index}.md" for index in range(13)]},
         )
         fallback = RUNNER.evaluate_assertion(
             assertion,
@@ -279,7 +265,7 @@ class RunnerTests(unittest.TestCase):
             {},
             {},
             "",
-            {"accelerator_mode": "fallback", "files_read": [f"{index}.md" for index in range(32)]},
+            {"retrieval_mode": "fallback", "files_read": [f"{index}.md" for index in range(32)]},
         )
         missing_trace = RUNNER.evaluate_assertion(
             assertion, Path("."), {}, {}, "", None
@@ -426,7 +412,7 @@ class RunnerTests(unittest.TestCase):
         case = next(
             item
             for item in RUNNER.load_cases()
-            if item["id"] == "extract-accelerated-handoff"
+            if item["id"] == "extract-backend-multislice"
         )
 
         extract = RUNNER.case_fingerprint({**case, "_execution_profile": "extract"})
@@ -844,7 +830,9 @@ class RunnerTests(unittest.TestCase):
 
     def test_json_report_preserves_per_sample_agent_metrics(self):
         case = next(
-            item for item in RUNNER.load_cases() if item["id"] == "extract-accelerated-handoff"
+            item
+            for item in RUNNER.load_cases()
+            if item["id"] == "extract-backend-multislice"
         )
         report = RUNNER.CaseReport(
             case_id=case["id"],
@@ -855,7 +843,6 @@ class RunnerTests(unittest.TestCase):
             sample_number=2,
             agent_runs=(
                 {
-                    "accelerator_mode": "enabled",
                     "retrieval_mode": "sqlite-fts5",
                     "duration_seconds": 10.0,
                     "environment_invalid": False,
@@ -880,7 +867,7 @@ class RunnerTests(unittest.TestCase):
             target = Path(directory) / "report.json"
 
             RUNNER.write_json_report(
-                target, "enabled", "agent --accelerator-mode enabled", [report], [case], 3, 8
+                target, "production", "agent", [report], [case], 3, 8
             )
 
             payload = json.loads(target.read_text(encoding="utf-8"))

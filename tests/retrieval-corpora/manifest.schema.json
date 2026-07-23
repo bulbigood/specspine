@@ -122,7 +122,7 @@
     "scenario": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "tags", "request", "search", "slices"],
+      "required": ["id", "tags", "request", "slices"],
       "properties": {
         "id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
         "tags": {
@@ -144,8 +144,7 @@
               "shared-document",
               "no-match",
               "wrong-must",
-              "cross-language",
-              "output-budget"
+              "cross-language"
             ]
           }
         },
@@ -156,21 +155,6 @@
           "properties": {
             "language": {"type": "string"},
             "text": {"type": "string", "minLength": 1}
-          }
-        },
-        "search": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["limit", "graph_depth", "graph_limit"],
-          "properties": {
-            "limit": {"type": "integer", "minimum": 1, "maximum": 50},
-            "graph_depth": {"type": "integer", "minimum": 0, "maximum": 2},
-            "graph_limit": {"type": "integer", "minimum": 0, "maximum": 50},
-            "max_output_bytes": {
-              "type": "integer",
-              "minimum": 4096,
-              "maximum": 10000000
-            }
           }
         },
         "slices": {

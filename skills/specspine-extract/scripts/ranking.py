@@ -1,88 +1,134 @@
-"""Query planning and ranking policy for the SpecSpine FTS accelerator."""
+"""Query planning and ranking policy for the SpecSpine retrieval accelerator."""
 
 from __future__ import annotations
 
+import json
 import math
 import re
 import sqlite3
+import unicodedata
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 
 
 QUERY_TOKEN_RE = re.compile(r"[^\W_]+(?:-[^\W_]+)*", re.UNICODE)
 ID_QUERY_RE = re.compile(
     r"^(?:DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$", re.IGNORECASE
 )
+RANKING_SYSTEM = "normalized"
 BM25_EXPRESSION = "bm25(sections_fts, 0.0, 10.0, 5.0, 3.0, 1.0)"
+DOCUMENT_BM25_EXPRESSION = "bm25(documents_fts, 0.0, 10.0, 5.0, 3.0, 1.0)"
 EXACT_MATCH_SCORE = 100.0
+EXACT_PATH_SCORE = 110.0
 SEMANTIC_ID_SCORE = 120.0
-RARE_TOKEN_MAX_DOCUMENTS = 1
+NORMALIZED_RELATIVE_CUTOFF = 0.65
+MAX_SLICES = 8
+MAX_GROUPS = 8
+MAX_SYNONYMS = 8
+MAX_TERM_LENGTH = 120
+CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]+")
+CYRILLIC_TOKEN_RE = re.compile(r"^[\u0400-\u052f]+$")
+NORMALIZED_PREFIX_LENGTH = 5
+MAX_CJK_NGRAM_LENGTH = 3
+SQL_IN_BATCH_SIZE = 500
 
 
 class InvalidRankingQuery(ValueError):
     """The query has no terms that can be routed through FTS."""
 
 
-def fts_plan(
-    query: str, connection: sqlite3.Connection | None = None
-) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
-    raw_tokens = QUERY_TOKEN_RE.findall(query.casefold())[:32]
-    tokens = list(dict.fromkeys(raw_tokens))
-    if connection is not None and tokens:
-        document_count = connection.execute(
-            "SELECT count(*) FROM documents"
-        ).fetchone()[0]
-        maximum_frequency = max(2, math.ceil(document_count * 0.25))
-        phrases = list(dict.fromkeys(
-            " ".join(raw_tokens[index:index + 2])
-            for index in range(len(raw_tokens) - 1)
-        ))
-        matching_phrases = [
-            phrase
-            for phrase in phrases
-            if 0 < connection.execute(
-                "SELECT count(DISTINCT path) FROM sections_fts WHERE sections_fts MATCH ?",
-                (f'"{phrase}"',),
-            ).fetchone()[0] <= maximum_frequency
-        ]
-        frequencies = [
-            (
-                token,
-                connection.execute(
-                    "SELECT count(DISTINCT path) FROM sections_fts WHERE sections_fts MATCH ?",
-                    (f'"{token.replace(chr(34), chr(34) * 2)}"',),
-                ).fetchone()[0],
-            )
-            for token in tokens[:32]
-        ]
-        present = [(token, frequency) for token, frequency in frequencies if frequency]
-        informative = [
-            token for token, frequency in present if frequency <= maximum_frequency
-        ]
-        tokens = informative or [
-            token for token, _ in sorted(present, key=lambda item: (item[1], item[0]))[:8]
-        ]
-        clauses = [f'"{phrase}"' for phrase in matching_phrases[:12]]
-        clauses.extend(
-            f'"{token.replace(chr(34), chr(34) * 2)}"'
-            for token in tokens[: 32 - len(clauses)]
+@dataclass(frozen=True)
+class QuerySlice:
+    identifier: str
+    must: tuple[tuple[str, ...], ...]
+    should: tuple[tuple[str, ...], ...] = ()
+
+@dataclass(frozen=True)
+class GroupMatch:
+    score: float
+    term: str
+    origin: str
+
+
+def normalize_group(value: object, field: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or not value or len(value) > MAX_SYNONYMS:
+        raise InvalidRankingQuery(
+            f"{field} groups must contain 1 to {MAX_SYNONYMS} terms"
         )
-        if clauses:
-            return (
-                " OR ".join(dict.fromkeys(clauses)),
-                tuple(tokens[:32]),
-                tuple(matching_phrases[:12]),
+    terms: list[str] = []
+    for raw in value:
+        if not isinstance(raw, str):
+            raise InvalidRankingQuery(f"{field} terms must be strings")
+        term = " ".join(raw.split()).casefold()
+        if (
+            not term
+            or len(term) > MAX_TERM_LENGTH
+            or not QUERY_TOKEN_RE.search(term)
+        ):
+            raise InvalidRankingQuery(f"{field} contains an invalid term")
+        if term not in terms:
+            terms.append(term)
+    return tuple(terms)
+
+
+def normalize_groups(
+    value: object, field: str, *, required: bool
+) -> tuple[tuple[str, ...], ...]:
+    if value is None and not required:
+        return ()
+    if not isinstance(value, list) or (required and not value) or len(value) > MAX_GROUPS:
+        minimum = 1 if required else 0
+        raise InvalidRankingQuery(
+            f"{field} must contain {minimum} to {MAX_GROUPS} groups"
+        )
+    return tuple(normalize_group(group, field) for group in value)
+
+
+def parse_query_slices(raw: str) -> tuple[QuerySlice, ...]:
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise InvalidRankingQuery(f"queries-json is malformed: {error.msg}") from error
+    if not isinstance(payload, list) or not payload or len(payload) > MAX_SLICES:
+        raise InvalidRankingQuery(
+            f"queries-json must contain 1 to {MAX_SLICES} slices"
+        )
+    slices: list[QuerySlice] = []
+    identifiers: set[str] = set()
+    for index, item in enumerate(payload):
+        if not isinstance(item, dict):
+            raise InvalidRankingQuery("each query slice must be an object")
+        identifier = item.get("id", f"slice-{index + 1}")
+        if (
+            not isinstance(identifier, str)
+            or not identifier.strip()
+            or len(identifier) > 64
+        ):
+            raise InvalidRankingQuery("slice ids must be unique non-empty strings")
+        identifier = identifier.strip()
+        if identifier in identifiers:
+            raise InvalidRankingQuery("slice ids must be unique non-empty strings")
+        unknown = set(item) - {"id", "must", "should"}
+        if unknown:
+            raise InvalidRankingQuery(
+                f"unsupported query slice fields: {', '.join(sorted(unknown))}"
             )
-    if not tokens:
-        raise InvalidRankingQuery("query has no searchable terms")
-    return (
-        " OR ".join(f'"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens[:32]),
-        tuple(tokens[:32]),
-        (),
-    )
+        identifiers.add(identifier)
+        slices.append(QuerySlice(
+            identifier,
+            normalize_groups(item.get("must"), "must", required=True),
+            normalize_groups(item.get("should"), "should", required=False),
+        ))
+    return tuple(slices)
 
 
-def fts_query(query: str, connection: sqlite3.Connection | None = None) -> str:
-    return fts_plan(query, connection)[0]
+def quote_fts_phrase(value: str) -> str:
+    return f'"{value.replace(chr(34), chr(34) * 2)}"'
+
+
+def group_expression(group: tuple[str, ...]) -> str:
+    clauses = " OR ".join(quote_fts_phrase(term) for term in group)
+    return f"({clauses})"
 
 
 def routing_stem(token: str) -> str:
@@ -100,33 +146,262 @@ def routing_stem(token: str) -> str:
     return value
 
 
-def direct_fts_score(
-    document_rank: int,
-    query_tokens: int,
-    token_hits: int,
-    phrase_hits: int,
-    metadata_hits: int,
-) -> float:
-    rank_score = 40.0 / math.sqrt(document_rank + 1)
-    if query_tokens >= 3 and token_hits < 2 and phrase_hits < 2:
-        rank_score *= 0.25
-    coverage_score = 30.0 * token_hits / max(1, query_tokens)
-    phrase_score = min(9.0, 3.0 * phrase_hits)
-    metadata_score = min(30.0, 20.0 * metadata_hits)
-    return rank_score + coverage_score + phrase_score + metadata_score
+def normalized_prefix(token: str) -> str:
+    return token[:NORMALIZED_PREFIX_LENGTH]
 
 
-def weak_direct(item: dict[str, object]) -> bool:
-    signals = item["signals"]
-    assert isinstance(signals, dict)
-    return int(signals.get("query_tokens") or 0) >= 3 and not (
-        signals.get("exact")
-        or signals.get("semantic_ids")
-        or int(signals.get("token_hits") or 0) >= 2
-        or int(signals.get("rare_token_hits") or 0) >= 1
-        or int(signals.get("phrase_hits") or 0) >= 1
-        or int(signals.get("graph_support") or 0) >= 1
+def normalized_query_prefixes(token: str) -> tuple[str, ...]:
+    values = [normalized_prefix(token)]
+    if token.isascii():
+        values.append(normalized_prefix(routing_stem(token)))
+    return tuple(dict.fromkeys(values))
+
+
+def normalized_text(value: str) -> str:
+    return unicodedata.normalize("NFKC", value).casefold()
+
+
+def expanded_tokens(value: str) -> tuple[str, ...]:
+    return tuple(
+        part
+        for token in QUERY_TOKEN_RE.findall(normalized_text(value))
+        for part in token.split("-")
+        if part
     )
+
+
+def morphological_token_match(query_token: str, document_token: str) -> bool:
+    if query_token == document_token:
+        return True
+    if query_token.isascii() and document_token.isascii():
+        if routing_stem(query_token) == routing_stem(document_token):
+            return True
+    if not query_token.isalpha() or not document_token.isalpha():
+        return False
+    shorter = min(len(query_token), len(document_token))
+    if shorter < 5 or query_token[:1] != document_token[:1]:
+        return False
+    shared = 0
+    for left, right in zip(query_token, document_token):
+        if left != right:
+            break
+        shared += 1
+    if (
+        CYRILLIC_TOKEN_RE.fullmatch(query_token)
+        and CYRILLIC_TOKEN_RE.fullmatch(document_token)
+    ):
+        return shared >= 5
+    return shared >= max(5, math.ceil(shorter * 0.7))
+
+
+def normalized_index_terms(
+    document: str,
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """Return deduplicated tokens, CJK runs, and CJK n-grams for indexing."""
+    folded = normalized_text(document)
+    compact = "".join(
+        character for character in folded if not character.isspace()
+    )
+    tokens = expanded_tokens(folded)
+    cjk_runs = tuple(dict.fromkeys(CJK_RE.findall(compact)))
+    cjk_ngrams = tuple(dict.fromkeys(
+        run[index:index + size]
+        for run in cjk_runs
+        for size in range(1, min(MAX_CJK_NGRAM_LENGTH, len(run)) + 1)
+        for index in range(len(run) - size + 1)
+    ))
+    return tuple(dict.fromkeys(tokens)), cjk_runs, cjk_ngrams
+
+
+def indexed_token_paths(
+    connection: sqlite3.Connection,
+    query_token: str,
+) -> dict[str, bool]:
+    exact = {
+        str(row["document_path"])
+        for row in connection.execute(
+            "SELECT document_path FROM normalized_tokens WHERE token = ?",
+            (query_token,),
+        )
+    }
+    if (
+        len(query_token) < NORMALIZED_PREFIX_LENGTH
+        or not query_token.isalpha()
+    ):
+        return {path: True for path in exact}
+    prefixes = normalized_query_prefixes(query_token)
+    placeholders = ",".join("?" for _ in prefixes)
+    rows = connection.execute(
+        "SELECT document_path, token FROM normalized_tokens "
+        f"WHERE prefix IN ({placeholders})",
+        prefixes,
+    )
+    matched = {path: True for path in exact}
+    for row in rows:
+        document_token = str(row["token"])
+        if morphological_token_match(query_token, document_token):
+            path = str(row["document_path"])
+            matched[path] = matched.get(path, False) or document_token == query_token
+    return matched
+
+
+def cjk_ngrams(value: str) -> tuple[str, ...]:
+    size = min(MAX_CJK_NGRAM_LENGTH, len(value))
+    return tuple(dict.fromkeys(
+        value[index:index + size]
+        for index in range(len(value) - size + 1)
+    ))
+
+
+def indexed_cjk_paths(
+    connection: sqlite3.Connection,
+    query_runs: tuple[str, ...],
+) -> set[str]:
+    candidates: set[str] | None = None
+    for run in query_runs:
+        grams = cjk_ngrams(run)
+        placeholders = ",".join("?" for _ in grams)
+        paths = {
+            str(row["document_path"])
+            for row in connection.execute(
+                "SELECT document_path FROM cjk_ngrams "
+                f"WHERE ngram IN ({placeholders}) "
+                "GROUP BY document_path "
+                "HAVING count(DISTINCT ngram) = ?",
+                (*grams, len(grams)),
+            )
+        }
+        candidates = paths if candidates is None else candidates & paths
+        if not candidates:
+            return set()
+    assert candidates is not None
+    runs_by_path: dict[str, list[str]] = {}
+    ordered = sorted(candidates)
+    for start in range(0, len(ordered), SQL_IN_BATCH_SIZE):
+        batch = ordered[start:start + SQL_IN_BATCH_SIZE]
+        placeholders = ",".join("?" for _ in batch)
+        for row in connection.execute(
+            "SELECT document_path, run FROM cjk_runs "
+            f"WHERE document_path IN ({placeholders})",
+            batch,
+        ):
+            runs_by_path.setdefault(str(row["document_path"]), []).append(
+                str(row["run"])
+            )
+    return {
+        path
+        for path in candidates
+        if all(
+            any(query_run in document_run for document_run in runs_by_path.get(path, ()))
+            for query_run in query_runs
+        )
+    }
+
+
+def normalized_term_matches(
+    connection: sqlite3.Connection,
+    terms: Iterable[str],
+    strict_qualities: dict[str, dict[str, float]],
+) -> dict[str, dict[str, GroupMatch]]:
+    document_count = connection.execute(
+        "SELECT count(*) FROM documents WHERE path != 'README.md'"
+    ).fetchone()[0]
+    matches: dict[str, dict[str, GroupMatch]] = {}
+    for term in dict.fromkeys(terms):
+        strict_paths = strict_qualities.get(term, {})
+        folded_term = normalized_text(term)
+        query_runs = tuple(CJK_RE.findall(folded_term))
+        if query_runs:
+            term_matches = {
+                path: (0.8, "cjk_substring")
+                for path in indexed_cjk_paths(connection, query_runs)
+                if path not in strict_paths
+            }
+        else:
+            query_tokens = expanded_tokens(folded_term)
+            token_paths: dict[str, bool] | None = None
+            for query_token in query_tokens:
+                paths = indexed_token_paths(connection, query_token)
+                if token_paths is None:
+                    token_paths = paths
+                else:
+                    token_paths = {
+                        path: token_paths[path] and paths[path]
+                        for path in token_paths.keys() & paths.keys()
+                    }
+                if not token_paths:
+                    break
+            term_matches = {
+                path: (
+                    (0.75, "normalized_tokens")
+                    if exact
+                    else (0.55, "morphology")
+                )
+                for path, exact in (token_paths or {}).items()
+                if path not in strict_paths
+            }
+        document_frequency = len(term_matches) + len(strict_paths)
+        idf = math.log1p(
+            (document_count + 1.0) / (document_frequency + 0.5)
+        )
+        matches[term] = {
+            path: GroupMatch(idf * quality, term, origin)
+            for path, (quality, origin) in term_matches.items()
+        }
+    return matches
+
+
+def strict_term_qualities(
+    connection: sqlite3.Connection,
+    terms: Iterable[str],
+) -> dict[str, dict[str, float]]:
+    qualities: dict[str, dict[str, float]] = {}
+    for term in dict.fromkeys(terms):
+        rows = connection.execute(
+            f"SELECT path, {DOCUMENT_BM25_EXPRESSION} AS rank "
+            "FROM documents_fts "
+            "WHERE documents_fts MATCH ? AND path != 'README.md'",
+            (quote_fts_phrase(term),),
+        ).fetchall()
+        qualities[term] = {
+            str(row["path"]): max(0.0, -float(row["rank"]))
+            for row in rows
+        }
+    return qualities
+
+
+def group_matches(
+    group: tuple[str, ...],
+    term_qualities: dict[str, dict[str, float]],
+    exact_matches: dict[str, dict[str, GroupMatch]],
+    normalized_matches: dict[str, dict[str, GroupMatch]] | None = None,
+) -> dict[str, GroupMatch]:
+    matches: dict[str, GroupMatch] = {}
+    for term in group:
+        for path, score in term_qualities.get(term, {}).items():
+            candidate = GroupMatch(score, term, "bm25")
+            if path not in matches or candidate.score > matches[path].score:
+                matches[path] = candidate
+        for path, candidate in exact_matches.get(term, {}).items():
+            if path not in matches or candidate.score > matches[path].score:
+                matches[path] = candidate
+        if normalized_matches is not None:
+            for path, candidate in normalized_matches.get(term, {}).items():
+                if path not in matches or candidate.score > matches[path].score:
+                    matches[path] = candidate
+    return matches
+
+
+def normalize_scores(items: list[dict[str, object]]) -> None:
+    strongest = max((float(item["score"]) for item in items), default=0.0)
+    if strongest <= 0:
+        return
+    for item in items:
+        normalized = 100.0 * float(item["score"]) / strongest
+        item["score"] = normalized
+        scores = item.get("_scores")
+        if isinstance(scores, dict) and "facet_score" in scores:
+            scores["facet_score"] = normalized
 
 
 def rank_direct(items: Iterable[dict[str, object]]) -> list[dict[str, object]]:
@@ -137,11 +412,12 @@ def rank_direct(items: Iterable[dict[str, object]]) -> list[dict[str, object]]:
 
 
 def direct_cutoff(
-    ranked: list[dict[str, object]], strong_match: bool
+    ranked: list[dict[str, object]],
+    strong_match: bool,
 ) -> float | None:
     if strong_match or not ranked:
         return None
-    return max(5.0, float(ranked[0]["score"]) * 0.1)
+    return float(ranked[0]["score"]) * NORMALIZED_RELATIVE_CUTOFF
 
 
 def select_direct(
@@ -149,18 +425,12 @@ def select_direct(
     *,
     limit: int,
     strong_match: bool,
-    weak_limit: int,
 ) -> list[dict[str, object]]:
     cutoff = direct_cutoff(ranked, strong_match)
     selected: list[dict[str, object]] = []
-    weak_count = 0
     for item in ranked:
         if cutoff is not None and float(item["score"]) < cutoff:
             continue
-        if not strong_match and weak_direct(item):
-            if weak_count >= weak_limit:
-                continue
-            weak_count += 1
         selected.append(item)
         if len(selected) >= limit:
             break

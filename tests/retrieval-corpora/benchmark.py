@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run paired legacy/faceted retrieval benchmarks over corpus manifests."""
+"""Run the production retrieval benchmark over representative corpora."""
 
 from __future__ import annotations
 
@@ -17,10 +17,9 @@ from types import ModuleType
 
 ROOT = Path(__file__).resolve().parents[2]
 SEARCH_PATH = (
-    ROOT / "skills" / "specspine-extract" / "scripts" / "search_spine_v2.py"
+    ROOT / "skills" / "specspine-extract" / "scripts" / "search_spine.py"
 )
 VALIDATOR_PATH = ROOT / "tools" / "specspine-extract" / "validate_corpus.py"
-RANKINGS = ("legacy", "faceted-bm25", "faceted-normalized")
 
 
 def load_module(name: str, path: Path) -> ModuleType:
@@ -33,7 +32,7 @@ def load_module(name: str, path: Path) -> ModuleType:
     return module
 
 
-SEARCH = load_module("specspine_corpus_search_v2", SEARCH_PATH)
+SEARCH = load_module("specspine_corpus_search", SEARCH_PATH)
 VALIDATOR = load_module("specspine_corpus_validator", VALIDATOR_PATH)
 
 
@@ -80,6 +79,11 @@ def evaluate_slice(
     relevant_at_3 = sum(judgments.get(path, 0) >= 2 for path in considered)
     support = {path for path, grade in judgments.items() if grade == 2}
     returned = set(direct) | set(graph)
+    hard_negatives = {
+        str(item["path"])
+        for item in manifest_slice["judgments"]
+        if item.get("hard_negative", False)
+    }
     status = "matched" if direct else "no_match"
     timings = routed.timings or {}
     return {
@@ -101,6 +105,22 @@ def evaluate_slice(
         "support_recall": (
             len(support & returned) / len(support) if support else 1.0
         ),
+        "graph_support_recall": (
+            len(support & set(graph)) / len(support) if support else 1.0
+        ),
+        "graph_broader_precision": (
+            sum(judgments.get(path, 0) >= 1 for path in graph) / len(graph)
+            if graph else 1.0
+        ),
+        "graph_core_precision": (
+            sum(judgments.get(path, 0) >= 2 for path in graph) / len(graph)
+            if graph else 1.0
+        ),
+        "unnecessary_graph_count": sum(
+            judgments.get(path, 0) <= 0 for path in graph
+        ),
+        "graph_hard_negative": bool(set(graph) & hard_negatives),
+        "returned_hard_negative": bool(returned & hard_negatives),
         "hard_negative_at_3": any(
             judgments.get(path, 0) == 0
             and any(
@@ -135,6 +155,12 @@ def summarize(scenarios: list[dict[str, object]]) -> dict[str, object]:
         "mean_precision_at_3": mean(ranking, "precision_at_3"),
         "mean_ndcg_at_5": mean(ranking, "ndcg_at_5"),
         "mean_support_recall": mean(ranking, "support_recall"),
+        "mean_graph_support_recall": mean(ranking, "graph_support_recall"),
+        "mean_graph_broader_precision": mean(ranking, "graph_broader_precision"),
+        "mean_graph_core_precision": mean(ranking, "graph_core_precision"),
+        "mean_unnecessary_graph_count": mean(ranking, "unnecessary_graph_count"),
+        "graph_hard_negative_rate": mean(ranking, "graph_hard_negative"),
+        "returned_hard_negative_rate": mean(ranking, "returned_hard_negative"),
         "hard_negative_rate_at_3": mean(ranking, "hard_negative_at_3"),
         "status_accuracy": mean(slices, "status_correct"),
         "protocol_status_accuracy": mean(protocol, "status_correct"),
@@ -147,7 +173,6 @@ def summarize(scenarios: list[dict[str, object]]) -> dict[str, object]:
 
 def run_manifest(
     manifest_path: Path,
-    ranking_system: str,
     cache: Path,
 ) -> dict[str, object]:
     manifest = VALIDATOR.validate_manifest(manifest_path)
@@ -170,14 +195,9 @@ def run_manifest(
             slices = SEARCH.RANKING.parse_query_slices(
                 json.dumps(raw_slices, ensure_ascii=False)
             )
-            options = scenario["search"]
             outcome = SEARCH.execute_searches(
                 spine,
                 slices,
-                limit=int(options["limit"]),
-                graph_depth=int(options["graph_depth"]),
-                graph_limit=int(options["graph_limit"]),
-                ranking_system=ranking_system,
             )
             if outcome.mode != "sqlite-fts5":
                 raise RuntimeError(
@@ -193,7 +213,6 @@ def run_manifest(
             rendered = SEARCH.render_batch_output(
                 spine,
                 outcome,
-                max_output_bytes=int(options.get("max_output_bytes", 1_000_000)),
             )
             scenarios.append({
                 "id": str(scenario["id"]),
@@ -212,24 +231,19 @@ def run_manifest(
         "project_type": str(corpus["project_type"]),
         "documentation_language": str(corpus["documentation_language"]),
         "size_tier": str(corpus["size_tier"]),
-        "ranking_system": ranking_system,
         "scenarios": scenarios,
         "summary": summarize(scenarios),
     }
 
 
-def aggregate(results: list[dict[str, object]], ranking: str) -> dict[str, object]:
+def aggregate(results: list[dict[str, object]]) -> dict[str, object]:
     scenarios = [
         scenario
         for result in results
-        if result["ranking_system"] == ranking
         for scenario in result["scenarios"]
     ]
     return {
-        "ranking_system": ranking,
-        "corpora": sum(
-            result["ranking_system"] == ranking for result in results
-        ),
+        "corpora": len(results),
         **summarize(scenarios),
     }
 
@@ -237,21 +251,14 @@ def aggregate(results: list[dict[str, object]], ranking: str) -> dict[str, objec
 def aggregate_by(
     results: list[dict[str, object]],
     field: str,
-    rankings: tuple[str, ...],
-) -> dict[str, list[dict[str, object]]]:
+) -> dict[str, dict[str, object]]:
     values = sorted({str(result[field]) for result in results})
     return {
-        value: [
-            aggregate(
-                [
-                    result
-                    for result in results
-                    if str(result[field]) == value
-                ],
-                ranking,
-            )
-            for ranking in rankings
-        ]
+        value: aggregate([
+            result
+            for result in results
+            if str(result[field]) == value
+        ])
         for value in values
     }
 
@@ -274,18 +281,11 @@ def discover_manifests(values: list[Path]) -> list[Path]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", action="append", type=Path, default=[])
-    parser.add_argument(
-        "--ranking",
-        action="append",
-        choices=RANKINGS,
-        default=[],
-    )
     args = parser.parse_args()
     try:
         manifests = discover_manifests(args.manifest)
     except ValueError as error:
         parser.error(str(error))
-    rankings = tuple(dict.fromkeys(args.ranking or RANKINGS))
     with tempfile.TemporaryDirectory(
         prefix="specspine-retrieval-corpora-"
     ) as directory:
@@ -293,28 +293,22 @@ def main() -> int:
         results = [
             run_manifest(
                 manifest,
-                ranking,
                 cache_root / manifest.parent.name,
             )
             for manifest in manifests
-            for ranking in rankings
         ]
     payload = {
         "schema_version": 1,
         "manifests": [str(path.resolve()) for path in manifests],
-        "rankings": [
-            aggregate(results, ranking) for ranking in rankings
-        ],
+        "summary": aggregate(results),
         "breakdowns": {
             "documentation_language": aggregate_by(
                 results,
                 "documentation_language",
-                rankings,
             ),
             "project_type": aggregate_by(
                 results,
                 "project_type",
-                rankings,
             ),
         },
         "results": results,

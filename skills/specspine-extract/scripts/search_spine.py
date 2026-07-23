@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Find candidate SpecSpine documents with an optional derived SQLite FTS5 index."""
+"""Find and return marked SpecSpine documents with batched SQLite FTS5 queries."""
 
 from __future__ import annotations
 
@@ -23,10 +23,14 @@ except ImportError as error:
     raise SystemExit(2) from error
 
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "4"
 FALLBACK_EXIT = 2
 BUILD_LOCK_TIMEOUT_MS = 10_000
 SQLITE_BUSY_TIMEOUT_MS = 10_000
+DIRECT_LIMIT = 10
+GRAPH_LIMIT = 2
+GRAPH_DEPTH = 1
+MAX_OUTPUT_BYTES = 128 * 1024
 FENCE_RE = re.compile(r"^ {0,3}(?:>\s*)?(`{3,}|~{3,})")
 HEADING_RE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$")
 DEFINITION_RE = re.compile(r"^ {0,3}[-+*]\s+\*\*((?:DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*)\*\*\s+—\s+(.*)")
@@ -129,6 +133,27 @@ class SearchOutcome:
     index_state: str | None = None
     retrieval_strategy: str | None = None
     selection: dict[str, object] | None = None
+    timings: dict[str, float] | None = None
+    reason_code: str | None = None
+    reason: str | None = None
+    ranking_system: str = RANKING.RANKING_SYSTEM
+
+
+@dataclass(frozen=True)
+class SliceOutcome:
+    identifier: str
+    outcome: SearchOutcome
+
+
+@dataclass(frozen=True)
+class BatchSearchOutcome:
+    exit_code: int
+    mode: str
+    ranking_system: str
+    slices: tuple[SliceOutcome, ...] = ()
+    documents: int | None = None
+    refreshed: int | None = None
+    index_state: str | None = None
     timings: dict[str, float] | None = None
     reason_code: str | None = None
     reason: str | None = None
@@ -476,6 +501,33 @@ CREATE VIRTUAL TABLE sections_fts USING fts5(
     body,
     tokenize = 'unicode61 remove_diacritics 2'
 );
+CREATE VIRTUAL TABLE documents_fts USING fts5(
+    path UNINDEXED,
+    title,
+    summary,
+    headings,
+    body,
+    tokenize = 'unicode61 remove_diacritics 2'
+);
+CREATE TABLE normalized_tokens (
+    document_path TEXT NOT NULL REFERENCES documents(path) ON DELETE CASCADE,
+    token TEXT NOT NULL,
+    prefix TEXT NOT NULL,
+    PRIMARY KEY(document_path, token)
+);
+CREATE INDEX normalized_token_idx ON normalized_tokens(token);
+CREATE INDEX normalized_prefix_idx ON normalized_tokens(prefix);
+CREATE TABLE cjk_runs (
+    document_path TEXT NOT NULL REFERENCES documents(path) ON DELETE CASCADE,
+    run TEXT NOT NULL,
+    PRIMARY KEY(document_path, run)
+);
+CREATE TABLE cjk_ngrams (
+    document_path TEXT NOT NULL REFERENCES documents(path) ON DELETE CASCADE,
+    ngram TEXT NOT NULL,
+    PRIMARY KEY(document_path, ngram)
+);
+CREATE INDEX cjk_ngram_idx ON cjk_ngrams(ngram);
 """
 
 
@@ -608,6 +660,45 @@ def insert_document(connection: sqlite3.Connection, document: Document) -> None:
             document.ctime_ns,
         ),
     )
+    connection.execute(
+        "INSERT INTO documents_fts(path, title, summary, headings, body) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (
+            document.path,
+            document.title,
+            document.summary,
+            "\n".join(section.heading for section in document.sections),
+            "\n".join(section.body for section in document.sections),
+        ),
+    )
+    if document.path != "README.md":
+        searchable = "\n".join((
+            document.title,
+            document.summary,
+            *(section.heading for section in document.sections),
+            *(section.body for section in document.sections),
+        ))
+        tokens, cjk_runs, cjk_ngrams = RANKING.normalized_index_terms(searchable)
+        connection.executemany(
+            "INSERT INTO normalized_tokens(document_path, token, prefix) "
+            "VALUES (?, ?, ?)",
+            (
+                (
+                    document.path,
+                    token,
+                    RANKING.normalized_prefix(token),
+                )
+                for token in tokens
+            ),
+        )
+        connection.executemany(
+            "INSERT INTO cjk_runs(document_path, run) VALUES (?, ?)",
+            ((document.path, run) for run in cjk_runs),
+        )
+        connection.executemany(
+            "INSERT INTO cjk_ngrams(document_path, ngram) VALUES (?, ?)",
+            ((document.path, ngram) for ngram in cjk_ngrams),
+        )
     for section in document.sections:
         connection.execute(
             "INSERT INTO sections(document_path, ordinal, heading, kind, body) VALUES (?, ?, ?, ?, ?)",
@@ -646,6 +737,7 @@ def refresh_index(connection: sqlite3.Connection, root: Path, files: dict[str, t
     try:
         for relative in sorted(removed | set(changed)):
             connection.execute("DELETE FROM sections_fts WHERE path = ?", (relative,))
+            connection.execute("DELETE FROM documents_fts WHERE path = ?", (relative,))
             connection.execute("DELETE FROM documents WHERE path = ?", (relative,))
         for document in parsed:
             insert_document(connection, document)
@@ -791,26 +883,9 @@ def ensure_index(
         ) from error
 
 
-def fts_plan(
-    query: str, connection: sqlite3.Connection | None = None
-) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
-    try:
-        return RANKING.fts_plan(query, connection)
-    except RANKING.InvalidRankingQuery as error:
-        raise AcceleratorUnavailable(str(error), "invalid_query") from error
-
-
-def fts_query(query: str, connection: sqlite3.Connection | None = None) -> str:
-    return fts_plan(query, connection)[0]
-
-
-def routing_stem(token: str) -> str:
-    return RANKING.routing_stem(token)
-
-
-def search(
+def search_normalized(
     connection: sqlite3.Connection,
-    query: str,
+    query: object,
     limit: int,
     graph_depth: int,
     graph_limit: int,
@@ -822,7 +897,6 @@ def search(
         score: float,
         origin: str,
         title: str | None = None,
-        summary: str | None = None,
         heading: str | None = None,
         signals: dict[str, object] | None = None,
     ) -> None:
@@ -834,16 +908,7 @@ def search(
                 "_scores": {},
                 "origins": [],
                 "headings": [],
-                "signals": {
-                    "exact": False,
-                    "semantic_ids": [],
-                    "token_hits": 0,
-                    "query_tokens": 0,
-                    "phrase_hits": 0,
-                    "metadata_hits": 0,
-                    "fts_rank": None,
-                    "graph_support": 0,
-                },
+                "signals": {"graph_support": 0},
             },
         )
         scores = item["_scores"]
@@ -852,164 +917,158 @@ def search(
         item["score"] = sum(float(value) for value in scores.values())
         if origin not in item["origins"]:
             item["origins"].append(origin)
-        if heading and heading not in item["headings"]:
-            item["headings"].append(heading)
         if title is not None:
             item["title"] = title
-        if summary is not None:
-            item["summary"] = summary
+        if heading and heading not in item["headings"]:
+            item["headings"].append(heading)
         if signals:
             stored = item["signals"]
             assert isinstance(stored, dict)
             for key, value in signals.items():
-                if key == "semantic_ids" and isinstance(value, list):
-                    identifiers = stored[key]
-                    assert isinstance(identifiers, list)
-                    identifiers.extend(
-                        identifier for identifier in value if identifier not in identifiers
-                    )
-                elif key == "graph_support":
+                if key == "graph_support":
                     stored[key] = int(stored.get(key) or 0) + int(value)
-                elif key in {
-                    "token_hits",
-                    "query_tokens",
-                    "phrase_hits",
-                    "metadata_hits",
-                }:
-                    stored[key] = max(int(stored.get(key) or 0), int(value))
-                elif key == "fts_rank":
-                    current = stored.get(key)
-                    stored[key] = int(value) if current is None else min(int(current), int(value))
                 else:
                     stored[key] = value
 
-    normalized = query.strip().casefold()
+    all_groups = (*query.must, *query.should)
+    all_terms = tuple(dict.fromkeys(
+        term for group in all_groups for term in group
+    ))
+    documents = {
+        str(row["path"]): str(row["title"])
+        for row in connection.execute(
+            "SELECT path, title FROM documents WHERE path != 'README.md'"
+        )
+    }
+    paths_by_identity: dict[str, list[str]] = {}
+    titles_by_identity: dict[str, list[str]] = {}
+    for path, title in documents.items():
+        paths_by_identity.setdefault(path.casefold(), []).append(path)
+        titles_by_identity.setdefault(title.casefold(), []).append(path)
+    semantic_paths: dict[str, list[str]] = {}
+    for row in connection.execute(
+        "SELECT document_path, semantic_id FROM semantic_ids "
+        "WHERE document_path != 'README.md'"
+    ):
+        semantic_paths.setdefault(
+            str(row["semantic_id"]).casefold(), []
+        ).append(str(row["document_path"]))
+
+    exact_matches: dict[str, dict[str, RANKING.GroupMatch]] = {}
+    for term in all_terms:
+        matches: dict[str, RANKING.GroupMatch] = {}
+        normalized_path = term.removeprefix("./").replace("\\", "/")
+        for path in paths_by_identity.get(normalized_path.casefold(), ()):
+            matches[path] = RANKING.GroupMatch(
+                RANKING.EXACT_PATH_SCORE, term, "exact_path"
+            )
+        for path in titles_by_identity.get(term.casefold(), ()):
+            candidate = RANKING.GroupMatch(
+                RANKING.EXACT_MATCH_SCORE, term, "exact_title"
+            )
+            stored = matches.get(path)
+            if stored is None or candidate.score > stored.score:
+                matches[path] = candidate
+        for path in semantic_paths.get(term.casefold(), ()):
+            candidate = RANKING.GroupMatch(
+                RANKING.SEMANTIC_ID_SCORE, term, "semantic_id"
+            )
+            stored = matches.get(path)
+            if stored is None or candidate.score > stored.score:
+                matches[path] = candidate
+        exact_matches[term] = matches
+
+    term_qualities = RANKING.strict_term_qualities(connection, all_terms)
+    normalized_matches = RANKING.normalized_term_matches(
+        connection,
+        all_terms,
+        term_qualities,
+    )
+    must_matches = tuple(
+        RANKING.group_matches(
+            group,
+            term_qualities,
+            exact_matches,
+            normalized_matches,
+        )
+        for group in query.must
+    )
+    should_matches = tuple(
+        RANKING.group_matches(
+            group,
+            term_qualities,
+            exact_matches,
+            normalized_matches,
+        )
+        for group in query.should
+    )
+    candidate_paths = set(must_matches[0])
+    for group_matches in must_matches[1:]:
+        candidate_paths.intersection_update(group_matches)
+    joint_document_frequency = len(candidate_paths)
+
+    for path in sorted(candidate_paths):
+        matched_must = tuple(group[path] for group in must_matches)
+        matched_should = tuple(
+            group[path] for group in should_matches if path in group
+        )
+        should_quality = 0.5 * sum(
+            min(item.score, 4.0) for item in matched_should
+        )
+        quality = sum(item.score for item in matched_must) + should_quality
+        exact_origins = sorted({
+            item.origin
+            for item in (*matched_must, *matched_should)
+            if item.origin in {"exact_path", "exact_title", "semantic_id"}
+        })
+        normalized_origins = sorted({
+            item.origin
+            for item in (*matched_must, *matched_should)
+            if item.origin in {"morphology", "normalized_tokens", "cjk_substring"}
+        })
+        add(
+            path,
+            quality,
+            "facet_score",
+            documents[path],
+            signals={
+                "must_groups": len(query.must),
+                "matched_must_groups": len(matched_must),
+                "matched_must_terms": [item.term for item in matched_must],
+                "should_groups": len(query.should),
+                "matched_should_groups": len(matched_should),
+                "matched_should_terms": [item.term for item in matched_should],
+                "match_origins": [
+                    item.origin for item in (*matched_must, *matched_should)
+                ],
+                "exact_match_origins": exact_origins,
+                "normalized_match_origins": normalized_origins,
+                "joint_document_frequency": joint_document_frequency,
+                "ranking_quality": quality,
+            },
+        )
+    RANKING.normalize_scores(list(candidates.values()))
+
     routing_tokens = tuple(dict.fromkeys(
         part
-        for token in QUERY_TOKEN_RE.findall(normalized)
+        for group in all_groups
+        for term in group
+        for token in QUERY_TOKEN_RE.findall(term)
         for part in (token, *token.split("-"))
     ))
 
     def path_matches(path: str, clause: str) -> bool:
-        escaped = clause.replace('"', '""')
         return bool(connection.execute(
-            "SELECT 1 FROM sections_fts WHERE path = ? AND sections_fts MATCH ? LIMIT 1",
-            (path, f'"{escaped}"'),
+            "SELECT 1 FROM sections_fts "
+            "WHERE path = ? AND sections_fts MATCH ? LIMIT 1",
+            (path, RANKING.quote_fts_phrase(clause)),
         ).fetchone())
-
-    for row in connection.execute(
-        "SELECT path, title, summary FROM documents WHERE lower(path) = ? OR lower(title) = ?",
-        (normalized, normalized),
-    ):
-        add(
-            row["path"],
-            RANKING.EXACT_MATCH_SCORE,
-            "exact",
-            row["title"],
-            row["summary"],
-            signals={"exact": True},
-        )
-    for token in QUERY_TOKEN_RE.findall(normalized):
-        if not ID_QUERY_RE.fullmatch(token):
-            continue
-        for row in connection.execute(
-            "SELECT d.path, d.title, d.summary FROM semantic_ids s JOIN documents d ON d.path = s.document_path WHERE lower(s.semantic_id) = ?",
-            (token,),
-        ):
-            add(
-                row["path"],
-                RANKING.SEMANTIC_ID_SCORE,
-                "semantic_id",
-                row["title"],
-                row["summary"],
-                signals={"semantic_ids": [token.upper()]},
-            )
-
-    strong_match = bool(candidates)
-    retrieval_strategy = "strong-match" if strong_match else "hybrid-fts"
-    if not strong_match:
-        match_query, query_tokens, query_phrases = fts_plan(query, connection)
-        token_frequencies = {
-            token: connection.execute(
-                "SELECT count(DISTINCT path) FROM sections_fts "
-                "WHERE sections_fts MATCH ? AND path != 'README.md'",
-                (f'"{token.replace(chr(34), chr(34) * 2)}"',),
-            ).fetchone()[0]
-            for token in query_tokens
-        }
-        batch_size = max(limit * 10, 50)
-        offset = 0
-        document_ranks: dict[str, int] = {}
-        document_signals: dict[str, tuple[int, int, int]] = {}
-        query_stems = {routing_stem(token) for token in query_tokens}
-
-        while len(document_ranks) < limit:
-            rows = connection.execute(
-                f"SELECT path, title, summary, heading, {RANKING.BM25_EXPRESSION} AS rank "
-                "FROM sections_fts WHERE sections_fts MATCH ? ORDER BY rank LIMIT ? OFFSET ?",
-                (match_query, batch_size, offset),
-            ).fetchall()
-            for row in rows:
-                document_rank = document_ranks.setdefault(row["path"], len(document_ranks))
-                if row["path"] not in document_signals:
-                    matched_tokens = [
-                        token for token in query_tokens
-                        if path_matches(row["path"], token)
-                    ]
-                    document_signals[row["path"]] = (
-                        len(matched_tokens),
-                        sum(path_matches(row["path"], phrase) for phrase in query_phrases),
-                        sum(
-                            token_frequencies[token]
-                            <= RANKING.RARE_TOKEN_MAX_DOCUMENTS
-                            for token in matched_tokens
-                        ),
-                    )
-                token_hits, phrase_hits, rare_token_hits = document_signals[row["path"]]
-                metadata_tokens = {
-                    routing_stem(token)
-                    for token in QUERY_TOKEN_RE.findall(
-                        f"{row['path']} {row['title']}".casefold()
-                    )
-                }
-                metadata_hits = len(query_stems & metadata_tokens)
-                score = RANKING.direct_fts_score(
-                    document_rank,
-                    len(query_tokens),
-                    token_hits,
-                    phrase_hits,
-                    metadata_hits,
-                )
-                add(
-                    row["path"],
-                    score,
-                    "fts",
-                    row["title"],
-                    row["summary"],
-                    row["heading"],
-                    signals={
-                        "token_hits": token_hits,
-                        "query_tokens": len(query_tokens),
-                        "phrase_hits": phrase_hits,
-                        "rare_token_hits": rare_token_hits,
-                        "metadata_hits": metadata_hits,
-                        "fts_rank": document_rank + 1,
-                    },
-                )
-            if len(rows) < batch_size:
-                break
-            offset += batch_size
-        # README is already required source context, so returning it as FTS routing
-        # would only encourage a redundant read. Exact README queries remain valid.
-        if len(candidates) > 1:
-            candidates.pop("README.md", None)
 
     direct_paths = set(candidates)
     preliminary_direct = RANKING.select_direct(
         RANKING.rank_direct(candidates.values()),
         limit=limit,
-        strong_match=strong_match,
-        weak_limit=2,
+        strong_match=False,
     )
     frontier = [str(item["path"]) for item in preliminary_direct]
     visited = set(frontier)
@@ -1025,11 +1084,13 @@ def search(
             )
             base = float(source_candidate["score"])
             outgoing = connection.execute(
-                "SELECT target_path, label, semantic_id FROM links WHERE source_path = ?",
+                "SELECT target_path, label, semantic_id FROM links "
+                "WHERE source_path = ?",
                 (source,),
             ).fetchall()
             incoming = connection.execute(
-                "SELECT source_path, label, semantic_id FROM links WHERE target_path = ?",
+                "SELECT source_path, label, semantic_id FROM links "
+                "WHERE target_path = ?",
                 (source,),
             ).fetchall()
             transitions = [
@@ -1041,7 +1102,7 @@ def search(
                 if neighbor == "README.md":
                     continue
                 document = connection.execute(
-                    "SELECT title, summary FROM documents WHERE path = ?", (neighbor,)
+                    "SELECT title FROM documents WHERE path = ?", (neighbor,)
                 ).fetchone()
                 if document is None:
                     continue
@@ -1053,7 +1114,6 @@ def search(
                         RANKING.direct_graph_bonus(base),
                         origin,
                         document["title"],
-                        document["summary"],
                         signals={"graph_support": 1},
                     )
                 else:
@@ -1071,7 +1131,7 @@ def search(
                                 str(document["title"]),
                                 routing_tokens,
                                 path_matches,
-                                strong_match=strong_match,
+                                strong_match=False,
                             ),
                             "title": document["title"],
                         },
@@ -1108,39 +1168,49 @@ def search(
     direct = RANKING.select_direct(
         ranked_direct,
         limit=limit,
-        strong_match=strong_match,
-        weak_limit=0,
+        strong_match=False,
     )
-    direct_cutoff_score = RANKING.direct_cutoff(ranked_direct, strong_match)
+    direct_cutoff_score = RANKING.direct_cutoff(ranked_direct, False)
     returned_direct_paths = {str(item["path"]) for item in direct}
     usable_graph: list[dict[str, object]] = []
     for item in graph_candidates.values():
         stored_transitions = item["_transitions"]
         assert isinstance(stored_transitions, dict)
         retained = {
-            key: value for key, value in stored_transitions.items()
+            key: value
+            for key, value in stored_transitions.items()
             if key[0] in returned_direct_paths
         }
-        if not retained:
-            continue
-        item["_transitions"] = retained
-        item["score"] = RANKING.combined_graph_score(retained.values())
-        usable_graph.append(item)
+        if retained:
+            item["_transitions"] = retained
+            item["score"] = RANKING.combined_graph_score(retained.values())
+            usable_graph.append(item)
     ranked_graph = RANKING.rank_graph(usable_graph)
     graph, graph_threshold = RANKING.select_graph(
         ranked_graph,
         graph_limit=graph_limit,
         direct_count=len(direct),
     )
+    section_query = " OR ".join(
+        RANKING.group_expression(group) for group in all_groups
+    )
     for item in direct:
+        item["headings"] = [
+            row[0]
+            for row in connection.execute(
+                f"SELECT heading FROM sections_fts "
+                f"WHERE path = ? AND sections_fts MATCH ? "
+                f"ORDER BY {RANKING.BM25_EXPRESSION} LIMIT 4",
+                (item["path"], section_query),
+            )
+        ]
         item.pop("_scores", None)
-        item.pop("summary", None)
-        item["score"] = round(float(item["score"]), 3)
+        item["score"] = round(float(item["score"]), 6)
         item["headings"] = item["headings"][:4]
         signals = item["signals"]
         assert isinstance(signals, dict)
         item["signals"] = {
-            key: value
+            key: round(value, 9) if isinstance(value, float) else value
             for key, value in signals.items()
             if value not in (False, None, 0, [], ())
         }
@@ -1166,13 +1236,26 @@ def search(
             )[:3]
         ]
         item["score"] = round(float(item["score"]), 3)
+    fallback_origins = {"morphology", "normalized_tokens", "cjk_substring"}
+    normalized_direct = sum(
+        any(
+            origin in fallback_origins
+            for origin in item.get("signals", {}).get("match_origins", ())
+        )
+        for item in direct
+    )
     selection = {
+        "ranking_system": RANKING.RANKING_SYSTEM,
+        "match_tier": "normalized" if normalized_direct else "strict",
+        "joint_document_frequency": joint_document_frequency,
+        "term_queries": len(all_terms),
+        "normalized_direct": normalized_direct,
         "direct_considered": len(ranked_direct),
         "direct_returned": len(direct),
-        "direct_weak_considered": sum(RANKING.weak_direct(item) for item in ranked_direct),
-        "direct_weak_returned": sum(RANKING.weak_direct(item) for item in direct),
         "direct_cutoff_score": (
-            round(direct_cutoff_score, 3) if direct_cutoff_score is not None else None
+            round(direct_cutoff_score, 6)
+            if direct_cutoff_score is not None
+            else None
         ),
         "graph_considered": len(ranked_graph),
         "graph_returned": len(graph),
@@ -1180,41 +1263,53 @@ def search(
             round(graph_threshold, 3) if graph_threshold is not None else None
         ),
     }
-    return direct, graph, retrieval_strategy, selection
+    return direct, graph, RANKING.RANKING_SYSTEM, selection
 
 
-def execute_search(
+def execute_searches(
     spine_root: Path,
-    query: str,
+    query_slices: tuple[object, ...],
     *,
-    limit: int = 10,
-    graph_limit: int = 2,
-    graph_depth: int = 1,
+    limit: int = DIRECT_LIMIT,
+    graph_limit: int = GRAPH_LIMIT,
+    graph_depth: int = GRAPH_DEPTH,
     rebuild: bool = False,
-) -> SearchOutcome:
+) -> BatchSearchOutcome:
     total_started = time.perf_counter()
     root = spine_root.resolve()
     if not root.is_dir() or not (root / "README.md").is_file():
-        return SearchOutcome(
-            3, "error", reason_code="invalid_root",
+        return BatchSearchOutcome(
+            3,
+            "error",
+            RANKING.RANKING_SYSTEM,
+            reason_code="invalid_root",
             reason="SpecSpine root or README.md is missing",
             timings={"total_seconds": time.perf_counter() - total_started},
         )
     if limit < 1 or limit > 50:
-        return SearchOutcome(
-            3, "error", reason_code="invalid_limit",
+        return BatchSearchOutcome(
+            3,
+            "error",
+            RANKING.RANKING_SYSTEM,
+            reason_code="invalid_limit",
             reason="limit must be between 1 and 50",
             timings={"total_seconds": time.perf_counter() - total_started},
         )
     if graph_limit < 0 or graph_limit > 50:
-        return SearchOutcome(
-            3, "error", reason_code="invalid_graph_limit",
+        return BatchSearchOutcome(
+            3,
+            "error",
+            RANKING.RANKING_SYSTEM,
+            reason_code="invalid_graph_limit",
             reason="graph-limit must be between 0 and 50",
             timings={"total_seconds": time.perf_counter() - total_started},
         )
     if graph_depth not in {0, 1, 2}:
-        return SearchOutcome(
-            3, "error", reason_code="invalid_graph_depth",
+        return BatchSearchOutcome(
+            3,
+            "error",
+            RANKING.RANKING_SYSTEM,
+            reason_code="invalid_graph_depth",
             reason="graph-depth must be 0, 1, or 2",
             timings={"total_seconds": time.perf_counter() - total_started},
         )
@@ -1224,42 +1319,75 @@ def execute_search(
         probe_fts5()
         index_path = cache_path(root)
         connection, changed, timings = ensure_index(root, index_path, rebuild)
-        search_started = time.perf_counter()
-        direct_matches, graph_neighbors, retrieval_strategy, selection = search(
-            connection,
-            query,
-            limit,
-            graph_depth,
-            graph_limit,
-        )
-        timings["search_seconds"] = time.perf_counter() - search_started
-        timings["total_seconds"] = time.perf_counter() - total_started
-        count = connection.execute("SELECT count(*) FROM documents").fetchone()[0]
         index_state = str(timings.pop("index_state"))
-        return SearchOutcome(
-            0 if direct_matches else FALLBACK_EXIT,
+        document_count = connection.execute(
+            "SELECT count(*) FROM documents"
+        ).fetchone()[0]
+        slices: list[SliceOutcome] = []
+        search_seconds = 0.0
+        for query_slice in query_slices:
+            search_started = time.perf_counter()
+            direct, graph, strategy, selection = search_normalized(
+                connection,
+                query_slice,
+                limit,
+                graph_depth,
+                graph_limit,
+            )
+            elapsed = time.perf_counter() - search_started
+            search_seconds += elapsed
+            slices.append(SliceOutcome(
+                query_slice.identifier,
+                SearchOutcome(
+                    0 if direct else FALLBACK_EXIT,
+                    "sqlite-fts5",
+                    tuple(direct),
+                    tuple(graph),
+                    document_count,
+                    changed,
+                    index_state,
+                    strategy,
+                    selection,
+                    {"search_seconds": elapsed},
+                    ranking_system=RANKING.RANKING_SYSTEM,
+                ),
+            ))
+        timings["search_seconds"] = search_seconds
+        timings["total_seconds"] = time.perf_counter() - total_started
+        any_matches = any(item.outcome.direct_matches for item in slices)
+        return BatchSearchOutcome(
+            0 if any_matches else FALLBACK_EXIT,
             "sqlite-fts5",
-            tuple(direct_matches),
-            tuple(graph_neighbors),
-            count,
+            RANKING.RANKING_SYSTEM,
+            tuple(slices),
+            document_count,
             changed,
             index_state,
-            retrieval_strategy,
-            selection,
             {key: float(value) for key, value in timings.items()},
         )
-    except AcceleratorUnavailable as error:
-        return SearchOutcome(
+    except RANKING.InvalidRankingQuery as error:
+        return BatchSearchOutcome(
             FALLBACK_EXIT,
             "fallback",
+            RANKING.RANKING_SYSTEM,
+            reason_code="invalid_query",
+            reason=str(error),
+            timings={"total_seconds": time.perf_counter() - total_started},
+        )
+    except AcceleratorUnavailable as error:
+        return BatchSearchOutcome(
+            FALLBACK_EXIT,
+            "fallback",
+            RANKING.RANKING_SYSTEM,
             reason_code=error.reason_code,
             reason=str(error),
             timings={"total_seconds": time.perf_counter() - total_started},
         )
     except Exception as error:
-        return SearchOutcome(
+        return BatchSearchOutcome(
             FALLBACK_EXIT,
             "fallback",
+            RANKING.RANKING_SYSTEM,
             reason_code="unexpected_error",
             reason=f"accelerator failed: {error}",
             timings={"total_seconds": time.perf_counter() - total_started},
@@ -1269,49 +1397,189 @@ def execute_search(
             connection.close()
 
 
-def compact_payload(outcome: SearchOutcome) -> dict[str, object]:
-    payload: dict[str, object] = {"schema_version": 2, "mode": outcome.mode}
-    if outcome.mode != "sqlite-fts5":
-        return payload
-    payload["direct_matches"] = [
-        {"path": item["path"]} for item in outcome.direct_matches
-    ]
-    payload["graph_neighbors"] = [
-        {
-            "path": item["path"],
-            "transitions": [
-                {
-                    key: transition[key]
-                    for key in ("root_path", "source_path", "direction", "depth")
-                    if key in transition
+def protocol_marker(name: str, **metadata: object) -> str:
+    encoded = json.dumps(metadata, ensure_ascii=False, separators=(",", ":"))
+    return f"<<<SPECSPINE_{name} {encoded}>>>"
+
+
+def selected_documents(
+    outcome: SearchOutcome,
+) -> tuple[tuple[str, str, dict[str, object]], ...]:
+    selected: list[tuple[str, str, dict[str, object]]] = []
+    seen: set[str] = set()
+    for origin, items in (
+        ("direct", outcome.direct_matches),
+        ("graph", outcome.graph_neighbors),
+    ):
+        for item in items:
+            path = str(item["path"])
+            if path not in seen:
+                seen.add(path)
+                selected.append((path, origin, item))
+    return tuple(selected)
+
+
+def read_selected_document(root: Path, relative: str) -> str:
+    path = (root / relative).resolve()
+    if not within(path, root) or path.suffix.casefold() != ".md" or not path.is_file():
+        raise AcceleratorUnavailable(
+            f"selected document is unavailable: {relative}",
+            reason_code="selected_document_unavailable",
+        )
+    return path.read_text(encoding="utf-8")
+
+
+def render_batch_output(
+    spine_root: Path,
+    outcome: BatchSearchOutcome,
+    *,
+    max_output_bytes: int = MAX_OUTPUT_BYTES,
+) -> str:
+    slice_lines: list[str] = []
+    selected_paths: list[str] = []
+    seen_paths: set[str] = set()
+    if outcome.mode == "sqlite-fts5":
+        for item in outcome.slices:
+            selection = item.outcome.selection or {}
+            status = "matched" if item.outcome.direct_matches else "no_match"
+            slice_metadata: dict[str, object] = {
+                "id": item.identifier,
+                "status": status,
+            }
+            if selection.get("match_tier") is not None:
+                slice_metadata["match_tier"] = selection["match_tier"]
+            if selection.get("joint_document_frequency") is not None:
+                slice_metadata["joint_df"] = selection[
+                    "joint_document_frequency"
+                ]
+            slice_lines.append(protocol_marker("SLICE", **slice_metadata))
+            for relative, origin, candidate in selected_documents(item.outcome):
+                metadata: dict[str, object] = {
+                    "path": relative,
+                    "origin": origin,
                 }
-                for transition in item["transitions"]
-            ],
-        }
-        for item in outcome.graph_neighbors
+                signals = candidate.get("signals")
+                if origin == "direct" and isinstance(signals, dict):
+                    for key in (
+                        "matched_must_terms",
+                        "matched_should_terms",
+                        "exact_match_origins",
+                    ):
+                        if signals.get(key):
+                            metadata[key] = signals[key]
+                slice_lines.append(protocol_marker("HIT", **metadata))
+                if relative not in seen_paths:
+                    seen_paths.add(relative)
+                    selected_paths.append(relative)
+            slice_lines.append("<<<SPECSPINE_END_SLICE>>>")
+
+    result_metadata: dict[str, object] = {
+        "version": 2,
+        "mode": outcome.mode,
+        "ranking": outcome.ranking_system,
+        "graph_depth": GRAPH_DEPTH,
+        "graph_limit": GRAPH_LIMIT,
+    }
+    if outcome.reason_code:
+        result_metadata["reason"] = outcome.reason_code
+    provisional_header = protocol_marker(
+        "RESULT", **result_metadata, truncated=False
+    )
+    base_lines = [provisional_header, *slice_lines, "<<<SPECSPINE_END_RESULT>>>"]
+    remaining = max_output_bytes - len(
+        ("\n".join(base_lines) + "\n").encode("utf-8")
+    )
+    root = spine_root.resolve()
+    document_lines: list[str] = []
+    truncated = False
+    for relative in selected_paths:
+        content = read_selected_document(root, relative).rstrip("\n")
+        block = "\n".join((
+            protocol_marker(
+                "DOCUMENT",
+                path=relative,
+                utf8_bytes=len(content.encode("utf-8")),
+            ),
+            content,
+            "<<<SPECSPINE_END_DOCUMENT>>>",
+        ))
+        block_size = len((block + "\n").encode("utf-8"))
+        if block_size <= remaining:
+            document_lines.append(block)
+            remaining -= block_size
+            continue
+        truncated = True
+        omitted = protocol_marker(
+            "DOCUMENT_OMITTED", path=relative, reason="output_budget"
+        )
+        omitted_size = len((omitted + "\n").encode("utf-8"))
+        if omitted_size <= remaining:
+            document_lines.append(omitted)
+            remaining -= omitted_size
+
+    result_metadata["truncated"] = truncated
+    lines = [
+        protocol_marker("RESULT", **result_metadata),
+        *slice_lines,
+        *document_lines,
+        "<<<SPECSPINE_END_RESULT>>>",
     ]
-    return payload
+    rendered = "\n".join(lines) + "\n"
+    if len(rendered.encode("utf-8")) <= max_output_bytes:
+        return rendered
+    minimal_metadata = {
+        "version": 2,
+        "mode": outcome.mode,
+        "ranking": outcome.ranking_system,
+        "graph_depth": GRAPH_DEPTH,
+        "graph_limit": GRAPH_LIMIT,
+        "reason": "output_metadata_budget",
+        "truncated": True,
+    }
+    return "\n".join((
+        protocol_marker("RESULT", **minimal_metadata),
+        "<<<SPECSPINE_END_RESULT>>>",
+        "",
+    ))
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("spine_root", type=Path)
-    parser.add_argument("--query", required=True, nargs="+")
-    parser.add_argument("--limit", type=int, default=10)
-    parser.add_argument("--graph-limit", type=int, default=2)
-    parser.add_argument("--graph-depth", type=int, choices=(0, 1, 2), default=1)
+    parser.add_argument("--queries-json", required=True)
     parser.add_argument("--rebuild", action="store_true")
     args = parser.parse_args()
-    outcome = execute_search(
+    try:
+        query_slices = RANKING.parse_query_slices(args.queries_json)
+    except RANKING.InvalidRankingQuery:
+        batch = BatchSearchOutcome(
+            FALLBACK_EXIT,
+            "fallback",
+            RANKING.RANKING_SYSTEM,
+            reason_code="invalid_query",
+        )
+        print(
+            render_batch_output(args.spine_root, batch),
+            end="",
+        )
+        return FALLBACK_EXIT
+    batch = execute_searches(
         args.spine_root,
-        " ".join(args.query),
-        limit=args.limit,
-        graph_limit=args.graph_limit,
-        graph_depth=args.graph_depth,
+        query_slices,
         rebuild=args.rebuild,
     )
-    print(json.dumps(compact_payload(outcome), ensure_ascii=False))
-    return outcome.exit_code
+    try:
+        output = render_batch_output(args.spine_root, batch)
+    except AcceleratorUnavailable:
+        batch = BatchSearchOutcome(
+            FALLBACK_EXIT,
+            "fallback",
+            RANKING.RANKING_SYSTEM,
+            reason_code="selected_document_unavailable",
+        )
+        output = render_batch_output(args.spine_root, batch)
+    print(output, end="")
+    return batch.exit_code
 
 
 if __name__ == "__main__":

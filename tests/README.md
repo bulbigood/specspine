@@ -47,39 +47,21 @@ Mechanical tests must:
 
 Performance benchmarks must keep correctness metrics separate from timings.
 Use deterministic synthetic inputs and fixed ground truth; never turn host-time
-measurements into CI thresholds. Run the Extract retrieval benchmark without an
-agent using `python3 tests/mechanical/benchmark_extract_search.py`.
+measurements into CI thresholds. Production Extract accepts one batched
+`queries-json` request. Each slice contains an `id`, required `must` synonym
+groups, and optional `should` groups. Stdout contains marked slice results and
+deduplicated complete documents; whole documents are omitted rather than cut
+when the internal output budget is exhausted.
 
-Compare the same structured workload under both Extract ranking systems with:
-
-```text
-python3 tests/mechanical/benchmark_extract_search.py --ranking legacy
-python3 tests/mechanical/benchmark_extract_search.py --ranking faceted-bm25
-python3 tests/mechanical/benchmark_extract_search.py --ranking faceted-normalized
-```
-
-The skill-facing `search_spine.py` remains unchanged. Experimental queries use
-`search_spine_v2.py --ranking faceted-bm25 --queries-json '<json>'`, where each
-slice contains an `id`, one or more `must` synonym groups, and optional
-`should` synonym groups. Terms inside a group are alternatives; every `must`
-group is required. V2 stdout is marked document text grouped by slice, not a
-JSON list of paths. Slice blocks report `matched` or `no_match` and contain
-marked hits with matching evidence. Document bodies follow the slice blocks
-and are emitted once even when several slices select the same path. Use
-`--max-output-bytes` to bound document output; whole documents are omitted and
-marked instead of being cut mid-file.
-
-The `faceted-normalized` arm uses derived schema v4. Normalized tokens and
-English/Russian morphology candidates are routed through indexed token and
-prefix tables; Chinese substring candidates use indexed 1–3-grams followed by
-full-run verification. Incremental refresh updates these derived rows with the
-document FTS index. This avoids scanning every document per normalized term
-without changing the production `search_spine.py`.
+The production normalized ranker uses derived schema v4. English/Russian
+morphology candidates are routed through indexed token and prefix tables;
+Chinese substring candidates use indexed 1–3-grams followed by full-run
+verification. Incremental refresh updates these rows with the document index.
 
 Representative retrieval corpora live under `tests/retrieval-corpora/corpora`.
-Each immutable corpus contains a natural project fixture, fixed ranker slices,
+Each immutable corpus contains a natural project fixture, fixed query slices,
 agent-level requests, graded relevance judgments, and a SHA-256 document
-inventory. Validate and run the paired ranker benchmark with:
+inventory. Validate and run the production benchmark with:
 
 ```text
 python3 tools/specspine-extract/validate_corpus.py \
@@ -87,29 +69,24 @@ python3 tools/specspine-extract/validate_corpus.py \
 python3 tests/retrieval-corpora/benchmark.py
 ```
 
-The benchmark JSON includes global paired summaries plus breakdowns by
+The benchmark JSON includes a global summary plus breakdowns by
 documentation language and project type.
 
-The benchmark-only Extract skill is
-`tests/eval/skills/specspine-extract-v2`; it is not a production or installable
-skill. The eval adapter selects its ranking arm with
-`--ranking legacy|faceted-bm25|faceted-normalized`.
-
-Run the representative agent-level A/B across backend, CLI, Russian mobile,
-and Chinese pipeline multi-slice tasks with:
+Run the production skill against the representative backend, CLI, Russian
+mobile, and Chinese pipeline agent cases with:
 
 ```text
-python3 tests/eval/run_extract_ranking_ab.py \
-  --output-dir /tmp/specspine-extract-ranking-ab \
-  --samples 3
+python3 tests/eval/run.py \
+  --case extract-backend-multislice \
+  --case extract-cli-multislice \
+  --case extract-mobile-multislice-ru \
+  --case extract-pipeline-multislice-zh-cn \
+  --samples 3 \
+  --agent-command 'python3 tests/eval/adapters/codex.py'
 ```
 
-The three arms run sequentially to avoid cross-arm service-load bias; cases and
-samples within each arm use the configured parallel job limit. The generated
-`comparison.md` reports canonical-owner and owner-plus-support recall, handoff
-document precision, hard negatives, retrieval calls and repeats, final handoff
-bytes, retrieval output bytes, and model tokens. Raw per-sample JSON remains
-beside it.
+The raw report retains responses, retrieval attempts, deterministic byte/cycle
+costs, tool-call counts, and model token counters.
 
 ## Eval tests
 

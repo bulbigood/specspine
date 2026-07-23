@@ -67,7 +67,9 @@ def minimal_telemetry(
         "index_state": getattr(outcome, "index_state"),
         "documents": getattr(outcome, "documents"),
         "refreshed": getattr(outcome, "refreshed"),
-        "ranking_system": getattr(outcome, "ranking_system", "legacy"),
+        "ranking_system": getattr(
+            outcome, "ranking_system", "normalized"
+        ),
         "slice_count": len(tuple(getattr(outcome, "slices", ()))) or 1,
         "direct_count": direct_count,
         "graph_count": graph_count,
@@ -134,65 +136,29 @@ def main() -> int:
         help=f"telemetry level; defaults to ${LEVEL_ENV}",
     )
     parser.add_argument("spine_root", type=Path)
-    query_group = parser.add_mutually_exclusive_group(required=True)
-    query_group.add_argument("--query", nargs="+")
-    query_group.add_argument("--queries-json")
-    parser.add_argument("--limit", type=int, default=10)
-    parser.add_argument("--graph-limit", type=int, default=2)
-    parser.add_argument("--graph-depth", type=int, choices=(0, 1, 2), default=1)
-    parser.add_argument("--max-output-bytes", type=int, default=1_000_000)
-    parser.add_argument(
-        "--ranking",
-        choices=("legacy", "faceted-bm25", "faceted-normalized"),
-        default="legacy",
-    )
+    parser.add_argument("--queries-json", required=True)
     parser.add_argument("--rebuild", action="store_true")
     args = parser.parse_args()
     if args.telemetry is None:
         parser.error(f"--telemetry or {LEVEL_ENV} is required")
-    if not 4_096 <= args.max_output_bytes <= 10_000_000:
-        parser.error("--max-output-bytes must be between 4096 and 10000000")
     production_path = Path(
         os.environ.get(PRODUCTION_ENV, str(DEFAULT_PRODUCTION_SCRIPT))
     )
     production = load_production(production_path)
-    query = (
-        args.queries_json
-        if args.queries_json is not None
-        else " ".join(args.query)
+    query = args.queries_json
+    try:
+        slices = production.RANKING.parse_query_slices(query)
+    except production.RANKING.InvalidRankingQuery as error:
+        parser.error(str(error))
+    outcome = production.execute_searches(
+        args.spine_root,
+        slices,
+        rebuild=args.rebuild,
     )
-    if args.queries_json is not None:
-        try:
-            slices = production.RANKING.parse_query_slices(args.queries_json)
-        except production.RANKING.InvalidRankingQuery as error:
-            parser.error(str(error))
-        outcome = production.execute_searches(
-            args.spine_root,
-            slices,
-            limit=args.limit,
-            graph_limit=args.graph_limit,
-            graph_depth=args.graph_depth,
-            rebuild=args.rebuild,
-            ranking_system=args.ranking,
-        )
-        production_output = production.render_batch_output(
-            args.spine_root,
-            outcome,
-            max_output_bytes=args.max_output_bytes,
-        )
-    else:
-        search_options = {
-            "limit": args.limit,
-            "graph_limit": args.graph_limit,
-            "graph_depth": args.graph_depth,
-            "rebuild": args.rebuild,
-        }
-        if hasattr(production.RANKING, "RANKING_SYSTEMS"):
-            search_options["ranking_system"] = args.ranking
-        outcome = production.execute_search(args.spine_root, query, **search_options)
-        production_output = (
-            json.dumps(production.compact_payload(outcome), ensure_ascii=False) + "\n"
-        )
+    production_output = production.render_batch_output(
+        args.spine_root,
+        outcome,
+    )
     output_bytes = len(production_output.encode("utf-8"))
     telemetry = (
         minimal_telemetry(outcome, query, output_bytes)
@@ -206,10 +172,7 @@ def main() -> int:
     )
     telemetry["telemetry_level"] = args.telemetry
     append_sidecar(telemetry)
-    if args.telemetry == "minimal" or args.queries_json is not None:
-        print(production_output, end="")
-    else:
-        print(json.dumps(telemetry, ensure_ascii=False))
+    print(production_output, end="")
     return int(outcome.exit_code)
 
 

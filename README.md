@@ -133,8 +133,10 @@ Software architecture is rarely a strict tree. A concept such as authentication 
 `<spine-root>/README.md` is the entry point into the architecture. It is a curated map, not the semantic parent of every specification.
 
 `specspine-extract` may derive a local SQLite FTS5 index and link graph to find
-candidate documents efficiently in a large Spine. This index is disposable,
-stored outside the Spine, and never becomes an architecture source. If Python,
+candidate documents efficiently in a large Spine. It sends all independently
+owned targets in one structured request and receives marked, deduplicated full
+documents, avoiding separate reads for returned files. The disposable index is
+stored outside the Spine and never becomes an architecture source. If Python,
 SQLite FTS5, command execution, or a usable cache is unavailable, extraction
 continues by navigating the same Markdown links directly.
 
@@ -183,8 +185,9 @@ decisions and preserves disagreements.
 Extracts the smallest temporary architecture context handoff needed by a
 downstream feature, SDD, review, or coding workflow. It reads the SpecSpine,
 preserves claim semantics and uncertainty, and does not modify persistent
-specifications or create implementation artifacts. Its optional local search
-index reduces irrelevant reading without being required for extraction.
+specifications or create implementation artifacts. Its normalized multilingual
+search ranks independent query slices in one call and returns complete selected
+documents under a bounded output budget.
 
 ### `specspine-doctor`
 

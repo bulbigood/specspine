@@ -2,7 +2,7 @@
 
 ## Current inventory
 
-The repository has twenty-eight prose behavioral scenarios. Every scenario is
+The repository has twenty-seven prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
@@ -11,10 +11,10 @@ classified.
 | `specspine-grow` | 9 | 7 |
 | `specspine-map` | 7 | 3 |
 | `specspine-connect` | 2 | 2 |
-| `specspine-extract` | 6 | 6 |
+| `specspine-extract` | 5 | 5 |
 | `specspine-doctor` | 3 | 2 |
 | package generator tooling | 1 | 0 |
-| Total | 28 | 20 |
+| Total | 27 | 19 |
 
 `traceable-rule` is assigned to `specspine-map` because its expected result
 includes repository-backed observations.
@@ -23,8 +23,8 @@ The executable set is divided by resource cost and necessity:
 
 | Category | Manifests | Agent calls | Purpose |
 |---|---:|---:|---|
-| `core` | 8 | 8 | Minimum behavioral regression set |
-| `extended` | 12 | 15 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract v2 ranking behavior |
+| `core` | 7 | 7 | Minimum behavioral regression set |
+| `extended` | 12 | 15 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
 | `planned` | 8 | 0 | Documentation and future redesign only |
 
 Core and extended cases currently cover:
@@ -33,12 +33,10 @@ Core and extended cases currently cover:
 - creation of a brownfield map from runtime evidence;
 - generic project-agent bootstrap boundaries;
 - idempotent reconnect of the project-agent bootstrap;
-- accelerated extraction of a bounded architecture handoff, fallback after one
-  failed acceleration attempt, direct navigation without Extract, and native
-  Markdown navigation when project configuration disables acceleration;
-- benchmark-only multi-slice Extract v2 handoffs for backend and CLI projects
+- production multi-slice Extract handoffs for backend and CLI projects
   in English, a mobile project in Russian, and a data pipeline in Chinese,
-  with hidden owner/support/relevance judgments for ranking A/B;
+  with hidden owner/support/relevance judgments;
+- native Markdown navigation when project configuration disables acceleration;
 - semantic-ID references and representative repository evidence;
 - semantic Doctor diagnosis and bounded mechanical repair without runtime companions;
 - recursive Doctor link and marker-bounded semantic-ID validation across
