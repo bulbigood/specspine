@@ -364,6 +364,220 @@
           "judgments": []
         }
       ]
+    },
+    {
+      "id": "system-wide-eight-slice-audit",
+      "tags": [
+        "multi-slice",
+        "partial-match-decoys",
+        "no-match"
+      ],
+      "request": {
+        "language": "en",
+        "text": "Audit the backend boundaries across identity, authorization, request processing, durable jobs, persistence, observability, and rate limiting. Also verify whether this documentation defines warehouse barcode cycle counts."
+      },
+      "slices": [
+        {
+          "id": "identity-proof",
+          "must": [
+            ["signed sessions"],
+            ["credential hashing"],
+            ["principal construction"]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "authentication.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "authorization.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "webhook-delivery.md",
+              "grade": 1,
+              "origin": "either"
+            }
+          ]
+        },
+        {
+          "id": "tenant-policy",
+          "must": [
+            ["tenant roles"],
+            ["machine scopes"],
+            ["resource-level policy"]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "authorization.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "authentication.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "http-request-pipeline.md",
+              "grade": 1,
+              "origin": "either"
+            }
+          ]
+        },
+        {
+          "id": "request-envelope",
+          "must": [
+            ["request ID"],
+            ["tenant"],
+            ["public error envelope"]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "http-request-pipeline.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "rate-limits.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "authorization.md",
+              "grade": 2,
+              "origin": "either"
+            }
+          ]
+        },
+        {
+          "id": "durable-workers",
+          "must": [
+            ["leases"],
+            ["checkpoints"],
+            ["dead-letter"]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "background-jobs.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "carrier-integration.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "observability.md",
+              "grade": 1,
+              "origin": "either"
+            }
+          ]
+        },
+        {
+          "id": "transactional-storage",
+          "must": [
+            ["transaction boundaries"],
+            ["outbox record"],
+            ["after commit"]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "persistence.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "order-lifecycle.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "payment-processing.md",
+              "grade": 1,
+              "origin": "either"
+            }
+          ]
+        },
+        {
+          "id": "telemetry-redaction",
+          "must": [
+            ["structured logs"],
+            ["traces"],
+            ["redaction"]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "observability.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "incident-response.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "configuration.md",
+              "grade": 1,
+              "origin": "either"
+            }
+          ]
+        },
+        {
+          "id": "tenant-capacity",
+          "must": [
+            ["tenant budgets"],
+            ["retry-after"],
+            ["public API capacity"]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "rate-limits.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "http-request-pipeline.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "configuration.md",
+              "grade": 1,
+              "origin": "either"
+            }
+          ]
+        },
+        {
+          "id": "warehouse-cycle-count",
+          "must": [
+            ["warehouse"],
+            ["barcode"],
+            ["cycle count"]
+          ],
+          "evaluation": "protocol",
+          "expected_status": "no_match",
+          "judgments": []
+        }
+      ]
     }
   ]
 }

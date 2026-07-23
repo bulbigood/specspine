@@ -69,8 +69,12 @@ python3 tools/specspine-extract/validate_corpus.py \
 python3 tests/retrieval-corpora/benchmark.py
 ```
 
-The benchmark JSON includes a global summary plus breakdowns by
-documentation language and project type.
+The benchmark JSON includes global summaries and breakdowns by documentation
+language, project type, and scenario tag. It reports direct support before
+graph expansion, incremental graph gain and precision, per-slice ranking
+quality, batch-level unique document counts, output bytes, and cold/warm
+end-to-end timings. Metrics without observations are `null`, never synthetic
+zeroes.
 
 Run the production skill against the representative backend, CLI, Russian
 mobile, and Chinese pipeline agent cases with:
@@ -96,7 +100,7 @@ python3 tests/eval/benchmark_extract_agents.py \
   --samples 3 --jobs 4
 ```
 
-## Eval tests
+## Agent evals
 
 Use eval cases to verify whether an agent locates context, preserves semantics,
 respects scope, and produces the intended architectural outcome. Prefer
@@ -127,10 +131,14 @@ Run the relevant focused test first, then the complete deterministic gates:
 
 ```bash
 python3 -m unittest discover -s tests/mechanical -p 'test_*.py'
-python3 -m unittest discover -s tests/eval -p 'test_*.py'
 python3 tests/eval/run.py --validate --audit
 python3 tools/specspine-adapter-generator/scripts/generate_resources.py --check
 ```
 
-The npm installation test and live agent evals are opt-in. Do not run them
-unless the task explicitly requires their external dependencies or execution.
+All deterministic unit tests for the eval runner, adapter, assertions, doctor,
+generator, and benchmarks live under `tests/mechanical`. The `tests/eval`
+directory contains only agent-evaluation infrastructure and cases.
+
+The npm installation test under `tests/mechanical` and live agent evals are
+opt-in. Do not run them unless the task explicitly requires their external
+dependencies or execution.

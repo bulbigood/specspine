@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 
-MODULE_PATH = Path(__file__).with_name("adapters") / "codex.py"
+MODULE_PATH = Path(__file__).parents[1] / "eval" / "adapters" / "codex.py"
 SPEC = importlib.util.spec_from_file_location("specspine_codex_adapter", MODULE_PATH)
 assert SPEC and SPEC.loader
 ADAPTER = importlib.util.module_from_spec(SPEC)

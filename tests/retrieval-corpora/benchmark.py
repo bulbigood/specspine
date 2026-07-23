@@ -11,6 +11,7 @@ import os
 import statistics
 import sys
 import tempfile
+import time
 from pathlib import Path
 from types import ModuleType
 
@@ -53,9 +54,17 @@ def ndcg_at(paths: list[str], grades: dict[str, int], limit: int) -> float:
     return actual / ideal if ideal else 1.0
 
 
-def mean(rows: list[dict[str, object]], key: str) -> float:
-    values = [float(row[key]) for row in rows]
-    return statistics.fmean(values) if values else 0.0
+def mean(rows: list[dict[str, object]], key: str) -> float | None:
+    values = [
+        float(row[key])
+        for row in rows
+        if row.get(key) is not None
+    ]
+    return statistics.fmean(values) if values else None
+
+
+def ratio(numerator: int, denominator: int) -> float | None:
+    return numerator / denominator if denominator else None
 
 
 def evaluate_slice(
@@ -78,7 +87,12 @@ def evaluate_slice(
     considered = direct[:3]
     relevant_at_3 = sum(judgments.get(path, 0) >= 2 for path in considered)
     support = {path for path, grade in judgments.items() if grade == 2}
-    returned = set(direct) | set(graph)
+    direct_set = set(direct)
+    graph_set = set(graph)
+    returned = direct_set | graph_set
+    direct_support = support & direct_set
+    returned_support = support & returned
+    incremental_support = (support & graph_set) - direct_set
     hard_negatives = {
         str(item["path"])
         for item in manifest_slice["judgments"]
@@ -102,11 +116,19 @@ def evaluate_slice(
             relevant_at_3 / len(considered) if considered else 0.0
         ),
         "ndcg_at_5": ndcg_at(direct, judgments, 5),
+        "support_count": len(support),
+        "direct_support_count": len(direct_support),
+        "returned_support_count": len(returned_support),
+        "incremental_support_count": len(incremental_support),
+        "graph_improved": bool(incremental_support),
+        "direct_support_recall": (
+            len(direct_support) / len(support) if support else None
+        ),
         "support_recall": (
-            len(support & returned) / len(support) if support else 1.0
+            len(returned_support) / len(support) if support else None
         ),
         "graph_support_recall": (
-            len(support & set(graph)) / len(support) if support else 1.0
+            len(support & graph_set) / len(support) if support else None
         ),
         "graph_broader_precision": (
             sum(judgments.get(path, 0) >= 1 for path in graph) / len(graph)
@@ -115,6 +137,9 @@ def evaluate_slice(
         "graph_core_precision": (
             sum(judgments.get(path, 0) >= 2 for path in graph) / len(graph)
             if graph else 1.0
+        ),
+        "graph_relevant_count": sum(
+            judgments.get(path, 0) >= 2 for path in graph
         ),
         "unnecessary_graph_count": sum(
             judgments.get(path, 0) <= 0 for path in graph
@@ -145,17 +170,56 @@ def summarize(scenarios: list[dict[str, object]]) -> dict[str, object]:
     ]
     ranking = [item for item in slices if item["evaluation"] == "ranking"]
     protocol = [item for item in slices if item["evaluation"] == "protocol"]
+    support = [item for item in ranking if item["support_count"]]
+    graph_count = sum(int(item["graph_count"]) for item in ranking)
+    graph_relevant = sum(
+        int(item["graph_relevant_count"]) for item in ranking
+    )
+    incremental_support = sum(
+        int(item["incremental_support_count"]) for item in support
+    )
+    total_support = sum(int(item["support_count"]) for item in support)
+    direct_support = sum(
+        int(item["direct_support_count"]) for item in support
+    )
+    returned_support = sum(
+        int(item["returned_support_count"]) for item in support
+    )
+    cold = [
+        item for item in scenarios if item["index_state"] == "cold_build"
+    ]
+    warm = [
+        item for item in scenarios if item["index_state"] == "warm"
+    ]
+    refreshed = [
+        item
+        for item in scenarios
+        if item["index_state"] == "incremental_refresh"
+    ]
     return {
         "ranking_slices": len(ranking),
         "protocol_slices": len(protocol),
+        "support_slices": len(support),
         "owner_recall_at_1": mean(ranking, "owner_recall_at_1"),
         "owner_recall_at_3": mean(ranking, "owner_recall_at_3"),
         "owner_recall_at_5": mean(ranking, "owner_recall_at_5"),
         "mean_reciprocal_rank": mean(ranking, "reciprocal_rank"),
         "mean_precision_at_3": mean(ranking, "precision_at_3"),
         "mean_ndcg_at_5": mean(ranking, "ndcg_at_5"),
-        "mean_support_recall": mean(ranking, "support_recall"),
-        "mean_graph_support_recall": mean(ranking, "graph_support_recall"),
+        "mean_direct_support_recall": mean(support, "direct_support_recall"),
+        "mean_support_recall": mean(support, "support_recall"),
+        "micro_direct_support_recall": ratio(direct_support, total_support),
+        "micro_support_recall": ratio(returned_support, total_support),
+        "incremental_graph_support_documents": incremental_support,
+        "graph_documents": graph_count,
+        "graph_relevant_documents": graph_relevant,
+        "graph_relevant_precision": ratio(graph_relevant, graph_count),
+        "graph_incremental_support_precision": ratio(
+            incremental_support, graph_count
+        ),
+        "graph_improved_slice_rate": mean(
+            support, "graph_improved"
+        ),
         "mean_graph_broader_precision": mean(ranking, "graph_broader_precision"),
         "mean_graph_core_precision": mean(ranking, "graph_core_precision"),
         "mean_unnecessary_graph_count": mean(ranking, "unnecessary_graph_count"),
@@ -166,7 +230,22 @@ def summarize(scenarios: list[dict[str, object]]) -> dict[str, object]:
         "protocol_status_accuracy": mean(protocol, "status_correct"),
         "mean_direct_count": mean(slices, "direct_count"),
         "mean_graph_count": mean(slices, "graph_count"),
+        "mean_unique_direct_documents": mean(
+            scenarios, "unique_direct_documents"
+        ),
+        "mean_unique_graph_documents": mean(
+            scenarios, "unique_graph_documents"
+        ),
+        "mean_unique_graph_only_documents": mean(
+            scenarios, "unique_graph_only_documents"
+        ),
         "mean_search_seconds": mean(slices, "search_seconds"),
+        "mean_end_to_end_seconds": mean(scenarios, "end_to_end_seconds"),
+        "mean_cold_end_to_end_seconds": mean(cold, "end_to_end_seconds"),
+        "mean_warm_end_to_end_seconds": mean(warm, "end_to_end_seconds"),
+        "mean_incremental_end_to_end_seconds": mean(
+            refreshed, "end_to_end_seconds"
+        ),
         "mean_output_utf8_bytes": mean(scenarios, "output_utf8_bytes"),
     }
 
@@ -184,6 +263,7 @@ def run_manifest(
     os.environ["SPECSPINE_CACHE_DIR"] = str(cache)
     try:
         for scenario in manifest["scenarios"]:
+            scenario_started = time.perf_counter()
             raw_slices = [
                 {
                     "id": item["id"],
@@ -220,6 +300,16 @@ def run_manifest(
                 evaluate_slice(item, routed_by_id[str(item["id"])])
                 for item in scenario["slices"]
             ]
+            unique_direct = {
+                path
+                for item in evaluated
+                for path in item["direct_paths"]
+            }
+            unique_graph = {
+                path
+                for item in evaluated
+                for path in item["graph_paths"]
+            }
             rendered = SEARCH.render_batch_output(
                 spine,
                 outcome,
@@ -227,6 +317,16 @@ def run_manifest(
             scenarios.append({
                 "id": str(scenario["id"]),
                 "tags": list(scenario["tags"]),
+                "index_state": outcome.index_state,
+                "end_to_end_seconds": (
+                    time.perf_counter() - scenario_started
+                ),
+                "timings": dict(outcome.timings or {}),
+                "unique_direct_documents": len(unique_direct),
+                "unique_graph_documents": len(unique_graph),
+                "unique_graph_only_documents": len(
+                    unique_graph - unique_direct
+                ),
                 "output_utf8_bytes": len(rendered.encode("utf-8")),
                 "truncated": '"truncated":true' in rendered,
                 "slices": evaluated,
@@ -270,6 +370,26 @@ def aggregate_by(
             if str(result[field]) == value
         ])
         for value in values
+    }
+
+
+def aggregate_by_tag(
+    results: list[dict[str, object]],
+) -> dict[str, dict[str, object]]:
+    tags = sorted({
+        str(tag)
+        for result in results
+        for scenario in result["scenarios"]
+        for tag in scenario["tags"]
+    })
+    return {
+        tag: summarize([
+            scenario
+            for result in results
+            for scenario in result["scenarios"]
+            if tag in scenario["tags"]
+        ])
+        for tag in tags
     }
 
 
@@ -320,6 +440,7 @@ def main() -> int:
                 results,
                 "project_type",
             ),
+            "tag": aggregate_by_tag(results),
         },
         "results": results,
     }

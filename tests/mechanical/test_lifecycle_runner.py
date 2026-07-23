@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 
-MODULE_PATH = Path(__file__).with_name("run.py")
+MODULE_PATH = Path(__file__).parents[1] / "eval" / "run.py"
 SPEC = importlib.util.spec_from_file_location("specspine_lifecycle_eval", MODULE_PATH)
 assert SPEC and SPEC.loader
 RUNNER = importlib.util.module_from_spec(SPEC)

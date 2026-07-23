@@ -698,9 +698,15 @@ specspine/
 └── tests/
     ├── README.md
     ├── mechanical/
+    │   ├── test_adapter_generator.py
+    │   ├── test_codex_adapter.py
+    │   ├── test_doctor_check.py
     │   ├── test_extract_agent_benchmark.py
     │   ├── test_extract_corpus_benchmark.py
-    │   └── test_extract_search.py
+    │   ├── test_extract_search.py
+    │   ├── test_lifecycle_runner.py
+    │   ├── test_npx_install.py
+    │   └── test_runner.py
     ├── retrieval-corpora/
     │   └── benchmark.py
     ├── eval/

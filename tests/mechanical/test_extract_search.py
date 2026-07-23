@@ -155,6 +155,67 @@ class ExtractSearchTests(unittest.TestCase):
             "callbacks.md", outcome.slices[1].outcome.direct_matches[0]["path"]
         )
 
+    def test_maximum_batch_keeps_eight_slices_independent_and_deduplicated(self):
+        payload = []
+        for index in range(SEARCH.RANKING.MAX_SLICES):
+            (self.spine / f"owner-{index}.md").write_text(
+                f"# Owner {index}\n\nOwns facet{index} invariant{index}.\n",
+                encoding="utf-8",
+            )
+            payload.append({
+                "id": f"slice-{index}",
+                "must": [[f"facet{index}"], [f"invariant{index}"]],
+            })
+
+        outcome = self.search(payload, graph_depth=0)
+        output = SEARCH.render_batch_output(self.spine, outcome)
+
+        self.assertEqual(SEARCH.RANKING.MAX_SLICES, len(outcome.slices))
+        self.assertEqual(
+            [f"owner-{index}.md" for index in range(SEARCH.RANKING.MAX_SLICES)],
+            [
+                item.outcome.direct_matches[0]["path"]
+                for item in outcome.slices
+            ],
+        )
+        self.assertEqual(
+            SEARCH.RANKING.MAX_SLICES,
+            output.count("<<<SPECSPINE_SLICE "),
+        )
+        for index in range(SEARCH.RANKING.MAX_SLICES):
+            self.assertEqual(
+                1,
+                output.count(f'DOCUMENT {{"path":"owner-{index}.md"'),
+            )
+
+    def test_near_duplicate_decoys_cannot_replace_joint_facet_owner(self):
+        (self.spine / "owner.md").write_text(
+            "# Retry policy\n\n"
+            "Carrier retry uses exponential backoff with bounded jitter.\n",
+            encoding="utf-8",
+        )
+        decoys = {
+            "carrier.md": "Carrier retry uses exponential backoff.",
+            "jobs.md": "Background retry uses bounded jitter.",
+            "limits.md": "Carrier limits use bounded jitter.",
+        }
+        for name, content in decoys.items():
+            (self.spine / name).write_text(
+                f"# Decoy\n\n{content}\n",
+                encoding="utf-8",
+            )
+
+        outcome = self.search([{
+            "id": "policy",
+            "must": [["carrier"], ["exponential backoff"], ["jitter"]],
+        }], graph_depth=0)
+
+        paths = [
+            item["path"]
+            for item in outcome.slices[0].outcome.direct_matches
+        ]
+        self.assertEqual(["owner.md"], paths)
+
     def test_normalization_handles_diverse_writing_systems(self):
         documents = {
             "english.md": "# English\n\nRetries timed-out provider requests.\n",
@@ -186,6 +247,29 @@ class ExtractSearchTests(unittest.TestCase):
                 "thai.md",
             ],
             [item.outcome.direct_matches[0]["path"] for item in outcome.slices],
+        )
+
+    def test_normalization_handles_diacritics_hyphens_and_mixed_scripts(self):
+        (self.spine / "unicode.md").write_text(
+            "# Résumé pipeline\n\n"
+            "The café worker retries timed-out 请求 and preserves 检查点.\n",
+            encoding="utf-8",
+        )
+
+        outcome = self.search([{
+            "id": "unicode",
+            "must": [
+                ["resume"],
+                ["cafe"],
+                ["timed out", "timed-out"],
+                ["请求"],
+                ["检查点"],
+            ],
+        }], graph_depth=0)
+
+        self.assertEqual(
+            "unicode.md",
+            outcome.slices[0].outcome.direct_matches[0]["path"],
         )
 
     def test_should_groups_rerank_without_filtering(self):
@@ -346,6 +430,62 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertIn("SPECSPINE_DOCUMENT_OMITTED", output)
         self.assertNotIn("payload payload", output)
         self.assertTrue(output.endswith("<<<SPECSPINE_END_RESULT>>>\n"))
+
+    def test_budgeted_mixed_batch_preserves_all_slices_and_root_fallback(self):
+        (self.spine / "large.md").write_text(
+            "# Large\n\nOwns alpha beta.\n\n" + ("payload " * 2000),
+            encoding="utf-8",
+        )
+        outcome = self.search([
+            {"id": "found", "must": [["alpha"], ["beta"]]},
+            {"id": "missing", "must": [["absentterm"], ["unknownterm"]]},
+        ], graph_depth=0)
+
+        output = SEARCH.render_batch_output(
+            self.spine, outcome, max_output_bytes=4096
+        )
+
+        self.assertIn('"id":"found","status":"matched"', output)
+        self.assertIn('"id":"missing","status":"no_match"', output)
+        self.assertIn('"truncated":true', output)
+        self.assertIn("SPECSPINE_DOCUMENT_OMITTED", output)
+        self.assertIn('DOCUMENT {"path":"README.md"', output)
+        self.assertEqual(1, output.count("# Index"))
+        self.assertTrue(output.endswith("<<<SPECSPINE_END_RESULT>>>\n"))
+
+    def test_cold_warm_and_incremental_paths_report_complete_timings(self):
+        path = self.spine / "owner.md"
+        path.write_text("# Owner\n\nOwns alpha beta.\n", encoding="utf-8")
+        payload = [{"id": "owner", "must": [["alpha"], ["beta"]]}]
+
+        cold = self.search(payload, graph_depth=0)
+        warm = self.search(payload, graph_depth=0)
+        path.write_text(
+            "# Owner\n\nOwns alpha beta with refreshed policy.\n",
+            encoding="utf-8",
+        )
+        refreshed = self.search(payload, graph_depth=0)
+
+        self.assertEqual("cold_build", cold.index_state)
+        self.assertEqual("warm", warm.index_state)
+        self.assertEqual("incremental_refresh", refreshed.index_state)
+        self.assertGreaterEqual(refreshed.refreshed, 1)
+        for outcome in (cold, warm, refreshed):
+            self.assertEqual(
+                {
+                    "discovery_seconds",
+                    "lock_wait_seconds",
+                    "build_seconds",
+                    "refresh_seconds",
+                    "search_seconds",
+                    "total_seconds",
+                },
+                set(outcome.timings),
+            )
+            self.assertGreaterEqual(
+                outcome.timings["total_seconds"],
+                outcome.timings["search_seconds"],
+            )
 
     def test_incremental_refresh_removes_stale_normalized_tokens(self):
         path = self.spine / "owner.md"

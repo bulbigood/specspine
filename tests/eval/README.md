@@ -13,13 +13,15 @@ CLI and Codex authentication.
 
 ```bash
 python3 tests/eval/run.py --validate --audit
-python3 -m unittest discover -s tests/eval -p 'test_*.py'
 ```
 
-The optional installed-package test requires npm execution:
+The harness's deterministic unit tests live in `tests/mechanical` and run with
+the repository's mechanical suite. The optional installed-package test requires
+npm execution:
 
 ```bash
-SPECSPINE_RUN_NPX=1 python3 -m unittest discover -s tests/eval -p 'test_npx_install.py' -v
+SPECSPINE_RUN_NPX=1 python3 -m unittest discover \
+  -s tests/mechanical -p 'test_npx_install.py' -v
 ```
 
 ## Eval design rules
