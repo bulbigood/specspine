@@ -29,9 +29,9 @@ have:
 - enough independence that another worker can proceed without its output;
 - an explicit reminder to stop before reproducing implementation detail.
 
-Do not assign two workers competing ownership of the same concept. Keep
-uncertain overlaps for source-aware integration rather than resolving them in
-worker prompts.
+Do not assign two workers competing ownership of the same concept. Resolve
+uncertain assignment overlap before spawning; there is no semantic integration
+stage after workers finish.
 
 Use the largest safe concurrency:
 
@@ -51,93 +51,63 @@ Create one disposable staging root per worker outside the live
 - the repository root and immutable source revision;
 - the live `<spine-root>` as read-only context;
 - its private staging root as the only writable documentation location;
+- the relative destination under `<spine-root>` represented by that staging
+  root;
 - one architectural question;
 - the Map skill and applicable project instructions.
 
 Workers may read existing specifications to avoid duplicate ownership, but
 must not modify the repository, the live Spine, another worker's staging root,
-or `README.md`. They create only candidate specification nodes in their private
-staging root.
+or `README.md`. They create only publish-ready specification nodes in their
+private staging root. Do not create assessments, reviews, integration notes, or
+other artifacts that are not intended to become live specifications.
+
+Each worker owns the complete quality of its files. Before finishing, it must:
+
+- inspect every source it cites;
+- avoid ownership already covered by the live Spine;
+- choose final paths that do not collide with the live Spine;
+- write links relative to the files' final locations under `<spine-root>`;
+- satisfy the Map semantics and format rules;
+- leave every file ready to publish without content changes.
 
 Do not preallocate a number of documents. A worker may create no document when
 the live Spine already answers the question or further detail would reproduce
-code. If a candidate path already exists inside its staging root, choose
+code. If a publish-ready path already exists inside its staging root, choose
 another meaningful concept name and report the final path; never overwrite it
 or add an arbitrary numeric suffix.
 
 Require each worker to report:
 
 - evidence inspected;
-- candidate files created;
+- publish-ready files created and their relative destination paths;
 - mapped responsibilities and relationships;
-- possible overlap with live or sibling concepts;
 - unconfirmed inferences and open questions;
 - whether no useful new node was found.
 
-Before integration, verify mechanically that the source tree and live Spine
-retain their pre-wave hashes. Treat any worker mutation outside its staging root
-as a failed worker result.
+## Publish the wave
 
-## Integrate with Map
+After all workers finish, mechanically move every publish-ready file from its
+private staging root to the same relative path under `<spine-root>`. Do not read
+or review file contents, inspect repository source, repeat evidence validation,
+compare ownership, merge or reject documents, rewrite content or links, update
+existing specifications, update `README.md`, run SpecSpine Doctor, or run a
+whole-Spine audit. Worker output is the published output.
 
-After all workers finish, the orchestrator performs one source-aware Map
-integration. Read every candidate, the relevant live specifications, and
-representative source evidence needed to resolve overlaps.
+Before moving, compare destination path names only. Never overwrite an existing
+live file or another worker's destination. Return a colliding file to its worker
+to choose a different meaningful path, then publish it unchanged. This is a
+mechanical collision check, not semantic integration.
 
-During integration:
+Raw parallel publication is intentionally exempt from the ordinary requirement
+to make every new node reachable from the architecture index during the same
+operation. Navigation cleanup, semantic consolidation, and integrity review are
+separate explicitly requested operations.
 
-1. Reject candidates that lack a durable responsibility or adequate evidence.
-2. Merge duplicate candidate content and keep one canonical owner.
-3. Prefer enriching an existing owner over importing a competing owner.
-4. Split only independently evolving responsibilities.
-5. Choose stable filenames and rewrite candidate links to final paths.
-6. Add useful direct relationships and keep every imported node reachable.
-7. Update overview nodes and the architecture index without turning the index
-   into an exhaustive file list.
-8. Introduce only a few broad namespaces when the flat collection is hard to
-   scan; normally add at most one directory layer and never mirror source
-   layout.
-9. Preserve accepted decisions, constraints, external semantic-ID references,
-   unresolved conflicts, and unrelated content.
+Remove empty staging roots after their files are moved. Never leave staged
+copies as a second architecture source.
 
-The parallel mapping request authorizes organizing newly generated
-repository-backed observations and inferences. It does not authorize changing
-accepted intent, silently resolving an open question, or discarding a conflict
-between accepted intent and repository evidence.
-
-## Audit and continue
-
-After integration, invoke SpecSpine Doctor with an explicit request to inspect
-the whole integrated Spine and:
-
-- the deterministic whole-Spine checker;
-- semantic review of duplicate ownership, fragmentation, stale overview text,
-  hidden direct relationships, and excessive implementation detail;
-- a concrete repair batch for any unambiguous mechanical or semantic defects.
-
-Pass the integrated `<spine-root>` and this review scope in the Doctor request.
-Doctor must ask the operator to approve its proposed repair batch before it
-writes. Do not require Doctor itself to know how the documents were produced.
-Doctor does not inspect repository code; resolve source-dependent ownership or
-decomposition through Map before invoking it.
-
-Use a request equivalent to:
-
-```text
-Progressively review the whole SpecSpine at <spine-root>. Run the deterministic
-checker, then inspect every specification for duplicate ownership, unnecessary
-fragmentation, stale overview text, hidden direct relationships, and excessive
-implementation detail. Propose an exact repair batch for unambiguous defects
-that preserve meaning and ask the operator to approve it before writing. Report
-any ownership or boundary decision that still requires authority. Do not
-inspect repository files outside the SpecSpine.
-```
-
-Keep staging roots until integration and the Doctor audit succeed. Then discard
-them as temporary mapping artifacts; never leave them as a second architecture
-source.
-
-Run another wave only for material gaps identified after integration. Stop when
+Run another wave only for material gaps identified after publication. Stop when
 the requested questions are answered and additional reading has low
 architectural value. When an external process uses repeated no-change runs as a
 saturation signal, distribute those runs across distinct areas and

@@ -59,11 +59,11 @@ It does not:
    independently, use `references/parallel-mapping.md` and launch the largest
    safe set of workers allowed by its concurrency formula. Do not serialize
    independent investigation merely to avoid write conflicts: workers use
-   private staging roots. Investigation within a wave is parallel; source-aware
-   integration and planning between bounded waves are sequential. Launching
-   only one worker is justified only when exactly one independent question
-   remains or repository I/O or available slots impose that limit; report that
-   reason. Use ordinary sequential mapping for small or tightly coupled scopes.
+   private staging roots. Investigation within a wave is parallel; mechanical
+   publication and planning between bounded waves are sequential. Launching only
+   one worker is justified only when exactly one independent question remains
+   or repository I/O or available slots impose that limit; report that reason.
+   Use ordinary sequential mapping for small or tightly coupled scopes.
 3. Gather representative evidence. For a survey, prioritize root docs,
    manifests, runtime entry points, composition roots, public interfaces,
    schemas, integrations, deployment configuration, and representative tests.
@@ -71,7 +71,9 @@ It does not:
    relevant changed paths; expand only for dependencies that affect the map.
    Before recording an observation or refreshing its evidence baseline, inspect
    every repository source cited for that claim during the current operation;
-   never cite unread evidence.
+   never cite unread evidence. In a parallel wave, each worker satisfies this
+   obligation for its publish-ready files; the orchestrator must not repeat the
+   source inspection.
 4. Model stable responsibilities, boundaries, runtime and data-flow shape, and
    relationships rather than directories or implementation details. Classify
    claims with `references/spec-semantics.md`.
@@ -79,14 +81,17 @@ It does not:
    Ask only before changing accepted intent, resolving a conflict or blocking
    question, or choosing among materially different canonical owners.
 6. Modify only files under `<spine-root>`, except for disposable isolated
-   staging roots used by the parallel protocol. Apply the smallest coherent
-   persistent change; preserve unrelated content, accepted intent, useful
-   links, and reachability from the index. Follow `references/spec-format.md`
-   instead of duplicating its document and semantic-ID rules here. Before
-   reporting, verify changed relative links and semantic-ID definitions and
-   references against that format. A semantic-ID reference uses the plain ID
-   as the complete link label and the owning Markdown file as its destination;
-   do not add emphasis or a URL fragment.
+   staging roots used by the parallel protocol. For ordinary mapping, apply the
+   smallest coherent persistent change; preserve unrelated content, accepted
+   intent, useful links, and reachability from the index. Follow
+   `references/spec-format.md` instead of duplicating its document and
+   semantic-ID rules here. Before reporting ordinary mapping, verify changed
+   relative links and semantic-ID definitions and references against that
+   format. A semantic-ID reference uses the plain ID as the complete link label
+   and the owning Markdown file as its destination; do not add emphasis or a
+   URL fragment. For a parallel wave, use the raw-publication exception in
+   `references/parallel-mapping.md`: workers own content and validation, while
+   the orchestrator only moves their files into `<spine-root>`.
 7. Report evidence inspected, files changed, mapped or deepened areas,
    unconfirmed inferences, unresolved drift, and qualitative remaining
    coverage.
