@@ -27,11 +27,14 @@ The orchestrator should:
 - make each worker responsible for source evidence, ownership, format, and
   final relative links;
 - consume and publish every worker result as soon as that worker finishes;
-- immediately refill the freed slot from the bounded independent-question
-  queue instead of waiting for the active batch;
+- continuously maintain ready, active, and dependency-blocked questions;
+- immediately refill the freed slot from the ready queue;
+- add material follow-up questions from completion reports without stopping
+  active workers;
 - check destination path collisions without reading document contents;
 - mechanically move every worker file into the live SpecSpine unchanged;
-- skip source-aware integration and per-wave index updates;
+- skip source-aware integration and navigation updates during continuous
+  mapping;
 - after saturation, perform one SpecSpine-only normalization of broad
   directories, relative links, and curated navigation;
 - run the deterministic checker after normalization;
@@ -42,13 +45,14 @@ The orchestrator should:
 
 - workers concurrently edit existing specifications;
 - workers recursively spawn an uncontrolled agent tree;
-- the orchestrator waits for all active workers while an independent question
-  remains queued and a safe slot is free;
+- the orchestrator introduces planning waves or waits for all active workers
+  while a ready question and a safe slot are available;
 - a freed slot remains idle while the orchestrator reviews a completed result;
 - a requested document count determines decomposition;
 - filename collisions produce arbitrary numbered duplicates;
 - the orchestrator reads source or candidate contents after workers finish;
 - worker outputs are rejected, merged, rewritten, or selectively imported;
-- the orchestrator reorganizes documents after every wave;
+- the orchestrator reorganizes documents while mapping work remains;
 - normalization inspects repository source or changes architectural meaning;
-- Doctor runs between waves or writes semantic repairs without approval.
+- Doctor runs between worker completions or writes semantic repairs without
+  approval.

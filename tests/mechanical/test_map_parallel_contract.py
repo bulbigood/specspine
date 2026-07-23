@@ -9,7 +9,7 @@ class MapParallelContractTests(unittest.TestCase):
     def test_map_routes_large_repository_parallelism_to_reference(self):
         skill = (ROOT / "skills/specspine-map/SKILL.md").read_text(encoding="utf-8")
         self.assertIn("references/parallel-mapping.md", skill)
-        self.assertIn("parallel mapping wave", skill)
+        self.assertIn("parallel mapping run", skill)
 
     def test_parallel_workers_are_isolated_and_single_level(self):
         protocol = (
@@ -46,16 +46,18 @@ class MapParallelContractTests(unittest.TestCase):
         self.assertNotIn("parallel Map", doctor)
         self.assertNotIn("parallel mapping", doctor)
 
-    def test_refills_slots_without_waiting_for_the_batch(self):
+    def test_continuously_refills_slots_without_wave_barriers(self):
         protocol = (
             ROOT / "skills/specspine-map/references/parallel-mapping.md"
         ).read_text(encoding="utf-8")
         normalized = " ".join(protocol.split())
-        self.assertIn("Immediately launch the next queued independent question", normalized)
+        self.assertIn("dependency-aware ready queue", normalized)
+        self.assertIn("Immediately launch the next ready question", normalized)
         self.assertIn("Do not wait for all active workers to finish", normalized)
         self.assertIn("Keep active concurrency at the largest safe level", normalized)
-        self.assertIn("fall back to barrier batches and report that limitation", normalized)
-        self.assertIn("Do not invoke SpecSpine Doctor between waves", normalized)
+        self.assertIn("barrier primitive as a transport limitation", normalized)
+        self.assertIn("do not introduce conceptual waves", normalized)
+        self.assertIn("Do not invoke SpecSpine Doctor during the mapping run", normalized)
 
     def test_normalizes_once_and_gates_post_map_doctor(self):
         protocol = (
@@ -65,7 +67,7 @@ class MapParallelContractTests(unittest.TestCase):
         self.assertIn("do not inspect repository source", normalized)
         self.assertIn("move specifications into a few broad", normalized)
         self.assertIn("Update affected relative links", normalized)
-        self.assertIn("Perform it once, not after every wave", normalized)
+        self.assertIn("Perform it once, not during continuous mapping", normalized)
         self.assertIn(
             "only when the current request explicitly includes a post-map semantic review",
             normalized,

@@ -52,7 +52,7 @@ It does not:
    relevant specifications, plus repository documentation or architecture
    records needed to understand existing intent.
 2. Choose the shallowest operation that answers the request: whole-repository
-   survey, selected-area map, deepening, refresh, or parallel mapping waves.
+   survey, selected-area map, deepening, refresh, or a parallel mapping run.
    For a large repository with subagents available, explicitly enumerate
    independent architectural questions and available worker slots before
    choosing execution shape. When two or more questions can be investigated
@@ -61,12 +61,12 @@ It does not:
    independent investigation merely to avoid write conflicts: workers use
    private staging roots. When the environment supports rolling scheduling, use
    the parallel protocol's producer-consumer loop: publish each completed worker
-   and refill its slot from the bounded question queue without waiting for all
-   active workers. Launching only one worker is justified only when exactly one
-   independent question remains or repository I/O or available slots impose
+   and refill its slot from the dependency-aware ready queue without waiting for
+   all active workers. Launching only one worker is justified only when exactly
+   one independent question remains or repository I/O or available slots impose
    that limit; report that reason. Use ordinary sequential mapping for small or
-   tightly coupled scopes. After the final wave reaches saturation, perform the
-   parallel protocol's single SpecSpine-only normalization before reporting
+   tightly coupled scopes. After the continuous run reaches saturation, perform
+   the parallel protocol's single SpecSpine-only normalization before reporting
    completion.
 3. Gather representative evidence. For a survey, prioritize root docs,
    manifests, runtime entry points, composition roots, public interfaces,
@@ -75,7 +75,7 @@ It does not:
    relevant changed paths; expand only for dependencies that affect the map.
    Before recording an observation or refreshing its evidence baseline, inspect
    every repository source cited for that claim during the current operation;
-   never cite unread evidence. In a parallel wave, each worker satisfies this
+   never cite unread evidence. In a parallel run, each worker satisfies this
    obligation for its publish-ready files; the orchestrator must not repeat the
    source inspection.
 4. Model stable responsibilities, boundaries, runtime and data-flow shape, and
@@ -93,11 +93,12 @@ It does not:
    relative links and semantic-ID definitions and references against that
    format. A semantic-ID reference uses the plain ID as the complete link label
    and the owning Markdown file as its destination; do not add emphasis or a
-   URL fragment. For a parallel wave, use the raw-publication exception in
+   URL fragment. For a parallel run, use the raw-publication exception in
    `references/parallel-mapping.md`: workers own content and validation, while
    the orchestrator only moves their files into `<spine-root>`. Defer navigation
    repair and any justified directory moves to the one post-saturation
-   normalization; never repeat them after each wave.
+   normalization; never perform them while mapping work remains active, ready,
+   or dependency-blocked.
 7. Report evidence inspected, files changed, mapped or deepened areas,
    unconfirmed inferences, unresolved drift, and qualitative remaining
    coverage.

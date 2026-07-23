@@ -9,18 +9,19 @@ specification.
 
 - Resolve and read the live `<spine-root>`.
 - Perform or confirm a breadth-first survey before deep parallel work.
-- Use a source revision that remains stable for the entire wave.
+- Use a source revision that remains stable for the entire mapping run.
 - Use ordinary sequential mapping when subagents are unavailable or the
   remaining questions overlap too heavily for independent investigation.
 
 Do not use a requested or desired document count to plan areas, worker prompts,
 splits, or stopping decisions.
 
-## Plan a wave
+## Initialize the run
 
-Inspect the repository shape and current Mapping status. Build a bounded list
-of architectural questions, not directory assignments. Each question should
-have:
+Inspect the repository shape and current Mapping status. Build an initial
+backlog of architectural questions, not directory assignments. Track every
+question as ready, active, or blocked by named prerequisites. Each question
+should have:
 
 - a durable responsibility, runtime boundary, cross-cutting flow, or ownership
   problem to investigate;
@@ -38,8 +39,8 @@ the flat Spine is already difficult to navigate and stable cohesive clusters
 are visible. Keep overview specifications at the root, use at most one
 directory layer in normal cases, and never mirror the source tree. Plan
 architectural questions first, then assign each question the applicable final
-namespace as a publication destination. Reuse this layout across later waves;
-do not reorganize the live Spine between waves.
+namespace as a publication destination. Reuse this layout throughout the run;
+do not reorganize the live Spine while mapping remains active.
 
 Use the largest safe concurrency:
 
@@ -52,27 +53,32 @@ must not spawn further workers.
 
 ## Schedule as producer-consumer
 
-Treat each wave as a bounded queue of preplanned independent architectural
-questions. Start the largest safe active set. When the environment can report
-individual worker completion and launch replacements, use a rolling
-producer-consumer loop:
+Maintain one continuous dependency-aware ready queue, active worker set, and
+blocked-question set. Keep the backlog bounded to material architectural
+questions, not a requested document count. Start the largest safe active set.
+When the environment can report individual worker completion and launch
+replacements, use a rolling producer-consumer loop:
 
 1. Consume each worker result as soon as that worker finishes.
 2. Mechanically publish its files without waiting for other active workers.
-3. Immediately launch the next queued independent question into the freed slot.
-4. Wait again only after publication and slot refill have been handled.
+3. Update question dependencies and add material follow-up questions from the
+   worker report without stopping active workers.
+4. Immediately launch the next ready question into the freed slot.
+5. Wait again only after publication, queue maintenance, and slot refill have
+   been handled.
 
-Do not wait for all active workers to finish while the queue still contains an
-independent question and a worker slot is available. Keep active concurrency at
-the largest safe level until the bounded queue is empty. Publication and slot
-refill may be ordered according to the environment's scheduling mechanics, but
-do not leave the slot intentionally idle while reviewing or integrating a
-completed result.
+Do not wait for all active workers to finish while a ready question and a safe
+worker slot are available. Keep active concurrency at the largest safe level
+until no question is ready. Publication and slot refill may be ordered
+according to the environment's scheduling mechanics, but do not leave the slot
+intentionally idle while reviewing or integrating a completed result.
 
 If the environment exposes only barrier-style batch completion or cannot refill
-slots safely, fall back to barrier batches and report that limitation. Do not
-add questions that depend on partial wave results to the active queue; defer
-dependent replanning to the next bounded wave.
+slots safely, use its barrier primitive as a transport limitation and report
+that limitation; do not introduce conceptual waves or delay already-ready work
+beyond what the environment requires. Move a blocked question to ready as soon
+as its prerequisites are satisfied. Keep questions that require unfinished
+results, authority, or boundary resolution blocked rather than speculating.
 
 ## Isolate worker writes
 
@@ -114,6 +120,7 @@ Require each worker to report:
 - evidence inspected;
 - publish-ready files created and their relative destination paths;
 - mapped responsibilities and relationships;
+- material follow-up architectural questions and their prerequisites;
 - unconfirmed inferences and open questions;
 - whether no useful new node was found.
 
@@ -142,22 +149,28 @@ leave staged copies as a second architecture source.
 
 ## Continue to saturation
 
-A bounded wave ends only when its queue is empty and all active workers have
-finished. Replan the next wave only for material gaps identified after that
-boundary. Stop spawning workers when the requested questions are answered and
-additional repository reading has low architectural value. When an external
-process uses repeated no-change runs as a saturation signal, distribute those
-runs across distinct areas and cross-cutting flows; repeated probes of one
-mature area do not establish whole-repository saturation.
+Perform planning incrementally from completion reports without pausing active
+workers. Reach saturation only when:
 
-Do not invoke SpecSpine Doctor between waves. Do not normalize or reorganize
-the live Spine while any mapping worker is active or any bounded question
-remains queued.
+- the ready queue is empty;
+- no mapping worker is active;
+- every blocked question is either resolved, moved to ready, or explicitly
+  deferred because it requires authority or unavailable evidence; and
+- completion reports reveal no material independent architectural gap worth
+  another worker.
+
+When an external process uses repeated no-change runs as a saturation signal,
+distribute those probes across distinct areas and cross-cutting flows; repeated
+probes of one mature area do not establish whole-repository saturation.
+
+Do not invoke SpecSpine Doctor during the mapping run, including between worker
+completions. Do not normalize or reorganize the live Spine while any mapping
+worker is active or any question remains ready or resolvably blocked.
 
 ## Normalize once after saturation
 
-After the final wave, perform one sequential normalization using only files
-under `<spine-root>`; do not inspect repository source. Read the complete live
+After saturation, perform one sequential normalization using only files under
+`<spine-root>`; do not inspect repository source. Read the complete live
 SpecSpine and:
 
 1. Keep the established namespace layout when it remains adequate.
@@ -174,7 +187,7 @@ SpecSpine and:
    SpecSpine checker when it is available.
 
 This normalization is part of completing a parallel Map request and needs no
-separate prompt. Perform it once, not after every wave.
+separate prompt. Perform it once, not during continuous mapping.
 
 ## Optional post-map Doctor
 
