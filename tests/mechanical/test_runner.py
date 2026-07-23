@@ -251,6 +251,103 @@ class RunnerTests(unittest.TestCase):
         self.assertTrue(excluded.passed, excluded.message)
         self.assertFalse(forbidden.passed)
 
+    def test_checks_collaboration_handoff_and_refill_order(self):
+        def spawn(identifier, prompt):
+            return {
+                "kind": "collab",
+                "event_id": identifier,
+                "tool": "spawn_agent",
+                "receiver_thread_ids": [f"agent-{identifier}"],
+                "prompt": prompt,
+                "agents_states": {},
+                "status": "completed",
+            }
+
+        wait = {
+            "kind": "collab",
+            "event_id": "wait-1",
+            "tool": "wait",
+            "receiver_thread_ids": ["agent-spawn-1"],
+            "agents_states": {
+                "worker-1": {"status": "completed", "message": "done"}
+            },
+            "status": "completed",
+        }
+        activity = [
+            spawn("spawn-1", "specspine-map staging/identity"),
+            spawn("spawn-2", "specspine-map staging/jobs"),
+            wait,
+            spawn("spawn-3", "specspine-map staging/telemetry"),
+            {
+                "kind": "command_started",
+                "event_id": "read-1",
+                "command": "sed -n '1,120p' staging/identity.md",
+                "status": "completed",
+            },
+        ]
+        trace = {
+            "activity": activity,
+            "collab_calls": [
+                item for item in activity if item["kind"] == "collab"
+            ],
+        }
+        unchanged = {}
+        assertions = [
+            {"type": "collab_spawn_count", "min": 3, "max": 3},
+            {"type": "collab_initial_spawn_count", "min": 2, "max": 2},
+            {
+                "type": "collab_spawn_prompts",
+                "each_contains": ["specspine-map", "staging/"],
+                "collectively_contain": ["identity", "jobs", "telemetry"],
+                "partition_values": ["identity", "jobs", "telemetry"],
+            },
+            {
+                "type": "collab_refill_before_staging_consume",
+                "path": "staging/",
+            },
+            {"type": "collab_targets_spawned_agents"},
+        ]
+        for assertion in assertions:
+            with self.subTest(assertion=assertion["type"]):
+                result = RUNNER.evaluate_assertion(
+                    assertion,
+                    Path("."),
+                    unchanged,
+                    unchanged,
+                    "",
+                    trace,
+                )
+                self.assertTrue(result.passed, result.message)
+
+        reordered = dict(trace)
+        reordered["activity"] = activity[:3] + [activity[4], activity[3]]
+        violation = RUNNER.evaluate_assertion(
+            {
+                "type": "collab_refill_before_staging_consume",
+                "path": "staging/",
+            },
+            Path("."),
+            unchanged,
+            unchanged,
+            "",
+            reordered,
+        )
+        self.assertFalse(violation.passed)
+
+        wrong_target = dict(trace)
+        wrong_calls = [dict(item) for item in trace["collab_calls"]]
+        wrong_calls[2]["receiver_thread_ids"] = ["agent-mistyped"]
+        wrong_target["collab_calls"] = wrong_calls
+        unknown = RUNNER.evaluate_assertion(
+            {"type": "collab_targets_spawned_agents"},
+            Path("."),
+            unchanged,
+            unchanged,
+            "",
+            wrong_target,
+        )
+        self.assertFalse(unknown.passed)
+
     def test_trace_condition_limits_reads_only_in_fts_mode(self):
         assertion = {
             "type": "max_files_read",

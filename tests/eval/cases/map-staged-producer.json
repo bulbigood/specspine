@@ -1,0 +1,25 @@
+{
+  "id": "map-staged-producer",
+  "scenario": "tests/scenarios/map-staged-producer.md",
+  "skill": "skills/specspine-map",
+  "status": "executable",
+  "category": "core",
+  "initial_files": {
+    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Runtime](runtime.md)\n",
+    "specspine/runtime.md": "# Runtime\n\n## Responsibility\n\nOwns process composition and lifecycle.\n",
+    "src/jobs/runner.js": "export function run(job) { try { return job.execute(); } catch (error) { return retry(job, 3); } }\n",
+    "tests/jobs/retry.test.js": "// failed jobs retry no more than three times\n"
+  },
+  "assertions": [
+    {"type": "path_exists", "path": ".staging/platform/job-processing.md"},
+    {"type": "path_absent", "path": ".staging/README.md"},
+    {"type": "glob_count", "glob": ".staging/**/*.md", "min": 1, "max": 1},
+    {"type": "file_contains", "path": ".staging/platform/job-processing.md", "values": ["## Responsibility", "## Observed", "src/jobs/runner.js", "tests/jobs/retry.test.js", "<!-- specspine:evidence-baseline", "](../runtime.md)"]},
+    {"type": "unchanged", "paths": ["specspine/**", "src/**", "tests/**"]},
+    {"type": "changed_only", "paths": [".staging/**"]},
+    {"type": "read_only", "paths": ["specspine/**", "src/jobs/runner.js", "tests/jobs/retry.test.js"]},
+    {"type": "read_includes", "paths": ["specspine/README.md", "specspine/runtime.md", "src/jobs/runner.js", "tests/jobs/retry.test.js"]},
+    {"type": "max_files_read", "max": 4},
+    {"type": "word_budget", "path": ".staging/platform/job-processing.md", "max_total": 450}
+  ]
+}

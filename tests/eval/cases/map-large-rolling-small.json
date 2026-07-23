@@ -1,0 +1,35 @@
+{
+  "id": "map-large-rolling-small",
+  "scenario": "tests/scenarios/map-large-rolling-small.md",
+  "skill": "skills/specspine-map-large",
+  "companion_skills": ["skills/specspine-map"],
+  "status": "executable",
+  "category": "expensive",
+  "timeout_seconds": 600,
+  "initial_files": {
+    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Runtime](runtime.md)\n\n## Mapping status\n\n- High-level runtime mapped\n- Unmapped: identity sessions, background jobs, telemetry export\n",
+    "specspine/runtime.md": "# Runtime\n\n## Responsibility\n\nOwns process composition and lifecycle.\n",
+    "src/identity/session.js": "export function createSession(user) { return { userId: user.id }; }\n",
+    "tests/identity/session.test.js": "// session records the authenticated user identity\n",
+    "src/jobs/runner.js": "export function run(job) { return job.execute(); }\n",
+    "tests/jobs/runner.test.js": "// queued jobs execute in the background worker\n",
+    "src/telemetry/exporter.js": "export function exportTrace(span, sink) { return sink.send(span); }\n",
+    "tests/telemetry/exporter.test.js": "// completed spans are sent to the configured sink\n"
+  },
+  "assertions": [
+    {"type": "collab_spawn_count", "min": 3, "max": 4},
+    {"type": "collab_initial_spawn_count", "min": 2, "max": 2},
+    {"type": "collab_spawn_prompts", "each_contains": ["specspine-map", "specspine/", ".specspine-map-run/staging/"], "collectively_contain": [".specspine-map-run/staging/identity/", ".specspine-map-run/staging/jobs/", ".specspine-map-run/staging/telemetry/"], "partition_values": [".specspine-map-run/staging/identity/", ".specspine-map-run/staging/jobs/", ".specspine-map-run/staging/telemetry/"], "max_per_partition": 2},
+    {"type": "collab_targets_spawned_agents"},
+    {"type": "collab_refill_before_staging_consume", "path": ".specspine-map-run/staging/"},
+    {"type": "command_includes", "value": "mv "},
+    {"type": "path_absent", "path": ".specspine-map-run"},
+    {"type": "glob_count", "glob": "specspine/**/*.md", "min": 5, "max": 7},
+    {"type": "glob_contains", "glob": "specspine/**/*.md", "values": ["src/identity/session.js", "src/jobs/runner.js", "src/telemetry/exporter.js"]},
+    {"type": "unchanged", "paths": ["src/**", "tests/**"]},
+    {"type": "changed_only", "paths": ["specspine/**"]},
+    {"type": "word_budget", "glob": "specspine/**/*.md", "max_each": 500, "max_total": 1800},
+    {"type": "markdown_links_valid", "glob": "specspine/**/*.md"},
+    {"type": "semantic_ids_valid", "glob": "specspine/**/*.md"}
+  ]
+}

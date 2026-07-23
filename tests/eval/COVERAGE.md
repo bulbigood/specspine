@@ -2,74 +2,79 @@
 
 ## Current inventory
 
-The repository has twenty-nine prose behavioral scenarios. Every scenario is
+The repository has thirty-one prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
 | Area | Documented scenarios | Executable fixtures |
 |---|---:|---:|
 | `specspine-grow` | 9 | 7 |
-| `specspine-map` | 7 | 3 |
-| `specspine-map-large` | 2 | 0 |
+| `specspine-map` | 8 | 4 |
+| `specspine-map-large` | 3 | 1 |
 | `specspine-connect` | 2 | 2 |
 | `specspine-extract` | 5 | 5 |
 | `specspine-doctor` | 3 | 2 |
 | package generator tooling | 1 | 0 |
-| Total | 29 | 19 |
+| Total | 31 | 21 |
 
 `traceable-rule` is assigned to `specspine-map` because its expected result
 includes repository-backed observations.
 
 ### Map coverage
 
-Executable `specspine-map` coverage currently consists of four agent calls
-across three cases:
+Executable `specspine-map` coverage currently consists of five agent calls
+across four cases:
 
 - `lifecycle-survey-deepen`: a shallow initial survey followed by bounded
   deepening without reopening unrelated source;
 - `lifecycle-drift-refresh`: a narrow refresh that preserves accepted intent,
   records changed implementation as observation, and leaves disagreement open;
 - `traceable-rule`: evidence-backed semantic-ID ownership and cross-document
-  references.
+  references;
+- `map-staged-producer`: one bounded producer writes a publish-ready candidate
+  to a private output root while the live Spine remains read-only.
 
-There is no executable `specspine-map-large` case. Its scheduling, isolated
-staging, move-only publication, recovery, saturation, normalization, and
-sequential fallback are currently protected only by deterministic contract
-tests. The two registered large-Map scenarios remain planned because their
-file-result assertions cannot observe subagent dispatch, concurrency, refill
-ordering, or recovery and would therefore be expensive without accurately
-testing the orchestration contract.
+`map-large-rolling-small` provides one controlled executable orchestration
+case. One top-level invocation must dispatch exactly three bounded mapper
+producers using two initial worker slots. Codex JSONL collaboration events
+verify initial saturation, mapper/staging handoff, one-question prompt
+partitioning, and replacement dispatch before staged candidate consumption.
+Final assertions verify move-based publication, source protection, disposable
+run-root cleanup, bounded output, and mechanical Spine validity. This case
+costs one orchestrator plus three producer agents and belongs in the explicit
+`expensive` category.
 
-Distinct behavioral gaps worth considering are:
+Remaining distinct behavioral gaps are:
 
-- atomic Map writing publish-ready candidates only to an explicitly supplied
-  staging root while keeping the live Spine read-only;
 - atomic Map returning no new document when the live Spine already answers the
   bounded question;
 - custom `<spine-root>` handling;
-- large-Map handoff of every bounded question to the companion
-  `$specspine-map`;
-- rolling replacement dispatch before candidate acceptance, isolated producer
-  writes, report-driven backlog growth, retry/resume behavior, and move-only
-  publication;
+- report-driven discovery of a question not present in the initial large-Map
+  backlog;
+- large-Map retry/resume, candidate rejection, path collision, and source-state
+  change handling;
 - a controlled no-subagent execution mode that proves the same protocol is
   retained sequentially;
 - post-saturation normalization without source rereads and optional Doctor
   gating.
 
-Do not make a large-Map scenario executable until the adapter records
-subagent lifecycle and ordering or supplies a deterministic controlled
-producer. Final-file assertions alone are insufficient. Prefer one small
-staged-output Map case and, after that instrumentation exists, one two-producer
-large-Map case that covers the orchestration path end to end.
+Keep broader parallel and no-subagent scenarios planned until they protect one
+of these distinct gaps with observable assertions. Do not add another
+final-file-only large-Map eval.
 
 The executable set is divided by resource cost and necessity:
 
-| Category | Manifests | Agent calls | Purpose |
+| Category | Manifests | Top-level agent calls | Purpose |
 |---|---:|---:|---|
-| `core` | 7 | 7 | Minimum behavioral regression set |
+| `core` | 8 | 8 | Minimum behavioral regression set, including atomic staged Map output |
 | `extended` | 12 | 15 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
+| `expensive` | 1 | 1 | Controlled rolling large-Map orchestration with three nested producers |
 | `planned` | 10 | 0 | Documentation and future redesign only |
+
+The table counts harness invocations. `map-large-rolling-small` additionally
+spawns exactly three producer agents, enforced by its trace assertions. Its
+separate category prevents ordinary `core` or `extended` runs from selecting
+it.
 
 Core and extended cases currently cover:
 
@@ -109,7 +114,8 @@ test or an existing behavioral case.
 Potential gaps:
 
 - agent navigation efficiency on larger-than-small documentation graphs;
-- executable large-Map orchestration, recovery, and staged publication;
+- large-Map recovery and report-discovered backlog growth beyond the controlled
+  rolling-publication case;
 - custom `<spine-root>` handling in `grow` and `map`;
 - broken links, unreachable specifications, duplicate IDs, and duplicate
   canonical ownership introduced by an agent.

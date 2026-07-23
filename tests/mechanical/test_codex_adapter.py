@@ -215,6 +215,105 @@ class CodexAdapterTests(unittest.TestCase):
         )
         self.assertEqual([], messages)
 
+    def test_records_completed_collaboration_activity_in_order(self):
+        stdout = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "item.completed",
+                        "item": {
+                            "id": "spawn-1",
+                            "type": "collab_tool_call",
+                            "tool": "spawn_agent",
+                            "sender_thread_id": "root",
+                            "receiver_thread_ids": ["worker-1"],
+                            "prompt": "Use specspine-map in staging/identity",
+                            "agents_states": {
+                                "worker-1": {"status": "running", "message": None}
+                            },
+                            "status": "completed",
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "item.completed",
+                        "item": {
+                            "id": "wait-1",
+                            "type": "collab_tool_call",
+                            "tool": "wait",
+                            "sender_thread_id": "root",
+                            "receiver_thread_ids": ["worker-1"],
+                            "prompt": None,
+                            "agents_states": {
+                                "worker-1": {
+                                    "status": "completed",
+                                    "message": "done",
+                                }
+                            },
+                            "status": "completed",
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "item.started",
+                        "item": {
+                            "id": "read-1",
+                            "type": "command_execution",
+                            "command": "sed -n '1,120p' staging/identity.md",
+                            "status": "in_progress",
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "item.completed",
+                        "item": {
+                            "id": "read-1",
+                            "type": "command_execution",
+                            "command": "sed -n '1,120p' staging/identity.md",
+                            "status": "completed",
+                        },
+                    }
+                ),
+            ]
+        )
+        activity = ADAPTER.parse_activity(stdout)
+        self.assertEqual(
+            ["collab", "collab", "command_started", "command"],
+            [item["kind"] for item in activity],
+        )
+        self.assertEqual("spawn_agent", activity[0]["tool"])
+        self.assertEqual(
+            "completed",
+            activity[1]["agents_states"]["worker-1"]["status"],
+        )
+        self.assertEqual(
+            "sed -n '1,120p' staging/identity.md",
+            activity[2]["command"],
+        )
+
+    def test_event_metrics_count_completed_spawned_agents(self):
+        stdout = "\n".join(
+            json.dumps(
+                {
+                    "type": "item.completed",
+                    "item": {
+                        "id": f"spawn-{number}",
+                        "type": "collab_tool_call",
+                        "tool": "spawn_agent",
+                        "receiver_thread_ids": [f"worker-{number}"],
+                        "status": "completed",
+                    },
+                }
+            )
+            for number in (1, 2)
+        )
+        metrics = ADAPTER.parse_event_metrics(stdout, [])
+        self.assertEqual(2, metrics["collab_tool_count"])
+        self.assertEqual(2, metrics["spawned_agent_count"])
+
     def test_records_marker_protocol_and_batched_queries(self):
         queries = json.dumps(
             [

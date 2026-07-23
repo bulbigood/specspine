@@ -28,7 +28,7 @@ from typing import Any, TextIO
 ROOT = Path(__file__).resolve().parents[2]
 CASES_DIR = Path(__file__).resolve().parent / "cases"
 SCENARIOS_DIR = ROOT / "tests" / "scenarios"
-CASE_CATEGORIES = {"core", "extended", "planned"}
+CASE_CATEGORIES = {"core", "extended", "expensive", "planned"}
 WORKSPACE_BOUNDARY_INSTRUCTIONS = (
     "SECURITY BOUNDARY: the current working directory is the complete and only "
     "authorized project. Never read, list, search, inspect, or infer from any path "
@@ -142,6 +142,16 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         "unexpected_retry": bool(trace.get("unexpected_retry", False)),
         "unknown_attempt_count": trace.get("unknown_attempt_count"),
         "event_metrics": event_metrics if isinstance(event_metrics, dict) else {},
+        "collab_tool_count": (
+            event_metrics.get("collab_tool_count")
+            if isinstance(event_metrics, dict)
+            else None
+        ),
+        "spawned_agent_count": (
+            event_metrics.get("spawned_agent_count")
+            if isinstance(event_metrics, dict)
+            else None
+        ),
         "cost_ledger": cost_ledger if isinstance(cost_ledger, dict) else {},
         "retrieval_usefulness": usefulness if isinstance(usefulness, dict) else {},
         "duration_seconds": duration if isinstance(duration, (int, float)) else None,
@@ -931,6 +941,189 @@ def evaluate_assertion(
         needles = assertion.get("values", [assertion.get("value", "")])
         found = [needle for needle in needles if any(needle in command for command in commands)]
         return CheckResult(not found, f"forbidden command text found: {found}" if found else "forbidden command text absent")
+    if kind in {
+        "collab_spawn_count",
+        "collab_initial_spawn_count",
+        "collab_spawn_prompts",
+        "collab_refill_before_staging_consume",
+        "collab_targets_spawned_agents",
+    }:
+        if trace is None or not isinstance(trace.get("collab_calls"), list):
+            return CheckResult(
+                False, "agent did not produce a trace with collab_calls"
+            )
+        all_calls = [
+            item for item in trace["collab_calls"] if isinstance(item, dict)
+        ]
+        calls = [
+            item
+            for item in all_calls
+            if item.get("status") == "completed"
+        ]
+        spawns = [item for item in calls if item.get("tool") == "spawn_agent"]
+        if kind == "collab_spawn_count":
+            minimum = assertion.get("min", 0)
+            maximum = assertion.get("max", sys.maxsize)
+            count = len(spawns)
+            return CheckResult(
+                minimum <= count <= maximum,
+                f"completed spawn calls: {count}, expected {minimum}..{maximum}",
+            )
+        if kind == "collab_initial_spawn_count":
+            first_wait = next(
+                (index for index, item in enumerate(calls) if item.get("tool") == "wait"),
+                len(calls),
+            )
+            count = sum(
+                item.get("tool") == "spawn_agent" for item in calls[:first_wait]
+            )
+            minimum = assertion.get("min", 0)
+            maximum = assertion.get("max", sys.maxsize)
+            return CheckResult(
+                minimum <= count <= maximum,
+                f"spawn calls before first wait: {count}, expected {minimum}..{maximum}",
+            )
+        if kind == "collab_spawn_prompts":
+            prompts = [str(item.get("prompt") or "") for item in spawns]
+            every = assertion.get("each_contains", [])
+            collective = assertion.get("collectively_contain", [])
+            partition = assertion.get("partition_values", [])
+            maximum_per_partition = assertion.get("max_per_partition", 1)
+            missing_each = [
+                value
+                for value in every
+                if any(value not in prompt for prompt in prompts)
+            ]
+            combined = "\n".join(prompts)
+            missing_collective = [
+                value for value in collective if value not in combined
+            ]
+            partition_counts = {
+                value: sum(value in prompt for prompt in prompts)
+                for value in partition
+            }
+            prompt_partition_counts = [
+                sum(value in prompt for value in partition) for prompt in prompts
+            ]
+            partition_valid = (
+                not partition
+                or (
+                    all(
+                        1 <= count <= maximum_per_partition
+                        for count in partition_counts.values()
+                    )
+                    and all(count == 1 for count in prompt_partition_counts)
+                )
+            )
+            passed = (
+                bool(prompts)
+                and not missing_each
+                and not missing_collective
+                and partition_valid
+            )
+            return CheckResult(
+                passed,
+                (
+                    f"spawn prompts missing per-prompt {missing_each}; "
+                    f"missing collectively {missing_collective}; "
+                    f"partition counts {partition_counts}, "
+                    f"per-prompt partition counts {prompt_partition_counts}"
+                )
+                if not passed
+                else "spawn prompts contain required mapper handoff context",
+            )
+        if kind == "collab_targets_spawned_agents":
+            spawned_ids = {
+                str(receiver)
+                for item in spawns
+                for receiver in item.get("receiver_thread_ids", [])
+            }
+            targeted = [
+                (str(item.get("tool")), str(receiver))
+                for item in all_calls
+                if item.get("tool") in {"wait", "send_input", "close_agent"}
+                for receiver in item.get("receiver_thread_ids", [])
+            ]
+            unknown = [
+                f"{tool}:{receiver}"
+                for tool, receiver in targeted
+                if receiver not in spawned_ids
+            ]
+            return CheckResult(
+                bool(targeted) and not unknown,
+                (
+                    f"collaboration calls target unknown agent IDs: {unknown}"
+                    if unknown
+                    else (
+                        f"all {len(targeted)} targeted collaboration calls use "
+                        "successful spawn IDs"
+                        if targeted
+                        else "no targeted collaboration calls found"
+                    )
+                ),
+            )
+        activity = trace.get("activity")
+        if not isinstance(activity, list):
+            return CheckResult(False, "agent trace has no ordered activity")
+        staging_path = assertion["path"]
+        refill_observed = False
+        violations: list[str] = []
+        for index, item in enumerate(activity):
+            if not isinstance(item, dict) or item.get("kind") != "collab":
+                continue
+            states = item.get("agents_states", {})
+            completed_wait = (
+                item.get("tool") == "wait"
+                and isinstance(states, dict)
+                and any(
+                    isinstance(state, dict) and state.get("status") == "completed"
+                    for state in states.values()
+                )
+            )
+            if not completed_wait:
+                continue
+            next_spawn = next(
+                (
+                    later
+                    for later in range(index + 1, len(activity))
+                    if isinstance(activity[later], dict)
+                    and activity[later].get("kind") == "collab"
+                    and activity[later].get("tool") == "spawn_agent"
+                    and activity[later].get("status") == "completed"
+                ),
+                None,
+            )
+            if next_spawn is None:
+                continue
+            refill_observed = True
+            for between in activity[index + 1 : next_spawn]:
+                if (
+                    not isinstance(between, dict)
+                    or between.get("kind") not in {"command_started", "command"}
+                ):
+                    continue
+                command = str(between.get("command") or "")
+                if staging_path not in command:
+                    continue
+                consumes = bool(
+                    re.search(r"(?:^|[;&|]\s*|\s)(?:cat|sed|head|tail|awk|mv|cp|install)\b", command)
+                    or (
+                        re.search(r"(?:^|\s)rg\b", command)
+                        and not re.search(r"\brg\b[^;&|]*\s--files(?:\s|$)", command)
+                    )
+                )
+                if consumes:
+                    violations.append(command[:300])
+        return CheckResult(
+            refill_observed and not violations,
+            (
+                f"staging consumed before refill: {violations}"
+                if violations
+                else "replacement spawn precedes staging consumption"
+                if refill_observed
+                else "no completed-worker refill transition was observed"
+            ),
+        )
     if kind == "balanced_markers":
         content = path.read_text(encoding="utf-8") if path.is_file() else ""
         begin, end = assertion["begin"], assertion["end"]
@@ -1429,7 +1622,10 @@ def main() -> int:
                 for case in category_cases
                 if case["status"] == "executable"
             )
-            print(f"category {category}: {len(category_cases)} cases, {agent_calls} agent calls")
+            print(
+                f"category {category}: {len(category_cases)} cases, "
+                f"{agent_calls} top-level agent calls"
+            )
         for scenario in sorted(documented - registered):
             print(f"UNREGISTERED {scenario}")
         for scenario in sorted(registered - documented):

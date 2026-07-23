@@ -68,6 +68,14 @@ limit or observed contention requires less concurrency; report any reduction.
 The orchestrator is the only agent allowed to spawn mapping workers. Workers
 must not spawn further workers.
 
+Treat every agent or thread ID returned by the environment as opaque. Copy the
+exact ID from a successful spawn result into the ledger; never retype, derive,
+or normalize it. Target wait, message, and close operations only with that
+recorded ID. A `not_found` result for an unrecorded or mismatched ID is an
+orchestration error: recover the exact returned ID before declaring the
+producer failed or starting a retry. Never start a duplicate producer while
+the original may still be active.
+
 ## Schedule as producer-consumer
 
 Maintain one continuous dependency-aware ready queue, active worker set, and

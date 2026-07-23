@@ -151,8 +151,19 @@ python3 tests/eval/run.py \
 
 `--case` and `--category` are repeatable and may be combined. There is no
 implicit run-all mode. Planned cases are never executed. Categories are
-disjoint: `core` has 7 executable cases, `extended` has 12, and `planned` has
-10 documented non-executable cases.
+disjoint: `core` has 8 executable cases, `extended` has 12, `expensive` has 1,
+and `planned` has 10 documented non-executable cases.
+
+`map-large-rolling-small` makes one top-level call and exactly three nested
+producer calls. It is isolated in `expensive`, so ordinary `core` and
+`extended` runs never select it. Run it with one sample during ordinary
+iteration; use repeated samples only for release calibration.
+
+```bash
+python3 tests/eval/run.py \
+  --case map-large-rolling-small --samples 1 --jobs 1 \
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py"
+```
 
 Each case gets a clean temporary workspace. Cases run with concurrency 8 by
 default; change it with `--jobs N`. Workspaces default to
@@ -230,6 +241,9 @@ Supported assertions:
 - execution: `command_succeeds`;
 - trace: `read_only`, `read_includes`, `max_files_read`, `trace_equals`;
 - commands: `command_includes`, `command_excludes`;
+- collaboration: `collab_spawn_count`, `collab_initial_spawn_count`,
+  `collab_spawn_prompts`, `collab_targets_spawned_agents`,
+  `collab_refill_before_staging_consume`;
 - structure: `balanced_markers`, `no_template_placeholders`,
   `markdown_links_valid`, `semantic_ids_valid`, `spine_mechanical_valid`.
 

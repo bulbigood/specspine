@@ -113,6 +113,8 @@ class MapLargeContractTests(unittest.TestCase):
         self.assertIn("barrier primitive as a transport limitation", normalized)
         self.assertIn("do not introduce conceptual waves", normalized)
         self.assertIn("Do not invoke SpecSpine Doctor during the mapping run", normalized)
+        self.assertIn("agent or thread ID returned by the environment as opaque", normalized)
+        self.assertIn("Never start a duplicate producer", normalized)
 
     def test_normalizes_once_and_gates_post_map_doctor(self):
         protocol = (

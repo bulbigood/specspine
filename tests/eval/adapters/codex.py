@@ -255,6 +255,77 @@ def parse_events(stdout: str, candidates: list[str]) -> tuple[set[str], list[str
     return reads, commands, messages
 
 
+def parse_activity(stdout: str) -> list[dict[str, object]]:
+    """Return command starts/completions and completed collab items in order."""
+    activity: list[dict[str, object]] = []
+    recorded_items: set[tuple[str, str]] = set()
+    for line_number, line in enumerate(stdout.splitlines(), 1):
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        event_type = event.get("type")
+        if event_type not in {None, "item.started", "item.completed"}:
+            continue
+        item = event.get("item", {})
+        if not isinstance(item, dict):
+            continue
+        item_id = item.get("id")
+        if item_id is not None:
+            item_id = str(item_id)
+            identity = (str(event_type or "legacy"), item_id)
+            if identity in recorded_items:
+                continue
+            recorded_items.add(identity)
+        item_type = str(item.get("type") or "")
+        if item_type == "command_execution":
+            activity.append(
+                {
+                    "kind": (
+                        "command_started"
+                        if event_type == "item.started"
+                        else "command"
+                    ),
+                    "event_id": item_id,
+                    "line_number": line_number,
+                    "command": shell_source(str(item.get("command", ""))),
+                    "status": item.get("status"),
+                }
+            )
+            continue
+        if event_type == "item.started":
+            continue
+        if item_type not in {"collab_tool_call", "collab_agent_tool_call"}:
+            continue
+        raw_states = item.get("agents_states", {})
+        if not isinstance(raw_states, dict):
+            raw_states = {}
+        states = {
+            str(thread_id): {
+                "status": state.get("status"),
+                "message": state.get("message"),
+            }
+            for thread_id, state in raw_states.items()
+            if isinstance(state, dict)
+        }
+        activity.append(
+            {
+                "kind": "collab",
+                "event_id": item_id,
+                "line_number": line_number,
+                "tool": item.get("tool"),
+                "sender_thread_id": item.get("sender_thread_id"),
+                "receiver_thread_ids": [
+                    str(value) for value in item.get("receiver_thread_ids", [])
+                ],
+                "prompt": item.get("prompt"),
+                "agents_states": states,
+                "status": item.get("status"),
+            }
+        )
+    return activity
+
+
 def command_category(command: str, inferred_reads: set[str]) -> str:
     source = shell_source(command)
     if is_retrieval_command(source):
@@ -278,6 +349,8 @@ def parse_event_metrics(stdout: str, candidates: list[str]) -> dict[str, object]
     completed_item_ids: set[str] = set()
     agent_message_count = 0
     turn_count = 0
+    collab_tool_count = 0
+    spawned_agent_count = 0
     for line in stdout.splitlines():
         try:
             event = json.loads(line)
@@ -302,6 +375,12 @@ def parse_event_metrics(stdout: str, candidates: list[str]) -> dict[str, object]
         item_counts[item_type] = item_counts.get(item_type, 0) + 1
         if item_type == "agent_message":
             agent_message_count += 1
+            continue
+        if item_type in {"collab_tool_call", "collab_agent_tool_call"}:
+            collab_tool_count += 1
+            if item.get("tool") == "spawn_agent" and item.get("status") == "completed":
+                receivers = item.get("receiver_thread_ids", [])
+                spawned_agent_count += len(receivers) if isinstance(receivers, list) else 0
             continue
         if item_type != "command_execution":
             continue
@@ -334,6 +413,8 @@ def parse_event_metrics(stdout: str, candidates: list[str]) -> dict[str, object]
             int(item["output_utf8_bytes"]) for item in command_metrics
         ),
         "command_metrics": command_metrics,
+        "collab_tool_count": collab_tool_count,
+        "spawned_agent_count": spawned_agent_count,
         "agent_message_count": agent_message_count,
         "turn_count": turn_count,
     }
@@ -1298,6 +1379,7 @@ def main() -> int:
         duration_seconds=duration_seconds,
     )
     reads, commands, messages = parse_events(completed.stdout, candidates)
+    activity = parse_activity(completed.stdout)
     retrieval_attempts = parse_retrieval_attempts(completed.stdout)
     merge_retrieval_telemetry(retrieval_attempts, retrieval_telemetry)
     event_metrics = parse_event_metrics(completed.stdout, candidates)
@@ -1319,6 +1401,10 @@ def main() -> int:
         json.dumps(
             {
                 "commands": commands,
+                "activity": activity,
+                "collab_calls": [
+                    item for item in activity if item.get("kind") == "collab"
+                ],
                 "retrieval_telemetry": args.retrieval_telemetry,
                 "retrieval_profile": args.retrieval_profile,
                 "ranking_system": "normalized",
