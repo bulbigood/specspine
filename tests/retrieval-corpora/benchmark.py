@@ -234,6 +234,28 @@ def aggregate(results: list[dict[str, object]], ranking: str) -> dict[str, objec
     }
 
 
+def aggregate_by(
+    results: list[dict[str, object]],
+    field: str,
+    rankings: tuple[str, ...],
+) -> dict[str, list[dict[str, object]]]:
+    values = sorted({str(result[field]) for result in results})
+    return {
+        value: [
+            aggregate(
+                [
+                    result
+                    for result in results
+                    if str(result[field]) == value
+                ],
+                ranking,
+            )
+            for ranking in rankings
+        ]
+        for value in values
+    }
+
+
 def discover_manifests(values: list[Path]) -> list[Path]:
     if values:
         paths = [
@@ -283,6 +305,18 @@ def main() -> int:
         "rankings": [
             aggregate(results, ranking) for ranking in rankings
         ],
+        "breakdowns": {
+            "documentation_language": aggregate_by(
+                results,
+                "documentation_language",
+                rankings,
+            ),
+            "project_type": aggregate_by(
+                results,
+                "project_type",
+                rankings,
+            ),
+        },
         "results": results,
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))

@@ -1,0 +1,576 @@
+{
+  "schema_version": 1,
+  "corpus": {
+    "id": "mobile-app-ru-01",
+    "project_type": "mobile-app",
+    "documentation_language": "ru",
+    "size_tier": "small",
+    "seed": 73109,
+    "axes": {
+      "boilerplate": "medium",
+      "lexical_overlap": "high",
+      "ownership": "mixed",
+      "graph_density": "medium"
+    }
+  },
+  "documents": {
+    "README.md": "sha256:aab874998bc1bddcb3a453f39917d0cd82eee55069f221d94afb4bffe098078e",
+    "accessibility.md": "sha256:666b79a4229ac67a44bba880a704a211a1c4de3473cfa47f6a2fb87619657ea9",
+    "analytics.md": "sha256:6edfbab7810de41c59b1762c77260db55c4946ea7f1fa6100bedf2763028c86b",
+    "authentication.md": "sha256:47350b6e0cb4891133b1e47d0b694ca9897615f46eb708cf9cb995f6bc752add",
+    "configuration.md": "sha256:b07d05a2dd29c6e58c7db32888bdddbde1a30e31af3580ec45ffcf8763acbb58",
+    "deep-links.md": "sha256:b25ed47be8aa21a62b16217ec3a23e6143e5ca5a0c41a000284542b2ea746d8f",
+    "feature-flags.md": "sha256:40c3f81542e68b10ca428ba4472c068804a425fdf032cb0a59318e164a32179c",
+    "image-cache.md": "sha256:8a15653f9a17a099f44e0a4f8384466bae57dfd68707b1109c65c14cdd0b8733",
+    "incident-playbook.md": "sha256:f17732d145de372c8b8f814677415471704799b712bfffda65ba12fc00416729",
+    "local-storage.md": "sha256:2f3a06a1da9bb68608ea4093742cace4d907c6031d62f55aad604eed267a8f3e",
+    "navigation.md": "sha256:92401a978ab6c7d974578bcb8e740390a64b21547e338883578c8af9c1d380cd",
+    "offline-sync.md": "sha256:ee993e65de2a59dd03b1e7f3a55c2ff085a968c35d8bfaae1620a8bc578f9bea",
+    "payments.md": "sha256:b6fd6e68cc7af5489e4ed67045a4564f212e149072667d011e7f1c3d112c500b",
+    "push-notifications.md": "sha256:97d350ae938204741f60736bdee86e2c87bed5c0427e20f1bda46d21ba20effc",
+    "release-process.md": "sha256:2ed869f98b82e62588e2620e8a13352915dd09102ca59df4a1ed7900196d5e82"
+  },
+  "scenarios": [
+    {
+      "id": "offline-conflict-resolution",
+      "tags": [
+        "morphology",
+        "partial-match-decoys",
+        "short-owner-long-consumer"
+      ],
+      "request": {
+        "language": "ru",
+        "text": "Найди нормативные правила разрешения конфликтов автономных изменений избранного: какая ревизия побеждает и что делать при одновременном удалении. Не перепутай владельца политики с длинным описанием локальной очереди."
+      },
+      "search": {
+        "limit": 5,
+        "graph_depth": 1,
+        "graph_limit": 3
+      },
+      "slices": [
+        {
+          "id": "offline-conflict-policy",
+          "must": [
+            [
+              "конфликт",
+              "конфликты",
+              "конфликтов"
+            ],
+            [
+              "ревизия",
+              "ревизии",
+              "ревизией"
+            ],
+            [
+              "удаление",
+              "удаления",
+              "удалении"
+            ]
+          ],
+          "should": [
+            [
+              "автономный",
+              "автономная",
+              "офлайн"
+            ],
+            [
+              "избранное",
+              "избранного"
+            ],
+            [
+              "приоритет",
+              "побеждает"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "offline-sync.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "local-storage.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "image-cache.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            },
+            {
+              "path": "configuration.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "push-token-rollover",
+      "tags": [
+        "synonym",
+        "morphology",
+        "partial-match-decoys"
+      ],
+      "request": {
+        "language": "ru",
+        "text": "Как приложение заменяет токен push-доставки без окна потери уведомлений? Нужны правила ротации старого и нового токена после подтверждения сервера, а не обновление пользовательской сессии."
+      },
+      "search": {
+        "limit": 4,
+        "graph_depth": 1,
+        "graph_limit": 2
+      },
+      "slices": [
+        {
+          "id": "push-registration-rollover",
+          "must": [
+            [
+              "push",
+              "уведомление",
+              "уведомлений"
+            ],
+            [
+              "токен",
+              "токены",
+              "токена"
+            ],
+            [
+              "ротация",
+              "замена",
+              "новый"
+            ]
+          ],
+          "should": [
+            [
+              "старый",
+              "прежний"
+            ],
+            [
+              "подтверждение",
+              "подтверждения"
+            ],
+            [
+              "доставка",
+              "регистрация"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "push-notifications.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "authentication.md",
+              "grade": 0,
+              "origin": "direct",
+              "hard_negative": true
+            },
+            {
+              "path": "configuration.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "analytics.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "payment-return-and-route",
+      "tags": [
+        "multi-slice",
+        "shared-document",
+        "partial-match-decoys"
+      ],
+      "request": {
+        "language": "ru",
+        "text": "Спроектируй возврат из банковского приложения: отдельно найди правило, когда покупка действительно подтверждена и билет можно показать, и отдельно правила разбора внешней ссылки на билет до передачи в навигацию."
+      },
+      "search": {
+        "limit": 4,
+        "graph_depth": 1,
+        "graph_limit": 3
+      },
+      "slices": [
+        {
+          "id": "payment-confirmation",
+          "must": [
+            [
+              "покупка",
+              "оплата",
+              "платёж"
+            ],
+            [
+              "подтверждение",
+              "подтверждён",
+              "confirmed"
+            ],
+            [
+              "билет",
+              "билета"
+            ]
+          ],
+          "should": [
+            [
+              "сервер",
+              "серверный"
+            ],
+            [
+              "pending",
+              "ожидание"
+            ],
+            [
+              "redirect",
+              "возврат"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "payments.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "local-storage.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "deep-links.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "navigation.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "incident-playbook.md",
+              "grade": 1,
+              "origin": "either"
+            }
+          ]
+        },
+        {
+          "id": "ticket-deep-link",
+          "must": [
+            [
+              "ссылка",
+              "URI",
+              "redirect"
+            ],
+            [
+              "билет",
+              "билета"
+            ],
+            [
+              "разбор",
+              "разборщик",
+              "нормализует"
+            ]
+          ],
+          "should": [
+            [
+              "внешний",
+              "внешняя"
+            ],
+            [
+              "маршрут",
+              "навигация"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "deep-links.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "navigation.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "payments.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "push-notifications.md",
+              "grade": 1,
+              "origin": "either"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "large-text-layout",
+      "tags": [
+        "morphology",
+        "short-owner-long-consumer",
+        "partial-match-decoys"
+      ],
+      "request": {
+        "language": "ru",
+        "text": "Где заданы требования для крупного системного шрифта: максимальный масштаб текста, запрет обрезания подписей и перестройка панели действий?"
+      },
+      "search": {
+        "limit": 4,
+        "graph_depth": 1,
+        "graph_limit": 2
+      },
+      "slices": [
+        {
+          "id": "text-scaling-accessibility",
+          "must": [
+            [
+              "масштаб",
+              "масштабируется",
+              "масштабирование"
+            ],
+            [
+              "текст",
+              "шрифт",
+              "подпись"
+            ],
+            [
+              "обрезание",
+              "обрезка",
+              "обрезания"
+            ]
+          ],
+          "should": [
+            [
+              "доступность",
+              "крупный"
+            ],
+            [
+              "панель",
+              "компоновка"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "accessibility.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "navigation.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "image-cache.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pause-push-incident",
+      "tags": [
+        "multi-slice",
+        "synonym",
+        "partial-match-decoys"
+      ],
+      "request": {
+        "language": "ru",
+        "text": "Во время массового сбоя останови новые push-рассылки, не ломая регистрацию устройств. Найди оперативный выключатель, критерии ступенчатого восстановления и обычные правила регистрации токенов."
+      },
+      "search": {
+        "limit": 4,
+        "graph_depth": 1,
+        "graph_limit": 3
+      },
+      "slices": [
+        {
+          "id": "incident-push-pause",
+          "must": [
+            [
+              "инцидент",
+              "сбой",
+              "ошибка"
+            ],
+            [
+              "остановить",
+              "остановка",
+              "paused"
+            ],
+            [
+              "рассылка",
+              "кампания",
+              "трафик"
+            ]
+          ],
+          "should": [
+            [
+              "выключатель",
+              "флаг"
+            ],
+            [
+              "восстановление",
+              "процент"
+            ],
+            [
+              "регистрация",
+              "токен"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "incident-playbook.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "feature-flags.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "push-notifications.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "configuration.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "release-process.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
+          ]
+        },
+        {
+          "id": "normal-push-registration",
+          "must": [
+            [
+              "регистрация",
+              "зарегистрировать"
+            ],
+            [
+              "устройство",
+              "установки"
+            ],
+            [
+              "push-токен",
+              "токен доставки"
+            ]
+          ],
+          "should": [
+            [
+              "подтверждение",
+              "подтверждения"
+            ],
+            [
+              "идемпотентный",
+              "идемпотентен"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "push-notifications.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "incident-playbook.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "authentication.md",
+              "grade": 0,
+              "origin": "direct",
+              "hard_negative": true
+            },
+            {
+              "path": "analytics.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unsupported-desktop-widget",
+      "tags": [
+        "no-match",
+        "wrong-must"
+      ],
+      "request": {
+        "language": "ru",
+        "text": "Найди архитектуру настольного виджета для Linux: межпроцессный сокет, системный трей и обновление пакета AppImage."
+      },
+      "search": {
+        "limit": 3,
+        "graph_depth": 0,
+        "graph_limit": 0
+      },
+      "slices": [
+        {
+          "id": "linux-desktop-widget",
+          "must": [
+            [
+              "Linux"
+            ],
+            [
+              "системный трей"
+            ],
+            [
+              "AppImage"
+            ]
+          ],
+          "should": [
+            [
+              "межпроцессный сокет"
+            ],
+            [
+              "настольный виджет"
+            ]
+          ],
+          "evaluation": "protocol",
+          "expected_status": "no_match",
+          "judgments": []
+        }
+      ]
+    }
+  ]
+}

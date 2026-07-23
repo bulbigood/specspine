@@ -1,0 +1,593 @@
+{
+  "schema_version": 1,
+  "corpus": {
+    "id": "cli-sdk-en-01",
+    "project_type": "cli-sdk",
+    "documentation_language": "en",
+    "size_tier": "small",
+    "seed": 73109,
+    "axes": {
+      "boilerplate": "medium",
+      "lexical_overlap": "high",
+      "ownership": "mixed",
+      "graph_density": "medium"
+    }
+  },
+  "documents": {
+    "README.md": "sha256:007110fbd09e78df1b3c85287ab87cfff50d471330dcd6d0d2eca7814c66584a",
+    "command-dispatch.md": "sha256:300d23df8f64dba00b3364f4c5c39b83fe238d35803c58de3c58a3b2025e5781",
+    "configuration-resolution.md": "sha256:d223916eb3f98693a0a2baaf08d890f31c1a42782426f8c5fa62e2b284b21a71",
+    "credential-store.md": "sha256:b36e7ce6abc548be5751ff7d4670d1a244b2e78b941b4326996185d512a56100",
+    "error-contract.md": "sha256:d501f2c90ffe1b06ac4762ab424ffa0b15de2007dfc2e45c7b4f34940894a908",
+    "local-cache.md": "sha256:c6b1c7577c0abeaa68439f4c9ef0118bf7df5bcb4c7e2e8e2d04777739d46582",
+    "migration-locking.md": "sha256:b356206f3d2075eb491aac9c47c912bd9b454f9c874432b06a8496d7a1863dd9",
+    "migration-planning.md": "sha256:b42e2c1de13b89c1e698fa724db2deae8421b9ddbac08192f750e585319e7592",
+    "output-rendering.md": "sha256:5b0b98f73af64904a60dcbdf03df962db9388201b9f74c44ecda63235579c835",
+    "plugin-api.md": "sha256:4adfd22288f239adb915cfe637de52ef696a5fabb5afef2e12cf325607f37f28",
+    "profile-inheritance.md": "sha256:b4dd37388ba2dae9deff63930213c9181b5a01ee1d10f082948210588433266b",
+    "release-compatibility.md": "sha256:d3ab693ec6cb67d2b5a40f52a8f6c40b0aaf4a5e222e5f83c3ac6a6dc49e1a9b",
+    "rollback-policy.md": "sha256:44ab665c4fe76d4f46b64d731163135ee77079e26a0900fe6cf14aeb4f5e0b87",
+    "telemetry.md": "sha256:ffd5b03f729ad6aa8074596249d9abe99a14713850470859e5d9d381ce2ab1dc",
+    "testing-strategy.md": "sha256:fdec467e534f681e868c56d36f4344c8ee996c82a4a444f5e01982d455f9c4b5"
+  },
+  "scenarios": [
+    {
+      "id": "layered-config-unset",
+      "tags": [
+        "synonym",
+        "partial-match-decoys",
+        "short-owner-long-consumer"
+      ],
+      "request": {
+        "language": "en",
+        "text": "Find the authoritative configuration merge rules. I need the priority of defaults, files, profiles, environment variables and flags, plus what an explicit null does to an inherited optional setting and when credential references are resolved."
+      },
+      "search": {
+        "limit": 5,
+        "graph_depth": 1,
+        "graph_limit": 3
+      },
+      "slices": [
+        {
+          "id": "config-precedence-unset",
+          "must": [
+            [
+              "configuration",
+              "config"
+            ],
+            [
+              "precedence",
+              "priority"
+            ],
+            [
+              "unset",
+              "null"
+            ]
+          ],
+          "should": [
+            [
+              "environment variables",
+              "environment"
+            ],
+            [
+              "flags"
+            ],
+            [
+              "credential references",
+              "secrets"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "configuration-resolution.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "profile-inheritance.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "credential-store.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "command-dispatch.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            },
+            {
+              "path": "telemetry.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "side-effect-free-dry-run",
+      "tags": [
+        "morphology",
+        "partial-match-decoys"
+      ],
+      "request": {
+        "language": "en",
+        "text": "Before modifying the plan command, locate the rule for dry-running migrations. What may it read, what must it print, and which writes, locks, and SQL execution are forbidden?"
+      },
+      "search": {
+        "limit": 5,
+        "graph_depth": 1,
+        "graph_limit": 3
+      },
+      "slices": [
+        {
+          "id": "migration-dry-runs",
+          "must": [
+            [
+              "migration",
+              "migrations"
+            ],
+            [
+              "plan",
+              "planning"
+            ],
+            [
+              "dry run",
+              "dry-run",
+              "dry-running"
+            ]
+          ],
+          "should": [
+            [
+              "side effect",
+              "side-effect"
+            ],
+            [
+              "execute SQL",
+              "executing SQL"
+            ],
+            [
+              "lock",
+              "lease"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "migration-planning.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "output-rendering.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "local-cache.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "migration-locking.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            },
+            {
+              "path": "testing-strategy.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "expired-lease-reclamation",
+      "tags": [
+        "synonym",
+        "short-owner-long-consumer",
+        "partial-match-decoys"
+      ],
+      "request": {
+        "language": "en",
+        "text": "How may a second CLI process take over a stale migration lock? Find the owner of lease expiry, the authoritative clock, and the generation compare-and-swap safeguard."
+      },
+      "search": {
+        "limit": 5,
+        "graph_depth": 1,
+        "graph_limit": 3
+      },
+      "slices": [
+        {
+          "id": "lease-reclaim-cas",
+          "must": [
+            [
+              "lock",
+              "lease"
+            ],
+            [
+              "expired",
+              "stale",
+              "expiry"
+            ],
+            [
+              "compare-and-swap",
+              "generation"
+            ]
+          ],
+          "should": [
+            [
+              "database time",
+              "clock"
+            ],
+            [
+              "reclaim",
+              "take over"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "migration-locking.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "rollback-policy.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "testing-strategy.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            },
+            {
+              "path": "local-cache.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            },
+            {
+              "path": "release-compatibility.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "plugin-loading-failure",
+      "tags": [
+        "multi-slice",
+        "shared-document",
+        "synonym"
+      ],
+      "request": {
+        "language": "en",
+        "text": "Change plugin startup diagnostics. I need the discovery and API-range compatibility rules, and separately the stable exit status and JSON diagnostic envelope used when a plugin is incompatible."
+      },
+      "search": {
+        "limit": 5,
+        "graph_depth": 1,
+        "graph_limit": 4
+      },
+      "slices": [
+        {
+          "id": "plugin-discovery-compatibility",
+          "must": [
+            [
+              "plugin",
+              "plugins"
+            ],
+            [
+              "discovery",
+              "discovered",
+              "found"
+            ],
+            [
+              "compatibility",
+              "compatible",
+              "API range"
+            ]
+          ],
+          "should": [
+            [
+              "duplicate"
+            ],
+            [
+              "major mismatch",
+              "major API"
+            ],
+            [
+              "before loading",
+              "before activation"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "plugin-api.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "release-compatibility.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "error-contract.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "local-cache.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
+          ]
+        },
+        {
+          "id": "plugin-error-envelope",
+          "must": [
+            [
+              "plugin incompatibility",
+              "plugin incompatibilities",
+              "incompatible plugin"
+            ],
+            [
+              "exit status",
+              "exit statuses",
+              "status"
+            ],
+            [
+              "diagnostic",
+              "diagnostics"
+            ]
+          ],
+          "should": [
+            [
+              "JSON"
+            ],
+            [
+              "stable code"
+            ],
+            [
+              "remediation"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "error-contract.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "plugin-api.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "output-rendering.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "release-compatibility.md",
+              "grade": 1,
+              "origin": "either"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "named-profile-cycle",
+      "tags": [
+        "morphology",
+        "partial-match-decoys"
+      ],
+      "request": {
+        "language": "en",
+        "text": "Find the rules for profiles inheriting from parents, including child overrides and cyclic inheritance. Do not confuse named configuration profiles with performance profiling or telemetry."
+      },
+      "search": {
+        "limit": 5,
+        "graph_depth": 1,
+        "graph_limit": 3
+      },
+      "slices": [
+        {
+          "id": "profile-inheritance-cycle",
+          "must": [
+            [
+              "profile",
+              "profiles"
+            ],
+            [
+              "inherit",
+              "inherits",
+              "inheritance",
+              "extend"
+            ],
+            [
+              "cycle",
+              "cyclic",
+              "parent"
+            ]
+          ],
+          "should": [
+            [
+              "child"
+            ],
+            [
+              "override",
+              "overrides"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "profile-inheritance.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "configuration-resolution.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "telemetry.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            },
+            {
+              "path": "testing-strategy.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "failed-rollback-sequence",
+      "tags": [
+        "morphology",
+        "partial-match-decoys"
+      ],
+      "request": {
+        "language": "en",
+        "text": "What happens while reversing several applied migrations if one down step fails? Include reversal ordering, retained progress, and constraints that force cannot bypass."
+      },
+      "search": {
+        "limit": 5,
+        "graph_depth": 1,
+        "graph_limit": 3
+      },
+      "slices": [
+        {
+          "id": "rollback-failed-down-step",
+          "must": [
+            [
+              "rollback",
+              "rollbacks"
+            ],
+            [
+              "reverse",
+              "reversed",
+              "reversal",
+              "reversible"
+            ],
+            [
+              "failed",
+              "fails",
+              "failure"
+            ]
+          ],
+          "should": [
+            [
+              "down step"
+            ],
+            [
+              "dependency order"
+            ],
+            [
+              "force"
+            ]
+          ],
+          "evaluation": "ranking",
+          "expected_status": "matched",
+          "judgments": [
+            {
+              "path": "rollback-policy.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "migration-locking.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "error-contract.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "migration-planning.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            },
+            {
+              "path": "testing-strategy.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "remote-cluster-execution",
+      "tags": [
+        "no-match",
+        "wrong-must"
+      ],
+      "request": {
+        "language": "en",
+        "text": "Find the documented policy for executing migration workers inside a remote Kubernetes cluster and scheduling pods across availability zones."
+      },
+      "search": {
+        "limit": 4,
+        "graph_depth": 1,
+        "graph_limit": 2
+      },
+      "slices": [
+        {
+          "id": "kubernetes-worker-scheduling",
+          "must": [
+            [
+              "Kubernetes"
+            ],
+            [
+              "migration workers"
+            ],
+            [
+              "availability zones"
+            ]
+          ],
+          "evaluation": "protocol",
+          "expected_status": "no_match",
+          "judgments": []
+        }
+      ]
+    }
+  ]
+}

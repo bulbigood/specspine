@@ -79,6 +79,9 @@ python3 tools/specspine-extract/validate_corpus.py \
 python3 tests/retrieval-corpora/benchmark.py
 ```
 
+The benchmark JSON includes global paired summaries plus breakdowns by
+documentation language and project type.
+
 The benchmark-only Extract skill is
 `tests/eval/skills/specspine-extract-v2`; it is not a production or installable
 skill. The eval adapter selects its ranking arm with

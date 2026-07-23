@@ -57,6 +57,29 @@ class ExtractCorpusBenchmarkTests(unittest.TestCase):
         self.assertEqual(1.0, ideal)
         self.assertLess(reversed_order, ideal)
 
+    def test_aggregate_by_preserves_paired_rankings(self):
+        results = [
+            {
+                "documentation_language": "en",
+                "ranking_system": ranking,
+                "scenarios": [],
+            }
+            for ranking in ("legacy", "faceted-bm25")
+        ]
+
+        grouped = BENCHMARK.aggregate_by(
+            results,
+            "documentation_language",
+            ("legacy", "faceted-bm25"),
+        )
+
+        self.assertEqual(["en"], list(grouped))
+        self.assertEqual(
+            ["legacy", "faceted-bm25"],
+            [item["ranking_system"] for item in grouped["en"]],
+        )
+        self.assertEqual([1, 1], [item["corpora"] for item in grouped["en"]])
+
 
 if __name__ == "__main__":
     unittest.main()
