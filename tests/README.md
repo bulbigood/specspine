@@ -50,6 +50,24 @@ Use deterministic synthetic inputs and fixed ground truth; never turn host-time
 measurements into CI thresholds. Run the Extract retrieval benchmark without an
 agent using `python3 tests/mechanical/benchmark_extract_search.py`.
 
+Compare the same structured workload under both Extract ranking systems with:
+
+```text
+python3 tests/mechanical/benchmark_extract_search.py --ranking legacy
+python3 tests/mechanical/benchmark_extract_search.py --ranking faceted-bm25
+```
+
+The skill-facing `search_spine.py` remains unchanged. Experimental queries use
+`search_spine_v2.py --ranking faceted-bm25 --queries-json '<json>'`, where each
+slice contains an `id`, one or more `must` synonym groups, and optional
+`should` synonym groups. Terms inside a group are alternatives; every `must`
+group is required. V2 stdout is marked document text grouped by slice, not a
+JSON list of paths. Slice blocks report `matched` or `no_match` and contain
+marked hits with matching evidence. Document bodies follow the slice blocks
+and are emitted once even when several slices select the same path. Use
+`--max-output-bytes` to bound document output; whole documents are omitted and
+marked instead of being cut mid-file.
+
 ## Eval tests
 
 Use eval cases to verify whether an agent locates context, preserves semantics,

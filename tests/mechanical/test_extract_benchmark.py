@@ -38,6 +38,17 @@ class ExtractBenchmarkTests(unittest.TestCase):
         self.assertEqual(1.0, result["workloads"]["semantic-id"]["recall_at_1"])
         self.assertGreater(result["workloads"]["hybrid"]["mean_output_utf8_bytes"], 0)
 
+    def test_faceted_scale_uses_same_workload_contract(self):
+        result = BENCHMARK.run_scale(40, 3, "faceted-bm25")
+
+        self.assertEqual("faceted-bm25", result["ranking_system"])
+        self.assertEqual(1.0, result["workloads"]["hybrid"]["recall_at_1"])
+        self.assertEqual(1.0, result["workloads"]["ambiguous"]["recall_at_1"])
+        self.assertEqual(1.0, result["workloads"]["semantic-id"]["recall_at_1"])
+        self.assertLessEqual(
+            result["workloads"]["ambiguous"]["mean_direct_results"], 1
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -17,6 +17,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 DIAGNOSTIC_SEARCH = ROOT / "tools" / "specspine-extract" / "search_spine_diagnostics.py"
+V2_SEARCH = ROOT / "skills" / "specspine-extract" / "scripts" / "search_spine_v2.py"
 AGENT_BOOTSTRAP_TEMPLATE = (
     ROOT / "skills" / "specspine-connect" / "assets" / "templates" / "agent-bootstrap.md"
 )
@@ -33,7 +34,7 @@ def write_agent_bootstrap(project_root: Path) -> None:
     (project_root / "AGENTS.md").write_text(rendered, encoding="utf-8")
 
 
-def write_corpus(root: Path, document_count: int, query_count: int) -> list[dict[str, str]]:
+def write_corpus(root: Path, document_count: int, query_count: int) -> list[dict[str, Any]]:
     if document_count < query_count * 2 + 1:
         raise ValueError("document count must exceed twice the query count")
     owners = [f"owner-{index}.md" for index in range(query_count)]
@@ -43,7 +44,7 @@ def write_corpus(root: Path, document_count: int, query_count: int) -> list[dict
         ) + "\n",
         encoding="utf-8",
     )
-    workload: list[dict[str, str]] = []
+    workload: list[dict[str, Any]] = []
     for index, path in enumerate(owners):
         semantic_id = f"CON-benchmark-{index}"
         (root / path).write_text(
@@ -54,13 +55,18 @@ def write_corpus(root: Path, document_count: int, query_count: int) -> list[dict
         workload.extend((
             {
                 "kind": "hybrid",
-                "query": f"change capability{index} invariant{index}",
+                "must": [[f"capability{index}"], [f"invariant{index}"]],
                 "expected": path,
             },
-            {"kind": "semantic-id", "query": semantic_id, "expected": path},
+            {
+                "kind": "semantic-id",
+                "must": [[semantic_id]],
+                "expected": path,
+            },
             {
                 "kind": "ambiguous",
-                "query": f"capability{index} invariant{index} timeout",
+                "must": [[f"capability{index}"], [f"invariant{index}"]],
+                "should": [["timeout"]],
                 "expected": path,
             },
         ))
@@ -77,9 +83,15 @@ def write_corpus(root: Path, document_count: int, query_count: int) -> list[dict
     return workload
 
 
-def invoke(root: Path, cache: Path, query: str) -> tuple[dict[str, Any], int]:
+def invoke(
+    root: Path,
+    cache: Path,
+    item: dict[str, Any],
+    ranking_system: str,
+) -> tuple[dict[str, Any], int]:
     environment = os.environ.copy()
     environment["SPECSPINE_CACHE_DIR"] = str(cache)
+    environment["SPECSPINE_PRODUCTION_SEARCH"] = str(V2_SEARCH)
     completed = subprocess.run(
         [
             sys.executable,
@@ -87,7 +99,14 @@ def invoke(root: Path, cache: Path, query: str) -> tuple[dict[str, Any], int]:
             "--telemetry",
             "full",
             str(root),
-            f"--query={query}",
+            "--queries-json",
+            json.dumps([{
+                "id": item["kind"],
+                "must": item["must"],
+                **({"should": item["should"]} if item.get("should") else {}),
+            }]),
+            "--ranking",
+            ranking_system,
             "--graph-depth=0",
             "--graph-limit=0",
         ],
@@ -100,7 +119,7 @@ def invoke(root: Path, cache: Path, query: str) -> tuple[dict[str, Any], int]:
     payload = json.loads(completed.stdout)
     if completed.returncode != 0:
         raise RuntimeError(payload)
-    return payload, len(completed.stdout.encode("utf-8"))
+    return payload, int(payload["production_output_utf8_bytes"])
 
 
 def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -120,7 +139,11 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def run_scale(document_count: int, query_count: int) -> dict[str, Any]:
+def run_scale(
+    document_count: int,
+    query_count: int,
+    ranking_system: str = "legacy",
+) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="specspine-extract-benchmark-") as directory:
         base = Path(directory)
         project = base / "project"
@@ -132,9 +155,10 @@ def run_scale(document_count: int, query_count: int) -> dict[str, Any]:
         rows: list[dict[str, Any]] = []
         cold_payload: dict[str, Any] | None = None
         for item in workload:
-            payload, output_bytes = invoke(spine, cache, item["query"])
+            payload, output_bytes = invoke(spine, cache, item, ranking_system)
             cold_payload = cold_payload or payload
-            paths = [candidate["path"] for candidate in payload["direct_matches"]]
+            routed = payload["slices"][0]
+            paths = [candidate["path"] for candidate in routed["direct_matches"]]
             rows.append({
                 "kind": item["kind"],
                 "rank": paths.index(item["expected"]) + 1 if item["expected"] in paths else None,
@@ -150,6 +174,7 @@ def run_scale(document_count: int, query_count: int) -> dict[str, Any]:
         }
         return {
             "documents": document_count,
+            "ranking_system": ranking_system,
             "queries_per_kind": query_count,
             "cold": {
                 "index_state": cold_payload["index_state"],
@@ -173,12 +198,20 @@ def main() -> int:
     parser.add_argument("--documents", type=document_counts, default=[100, 1000, 10000])
     parser.add_argument("--queries", type=int, default=8, help="queries per workload kind")
     parser.add_argument("--jobs", type=int, default=0, help="parallel scales; 0 selects automatically")
+    parser.add_argument(
+        "--ranking",
+        choices=("legacy", "faceted-bm25"),
+        default="legacy",
+    )
     args = parser.parse_args()
     if args.queries < 1 or any(count < args.queries * 2 + 1 for count in args.documents):
         parser.error("queries must be positive and fit twice in every document count")
     workers = args.jobs or min(len(args.documents), os.cpu_count() or 1)
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-        scales = list(executor.map(lambda count: run_scale(count, args.queries), args.documents))
+        scales = list(executor.map(
+            lambda count: run_scale(count, args.queries, args.ranking),
+            args.documents,
+        ))
     print(json.dumps({"schema_version": 1, "scales": scales}, indent=2, sort_keys=True))
     return 0
 

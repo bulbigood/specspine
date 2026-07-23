@@ -15,12 +15,18 @@ from unittest.mock import Mock, patch
 
 PROJECT_ROOT = Path(__file__).parents[2]
 MODULE_PATH = PROJECT_ROOT / "skills/specspine-extract/scripts/search_spine.py"
+V2_MODULE_PATH = PROJECT_ROOT / "skills/specspine-extract/scripts/search_spine_v2.py"
 DIAGNOSTIC_PATH = PROJECT_ROOT / "tools/specspine-extract/search_spine_diagnostics.py"
 SPEC = importlib.util.spec_from_file_location("specspine_extract_search", MODULE_PATH)
 assert SPEC and SPEC.loader
 SEARCH = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = SEARCH
 SPEC.loader.exec_module(SEARCH)
+V2_SPEC = importlib.util.spec_from_file_location("specspine_extract_search_v2", V2_MODULE_PATH)
+assert V2_SPEC and V2_SPEC.loader
+V2_SEARCH = importlib.util.module_from_spec(V2_SPEC)
+sys.modules[V2_SPEC.name] = V2_SEARCH
+V2_SPEC.loader.exec_module(V2_SEARCH)
 
 
 class ExtractSearchTests(unittest.TestCase):
@@ -77,6 +83,53 @@ class ExtractSearchTests(unittest.TestCase):
                 str(MODULE_PATH),
                 str(self.spine),
                 *query_arguments,
+                *arguments,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=environment,
+            timeout=5,
+        )
+        return result, json.loads(result.stdout)
+
+    def run_batch(self, slices, ranking="faceted-bm25", *arguments):
+        environment = os.environ.copy()
+        environment["SPECSPINE_CACHE_DIR"] = str(self.cache)
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(V2_MODULE_PATH),
+                str(self.spine),
+                "--queries-json",
+                json.dumps(slices),
+                "--ranking",
+                ranking,
+                *arguments,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=environment,
+            timeout=5,
+        )
+        return result, result.stdout
+
+    def run_diagnostic_batch(self, slices, ranking="faceted-bm25", *arguments):
+        environment = os.environ.copy()
+        environment["SPECSPINE_CACHE_DIR"] = str(self.cache)
+        environment["SPECSPINE_PRODUCTION_SEARCH"] = str(V2_MODULE_PATH)
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(DIAGNOSTIC_PATH),
+                "--telemetry",
+                "full",
+                str(self.spine),
+                "--queries-json",
+                json.dumps(slices),
+                "--ranking",
+                ranking,
                 *arguments,
             ],
             check=False,
@@ -205,6 +258,359 @@ class ExtractSearchTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual([{"path": "owner.md"}], payload["direct_matches"])
+
+    def test_faceted_ranking_requires_every_group_and_accepts_synonyms(self):
+        (self.spine / "README.md").write_text(
+            "# Root\n\n[Owner](owner.md)\n", encoding="utf-8"
+        )
+        (self.spine / "owner.md").write_text(
+            "# Retry owner\n\nOwns provider failures, timed-out attempts, and retries.\n",
+            encoding="utf-8",
+        )
+        (self.spine / "provider-only.md").write_text(
+            "# Provider\n\nOwns provider integration.\n", encoding="utf-8"
+        )
+        (self.spine / "timeout-only.md").write_text(
+            "# Timeout\n\nDescribes timed-out requests.\n", encoding="utf-8"
+        )
+        slices = [{
+            "id": "retry-owner",
+            "must": [
+                ["provider"],
+                ["timeout", "timed-out"],
+                ["retry", "retries"],
+            ],
+        }]
+
+        result, output = self.run_batch(
+            slices, "faceted-bm25", "--graph-depth=0", "--graph-limit=0"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(
+            '<<<SPECSPINE_RESULT {"version":2,"mode":"sqlite-fts5",'
+            '"ranking":"faceted-bm25","truncated":false}>>>',
+            output,
+        )
+        self.assertIn(
+            '<<<SPECSPINE_SLICE {"id":"retry-owner","status":"matched",'
+            '"match_tier":"strict","joint_df":1}>>>',
+            output,
+        )
+        self.assertIn(
+            '<<<SPECSPINE_HIT {"path":"owner.md","origin":"direct",',
+            output,
+        )
+        self.assertIn('"matched_must_terms":["provider","timed-out","retry"]', output)
+        self.assertIn('<<<SPECSPINE_DOCUMENT {"path":"owner.md",', output)
+        self.assertIn("# Retry owner", output)
+        self.assertNotIn("provider-only.md", output)
+        self.assertNotIn("timeout-only.md", output)
+
+    def test_same_facets_support_legacy_and_faceted_ab_comparison(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns alphafacet betafacet gammafacet.\n", encoding="utf-8"
+        )
+        decoy_terms = (
+            "alphafacet betafacet",
+            "betafacet gammafacet",
+            "alphafacet gammafacet",
+        )
+        for index, terms in enumerate(decoy_terms):
+            (self.spine / f"decoy-{index}.md").write_text(
+                f"# Decoy {index}\n\nMentions only {terms}.\n", encoding="utf-8"
+            )
+        slices = [{
+            "id": "owner",
+            "must": [["alphafacet"], ["betafacet"], ["gammafacet"]],
+        }]
+
+        legacy_result, legacy = self.run_diagnostic_batch(
+            slices, "legacy", "--graph-depth=0", "--graph-limit=0"
+        )
+        faceted_result, faceted = self.run_diagnostic_batch(
+            slices, "faceted-bm25", "--graph-depth=0", "--graph-limit=0"
+        )
+
+        self.assertEqual(0, legacy_result.returncode, legacy_result.stderr)
+        self.assertEqual(0, faceted_result.returncode, faceted_result.stderr)
+        self.assertGreater(len(legacy["slices"][0]["direct_matches"]), 1)
+        self.assertEqual(
+            ["owner.md"],
+            [item["path"] for item in faceted["slices"][0]["direct_matches"]],
+        )
+
+    def test_batch_slices_are_ranked_independently_after_one_index_build(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        (self.spine / "alpha.md").write_text(
+            "# Alpha owner\n\nOwns alphaone alphatwo.\n", encoding="utf-8"
+        )
+        (self.spine / "beta.md").write_text(
+            "# Beta owner\n\nOwns betaone betatwo.\n", encoding="utf-8"
+        )
+        slices = [
+            {"id": "alpha", "must": [["alphaone"], ["alphatwo"]]},
+            {"id": "beta", "must": [["betaone"], ["betatwo"]]},
+        ]
+
+        result, payload = self.run_diagnostic_batch(
+            slices, "faceted-bm25", "--graph-depth=0", "--graph-limit=0"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("cold_build", payload["index_state"])
+        self.assertEqual(2, payload["slice_count"])
+        self.assertEqual(
+            ["alpha.md", "beta.md"],
+            [item["direct_matches"][0]["path"] for item in payload["slices"]],
+        )
+        raw_result, output = self.run_batch(
+            slices, "faceted-bm25", "--graph-depth=0", "--graph-limit=0"
+        )
+        self.assertEqual(0, raw_result.returncode, raw_result.stderr)
+        self.assertEqual(2, output.count("<<<SPECSPINE_SLICE "))
+        self.assertIn("# Alpha owner", output)
+        self.assertIn("# Beta owner", output)
+
+    def test_should_groups_boost_without_filtering_candidates(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        (self.spine / "preferred.md").write_text(
+            "# Preferred\n\nOwns mustalpha mustbeta preferredsignal.\n",
+            encoding="utf-8",
+        )
+        (self.spine / "other.md").write_text(
+            "# Other\n\nOwns mustalpha mustbeta.\n", encoding="utf-8"
+        )
+        slices = [{
+            "id": "owner",
+            "must": [["mustalpha"], ["mustbeta"]],
+            "should": [["preferredsignal"]],
+        }]
+
+        result, payload = self.run_diagnostic_batch(
+            slices, "faceted-bm25", "--graph-depth=0", "--graph-limit=0"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        matches = payload["slices"][0]["direct_matches"]
+        self.assertEqual("preferred.md", matches[0]["path"])
+        self.assertIn("other.md", {item["path"] for item in matches})
+        self.assertEqual(1, matches[0]["signals"]["matched_should_groups"])
+
+    def test_faceted_scoring_does_not_truncate_before_should_reranking(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        for index in range(60):
+            (self.spine / f"decoy-{index:02d}.md").write_text(
+                f"# Decoy {index}\n\nOwns poolalpha poolbeta.\n",
+                encoding="utf-8",
+            )
+        (self.spine / "z-preferred.md").write_text(
+            "# Preferred\n\nOwns poolalpha poolbeta rarepreference.\n",
+            encoding="utf-8",
+        )
+        slices = [{
+            "id": "owner",
+            "must": [["poolalpha"], ["poolbeta"]],
+            "should": [["rarepreference"]],
+        }]
+
+        result, payload = self.run_diagnostic_batch(
+            slices,
+            "faceted-bm25",
+            "--limit=1",
+            "--graph-depth=0",
+            "--graph-limit=0",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        routed = payload["slices"][0]
+        self.assertEqual("z-preferred.md", routed["direct_matches"][0]["path"])
+        self.assertEqual(61, routed["selection"]["direct_considered"])
+        self.assertEqual(3, routed["selection"]["term_queries"])
+
+    def test_exact_path_title_and_semantic_id_are_faceted_channels(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        (self.spine / "owner.md").write_text(
+            "# Exact Owner\n\n## Constraints\n\n"
+            "- **CON-owner-exact** — Canonical ownership.\n",
+            encoding="utf-8",
+        )
+        slices = [
+            {"id": "path", "must": [["owner.md"]]},
+            {"id": "title", "must": [["Exact Owner"]]},
+            {"id": "semantic", "must": [["CON-owner-exact"]]},
+        ]
+
+        result, payload = self.run_diagnostic_batch(
+            slices, "faceted-bm25", "--graph-depth=0", "--graph-limit=0"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        expected_origins = ("exact_path", "exact_title", "semantic_id")
+        for routed, expected_origin in zip(payload["slices"], expected_origins):
+            self.assertEqual("owner.md", routed["direct_matches"][0]["path"])
+            self.assertIn(
+                expected_origin,
+                routed["direct_matches"][0]["signals"]["exact_match_origins"],
+            )
+
+    def test_output_deduplicates_document_content_across_slices(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        (self.spine / "owner.md").write_text(
+            "# Shared owner\n\nOwns sharedalpha sharedbeta.\n", encoding="utf-8"
+        )
+        slices = [
+            {"id": "alpha", "must": [["sharedalpha"]]},
+            {"id": "beta", "must": [["sharedbeta"]]},
+        ]
+
+        result, output = self.run_batch(
+            slices, "faceted-bm25", "--graph-depth=0", "--graph-limit=0"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(2, output.count('<<<SPECSPINE_HIT {"path":"owner.md"'))
+        self.assertEqual(
+            1, output.count('<<<SPECSPINE_DOCUMENT {"path":"owner.md",')
+        )
+        self.assertEqual(1, output.count("# Shared owner"))
+
+    def test_partial_batch_marks_each_slice_status(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns presentneedle.\n", encoding="utf-8"
+        )
+
+        result, output = self.run_batch(
+            [
+                {"id": "found", "must": [["presentneedle"]]},
+                {"id": "missing", "must": [["absentneedle"]]},
+            ],
+            "faceted-bm25",
+            "--graph-depth=0",
+            "--graph-limit=0",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(
+            '<<<SPECSPINE_SLICE {"id":"found","status":"matched",'
+            '"match_tier":"strict","joint_df":1}>>>',
+            output,
+        )
+        self.assertIn(
+            '<<<SPECSPINE_SLICE {"id":"missing","status":"no_match",'
+            '"match_tier":"strict","joint_df":0}>>>',
+            output,
+        )
+
+    def test_output_budget_omits_whole_documents_without_cutting_protocol(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        (self.spine / "large.md").write_text(
+            "# Large\n\nbudgetneedle\n\n" + ("large-content " * 1000),
+            encoding="utf-8",
+        )
+
+        result, output = self.run_batch(
+            [{"id": "large", "must": [["budgetneedle"]]}],
+            "faceted-bm25",
+            "--graph-depth=0",
+            "--graph-limit=0",
+            "--max-output-bytes=4096",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertLessEqual(len(output.encode("utf-8")), 4096)
+        self.assertIn('"truncated":true', output)
+        self.assertIn("SPECSPINE_DOCUMENT_OMITTED", output)
+        self.assertNotIn("large-content", output)
+        self.assertTrue(output.endswith("<<<SPECSPINE_END_RESULT>>>\n"))
+
+    def test_invalid_structured_query_returns_marked_fallback(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+
+        result, payload = self.run_batch(
+            [{"id": "invalid", "must": []}], "faceted-bm25"
+        )
+
+        self.assertEqual(2, result.returncode)
+        self.assertEqual(
+            '<<<SPECSPINE_RESULT {"version":2,"mode":"fallback",'
+            '"ranking":"faceted-bm25","reason":"invalid_query",'
+            '"truncated":false}>>>\n'
+            "<<<SPECSPINE_END_RESULT>>>\n",
+            payload,
+        )
+
+    def test_faceted_document_index_refreshes_incrementally(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        owner = self.spine / "owner.md"
+        owner.write_text(
+            "# Owner\n\nOwns refreshalpha refreshbeta.\n", encoding="utf-8"
+        )
+        old_slice = [{
+            "id": "owner",
+            "must": [["refreshalpha"], ["refreshbeta"]],
+        }]
+        new_slice = [{
+            "id": "owner",
+            "must": [["refreshalpha"], ["refreshgamma"]],
+        }]
+
+        first, first_payload = self.run_diagnostic_batch(
+            old_slice, "faceted-bm25", "--graph-depth=0", "--graph-limit=0"
+        )
+        owner.write_text(
+            "# Owner\n\nOwns refreshalpha refreshgamma.\n", encoding="utf-8"
+        )
+        second, second_payload = self.run_diagnostic_batch(
+            new_slice, "faceted-bm25", "--graph-depth=0", "--graph-limit=0"
+        )
+
+        self.assertEqual(0, first.returncode, first.stderr)
+        self.assertEqual(0, second.returncode, second.stderr)
+        self.assertEqual("owner.md", first_payload["slices"][0]["direct_matches"][0]["path"])
+        self.assertEqual("incremental_refresh", second_payload["index_state"])
+        self.assertEqual("owner.md", second_payload["slices"][0]["direct_matches"][0]["path"])
+
+    def test_faceted_ranking_preserves_graph_routing(self):
+        (self.spine / "README.md").write_text("# Root\n", encoding="utf-8")
+        (self.spine / "owner.md").write_text(
+            "# Owner\n\nOwns graphalpha graphbeta. Uses [Worker](worker.md).\n",
+            encoding="utf-8",
+        )
+        (self.spine / "worker.md").write_text(
+            "# Worker\n\nProvides execution mechanics.\n", encoding="utf-8"
+        )
+        slices = [{
+            "id": "owner",
+            "must": [["graphalpha"], ["graphbeta"]],
+        }]
+
+        result, payload = self.run_diagnostic_batch(
+            slices, "faceted-bm25", "--graph-depth=1", "--graph-limit=1"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        routed = payload["slices"][0]
+        self.assertEqual(
+            ["owner.md"], [item["path"] for item in routed["direct_matches"]]
+        )
+        self.assertEqual("worker.md", routed["graph_neighbors"][0]["path"])
+        self.assertEqual(
+            "owner.md",
+            routed["graph_neighbors"][0]["transitions"][0]["source_path"],
+        )
+        raw_result, output = self.run_batch(
+            slices, "faceted-bm25", "--graph-depth=1", "--graph-limit=1"
+        )
+        self.assertEqual(0, raw_result.returncode, raw_result.stderr)
+        self.assertIn(
+            '<<<SPECSPINE_HIT {"path":"worker.md","origin":"graph"}>>>',
+            output,
+        )
+        self.assertIn('<<<SPECSPINE_DOCUMENT {"path":"worker.md",', output)
+        self.assertIn("# Worker", output)
 
     def test_cli_builds_refreshes_and_removes_without_writing_inside_spine(self):
         (self.spine / "README.md").write_text(
