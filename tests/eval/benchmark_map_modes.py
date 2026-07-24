@@ -33,7 +33,7 @@ DISPLAY_NAMES = {
 DEFAULT_ORCHESTRATOR_MODEL = "gpt-5.6-terra"
 DEFAULT_ORCHESTRATOR_REASONING_EFFORT = "medium"
 DEFAULT_SUBAGENT_ROLE = "weak"
-DEFAULT_JUDGE_MODEL = "gpt-5.6-luna"
+DEFAULT_JUDGE_MODEL = "gpt-5.6-terra"
 DEFAULT_JUDGE_REASONING_EFFORT = "medium"
 SUBAGENT_ROLES = ("weak", "medium", "strong")
 QUALITY_DIMENSIONS = (
@@ -545,7 +545,7 @@ def write_comparison(
         usage = judge_cost.get("token_usage", {})
         lines.extend(
             (
-                "Quality-judge cost is excluded from both benchmark arms.",
+                "Quality-judge cost is excluded from all benchmark arms.",
                 "",
                 f"- wall time: {format_value(judge_cost.get('wall_time_seconds'))} seconds",
                 f"- input tokens: {usage.get('input_tokens', 'n/a')}",

@@ -112,6 +112,11 @@ Use the same adapter, model, reasoning effort, fixture, and command when
 comparing runs. Record these settings explicitly rather than relying on a
 changing local default.
 
+Use `gpt-5.6-terra` with `medium` reasoning for every LLM acting as an
+evaluation or AB-test judge. This rule does not constrain the models under
+evaluation. Override the judge only for an explicitly documented
+judge-sensitivity experiment, never to improve a candidate's score.
+
 Use one sample for iteration. Before relying on a new or materially changed
 case, choose a sample count and acceptable success threshold, then run fresh
 independent samples with `--samples N`. Do not loosen assertions after one
@@ -179,7 +184,7 @@ coverage and early deterministic checks through the root sequential protocol.
 
 `map-deep-rolling-small` makes one top-level call with a production-like request
 to map the whole repository. The adapter applies
-`agents.max_concurrent_threads_per_session=2`; the prompt does not describe
+`agents.max_concurrent_threads_per_session=3`; the prompt does not describe
 producer management, branch partition, filenames, commands, continuation
 count, terminal state, or assertions. The
 case is isolated in `expensive`, so ordinary `core` and `extended` runs never
@@ -240,7 +245,7 @@ generated Spines using architectural fidelity, evidence and epistemic discipline
 responsibility and boundary clarity, material coverage, coherence/navigation,
 signal-to-noise/usefulness, and holistic overall quality. Length is reported but
 is not a failure or quality penalty by itself. This bounded, non-orchestrating
-judge defaults independently to Luna/medium; use `--judge-model` and
+judge defaults independently to Terra/medium; use `--judge-model` and
 `--judge-reasoning-effort` to override it. Use `--skip-quality-judge` only for
 mechanical harness debugging.
 

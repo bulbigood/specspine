@@ -227,6 +227,7 @@ class MapDeepContractTests(unittest.TestCase):
             "luna",
             "terra",
             "exactly two producers",
+            "exactly three producers",
             "exactly six",
         ):
             with self.subTest(marker=marker):

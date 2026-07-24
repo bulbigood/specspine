@@ -41,7 +41,7 @@ reaches its unchanged terminal invocation:
 
 `map-deep-rolling-small` provides one controlled executable orchestration case.
 One top-level invocation receives a production-like whole-repository request
-and must keep two available producer slots working across more ready branches
+and must keep three available producer slots working across more ready branches
 than slots. Codex JSONL collaboration events verify spawning and same-session
 continuation.
 All three benchmark arms copy the same 21-file
@@ -54,7 +54,7 @@ producers as Luna/medium. Map is installed only so the orchestrator can obtain,
 save, and emit in one script call a generated bundle containing the complete
 Map body, every UTF-8 reference, and every UTF-8 Markdown template; producers
 must not load those source files themselves. Collaboration assertions require
-two initial producers, no more than two simultaneously active producers,
+three initial producers, no more than three simultaneously active producers,
 multiple total spawns and resumptions, and an encrypted-message size ratio that
 rejects repeated bundles in continuations. Discovery is adaptive and keeps no
 ledger or recovery manifest. Final assertions verify
@@ -62,7 +62,7 @@ move-based publication, source protection, disposable run-root cleanup, and
 mechanical Spine validity. Document length is observed, not bounded. The
 benchmark adds one blind holistic three-way documentation-quality judgment per
 aligned sample. The judge is an independent bounded task and therefore defaults
-to Luna/medium; its cost is excluded from all arms. This case normally costs one
+to Terra/medium; its cost is excluded from all arms. This case normally costs one
 Terra/medium orchestrator plus several Luna/medium producer sessions and belongs
 in the explicit `expensive` category.
 

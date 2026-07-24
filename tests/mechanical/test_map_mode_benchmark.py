@@ -19,7 +19,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
             "medium", BENCHMARK.DEFAULT_ORCHESTRATOR_REASONING_EFFORT
         )
         self.assertEqual("weak", BENCHMARK.DEFAULT_SUBAGENT_ROLE)
-        self.assertEqual("gpt-5.6-luna", BENCHMARK.DEFAULT_JUDGE_MODEL)
+        self.assertEqual("gpt-5.6-terra", BENCHMARK.DEFAULT_JUDGE_MODEL)
         self.assertEqual("medium", BENCHMARK.DEFAULT_JUDGE_REASONING_EFFORT)
 
     def test_default_quality_judge_uses_the_minimal_bounded_profile(self):
@@ -27,7 +27,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
             BENCHMARK.DEFAULT_JUDGE_MODEL,
             BENCHMARK.DEFAULT_JUDGE_REASONING_EFFORT,
         )
-        self.assertIn("--model gpt-5.6-luna", command)
+        self.assertIn("--model gpt-5.6-terra", command)
         self.assertIn("--reasoning-effort medium", command)
         self.assertIn("--subagent-role weak", command)
 
@@ -94,7 +94,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
 
     def test_parallel_arm_limits_threads_out_of_band(self):
         case = BENCHMARK.load_case("map-deep-rolling-small")
-        self.assertEqual(2, case["subagent_max_concurrent_threads"])
+        self.assertEqual(3, case["subagent_max_concurrent_threads"])
 
     def test_all_arms_use_the_same_top_level_model(self):
         rendered = []
