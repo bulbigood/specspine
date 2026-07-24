@@ -9,8 +9,9 @@ SpecSpine notice.
 ## User request
 
 ```text
-Connect this SpecSpine to my coding agent. Use English for all SpecSpine
-documentation. Apply the integration immediately.
+Connect the existing SpecSpine at `specspine` to my coding agent. Use English
+for all SpecSpine documentation, root `AGENTS.md` for project instructions, and
+`auto` retrieval acceleration. Apply the integration immediately.
 ```
 
 ## Expected behavior

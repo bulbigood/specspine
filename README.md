@@ -144,13 +144,18 @@ continues by navigating the same Markdown links directly.
 
 ### `specspine-connect`
 
-This does not create a SpecSpine. It connects an existing SpecSpine to the
-project's persistent agent instructions with one short, framework-neutral
+Initializes or connects a SpecSpine through the project's persistent agent
+instructions. On first connection it asks for the documentation root, offering
+`specspine` as the default, before inspecting any candidate path. It then reads
+an existing root `README.md`, offers its clearly detected language as the
+documentation-language default, and asks for the remaining settings.
+`AGENTS.md` and `auto` remain the instruction-file and accelerator defaults; a
+new or language-ambiguous root defaults to English. Connect creates a minimal
+root index only when one is absent and installs one short, framework-neutral
 retrieval block. Architecture-relevant downstream work is routed through
 `specspine-extract` when installed, with direct Markdown navigation as fallback.
-The block records the resolved index, documentation language, and operator-owned
-`auto` or `disabled` retrieval-accelerator policy. Connect does not inspect or
-adapt SDD workflows and never generates bindings or other skills.
+Connect does not author project architecture, inspect or adapt SDD workflows,
+or generate bindings or other skills.
 
 ### `specspine-grow`
 
@@ -190,10 +195,14 @@ isolated producer session with self-contained Map instructions, publishes one
 Map step per checkpoint, resumes that session for the next same-branch step,
 and centrally schedules independent forks. A coverage frontier prevents a
 terminal refusal for one detail from closing its parent survey or sibling
-boundaries. Mechanically valid results are published continuously until every
-discovered branch is independently resolved. Without subagents one agent
-follows the compact sequential protocol in the root skill without loading
-parallel orchestration. Its final report recommends running
+boundaries. An atomically updated, run-scoped temporary JSON ledger makes that
+frontier durable and blocks finalization while any discovered branch is still
+queued, active, blocked, or only locally saturated. Mechanically valid results
+are published continuously until every discovered branch is independently
+resolved. Successful runs remove the ledger; interrupted runs preserve its
+path for continuation. Without subagents one agent follows the compact
+sequential protocol in the root skill without loading parallel orchestration.
+Its final report recommends running
 `specspine-doctor` separately in a new session.
 
 ### `specspine-extract`
@@ -344,12 +353,17 @@ Expose this project's SpecSpine to agents through persistent project instruction
 ```
 
 `specspine-connect` installs one managed bootstrap in the applicable persistent
-project-agent instructions. The bootstrap prefers `specspine-extract` for
+project-agent instructions. On first connection it first asks for the
+SpecSpine root (`specspine` by default), then inspects only that root. An
+existing root `README.md` supplies the proposed documentation-language default;
+otherwise the default is English. It then asks for the project instruction file
+(`AGENTS.md`) and accelerator policy (`auto`). After confirmation it creates
+the configured root `README.md` only if absent and installs the bootstrap. The
+bootstrap prefers `specspine-extract` for
 architecture-relevant downstream retrieval and retains direct index-and-link
-navigation as fallback. Connect creates no additional artifact, discovers no
-SDD framework, and persists the resolved index, SpecSpine documentation
-language, and operator-selected accelerator policy. New integrations default to
-`auto`; `disabled` skips acceleration without disabling Extract.
+navigation as fallback. Connect creates no concept specifications, discovers
+no SDD framework, and does not modify an existing SpecSpine index. `disabled`
+skips acceleration without disabling Extract.
 
 ### Start a project
 
@@ -713,7 +727,8 @@ specspine/
 │   │   │   └── bootstrap-contract.md -> ../../../shared/references/specspine-connect/bootstrap-contract.md
 │   │   └── assets/
 │   │       └── templates/
-│   │           └── agent-bootstrap.md
+│   │           ├── agent-bootstrap.md
+│   │           └── spine-index.md
 │   ├── specspine-extract/
 │   │   ├── SKILL.md
 │   │   └── scripts/

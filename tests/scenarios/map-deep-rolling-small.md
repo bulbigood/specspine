@@ -20,7 +20,9 @@ requested scope, while producers own deep evidence investigation. Each producer
 performs one Map step per checkpoint; the consumer validates and publishes it
 before resuming the same session without resending the Map bundle. Producers
 report every directly observed independent boundary in their coverage frontier,
-and the orchestrator reconciles those boundaries before accepting saturation.
+and the orchestrator atomically records those boundaries in its temporary JSON
+ledger before accepting saturation. A final ledger audit must reject queued,
+active, blocked, or merely locally saturated branches.
 Because the fixture contains no material deeper nodes, useful starting branches
 should then reach terminal `no useful node`. The orchestrator normalizes once
 and removes the successful disposable run root, then recommends an independent
@@ -34,7 +36,10 @@ and removes the successful disposable run root, then recommends an independent
 - a producer session is reused for a different architectural area;
 - a refusal for one sub-boundary closes its parent survey or siblings;
 - a broad survey reaches saturation while directly observed independent
-  boundaries are absent from its coverage frontier or branch ToDo;
+  boundaries are absent from its coverage frontier or ledger;
+- final normalization starts before the ledger's final audit returns no
+  findings;
+- an interrupted run deletes its ledger instead of reporting the recovery path;
 - a terminal continuation repeats the Map bundle or immutable shared context;
 - producer prompts omit the inline mapping contract or tell workers to load it;
 - any checker finding is bypassed or a candidate is moved after nonzero preflight;

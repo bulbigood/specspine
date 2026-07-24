@@ -32,25 +32,43 @@ format, and refusal rules unchanged.
 Map the requested scope iteratively rather than stopping after one Map step:
 
 1. Resolve the repository and Spine roots, existing intent, and evidence
-   baseline. Discover material architectural branches adaptively within the
-   operator's scope and keep an in-memory coverage frontier of every directly
-   observed independent responsibility and its disposition.
+   baseline. Create a unique temporary run root outside the Spine with
+   `mktemp -d`, then initialize its durable frontier:
+   `python3 <map-deep-skill-root>/scripts/frontier.py init
+   <run-root>/frontier.json --scope <operator-scope> --root-question
+   <root-question>`. Never put this control state in the repository.
+   If the operator supplies a preserved ledger from an interrupted run, audit
+   and resume it instead of initializing a replacement; release stale owners
+   and reconcile already published destinations first.
+   Discover material architectural branches adaptively within the operator's
+   scope and add every directly observed independent responsibility to the
+   ledger before continuing past the evidence that exposed it.
 2. Perform one shallowest useful Map step at a time directly against the live
-   Spine. Continue the same boundary and enqueue material adjacent boundaries
-   until each reaches Map's terminal refusal. Do not stop at a document count,
-   shallow overview, or initial branch list.
+   Spine. Use stable lowercase kebab-case branch IDs and the ledger commands
+   `add`, `documented`, `assign`, `release`, and `state` to record every
+   disposition. Continue the same boundary and process ready adjacent
+   boundaries until each reaches Map's terminal refusal. Do not stop at a
+   document count, shallow overview, or initial branch list.
    A terminal refusal closes only its exact architectural question; it never
    closes its parent survey or sibling boundaries. Do not saturate a broad
    survey until every frontier item is mapped, already documented, blocked, or
-   refused independently with evidence.
+   refused independently with evidence. After the ready queue drains, repeat
+   scope-level discovery; the root may saturate only when a complete pass over
+   the scope's architecture signals adds no unledgered material boundary.
 3. After every coherent write, run
    `python3 <map-deep-skill-root>/scripts/check_spine.py <spine-root> --json`.
    Resolve every error before continuing; retain warnings and notes for final
-   normalization. Do not create staging, a run root, producer reports, or
-   recovery state when no producer exists.
-4. When no actionable question remains, normalize navigation once and run the
-   checker again. Report the mapped scope, changes, relationships, unresolved
-   drift, limitations, and exact terminal reasons. Include the literal phrase
+   normalization. Do not create producer staging when no producer exists.
+4. Bottom-up, mark a branch `locally_saturated` only with its exact terminal
+   reason, then `complete` only after all children are complete. Before
+   normalization, require
+   `python3 <map-deep-skill-root>/scripts/frontier.py audit
+   <run-root>/frontier.json --final` to return `[]`; otherwise continue.
+5. Normalize navigation once and run the checker again. After success, remove
+   only the exact run root with `find <run-root> -depth -delete`. On interruption
+   or a blocker, preserve it and report the ledger path so the next run can
+   resume. Report the mapped scope, changes, relationships, unresolved drift,
+   limitations, and exact terminal reasons. Include the literal phrase
    `no useful node` and recommend `$specspine-doctor` in a new session. Never
    invoke Doctor during Map-Deep.
 

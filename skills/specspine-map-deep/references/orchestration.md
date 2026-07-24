@@ -28,13 +28,38 @@ may be enumerated internally to discover the coverage frontier. The prohibition
 on mirroring source structure applies to published specifications, not to
 discovery or scheduling.
 
-## Own the branch ToDo
+## Own the durable branch frontier
 
-The orchestrator is the sole scheduling authority. Keep an in-memory tree of
-branches with their parent, question, state, owner session, prerequisites,
-intended namespace, reserved live destinations, and accepted children. States
-are `queued`, `active`, `locally saturated`, `blocked`, and `complete`. Do not
-write this control state into the repository or staging.
+The orchestrator is the sole scheduling authority. Create a unique temporary
+run root outside the live Spine with `mktemp -d`. Use
+`<run-root>/frontier.json` as the sole scheduling record and mutate it only
+through `python3 <map-deep-skill-root>/scripts/frontier.py`. The helper writes
+atomically. Never put this control state in the repository or producer staging.
+Initialize it before discovery:
+
+```text
+python3 <map-deep-skill-root>/scripts/frontier.py init \
+  <run-root>/frontier.json --scope <operator-scope> \
+  --root-question <root-question>
+```
+
+The ledger records stable lowercase kebab-case branch IDs, parent, question,
+state, owner, prerequisite, intended namespace, terminal reason, and
+resolution. States are `queued`, `active`, `locally_saturated`, `blocked`, and
+`complete`. Treat it as a write-ahead frontier: add every observed branch
+before continuing past the evidence or checkpoint that exposed it. Commands
+are idempotent when their complete branch data agrees and reject conflicting
+reuse of an ID.
+
+Use `add <ledger> <id> --parent <id> --question <text> --origin <evidence>`
+for a new branch, adding `--prerequisite` and `--namespace` when known. Use
+`documented` with the same identity fields plus `--document <relative-path>`
+only after verifying its canonical owner. Use `assign --owner <handle>` after a
+producer handle exists, `release` after a failed start or resolved blocker,
+`state ... blocked --terminal-reason <reason>`, and `state ...
+locally_saturated --terminal-reason <exact-refusal>`. Use `state ... complete`
+bottom-up and `ready` to select dispatchable work. Run the command with `--help`
+if exact argument placement is unclear.
 
 Treat producer capacity as observed, not planned; an exact limit need not be
 known in advance. Keep a branch `queued` and unowned until the environment
@@ -60,38 +85,49 @@ Give each initial assignment exactly one independent architectural branch
 question. Never combine sibling responsibilities to reduce producer starts or
 fit available slots; leave undispatched siblings queued.
 The producer may propose child branches but must never create producers.
-Deduplicate proposals against queued, active, locally saturated, complete, and
-already documented branches. The orchestrator alone accepts forks, resolves
-prerequisites and namespace ownership, and starts queued branches when slots
-are free.
+Deduplicate proposals against the ledger and existing documents. The
+orchestrator alone accepts forks, resolves prerequisites and namespace
+ownership, and starts queued branches when slots are free. Record an already
+documented boundary with the `documented` command and its exact owning
+document; record every actionable fork with `add`. A failed start uses
+`release`, never an implicit memory-only state change.
 
-Seed and extend the branch ToDo from the orchestrator's own inspected evidence
+Seed and extend the ledger from the orchestrator's own inspected evidence
 as well as producer proposals; producer proposals never define the completeness
 of the requested scope. For every broad survey branch, maintain a coverage
 frontier of directly observed independent responsibilities. Reconcile each
-frontier item to a queued, active, blocked, locally saturated, complete, already
-documented, or independently refused branch. Keep this control state in memory,
-not in the repository.
+frontier item to its own ledger branch. Do not encode “blocked” or “refused” as
+prose on the parent: a blocked item is a `blocked` child, and an independently
+refused item must have been assigned, investigated, and transitioned through
+`locally_saturated` with its evidence-based terminal reason. Before the first
+producer starts on a whole-repository request, seed material top-level branches
+from the repository signals already inspected; continue adding signals found
+later.
 
 A same-boundary continuation remains with its current producer. A materially
 independent responsibility or boundary is a fork candidate for a new producer.
 A terminal Map refusal closes only the exact branch question assigned to that
 producer; it never closes the parent survey or sibling boundaries. A focused
-branch becomes `locally saturated` only after its owner reaches that exact
-refusal. A broad survey branch cannot become `locally saturated` until its owner
+branch becomes `locally_saturated` only after its owner reaches that exact
+refusal and the orchestrator records the exact reason with `state`. A broad
+survey branch cannot become `locally_saturated` until its owner
 also reports every directly observed material child boundary and the
-orchestrator reconciles each one into the branch ToDo. A branch becomes
-`complete` only when it is locally saturated and every accepted child branch is
-complete.
+orchestrator imports each one into the ledger. A branch becomes `complete` only
+when it is locally saturated and every child branch is complete; the helper
+enforces this bottom-up transition.
 
 ## Prepare producer sessions
 
-Create a unique disposable run root outside the live `<spine-root>` and one
-private staging root per active producer session. This state belongs only to
-the current invocation. Do not create a ledger, checkpoint, recovery manifest,
-source inventory, or resumable run protocol. Published Spine files are the
-durable result. If interrupted, report remaining staging paths; a later run
-rediscovers coverage from the current Spine.
+Use the initialized run root and create one private staging root per active
+producer session. This state belongs only to the current invocation, but it is
+the recovery point if execution is interrupted. Do not create control files
+beside the repository or Spine. Published Spine files remain the durable
+documentation result.
+
+If the operator supplies a preserved ledger path from an interrupted run, do
+not initialize a replacement. Audit that ledger without `--final`, reconcile
+its published destinations with the live Spine, release stale `active` owners,
+and continue its `ready` branches in the preserved run root.
 
 Build the complete Map instruction bundle once at
 `<run-root>/producer-instructions.md`:
@@ -162,8 +198,9 @@ Return a compact checkpoint report containing only:
 - `Current-branch continuation`: the next same-boundary work, or `none`;
 - `Coverage frontier`: every directly observed material independent boundary
   outside the next same-boundary continuation, including children found inside
-  a broad survey, marking it as a fork candidate, already documented, blocked,
-  or independently refused with its evidence-based reason; use `none` only when
+  a broad survey; for each give a suggested stable branch ID, exact question,
+  evidence, prerequisite or `none`, suggested namespace, and classification as
+  a fork candidate, already documented, or blocked; use `none` only when
   inspected evidence exposes no such boundary;
 - `Fork candidates`: each independent branch question, reason, prerequisite,
   and suggested namespace, or `none`;
@@ -210,14 +247,15 @@ candidate unchanged after zero findings. Replace only a destination reserved
 for that producer. Never reconstruct a file by reading and rewriting it, reread,
 replace an unreserved path, or add an arbitrary numeric suffix.
 
-Classify the report after publication:
+Classify the report after publication. Import its complete `Coverage frontier`
+into the ledger before resuming or releasing that producer:
 
 - accept conflict-free reservation requests and keep published paths reserved;
-- reconcile every `Coverage frontier` item against the branch ToDo and existing
-  documented branches; enqueue every actionable unowned boundary;
-- enqueue accepted `Fork candidates` as child branches;
+- reconcile every `Coverage frontier` item against the ledger and existing
+  documented branches; add every actionable unowned boundary;
+- add accepted `Fork candidates` as child branches;
 - retain blocked work with its prerequisite or authority requirement;
-- mark the branch locally saturated only after terminal `no useful node`.
+- mark the branch `locally_saturated` only after terminal `no useful node`.
 
 Treat any checkpoint that published a candidate as `continuing`, regardless of
 its reported status or missing continuation. Resume that same producer with a
@@ -236,7 +274,7 @@ mechanism. Send only the next same-branch assignment and relevant paths
 published since its previous turn; never resend the bundle or immutable shared
 context. Resume only after staging is empty. Do not assign unrelated queued
 work to that session. Once a branch is locally saturated, release its session
-and fill the slot from the branch ToDo.
+and fill the slot from the ledger's `ready` output.
 
 Use this compact continuation command:
 
@@ -269,11 +307,28 @@ The run is saturated only when no producer is active, no actionable branch
 remains, and every requested branch tree is complete. Do not stop at a
 predetermined document count or shallow overview coverage, and do not invent
 branches solely to prove depth.
-Before normalization, audit the in-memory branch ToDo against the coverage
-frontiers and discovery evidence already inspected. A broad overview that names
-independently evolving responsibilities without reconciled child dispositions
-is remaining actionable work, even when every current producer has returned
-`no useful node`.
+Whenever the ready queue first becomes empty, repeat scope-level discovery
+against the current repository evidence. For a whole repository, revisit every
+material architecture-signal class that exists there: composition roots,
+registries and manifests, routes and public interfaces, persistence, external
+integrations, configuration and deployment, security boundaries, failure
+behavior, and observability. Add any newly exposed independent boundary and
+drain the queue again. The root branch may become `locally_saturated` only when
+one complete repeat pass adds no unledgered material boundary.
+After every terminal result, close complete descendants bottom-up with `state`.
+Before normalization, run:
+
+```text
+python3 <map-deep-skill-root>/scripts/frontier.py audit \
+  <run-root>/frontier.json --final
+```
+
+Proceed only when it exits zero and prints `[]`. Any `queued`, `active`,
+`blocked`, or `locally_saturated` entry is remaining work, not a limitation to
+mention after stopping. Also audit the ledger against coverage frontiers and
+discovery evidence already inspected. A broad overview that names independently
+evolving responsibilities without child ledger entries is remaining actionable
+work, even when every current producer has returned `no useful node`.
 
 Do not reorganize the live Spine or perform final normalization while mapping
 branches remain.
@@ -296,8 +351,11 @@ Reading pre-existing indexes and overviews and running the checker remain allowe
 5. Run the full deterministic checker once over the normalized Spine.
 
 After success, remove the exact disposable run root with `find <run-root> -depth
--delete`; never try `rm -rf`. Report scope, published files, relationships, exact
-`no useful node` reasons, unresolved drift, limitations, normalization, and checks.
+-delete`; never try `rm -rf`. If interrupted or blocked before a clean final
+audit, do not normalize or delete the run root: report the exact ledger and
+staging paths so a later invocation can continue them. Report scope, published
+files, relationships, exact `no useful node` reasons, unresolved drift,
+limitations, normalization, and checks.
 The final report must contain the literal phrase `no useful node` and recommend
 that the operator run `$specspine-doctor` in a new session for an independent
 integrity and semantic review. Do not invoke Doctor in the current session.

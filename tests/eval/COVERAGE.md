@@ -2,7 +2,7 @@
 
 ## Current inventory
 
-The repository has thirty-three prose behavioral scenarios. Every scenario is
+The repository has thirty-five prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
@@ -11,11 +11,11 @@ classified.
 | `specspine-grow` | 9 | 7 |
 | `specspine-map` | 9 | 5 |
 | `specspine-map-deep` | 4 | 2 |
-| `specspine-connect` | 2 | 2 |
+| `specspine-connect` | 4 | 4 |
 | `specspine-extract` | 5 | 5 |
 | `specspine-doctor` | 3 | 2 |
 | package generator tooling | 1 | 0 |
-| Total | 33 | 23 |
+| Total | 35 | 25 |
 
 `traceable-rule` is assigned to `specspine-map` because its expected result
 includes repository-backed observations.
@@ -95,7 +95,7 @@ The executable set is divided by resource cost and necessity:
 | Category | Manifests | Top-level agent calls | Purpose |
 |---|---:|---:|---|
 | `core` | 8 | 8 | Minimum behavioral regression set, including atomic staged Map output |
-| `extended` | 12 | 15 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
+| `extended` | 14 | 21 | Lifecycle, root-first connection, language detection, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
 | `expensive` | 3 | 4–12 per sample | Three-way Map/Map Deep saturation benchmark |
 | `planned` | 10 | 0 | Documentation and future redesign only |
 
@@ -109,6 +109,8 @@ Core and extended cases currently cover:
 
 - greenfield initialization and source-file protection;
 - creation of a brownfield map from runtime evidence;
+- root-first SpecSpine setup with explicit configuration confirmation;
+- existing-root language detection without rewriting its documents;
 - generic project-agent bootstrap boundaries;
 - idempotent reconnect of the project-agent bootstrap;
 - production multi-slice Extract handoffs for backend and CLI projects

@@ -173,7 +173,7 @@ python3 tests/eval/run.py \
 
 `--case` and `--category` are repeatable and may be combined. There is no
 implicit run-all mode. Planned cases are never executed. Categories are
-disjoint: `core` has 8 executable cases, `extended` has 12, `expensive` has 3,
+disjoint: `core` has 8 executable cases, `extended` has 14, `expensive` has 3,
 and `planned` has 10 documented non-executable cases.
 
 `map-deep-repository-no-subagents` sets `agents.enabled=false` through the

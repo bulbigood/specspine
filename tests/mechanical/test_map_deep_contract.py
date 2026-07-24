@@ -49,7 +49,7 @@ class MapDeepContractTests(unittest.TestCase):
         self.assertIn("If a subagent-creation mechanism is exposed", normalized)
         self.assertIn("If no subagent-creation mechanism is exposed", normalized)
         self.assertIn("do not read that reference", normalized)
-        self.assertLessEqual(len(self.deep.splitlines()), 70)
+        self.assertLessEqual(len(self.deep.splitlines()), 80)
         for detail in (
             "private staging root",
             "`Current-branch continuation`",
@@ -59,12 +59,15 @@ class MapDeepContractTests(unittest.TestCase):
             with self.subTest(detail=detail):
                 self.assertNotIn(detail, self.deep)
 
-    def test_discovery_is_adaptive_and_has_no_recovery_protocol(self):
+    def test_discovery_is_adaptive_and_frontier_is_run_scoped(self):
         normalized = " ".join((self.deep + self.protocol).split()).lower()
         self.assertIn("discover evidence adaptively", normalized)
         self.assertIn("do not prescribe a universal listing command", normalized)
-        self.assertIn("do not create a ledger", normalized)
-        self.assertIn("current spine", normalized)
+        self.assertIn("frontier.py", normalized)
+        self.assertIn("<run-root>/frontier.json", normalized)
+        self.assertIn("writes atomically", normalized)
+        self.assertIn("never put this control state in the repository", normalized)
+        self.assertIn("recovery point if execution is interrupted", normalized)
         for obsolete in (
             "survey_repository.py",
             "ledger.ndjson",
@@ -78,6 +81,9 @@ class MapDeepContractTests(unittest.TestCase):
                 self.assertNotIn(obsolete, normalized)
         self.assertFalse(
             (ROOT / "skills/specspine-map-deep/scripts/survey_repository.py").exists()
+        )
+        self.assertTrue(
+            (ROOT / "skills/specspine-map-deep/scripts/frontier.py").is_file()
         )
 
     def test_map_refuses_terminal_output_and_branch_owner_reaches_saturation(self):
@@ -144,7 +150,7 @@ class MapDeepContractTests(unittest.TestCase):
             "regardless of its reported status or missing continuation",
             "only a later candidate-free `no useful node`",
             "Resume a continuing branch through the environment's native follow-up mechanism",
-            "complete` only when it is locally saturated and every accepted child branch is complete",
+            "`complete` only when it is locally saturated and every child branch is complete",
         ):
             with self.subTest(statement=statement):
                 self.assertIn(statement, normalized)
@@ -155,12 +161,16 @@ class MapDeepContractTests(unittest.TestCase):
             "coverage frontier",
             "producer proposals never define the completeness",
             "A terminal Map refusal closes only the exact branch question",
-            "A broad survey branch cannot become `locally saturated`",
+            "A broad survey branch cannot become `locally_saturated`",
             "Report every such boundary directly observed",
             "`Coverage frontier`",
             "reconcile every `Coverage frontier` item",
             "Treat `no useful node` as scoped to the exact assigned question",
-            "audit the in-memory branch ToDo against the coverage frontiers",
+            "Import its complete `Coverage frontier` into the ledger",
+            "add every observed branch before continuing past the evidence",
+            "seed material top-level branches",
+            "repeat scope-level discovery",
+            "adds no unledgered material boundary",
         ):
             with self.subTest(statement=statement):
                 self.assertIn(statement, normalized)
@@ -303,8 +313,10 @@ class MapDeepContractTests(unittest.TestCase):
             "Perform one shallowest useful Map step at a time directly against the live Spine",
             "After every coherent write",
             "<map-deep-skill-root>/scripts/check_spine.py",
-            "Do not create staging, a run root, producer reports, or recovery state",
-            "When no actionable question remains",
+            "<run-root>/frontier.json",
+            "Do not create producer staging when no producer exists",
+            "Before normalization",
+            "--final",
         ):
             with self.subTest(statement=statement):
                 self.assertIn(statement, normalized_root)
@@ -326,13 +338,16 @@ class MapDeepContractTests(unittest.TestCase):
         self.assertIn("After saturation, perform one sequential navigation pass", normalized_parallel)
         self.assertIn("Add every new document to curated `README.md` navigation", normalized_parallel)
         self.assertIn("Run the full deterministic checker once", normalized_parallel)
+        self.assertIn("Proceed only when it exits zero and prints `[]`", normalized_parallel)
+        self.assertIn("do not normalize or delete the run root", normalized_parallel)
+        self.assertIn("preserve it and report the ledger path", normalized_root)
         self.assertIn("final report must contain the literal phrase `no useful node`", normalized_parallel)
         self.assertIn("run `$specspine-doctor` in a new session", normalized_parallel)
         self.assertIn("Do not invoke Doctor in the current session", normalized_parallel)
         self.assertIn("recommend `$specspine-doctor` in a new session", normalized_root)
         self.assertIn("Never invoke Doctor during Map-Deep", normalized_root)
         self.assertNotIn("only when the operator explicitly requests", normalized_parallel)
-        self.assertLessEqual(len(self.protocol.splitlines()), 310)
+        self.assertLessEqual(len(self.protocol.splitlines()), 370)
 
 
 if __name__ == "__main__":

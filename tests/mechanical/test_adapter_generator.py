@@ -154,10 +154,10 @@ class AdapterGeneratorTests(unittest.TestCase):
             self.assertFalse(untouched.is_symlink())
             self.assertEqual("untouched\n", untouched.read_text(encoding="utf-8"))
 
-    def test_connect_has_only_framework_neutral_bootstrap_template(self):
+    def test_connect_has_only_connection_templates(self):
         templates = PROJECT_ROOT / "skills" / "specspine-connect" / "assets" / "templates"
         self.assertEqual(
-            {"agent-bootstrap.md"},
+            {"agent-bootstrap.md", "spine-index.md"},
             {path.name for path in templates.iterdir() if path.is_file()},
         )
 
@@ -166,6 +166,24 @@ class AdapterGeneratorTests(unittest.TestCase):
         bootstrap = (source / "assets/templates/agent-bootstrap.md").read_text(encoding="utf-8")
         self.assertIn("{{DOCUMENTATION_LANGUAGE}}", bootstrap)
         self.assertIn("{{RETRIEVAL_ACCELERATOR}}", bootstrap)
+
+    def test_connect_contract_requires_confirmed_first_setup(self):
+        source = PROJECT_ROOT / "skills" / "specspine-connect"
+        skill = (source / "SKILL.md").read_text(encoding="utf-8")
+        index = (source / "assets/templates/spine-index.md").read_text(encoding="utf-8")
+        for value in ("`specspine`", "`English`", "`AGENTS.md`", "`auto`"):
+            self.assertIn(value, skill)
+        self.assertIn("Ask only this question", skill)
+        self.assertIn("<spine-root>/README.md", skill)
+        self.assertLess(
+            skill.index("ask for it before inspecting any"),
+            skill.index("Detect the dominant natural language"),
+        )
+        self.assertIn("inspect its immediate", skill)
+        self.assertIn("read it without following any", skill)
+        self.assertIn("exact label the operator accepts", skill)
+        self.assertIn("not translate or rewrite", skill)
+        self.assertIn("# Project architecture", index)
 
     def test_generator_has_no_runtime_skill_or_skill_copies(self):
         self.assertFalse((GENERATOR_ROOT / "SKILL.md").exists())

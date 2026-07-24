@@ -1,0 +1,53 @@
+{
+  "id": "connect-existing-root-language",
+  "scenario": "tests/scenarios/connect-existing-root-language.md",
+  "status": "executable",
+  "category": "extended",
+  "eval_language": "English",
+  "initial_files": {
+    "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n",
+    "architecture/README.md": "# Архитектура проекта\n\n## Назначение\n\nСистема обрабатывает документы и предоставляет поиск по извлечённому содержимому.\n\n## Карта архитектуры\n\n- [Обработка документов](document-processing.md)\n",
+    "architecture/document-processing.md": "# Обработка документов\n\nОтвечает за приём документов и асинхронное извлечение содержимого.\n"
+  },
+  "stages": [
+    {
+      "id": "request-root",
+      "skill": "skills/specspine-connect",
+      "prompt": "Set up SpecSpine for this project.",
+      "assertions": [
+        {"type": "max_changed_files", "max": 0},
+        {"type": "response_contains", "value": "specspine"},
+        {"type": "response_not_contains", "values": ["Russian", "English", "AGENTS.md", "auto"]},
+        {"type": "command_excludes", "value": "specspine"}
+      ]
+    },
+    {
+      "id": "select-existing-root",
+      "skill": "skills/specspine-connect",
+      "prompt": "Use `architecture` as the SpecSpine root.",
+      "assertions": [
+        {"type": "max_changed_files", "max": 0},
+        {"type": "response_contains", "values": ["Russian", "AGENTS.md", "auto"]},
+        {"type": "read_includes", "paths": ["architecture/README.md"]},
+        {"type": "unchanged", "paths": ["AGENTS.md", "architecture/**"]}
+      ]
+    },
+    {
+      "id": "accept-detected-defaults",
+      "skill": "skills/specspine-connect",
+      "prompt": "Use `architecture` as the root and accept detected Russian, `AGENTS.md`, and `auto`. Complete the connection now.",
+      "assertions": [
+        {"type": "changed_only", "paths": ["AGENTS.md"]},
+        {"type": "unchanged", "paths": ["architecture/**"]},
+        {"type": "file_contains", "path": "AGENTS.md", "value": "Preserve this user-authored sentence."},
+        {"type": "file_contains", "path": "AGENTS.md", "values": ["SpecSpine index: `architecture/README.md`", "Documentation language: `Russian`", "Retrieval accelerator: `auto`"]},
+        {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1}
+      ]
+    }
+  ],
+  "final_assertions": [
+    {"type": "changed_only", "paths": ["AGENTS.md"]},
+    {"type": "unchanged", "paths": ["architecture/**"]},
+    {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1}
+  ]
+}

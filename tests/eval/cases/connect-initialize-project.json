@@ -1,0 +1,52 @@
+{
+  "id": "connect-initialize-project",
+  "scenario": "tests/scenarios/connect-initialize-project.md",
+  "status": "executable",
+  "category": "extended",
+  "eval_language": "English",
+  "initial_files": {
+    "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n"
+  },
+  "stages": [
+    {
+      "id": "request-unconfigured-setup",
+      "skill": "skills/specspine-connect",
+      "prompt": "Set up SpecSpine for this project.",
+      "assertions": [
+        {"type": "max_changed_files", "max": 0},
+        {"type": "response_contains", "value": "specspine"},
+        {"type": "response_not_contains", "values": ["English", "AGENTS.md", "auto"]},
+        {"type": "command_excludes", "value": "specspine"}
+      ]
+    },
+    {
+      "id": "select-default-root",
+      "skill": "skills/specspine-connect",
+      "prompt": "Use `specspine` as the SpecSpine root.",
+      "assertions": [
+        {"type": "max_changed_files", "max": 0},
+        {"type": "response_contains", "values": ["English", "AGENTS.md", "auto"]}
+      ]
+    },
+    {
+      "id": "accept-remaining-defaults",
+      "skill": "skills/specspine-connect",
+      "prompt": "Use `specspine` as the root and accept English, `AGENTS.md`, and `auto` as the remaining defaults. Complete setup now.",
+      "assertions": [
+        {"type": "changed_only", "paths": ["AGENTS.md", "specspine/README.md"]},
+        {"type": "file_contains", "path": "AGENTS.md", "value": "Preserve this user-authored sentence."},
+        {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1},
+        {"type": "file_contains", "path": "AGENTS.md", "values": ["SpecSpine index: `specspine/README.md`", "Documentation language: `English`", "Retrieval accelerator: `auto`"]},
+        {"type": "path_exists", "path": "specspine/README.md"},
+        {"type": "file_contains", "path": "specspine/README.md", "values": ["# Project architecture", "## Purpose", "## Architecture map"]},
+        {"type": "no_template_placeholders", "glob": "AGENTS.md"},
+        {"type": "no_template_placeholders", "glob": "specspine/**"}
+      ]
+    }
+  ],
+  "final_assertions": [
+    {"type": "changed_only", "paths": ["AGENTS.md", "specspine/README.md"]},
+    {"type": "glob_count", "glob": "specspine/*.md", "min": 1, "max": 1},
+    {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1}
+  ]
+}
