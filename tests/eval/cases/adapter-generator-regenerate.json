@@ -9,8 +9,8 @@
   "assertions": [
     {"type": "path_exists", "path": "skills/specspine-map/references/spec-format.md"},
     {"type": "path_exists", "path": "skills/specspine-map/references/spec-semantics.md"},
-    {"type": "path_exists", "path": "skills/specspine-map-large/references/orchestration.md"},
+    {"type": "path_exists", "path": "skills/specspine-map-deep/references/orchestration.md"},
     {"type": "path_exists", "path": "skills/specspine-doctor/references/spec-semantics.md"},
-    {"type": "changed_only", "paths": ["skills/specspine-connect/references/**", "skills/specspine-grow/references/**", "skills/specspine-map/references/**", "skills/specspine-map-large/references/**", "skills/specspine-doctor/references/**"]}
+    {"type": "changed_only", "paths": ["skills/specspine-connect/references/**", "skills/specspine-grow/references/**", "skills/specspine-map/references/**", "skills/specspine-map-deep/references/**", "skills/specspine-doctor/references/**"]}
   ]
 }

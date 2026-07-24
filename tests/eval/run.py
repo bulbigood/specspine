@@ -126,6 +126,7 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         return {}
     duration = trace.get("duration_seconds")
     files_read = trace.get("files_read")
+    generated_files_read = trace.get("generated_files_read")
     usage = trace.get("token_usage")
     attempts = trace.get("retrieval_attempts")
     event_metrics = trace.get("event_metrics")
@@ -166,6 +167,16 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         "environment_invalid": bool(trace.get("environment_invalid", False)),
         "files_read": len(set(map(str, files_read))) if isinstance(files_read, list) else None,
         "file_paths_read": sorted(set(map(str, files_read))) if isinstance(files_read, list) else [],
+        "generated_files_read": (
+            len(set(map(str, generated_files_read)))
+            if isinstance(generated_files_read, list)
+            else None
+        ),
+        "generated_file_paths_read": (
+            sorted(set(map(str, generated_files_read)))
+            if isinstance(generated_files_read, list)
+            else []
+        ),
         "model": trace.get("model"),
         "reasoning_effort": trace.get("reasoning_effort"),
         "subagent_role": trace.get("subagent_role"),
@@ -1005,6 +1016,20 @@ def evaluate_assertion(
         needles = assertion.get("values", [assertion.get("value", "")])
         found = [needle for needle in needles if any(needle in command for command in commands)]
         return CheckResult(not found, f"forbidden command text found: {found}" if found else "forbidden command text absent")
+    if kind == "command_occurrences":
+        if trace is None or not isinstance(trace.get("commands"), list):
+            return CheckResult(False, "agent did not produce .eval/trace.json with commands")
+        needle = str(assertion["value"])
+        count = sum(str(command).count(needle) for command in trace["commands"])
+        minimum = int(assertion.get("min", 0))
+        maximum = int(assertion.get("max", count))
+        return CheckResult(
+            minimum <= count <= maximum,
+            (
+                f"command text occurrence count for {needle!r}: {count}, "
+                f"expected {minimum}..{maximum}"
+            ),
+        )
     if kind == "candidate_preflight_before_publish":
         if trace is None:
             return CheckResult(False, "agent did not produce a trace")
@@ -1060,6 +1085,7 @@ def evaluate_assertion(
     if kind in {
         "collab_spawn_count",
         "collab_initial_spawn_count",
+        "collab_max_active",
         "collab_spawn_prompts",
         "collab_refill_before_staging_consume",
         "collab_targets_spawned_agents",
@@ -1199,12 +1225,79 @@ def evaluate_assertion(
         activity = trace.get("activity")
         if not isinstance(activity, list):
             return CheckResult(False, "agent trace has no ordered activity")
+        if kind == "collab_max_active":
+            active: set[str] = set()
+            observed_maximum = 0
+            for item in activity:
+                if (
+                    not isinstance(item, dict)
+                    or item.get("kind") != "collab"
+                    or item.get("status") != "completed"
+                ):
+                    continue
+                tool = item.get("tool")
+                receivers = {
+                    str(value)
+                    for value in item.get("receiver_thread_ids", [])
+                }
+                states = item.get("agents_states", {})
+                terminal = (
+                    {
+                        str(identifier)
+                        for identifier, state in states.items()
+                        if isinstance(state, dict)
+                        and state.get("status")
+                        in {
+                            "cancelled",
+                            "completed",
+                            "failed",
+                            "not_found",
+                            "shutdown",
+                        }
+                    }
+                    if isinstance(states, dict)
+                    else set()
+                )
+                matched_terminal = active.intersection(terminal)
+                active.difference_update(terminal)
+                if tool == "close_agent":
+                    active.difference_update(receivers)
+                elif (
+                    tool == "wait"
+                    and terminal
+                    and not matched_terminal
+                    and len(receivers) == 1
+                ):
+                    active.difference_update(receivers)
+                if tool == "spawn_agent":
+                    active.update(receivers)
+                    observed_maximum = max(observed_maximum, len(active))
+            minimum = assertion.get("min", 1)
+            maximum = assertion.get("max", sys.maxsize)
+            return CheckResult(
+                minimum <= observed_maximum <= maximum,
+                (
+                    f"maximum concurrently active producers: {observed_maximum}, "
+                    f"expected {minimum}..{maximum}"
+                ),
+            )
         staging_path = assertion["path"]
         refill_observed = False
+        successful_refills = 0
         violations: list[str] = []
+        spawned_so_far = 0
+        until_spawn_count = assertion.get("until_spawn_count")
         for index, item in enumerate(activity):
             if not isinstance(item, dict) or item.get("kind") != "collab":
                 continue
+            if (
+                item.get("tool") == "spawn_agent"
+                and item.get("status") == "completed"
+            ):
+                receivers = item.get("receiver_thread_ids", [])
+                spawned_so_far += (
+                    len(receivers) if isinstance(receivers, list) and receivers else 1
+                )
             states = item.get("agents_states", {})
             completed_wait = (
                 item.get("tool") == "wait"
@@ -1215,6 +1308,11 @@ def evaluate_assertion(
                 )
             )
             if not completed_wait:
+                continue
+            if (
+                isinstance(until_spawn_count, int)
+                and spawned_so_far >= until_spawn_count
+            ):
                 continue
             next_spawn = next(
                 (
@@ -1230,6 +1328,7 @@ def evaluate_assertion(
             if next_spawn is None:
                 continue
             refill_observed = True
+            consumed_before_refill = False
             for between in activity[index + 1 : next_spawn]:
                 if (
                     not isinstance(between, dict)
@@ -1248,6 +1347,20 @@ def evaluate_assertion(
                 )
                 if consumes:
                     violations.append(command[:300])
+                    consumed_before_refill = True
+            if not consumed_before_refill:
+                successful_refills += 1
+        required_refills = assertion.get("min")
+        if isinstance(required_refills, int):
+            passed = successful_refills >= required_refills and not violations
+            return CheckResult(
+                passed,
+                (
+                    f"successful refill-before-consume transitions: "
+                    f"{successful_refills}, required at least {required_refills}; "
+                    f"violations: {violations}"
+                ),
+            )
         return CheckResult(
             refill_observed and not violations,
             (

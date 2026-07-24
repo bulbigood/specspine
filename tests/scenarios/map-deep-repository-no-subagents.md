@@ -9,7 +9,7 @@ The execution environment cannot launch subagents.
 ## User request
 
 ```text
-Use `$specspine-map-large` to map the complete repository into SpecSpine.
+Use `$specspine-map-deep` to map the complete repository into SpecSpine.
 ```
 
 ## Expected behavior
@@ -17,15 +17,16 @@ Use `$specspine-map-large` to map the complete repository into SpecSpine.
 The agent should:
 
 - use the large-repository mapping protocol despite lacking subagents;
-- create a disposable run root with a minimal recovery ledger;
-- perform only a shallow topology scan and seed a bounded ready queue;
+- discover the requested repository scope adaptively;
+- create a disposable run root without persistent recovery state;
 - act as one local producer, taking one architectural question at a time;
 - inspect only evidence relevant to the current question;
-- stage, read once, and publish each acceptable candidate with a filesystem
+- stage and publish each acceptable candidate with a filesystem
   move tool;
-- checkpoint after publication and continue from producer reports;
+- continue from material follow-up questions in producer reports;
 - avoid holding the whole repository map or all evidence in context;
 - cover material cross-cutting flows before declaring saturation;
+- stop each branch only when Map can add no useful architectural document;
 - normalize once after saturation and report that execution was sequential
   because subagents were unavailable.
 
@@ -34,6 +35,6 @@ The agent should:
 - the agent skips the large-repository protocol;
 - the agent attempts one unbounded whole-repository source pass;
 - the agent treats a few initial overview nodes as complete mapping;
-- queue state exists only in conversational context;
+- the agent creates a ledger, recovery manifest, or resumable run protocol;
 - the agent manually reconstructs staged files during publication;
 - normalization or Doctor runs before saturation.

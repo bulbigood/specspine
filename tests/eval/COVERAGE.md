@@ -10,7 +10,7 @@ classified.
 |---|---:|---:|
 | `specspine-grow` | 9 | 7 |
 | `specspine-map` | 9 | 5 |
-| `specspine-map-large` | 3 | 1 |
+| `specspine-map-deep` | 3 | 1 |
 | `specspine-connect` | 2 | 2 |
 | `specspine-extract` | 5 | 5 |
 | `specspine-doctor` | 3 | 2 |
@@ -33,26 +33,32 @@ across five cases:
   references;
 - `map-staged-producer`: one bounded producer writes a publish-ready candidate
   to a private output root while the live Spine remains read-only.
-- `map-direct-comparison-small`: maps the same controlled three-area repository
-  used by `map-large-rolling-small`, enabling a paired semantic-quality/cost
+- `map-direct-comparison-small`: maps the same controlled six-area repository
+  used by `map-deep-rolling-small`, enabling a paired semantic-quality/cost
   benchmark.
 
-`map-large-rolling-small` provides one controlled executable orchestration
-case. One top-level invocation must dispatch three single-zone mapper producers
-within two available worker slots. Codex JSONL collaboration events verify
-self-contained completion without prescribing agent-lifecycle mechanics.
-Generated artifacts verify the three-zone partition through their evidence
+`map-deep-rolling-small` provides one controlled executable orchestration
+case. One top-level invocation must dispatch six single-zone mapper producers
+and six terminal depth probes within two available worker slots. Codex JSONL
+collaboration events provide behavioral evidence without prescribing
+agent-lifecycle mechanics. Both A/B arms copy the same 21-file
+`map-modes-six-area` fixture tree, including six source/test/config evidence
+slices, so project drift between manifests cannot bias the comparison.
+Generated artifacts verify the six-zone partition through their evidence
 coverage. The runtime trace pins the orchestrator to Terra/medium and configures
 producers as Luna/medium. Map is installed only so the orchestrator can obtain,
 save, and emit in one script call a generated bundle containing the complete
 Map body and every UTF-8 file under Map `references/`; producers must not load
-those source files themselves. The case rejects top-level source/test reads:
-initial questions must come from one path-only project-tree listing.
-Final assertions verify move-based publication, source protection, disposable
-run-root cleanup, and mechanical Spine validity. Document length is observed,
-not bounded. The paired benchmark adds one blind holistic documentation-quality
-judgment per sample pair. This case
-normally costs one orchestrator plus three producer agents and belongs in the explicit
+those source files themselves. Collaboration assertions require exactly two
+initial producers, no more than two simultaneously active producers, 12–18
+total producer spawns, one-zone prompt partitions, and at least four
+refill-before-staging-consumption transitions while the six-question initial
+queue still has undispatched work. Discovery is adaptive and keeps no ledger or
+recovery manifest. Final assertions verify move-based publication, source
+protection, disposable run-root cleanup, and mechanical Spine validity.
+Document length is observed, not bounded. The paired benchmark adds one blind
+holistic documentation-quality judgment per sample pair. This case
+normally costs one orchestrator plus at least twelve producer agents and belongs in the explicit
 `expensive` category.
 
 Remaining distinct behavioral gaps are:
@@ -60,13 +66,13 @@ Remaining distinct behavioral gaps are:
 - atomic Map returning no new document when the live Spine already answers the
   bounded question;
 - custom `<spine-root>` handling;
-- report-driven discovery of a question not present in the initial large-Map
-  backlog;
-- large-Map retry/resume, candidate rejection, path collision, and source-state
-  change handling;
+- report-driven recursive discovery followed by a terminal no-output Map
+  producer;
+- large-Map candidate rejection and path-collision handling;
 - a controlled no-subagent execution mode that proves the same protocol is
   retained sequentially;
-- post-saturation normalization without source rereads and optional Doctor
+- focused large-Map scope that ignores unrelated repository areas;
+- post-saturation normalization without candidate rereads and optional Doctor
   gating.
 
 Keep broader parallel and no-subagent scenarios planned until they protect one
@@ -79,11 +85,11 @@ The executable set is divided by resource cost and necessity:
 |---|---:|---:|---|
 | `core` | 8 | 8 | Minimum behavioral regression set, including atomic staged Map output |
 | `extended` | 12 | 15 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
-| `expensive` | 2 | 2 | Paired direct Map and rolling Map Large benchmark; the latter normally has three nested producers |
+| `expensive` | 2 | 2 | Paired direct Map and rolling Map Deep benchmark; the latter normally has at least twelve nested producers |
 | `planned` | 10 | 0 | Documentation and future redesign only |
 
-The table counts harness invocations. `map-large-rolling-small` additionally
-creates three producer tasks. Its
+The table counts harness invocations. `map-deep-rolling-small` additionally
+creates useful producer tasks and terminal depth probes. Its
 separate category prevents ordinary `core` or `extended` runs from selecting
 it.
 
@@ -125,7 +131,7 @@ test or an existing behavioral case.
 Potential gaps:
 
 - agent navigation efficiency on larger-than-small documentation graphs;
-- large-Map recovery and report-discovered backlog growth beyond the controlled
+- large-Map report-discovered backlog growth beyond the controlled
   rolling-publication case;
 - custom `<spine-root>` handling in `grow` and `map`;
 - broken links, unreachable specifications, duplicate IDs, and duplicate

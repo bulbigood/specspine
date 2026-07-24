@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare direct Map with orchestrated Map Large on one small repository."""
+"""Compare direct Map with orchestrated Map Deep on one small repository."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = Path(__file__).resolve().parent
 ARMS = (
     ("map", "map-direct-comparison-small"),
-    ("map-large", "map-large-rolling-small"),
+    ("map-deep", "map-deep-rolling-small"),
 )
 DEFAULT_ORCHESTRATOR_MODEL = "gpt-5.6-terra"
 DEFAULT_ORCHESTRATOR_REASONING_EFFORT = "medium"
@@ -43,10 +43,25 @@ def load_case(case_id: str) -> dict[str, Any]:
     )
 
 
+def fixture_files(case: dict[str, Any]) -> dict[str, str]:
+    initial_files = case.get("initial_files")
+    if isinstance(initial_files, dict):
+        return {str(path): str(content) for path, content in initial_files.items()}
+    initial_tree = case.get("initial_tree")
+    if not isinstance(initial_tree, str):
+        raise ValueError("Map benchmark case has no fixture")
+    root = ROOT / initial_tree
+    return {
+        path.relative_to(root).as_posix(): path.read_text(encoding="utf-8")
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
 def validate_equal_fixtures() -> None:
-    fixtures = [load_case(case_id).get("initial_files") for _, case_id in ARMS]
+    fixtures = [fixture_files(load_case(case_id)) for _, case_id in ARMS]
     if not fixtures or any(fixture != fixtures[0] for fixture in fixtures[1:]):
-        raise ValueError("Map benchmark arms must use identical initial_files")
+        raise ValueError("Map benchmark arms must use identical fixtures")
 
 
 def report_command(
@@ -87,7 +102,7 @@ def common_value(values: list[Any]) -> Any:
     return next(iter(unique)) if len(unique) == 1 else ("mixed" if unique else None)
 
 
-def summarize(report: dict[str, Any]) -> dict[str, Any]:
+def summarize(report: dict[str, Any], *, uses_subagents: bool = True) -> dict[str, Any]:
     samples = report["samples"]
     quality_checks = {
         "glob_count",
@@ -135,14 +150,17 @@ def summarize(report: dict[str, Any]) -> dict[str, Any]:
         "top_level_reasoning_effort": common_value(
             [run.get("reasoning_effort") for run in runs]
         ),
-        "subagent_model": common_value(
-            [run.get("subagent_model") for run in runs]
+        "subagent_model": (
+            common_value([run.get("subagent_model") for run in runs])
+            if uses_subagents else None
         ),
-        "subagent_role": common_value(
-            [run.get("subagent_role") for run in runs]
+        "subagent_role": (
+            common_value([run.get("subagent_role") for run in runs])
+            if uses_subagents else None
         ),
-        "subagent_reasoning_effort": common_value(
-            [run.get("subagent_reasoning_effort") for run in runs]
+        "subagent_reasoning_effort": (
+            common_value([run.get("subagent_reasoning_effort") for run in runs])
+            if uses_subagents else None
         ),
         "pass_rate": mean([float(bool(sample.get("passed"))) for sample in samples]),
         "mechanical_quality_pass_rate": mean([
@@ -185,18 +203,46 @@ def summarize(report: dict[str, Any]) -> dict[str, Any]:
         "mean_agent_tree_reasoning_tokens": mean([
             float(row.get("reasoning_output_tokens", 0)) for row in token_rows
         ]),
-        "mean_files_read": mean([
+        "mean_initial_files_read": mean([
             float(run["files_read"]) for run in runs
             if isinstance(run.get("files_read"), int)
+        ]),
+        "mean_generated_files_read": mean([
+            float(run["generated_files_read"]) for run in runs
+            if isinstance(run.get("generated_files_read"), int)
         ]),
         "mean_tool_cycles": mean([
             float(run["cost_ledger"]["tool_cycles"]) for run in runs
             if isinstance(run.get("cost_ledger"), dict)
             and isinstance(run["cost_ledger"].get("tool_cycles"), int)
         ]),
-        "mean_spawned_agents": mean([
-            float(run["spawned_agent_count"]) for run in runs
+        "parallelism_evidence": (
+            "observed"
+            if any(
+                run.get("agent_telemetry", {}).get("coverage", {}).get(
+                    "spawn_observed_count", 0
+                ) > 0
+                for run in runs
+                if isinstance(run.get("agent_telemetry"), dict)
+            )
+            else "behaviorally_confirmed"
+            if uses_subagents
+            and any(
+                run.get("event_metrics", {}).get("wait_call_count", 0) > 0
+                for run in runs
+                if isinstance(run.get("event_metrics"), dict)
+            )
+            else "unavailable"
+            if uses_subagents
+            else "not_applicable"
+        ),
+        "mean_observed_spawned_agents": mean([
+            float(run["spawned_agent_count"])
+            for run in runs
             if isinstance(run.get("spawned_agent_count"), int)
+            and run.get("agent_telemetry", {}).get("coverage", {}).get(
+                "spawn_observed_count", 0
+            ) > 0
         ]),
         "mean_observed_producer_wall_time_seconds": mean([
             float(producer["observed_duration_seconds"])
@@ -294,7 +340,7 @@ def judge_reports(
         }
         for label, report in reports.items()
     }
-    sample_numbers = sorted(set(by_arm["map"]) & set(by_arm["map-large"]))
+    sample_numbers = sorted(set(by_arm["map"]) & set(by_arm["map-deep"]))
     judgments: list[dict[str, Any]] = []
     token_usage: dict[str, int] = {}
     started = time.monotonic()
@@ -302,16 +348,16 @@ def judge_reports(
         order_material = json.dumps(
             {
                 label: by_arm[label][sample_number].get("artifacts", {})
-                for label in ("map", "map-large")
+                for label in ("map", "map-deep")
             },
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
         )
         order = (
-            ("map", "map-large")
+            ("map", "map-deep")
             if hashlib.sha256(order_material.encode()).digest()[0] % 2
-            else ("map-large", "map")
+            else ("map-deep", "map")
         )
         with tempfile.TemporaryDirectory(prefix="specspine-map-quality-judge-") as directory:
             workspace = Path(directory)
@@ -378,7 +424,10 @@ def write_comparison(
     judgments: list[dict[str, Any]] | None = None,
     judge_cost: dict[str, Any] | None = None,
 ) -> None:
-    summaries = {label: summarize(report) for label, report in reports.items()}
+    summaries = {
+        label: summarize(report, uses_subagents=label == "map-deep")
+        for label, report in reports.items()
+    }
     judgments = judgments or []
     for label in summaries:
         for dimension in (*QUALITY_DIMENSIONS, "overall"):
@@ -397,15 +446,15 @@ def write_comparison(
             ]
         )
     lines = [
-        "# Map vs Map Large benchmark",
+        "# Map vs Map Deep benchmark",
         "",
-        "| Metric | Map | Map Large |",
+        "| Metric | Map | Map Deep |",
         "|---|---:|---:|",
     ]
     for field in next(iter(summaries.values())):
         lines.append(
             f"| {field} | {format_value(summaries['map'][field])} | "
-            f"{format_value(summaries['map-large'][field])} |"
+            f"{format_value(summaries['map-deep'][field])} |"
         )
     lines.extend((
         "",
@@ -424,7 +473,7 @@ def write_comparison(
         "thread, model, assignment, prompt size/hash, status, and collaboration-call "
         "duration.",
         "",
-        "Raw reports: `map.json`, `map-large.json`.",
+        "Raw reports: `map.json`, `map-deep.json`.",
         "",
     ))
     if judge_cost:
@@ -499,7 +548,7 @@ def main() -> int:
             judgments, judge_cost = judge_reports(
                 reports,
                 judge_command,
-                load_case(ARMS[0][1])["initial_files"],
+                fixture_files(load_case(ARMS[0][1])),
             )
         except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
             print(f"Quality judge failed: {error}", file=sys.stderr)

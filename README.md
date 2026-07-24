@@ -182,15 +182,14 @@ or drift.
 It records observed repository evidence separately from intended architectural
 decisions and preserves disagreements.
 
-### `specspine-map-large`
+### `specspine-map-deep`
 
-Orchestrates an explicitly requested complete or sustained mapping run over a
-large repository. It keeps a bounded backlog, stages mapper output, publishes
-continuously, checkpoints recovery state, reaches saturation, and normalizes
-the final SpecSpine. With subagents it sends several producers a self-contained
-inline mapping command;
-without them one agent performs orchestrator, producer, and consumer roles
-sequentially.
+Orchestrates an explicitly requested deep mapping run over one area, several
+areas, or a whole brownfield repository. It gives isolated producers
+self-contained Map instructions, publishes mechanically valid results, and
+recursively follows evidence-backed architectural questions until producers
+can add no useful documentation. Without subagents one agent performs
+orchestrator, producer, and consumer roles sequentially.
 
 ### `specspine-extract`
 
@@ -278,7 +277,7 @@ Install the explicit large-repository orchestrator together with its mapper:
 
 ```bash
 npx skills add bulbigood/specspine --skill specspine-map
-npx skills add bulbigood/specspine --skill specspine-map-large
+npx skills add bulbigood/specspine --skill specspine-map-deep
 ```
 
 Install `specspine-doctor` from this repository:
@@ -300,7 +299,7 @@ npx skills add bulbigood/specspine --skill specspine-connect
 npx skills add bulbigood/specspine --skill specspine-extract
 npx skills add bulbigood/specspine --skill specspine-grow
 npx skills add bulbigood/specspine --skill specspine-map
-npx skills add bulbigood/specspine --skill specspine-map-large
+npx skills add bulbigood/specspine --skill specspine-map-deep
 npx skills add bulbigood/specspine --skill specspine-doctor
 ```
 
@@ -315,7 +314,7 @@ npx skills add . --skill specspine-connect
 npx skills add . --skill specspine-extract
 npx skills add . --skill specspine-grow
 npx skills add . --skill specspine-map
-npx skills add . --skill specspine-map-large
+npx skills add . --skill specspine-map-deep
 npx skills add . --skill specspine-doctor
 ```
 
@@ -438,15 +437,15 @@ Use `specspine-map` for direct mapping:
 Survey this repository and create a high-level SpecSpine.
 ```
 
-Explicitly select `specspine-map-large` for a complete sustained run:
+Explicitly select `specspine-map-deep` when the requested scope should be
+mapped recursively through independent producers:
 
 ```text
-Use $specspine-map-large to map this complete large repository.
+Use $specspine-map-deep to map Google OAuth as deeply as repository evidence supports.
 ```
 
-The large orchestrator uses parallel producers when available and the same
-checkpointed queue with one local producer otherwise. Select it explicitly
-when its orchestration overhead is justified.
+The same skill can map the whole project when that is the requested scope. It
+uses parallel producers when available and one local producer otherwise.
 
 ### Prepare an architecture context handoff
 
@@ -701,7 +700,7 @@ specspine/
 │       ├── specspine-map/
 │       │   ├── examples.md
 │       │   └── mapping-method.md
-│       └── specspine-map-large/
+│       └── specspine-map-deep/
 │           └── orchestration.md
 ├── skills/
 │   ├── specspine-connect/
@@ -737,10 +736,12 @@ specspine/
 │   │       └── templates/
 │   │           ├── architecture-index.md
 │   │           └── specification.md
-│   ├── specspine-map-large/
+│   ├── specspine-map-deep/
 │   │   ├── SKILL.md
 │   │   ├── references/
-│   │   │   └── orchestration.md -> ../../../shared/references/specspine-map-large/orchestration.md
+│   │   │   └── orchestration.md -> ../../../shared/references/specspine-map-deep/orchestration.md
+│   │   └── scripts/
+│   │       └── bundle_skill.py
 │   └── specspine-doctor/
 │   │   ├── SKILL.md
 │   │   ├── references/

@@ -1,0 +1,7 @@
+interface:
+  display_name: "SpecSpine Map Deep"
+  short_description: "Recursively deepen mapped architecture"
+  default_prompt: "Use $specspine-map-deep to recursively map the requested repository scope until no useful architectural depth remains."
+
+policy:
+  allow_implicit_invocation: false

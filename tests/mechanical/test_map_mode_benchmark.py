@@ -22,7 +22,10 @@ class MapModeBenchmarkTests(unittest.TestCase):
 
     def test_arms_share_the_exact_fixture(self):
         BENCHMARK.validate_equal_fixtures()
-        self.assertEqual(["map", "map-large"], [label for label, _ in BENCHMARK.ARMS])
+        fixture = BENCHMARK.fixture_files(BENCHMARK.load_case(BENCHMARK.ARMS[0][1]))
+        self.assertEqual(21, len(fixture))
+        self.assertIn("src/webhooks/receiver.js", fixture)
+        self.assertEqual(["map", "map-deep"], [label for label, _ in BENCHMARK.ARMS])
 
     def test_commands_use_one_case_and_serial_execution(self):
         command, report = BENCHMARK.report_command(
@@ -71,6 +74,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
             },
             "agent_runs": [{
                 "files_read": 6,
+                "generated_files_read": 2,
                 "spawned_agent_count": 3,
                 "model": "gpt-5.6-terra",
                 "reasoning_effort": "medium",
@@ -79,6 +83,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
                 "subagent_reasoning_effort": "medium",
                 "cost_ledger": {"tool_cycles": 5},
                 "agent_telemetry": {
+                    "coverage": {"spawn_observed_count": 3},
                     "producers": [
                         {
                             "observed_duration_seconds": 2.5,
@@ -106,7 +111,9 @@ class MapModeBenchmarkTests(unittest.TestCase):
             "mean_agent_tree_uncached_input_tokens",
             "mean_agent_tree_output_tokens", "mean_agent_tree_reasoning_tokens",
             "mean_document_words", "mean_total_document_words",
-            "mean_files_read", "mean_tool_cycles", "mean_spawned_agents",
+            "mean_initial_files_read", "mean_generated_files_read",
+            "mean_tool_cycles", "parallelism_evidence",
+            "mean_observed_spawned_agents",
             "mean_observed_producer_wall_time_seconds",
             "producer_duration_coverage_rate",
             "mean_producer_prompt_utf8_bytes",
@@ -124,6 +131,26 @@ class MapModeBenchmarkTests(unittest.TestCase):
         self.assertIn("per-producer token counters", text)
         self.assertIn("terminal lifecycle notification", text)
         self.assertIn("do not penalize length by itself", text)
+
+    def test_direct_map_does_not_report_unused_subagent_configuration(self):
+        report = {
+            "samples": [
+                {
+                    "passed": True,
+                    "agent_runs": [
+                        {
+                            "subagent_model": "gpt-5.6-luna",
+                            "subagent_role": "weak",
+                            "subagent_reasoning_effort": "medium",
+                        }
+                    ],
+                }
+            ]
+        }
+        summary = BENCHMARK.summarize(report, uses_subagents=False)
+        self.assertIsNone(summary["subagent_model"])
+        self.assertIsNone(summary["subagent_role"])
+        self.assertEqual("not_applicable", summary["parallelism_evidence"])
 
     def test_quality_rubric_uses_holistic_scores_and_does_not_reward_brevity(self):
         prompt = BENCHMARK.quality_prompt(

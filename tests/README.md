@@ -100,7 +100,7 @@ python3 tests/eval/benchmark_extract_agents.py \
   --samples 3 --jobs 4
 ```
 
-Compare direct Map with orchestrated Map Large on an identical controlled
+Compare direct Map with orchestrated Map Deep on an identical controlled
 three-area repository:
 
 ```text

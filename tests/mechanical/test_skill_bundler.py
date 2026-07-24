@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).parents[2]
 SCRIPT = (
     ROOT
-    / "skills/specspine-map-large/scripts/bundle_skill.py"
+    / "skills/specspine-map-deep/scripts/bundle_skill.py"
 )
 SPEC = importlib.util.spec_from_file_location("skill_bundler", SCRIPT)
 BUILDER = importlib.util.module_from_spec(SPEC)

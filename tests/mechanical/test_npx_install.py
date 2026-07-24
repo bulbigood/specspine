@@ -12,7 +12,7 @@ SKILLS = (
     "specspine-extract",
     "specspine-grow",
     "specspine-map",
-    "specspine-map-large",
+    "specspine-map-deep",
     "specspine-doctor",
 )
 LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")

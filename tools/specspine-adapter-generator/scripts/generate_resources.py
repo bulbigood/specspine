@@ -14,7 +14,7 @@ PACKAGES = (
     "specspine-extract",
     "specspine-grow",
     "specspine-map",
-    "specspine-map-large",
+    "specspine-map-deep",
     "specspine-doctor",
 )
 IGNORED_NAMES = {
@@ -37,8 +37,8 @@ SKILL_REFERENCES = {
         "spec-format.md": "spec-format.md",
         "spec-semantics.md": "spec-semantics.md",
     },
-    "specspine-map-large": {
-        "orchestration.md": "specspine-map-large/orchestration.md",
+    "specspine-map-deep": {
+        "orchestration.md": "specspine-map-deep/orchestration.md",
     },
     "specspine-doctor": {
         "review-method.md": "specspine-doctor/review-method.md",

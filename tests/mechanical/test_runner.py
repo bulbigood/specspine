@@ -213,6 +213,45 @@ class RunnerTests(unittest.TestCase):
             )
             self.assertTrue(result.passed, result.message)
 
+    def test_command_occurrences_counts_across_commands(self):
+        trace = {
+            "commands": [
+                "python3 survey_repository.py --repository .",
+                "python3 other.py",
+                "python3 survey_repository.py --repository .",
+            ]
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            once = RUNNER.evaluate_assertion(
+                {
+                    "type": "command_occurrences",
+                    "value": "survey_repository.py",
+                    "min": 1,
+                    "max": 1,
+                },
+                workspace,
+                {},
+                {},
+                "",
+                trace,
+            )
+            twice = RUNNER.evaluate_assertion(
+                {
+                    "type": "command_occurrences",
+                    "value": "survey_repository.py",
+                    "min": 2,
+                    "max": 2,
+                },
+                workspace,
+                {},
+                {},
+                "",
+                trace,
+            )
+            self.assertFalse(once.passed)
+            self.assertTrue(twice.passed)
+
     def test_rejects_semantic_id_url_fragment(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
@@ -336,7 +375,7 @@ class RunnerTests(unittest.TestCase):
             workspace = Path(directory) / "workspace"
             workspace.mkdir()
             stage = {
-                "skill": "skills/specspine-map-large",
+                "skill": "skills/specspine-map-deep",
                 "eval_tools": {
                     "check_spine.py": "skills/specspine-doctor/scripts/check_spine.py"
                 },
@@ -451,6 +490,7 @@ class RunnerTests(unittest.TestCase):
         assertions = [
             {"type": "collab_spawn_count", "min": 3, "max": 3},
             {"type": "collab_initial_spawn_count", "min": 2, "max": 2},
+            {"type": "collab_max_active", "max": 2},
             {
                 "type": "collab_spawn_prompts",
                 "each_contains": ["specspine-map", "staging/"],
@@ -462,6 +502,8 @@ class RunnerTests(unittest.TestCase):
             {
                 "type": "collab_refill_before_staging_consume",
                 "path": "staging/",
+                "until_spawn_count": 3,
+                "min": 1,
             },
             {"type": "collab_targets_spawned_agents"},
         ]
@@ -476,6 +518,44 @@ class RunnerTests(unittest.TestCase):
                     trace,
                 )
                 self.assertTrue(result.passed, result.message)
+
+        over_capacity = dict(trace)
+        over_capacity["activity"] = activity[:2] + [
+            spawn("spawn-over-capacity", "specspine-map staging/search")
+        ] + activity[2:]
+        capacity = RUNNER.evaluate_assertion(
+            {"type": "collab_max_active", "max": 2},
+            Path("."),
+            unchanged,
+            unchanged,
+            "",
+            over_capacity,
+        )
+        self.assertFalse(capacity.passed)
+
+        partial_wait = dict(wait)
+        partial_wait["receiver_thread_ids"] = [
+            "agent-spawn-1",
+            "agent-spawn-2",
+        ]
+        partial_wait["agents_states"] = {
+            "agent-spawn-1": {"status": "completed"},
+            "agent-spawn-2": {"status": "running"},
+        }
+        partial_trace = {
+            "activity": activity[:2]
+            + [partial_wait, spawn("spawn-3b", "specspine-map staging/search")],
+            "collab_calls": [],
+        }
+        partial_capacity = RUNNER.evaluate_assertion(
+            {"type": "collab_max_active", "max": 2},
+            Path("."),
+            unchanged,
+            unchanged,
+            "",
+            partial_trace,
+        )
+        self.assertTrue(partial_capacity.passed, partial_capacity.message)
 
         reordered = dict(trace)
         reordered["activity"] = activity[:3] + [activity[4], activity[3]]

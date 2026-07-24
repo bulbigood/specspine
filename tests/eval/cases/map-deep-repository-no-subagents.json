@@ -1,7 +1,7 @@
 {
-  "id": "map-large-repository-no-subagents",
-  "scenario": "tests/scenarios/map-large-repository-no-subagents.md",
-  "skill": "skills/specspine-map-large",
+  "id": "map-deep-repository-no-subagents",
+  "scenario": "tests/scenarios/map-deep-repository-no-subagents.md",
+  "skill": "skills/specspine-map-deep",
   "status": "planned",
   "category": "planned",
   "initial_files": {

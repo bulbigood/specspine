@@ -4,22 +4,14 @@
   "skill": "skills/specspine-map",
   "status": "executable",
   "category": "expensive",
-  "timeout_seconds": 600,
+  "timeout_seconds": 900,
   "report_artifacts": ["specspine/**/*.md"],
-  "initial_files": {
-    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Runtime](runtime.md)\n\n## Mapping status\n\n- High-level runtime mapped\n- Unmapped: identity sessions, background jobs, telemetry export\n",
-    "specspine/runtime.md": "# Runtime\n\n## Responsibility\n\nOwns process composition and lifecycle.\n",
-    "src/identity/session.js": "export function createSession(user) { return { userId: user.id }; }\n",
-    "tests/identity/session.test.js": "// session records the authenticated user identity\n",
-    "src/jobs/runner.js": "export function run(job) { return job.execute(); }\n",
-    "tests/jobs/runner.test.js": "// queued jobs execute in the background worker\n",
-    "src/telemetry/exporter.js": "export function exportTrace(span, sink) { return sink.send(span); }\n",
-    "tests/telemetry/exporter.test.js": "// completed spans are sent to the configured sink\n"
-  },
+  "initial_tree": "tests/eval/fixtures/map-modes-six-area",
   "assertions": [
-    {"type": "glob_count", "glob": "specspine/**/*.md", "min": 5, "max": 7},
-    {"type": "glob_contains", "glob": "specspine/**/*.md", "values": ["src/identity/session.js", "src/jobs/runner.js", "src/telemetry/exporter.js"]},
-    {"type": "unchanged", "paths": ["src/**", "tests/**"]},
+    {"type": "glob_count", "glob": "specspine/**/*.md", "min": 8, "max": 11},
+    {"type": "glob_contains", "glob": "specspine/**/*.md", "values": ["src/identity/session.js", "tests/identity/session.test.js", "config/identity.json", "src/jobs/runner.js", "tests/jobs/runner.test.js", "config/jobs.json", "src/telemetry/exporter.js", "tests/telemetry/exporter.test.js", "config/telemetry.json", "src/notifications/router.js", "tests/notifications/router.test.js", "config/notifications.json", "src/search/index.js", "tests/search/index.test.js", "config/search.json", "src/webhooks/receiver.js", "tests/webhooks/receiver.test.js", "config/webhooks.json"]},
+    {"type": "file_contains", "path": "specspine/runtime.md", "values": ["identity-sessions.md", "background-job-execution.md", "telemetry-export.md", "notification-delivery.md", "search-indexing.md", "webhook-ingestion.md"]},
+    {"type": "unchanged", "paths": ["src/**", "tests/**", "config/**"]},
     {"type": "changed_only", "paths": ["specspine/**"]},
     {"type": "markdown_links_valid", "glob": "specspine/**/*.md"},
     {"type": "semantic_ids_valid", "glob": "specspine/**/*.md"}

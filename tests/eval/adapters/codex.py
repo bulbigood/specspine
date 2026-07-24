@@ -101,6 +101,15 @@ def traced_files(command: str, candidates: list[str]) -> set[str]:
     return found
 
 
+def explicit_content_reads(command: str, candidates: list[str]) -> set[str]:
+    """Infer files deliberately opened by model-facing content readers."""
+    found: set[str] = set()
+    for segment in shell_segments(shell_source(command)):
+        if re.search(r"(?:^|\s)(?:cat|sed|head|tail|awk|rg|grep)\b", segment):
+            found.update(traced_files(segment, candidates))
+    return found
+
+
 def shell_source(command: str) -> str:
     try:
         tokens = shlex.split(command)
@@ -402,7 +411,7 @@ def run_codex(
 
 def prompt_assignment(prompt: str) -> str | None:
     match = re.search(
-        r"^Architectural zone and question:\s*(.+)$",
+        r"^(?:Architectural zone and question|Architectural question):\s*(.+)$",
         prompt,
         re.MULTILINE,
     )
@@ -1809,7 +1818,14 @@ def main() -> int:
     activity = parse_activity(completed.stdout)
     retrieval_attempts = parse_retrieval_attempts(completed.stdout)
     merge_retrieval_telemetry(retrieval_attempts, retrieval_telemetry)
+    all_candidates = relative_files(root)
     event_metrics = parse_event_metrics(completed.stdout, candidates)
+    generated_file_reads = sorted(
+        set().union(
+            *(explicit_content_reads(command, all_candidates) for command in commands)
+        )
+        - set(candidates)
+    )
     token_usage = parse_token_usage(completed.stdout)
     agent_telemetry = parse_agent_telemetry(
         completed.stdout,
@@ -1865,6 +1881,7 @@ def main() -> int:
                 "eval_case": os.environ.get("SPECSPINE_EVAL_CASE", ""),
                 "eval_run": os.environ.get("SPECSPINE_EVAL_RUN", ""),
                 "files_read": sorted(reads),
+                "generated_files_read": generated_file_reads,
                 "environment_invalid": bool(execution_errors),
                 "environment_errors": execution_errors,
                 "scope_violations": boundary_violations,

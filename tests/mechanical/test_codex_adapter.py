@@ -229,6 +229,21 @@ class CodexAdapterTests(unittest.TestCase):
             ADAPTER.traced_files(command, candidates),
         )
 
+    def test_generated_content_reads_ignore_moves_but_include_explicit_readers(self):
+        candidates = [
+            "specspine/README.md",
+            "specspine/runtime.md",
+            "specspine/jobs.md",
+        ]
+        command = (
+            "mv staging/jobs.md specspine/jobs.md && "
+            "sed -n '1,200p' specspine/README.md specspine/runtime.md"
+        )
+        self.assertEqual(
+            {"specspine/README.md", "specspine/runtime.md"},
+            ADAPTER.explicit_content_reads(command, candidates),
+        )
+
     def test_parses_commands_reads_and_agent_messages(self):
         stdout = "\n".join(
             [
@@ -411,7 +426,7 @@ class CodexAdapterTests(unittest.TestCase):
     def test_agent_telemetry_records_observed_producer_lifecycle(self):
         prompt = (
             "Shared instructions.\n"
-            "Architectural zone and question: map background jobs\n"
+            "Architectural question: map background jobs\n"
         )
         events = [
             {

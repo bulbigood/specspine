@@ -142,7 +142,7 @@ python3 tests/eval/run.py \
 
 `run.py` does not select a model itself; it executes the command supplied by
 `--agent-command`. The standard Codex adapter defaults the top-level agent
-(the Map Large orchestrator) to `gpt-5.6-terra` with `medium` reasoning and
+(the Map Deep orchestrator) to `gpt-5.6-terra` with `medium` reasoning and
 creates an isolated Codex runtime whose default spawned-agent profile resolves
 the selected `weak` role to `gpt-5.6-luna` with `medium` reasoning. The
 orchestrator therefore spawns the default agent without passing a model or
@@ -159,12 +159,20 @@ implicit run-all mode. Planned cases are never executed. Categories are
 disjoint: `core` has 8 executable cases, `extended` has 12, `expensive` has 2,
 and `planned` has 10 documented non-executable cases.
 
-`map-large-rolling-small` makes one top-level call and normally three nested
-producer calls; one retry is tolerated. It is isolated in `expensive`, so ordinary `core` and
+`map-deep-rolling-small` makes one top-level call, six useful producer calls,
+and at least six terminal depth probes. It is isolated in `expensive`, so ordinary `core` and
 `extended` runs never select it. Run it with one sample during ordinary
 iteration; use repeated samples only for release calibration.
 
-The harness installs Map as a companion only for the Map Large orchestrator.
+Its fixture exposes six independent starting questions but permits only two
+active producers. Trace assertions require exactly two initial workers, cap
+observed concurrent producers at two, require 12–18 total spawns including
+terminal probes, and verify that at least four initial-queue slots are refilled
+before completed staging is consumed. Both benchmark arms use the same
+`tests/eval/fixtures/map-modes-six-area` tree rather than duplicated manifest
+content.
+
+The harness installs Map as a companion only for the Map Deep orchestrator.
 The orchestrator runs the generic skill bundler once. It strips Map
 frontmatter, concatenates the complete Map body and every UTF-8 file under Map
 `references/`, saves the bundle, and emits the same complete text in that one
@@ -175,17 +183,17 @@ templates.
 The Codex adapter defaults the top-level agent to `gpt-5.6-terra` with medium
 reasoning. In its private disposable `CODEX_HOME`, it maps the default
 spawned-agent profile to the selected `weak` role, currently
-`gpt-5.6-luna` with medium reasoning. The Map-Large case asserts the requested
+`gpt-5.6-luna` with medium reasoning. The Map-Deep case asserts the requested
 role and the model metadata resolved by the adapter.
 
 ```bash
 python3 tests/eval/run.py \
-  --case map-large-rolling-small --samples 1 --jobs 1 \
+  --case map-deep-rolling-small --samples 1 --jobs 1 \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py"
 ```
 
-To compare direct Map with orchestrated Map Large on the same controlled
-three-area repository:
+To compare direct Map with orchestrated Map Deep on the same controlled
+six-area repository:
 
 ```bash
 report_dir=$(mktemp -d -t specspine-map-modes.XXXXXX)
@@ -194,7 +202,7 @@ python3 tests/eval/benchmark_map_modes.py \
 ```
 
 Both arms use the same top-level model and reasoning effort: Terra/medium by
-default. Only Map Large creates producers; those use Luna/medium by default.
+default. Only Map Deep creates producers; those use Luna/medium by default.
 Model overrides apply symmetrically to both top-level arms.
 
 The arms use identical project files and common mechanical assertions. For each
@@ -207,8 +215,9 @@ for mechanical harness debugging.
 
 The report compares documentation-quality scores and preference, pass rate,
 word counts, case and complete-agent-tree wall time, cumulative tree
-input/cache-read/cache-write/uncached/output/reasoning tokens, project reads,
-tool cycles, spawned agents, and sanitized collaboration lifecycle counts
+input/cache-read/cache-write/uncached/output/reasoning tokens, initial and
+generated-document reads, tool cycles, observed spawned agents, parallelism
+evidence, and sanitized collaboration lifecycle counts
 (spawn/wait/close outcomes and latest producer statuses). Raw per-run telemetry
 also records every observed producer thread, model, assignment, prompt
 size/hash, terminal status, spawn-to-terminal observation interval, and every
@@ -218,7 +227,8 @@ arms. Current Codex JSONL exposes only cumulative token usage for the
 orchestrator plus nested producers; it does not expose exact orchestrator-only
 or per-producer token counters. Producer wall times are observed lifecycle
 intervals and report their coverage; unavailable counters stay null and are
-never estimated. Keep one sample for routine calibration;
+never estimated. A missing exported spawn event is unavailable, not zero
+producers. Keep one sample for routine calibration;
 repeated samples are release-level evidence. Successful reports include only
 the explicitly requested `specspine/**/*.md` snapshots needed by the blind
 judge.
