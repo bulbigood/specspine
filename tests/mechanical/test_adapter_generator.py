@@ -194,6 +194,31 @@ class AdapterGeneratorTests(unittest.TestCase):
         self.assertIn("accepted documentation language", instructions)
         self.assertIn("# Project architecture", index)
 
+    def test_doctor_explains_modes_before_requesting_a_selection(self):
+        source = PROJECT_ROOT / "skills/specspine-doctor"
+        skill = (source / "SKILL.md").read_text(encoding="utf-8")
+        modes = (source / "references/operation-modes.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("When invoked without an operation", skill)
+        self.assertIn("references/operation-modes.md", skill)
+        self.assertIn("briefly explain", skill)
+        self.assertIn("read/write boundary", skill)
+        for mode in (
+            "`setup` —",
+            "`connect` —",
+            "`reconfigure` —",
+            "`disconnect` —",
+            "`audit` —",
+            "`diagnose` —",
+            "`repair` —",
+        ):
+            with self.subTest(mode=mode):
+                self.assertIn(mode, modes)
+        self.assertIn("read-only integrity review", modes)
+        self.assertIn("read-only investigation", modes)
+        self.assertIn("after required approval", modes)
+
     def test_doctor_connection_contract_covers_selected_root_edge_states(self):
         contract = (
             PROJECT_ROOT

@@ -11,6 +11,10 @@ Select only operation modes explicitly requested: connection administration
 are explicit, finish connection and its mechanical check before health work.
 Never add a semantic audit implicitly.
 
+When invoked without an operation, read
+[references/operation-modes.md](references/operation-modes.md), briefly explain
+every choice and its read/write boundary, then ask which one to run.
+
 ## Resources
 
 - For connection administration, read
