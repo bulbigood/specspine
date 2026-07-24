@@ -72,8 +72,10 @@ Do not:
 8. Report evidence inspected, files created or changed, mapped
    responsibilities and relationships, material adjacent architectural
    questions, unconfirmed inferences, unresolved drift, and qualitative
-   remaining coverage. It is valid to create no document when the live Spine
-   already answers the question or further detail would reproduce code.
+   remaining coverage. Create or change no document when the live Spine already
+   answers the question, evidence cannot support a useful architectural node,
+   or further detail would reproduce implementation. Report that terminal
+   reason explicitly instead of manufacturing output.
 
 Stop when the requested architectural scope is answered and additional reading
 would have low architectural value or mostly reproduce implementation.
