@@ -10,11 +10,11 @@ change. Do not modify the project or SpecSpine.
 
 ## Fast path
 
-1. Resolve `<spine-root>`, documentation language, and accelerator policy from
-   the request or project instructions; default the root to `specspine`.
+1. Resolve `<spine-root>` and documentation language from the request or
+   project instructions; default the root to `specspine`.
 2. Split the request into independently owned architecture targets. Form all
    query slices before using tools.
-3. Unless acceleration is disabled, invoke the bundled script exactly once:
+3. Always invoke the bundled script exactly once:
 
 ```text
 python3 <skill-root>/scripts/search_spine.py <spine-root> --queries-json '<compact-json>'

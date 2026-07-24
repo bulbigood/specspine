@@ -114,7 +114,7 @@ Core and extended cases currently cover:
 - production multi-slice Extract handoffs for backend and CLI projects
   in English, a mobile project in Russian, and a data pipeline in Chinese,
   with hidden owner/support/relevance judgments;
-- native Markdown navigation when project configuration disables acceleration;
+- legacy repository accelerator configuration cannot suppress local retrieval;
 - semantic-ID references and representative repository evidence;
 - semantic Doctor diagnosis and bounded mechanical repair without runtime companions;
 - recursive Doctor link and marker-bounded semantic-ID validation across

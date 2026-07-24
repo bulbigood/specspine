@@ -17,10 +17,8 @@
   "assertions": [
     {"type": "max_changed_files", "max": 0},
     {"type": "read_only", "paths": ["specspine/**"]},
-    {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payments.md", "specspine/settlement.md", "specspine/retry-policy.md"]},
-    {"type": "max_files_read", "max": 4},
-    {"type": "command_excludes", "value": "search_spine.py"},
-    {"type": "trace_equals", "field": "retrieval_attempt_count", "value": 0},
+    {"type": "command_includes", "value": "search_spine.py"},
+    {"type": "trace_equals", "field": "retrieval_attempt_count", "value": 1},
     {"type": "response_section_contains", "section": "Primary specification", "value": "specspine/retry-policy.md"},
     {"type": "response_contains", "value": "CON-provider-timeout-delay"},
     {"type": "response_section_contains", "section": "Blocking questions", "value": "OQ-provider-timeout-delay-duration"},

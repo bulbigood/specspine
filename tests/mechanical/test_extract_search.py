@@ -30,6 +30,8 @@ class ExtractSearchTests(unittest.TestCase):
         self.assertIn("Do not reread", skill)
         self.assertIn("prepend the repository-relative", skill)
         self.assertIn("README.md` before searching only when", skill)
+        self.assertNotIn("accelerator policy", skill)
+        self.assertNotIn("acceleration is disabled", skill)
 
     @classmethod
     def setUpClass(cls):
