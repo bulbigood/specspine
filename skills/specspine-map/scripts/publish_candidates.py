@@ -107,6 +107,15 @@ def publish(args: argparse.Namespace) -> dict[str, Any]:
     item = frontier.require_branch(ledger, args.branch)
     if item["state"] != "active":
         raise PublishError(f"publication requires active branch: {args.branch}")
+    pending = item.get("pending_checkpoint")
+    if not isinstance(pending, dict):
+        raise PublishError("publication requires an imported pending checkpoint")
+    if pending.get("digest") != args.checkpoint_digest:
+        raise PublishError("checkpoint digest does not match the pending checkpoint")
+    if set(pending.get("paths", [])) != set(requested):
+        raise PublishError("declared paths do not match the pending checkpoint")
+    if set(pending.get("replacements", [])) != set(replacements):
+        raise PublishError("replacement paths do not match the pending checkpoint")
 
     actual = candidate_files(args.staging_root)
     if actual != set(requested):
@@ -125,6 +134,10 @@ def publish(args: argparse.Namespace) -> dict[str, Any]:
             )
         if not destination.exists() and relative in replacements:
             raise PublishError(f"replacement destination does not exist: {relative}")
+        if destination.exists():
+            source = args.staging_root / relative
+            if source.read_bytes() == destination.read_bytes():
+                raise PublishError(f"candidate has no content change: {relative}")
 
     frontier.command_reserve(
         SimpleNamespace(
@@ -175,6 +188,7 @@ def publish(args: argparse.Namespace) -> dict[str, Any]:
                 ledger=args.ledger,
                 id=args.branch,
                 path=requested,
+                checkpoint_digest=args.checkpoint_digest,
             )
         )
     except BaseException as error:
@@ -207,6 +221,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("staging_root", type=Path)
     result.add_argument("--path", action="append", required=True)
     result.add_argument("--replace-existing", action="append", default=[])
+    result.add_argument("--checkpoint-digest", required=True)
     result.add_argument(
         "--checker",
         type=Path,

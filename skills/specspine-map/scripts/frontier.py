@@ -135,6 +135,8 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
     ledger = {
         "schema_version": SCHEMA_VERSION,
         "revision": 0,
+        "frontier_epoch": 0,
+        "discovery_pass": None,
         "scope": args.scope,
         "root": "root",
         "branches": {
@@ -171,6 +173,7 @@ def command_add(args: argparse.Namespace) -> dict[str, Any]:
             return ledger
         raise LedgerError(f"conflicting branch id: {args.id}")
     branches(ledger)[args.id] = candidate
+    ledger["frontier_epoch"] = ledger.get("frontier_epoch", 0) + 1
     save(args.ledger, ledger)
     return ledger
 
@@ -199,6 +202,7 @@ def command_documented(args: argparse.Namespace) -> dict[str, Any]:
             return ledger
         raise LedgerError(f"conflicting branch id: {args.id}")
     branches(ledger)[args.id] = candidate
+    ledger["frontier_epoch"] = ledger.get("frontier_epoch", 0) + 1
     save(args.ledger, ledger)
     return ledger
 
@@ -222,6 +226,10 @@ def command_release(args: argparse.Namespace) -> dict[str, Any]:
     if item["state"] not in {"active", "blocked", "locally_saturated"}:
         raise LedgerError(
             f"release requires active, blocked, or locally_saturated state: {args.id}"
+        )
+    if item.get("pending_checkpoint"):
+        raise LedgerError(
+            f"cannot release branch with an unpublished checkpoint: {args.id}"
         )
     item["state"] = "queued"
     item["owner"] = None
@@ -289,6 +297,15 @@ def command_publish(args: argparse.Namespace) -> dict[str, Any]:
     item = require_branch(ledger, args.id)
     if item["state"] != "active":
         raise LedgerError(f"publish requires active state: {args.id}")
+    pending = item.get("pending_checkpoint")
+    checkpoint_digest = getattr(args, "checkpoint_digest", None)
+    if pending is not None:
+        if not checkpoint_digest:
+            raise LedgerError("publish requires --checkpoint-digest")
+        if pending.get("digest") != checkpoint_digest:
+            raise LedgerError("checkpoint digest does not match the pending checkpoint")
+    elif checkpoint_digest:
+        raise LedgerError("branch has no pending checkpoint")
     published = sorted({validate_relative_path(value) for value in args.path})
     unknown = sorted(set(published) - set(item.get("reservations", [])))
     if unknown:
@@ -297,6 +314,36 @@ def command_publish(args: argparse.Namespace) -> dict[str, Any]:
             + ", ".join(unknown)
         )
     item["published"] = sorted(set(item.get("published", [])) | set(published))
+    if pending is not None:
+        expected = set(pending.get("paths", []))
+        if set(published) != expected:
+            raise LedgerError(
+                "published paths do not match the pending checkpoint"
+            )
+        item["last_checkpoint_digest"] = checkpoint_digest
+        item["pending_checkpoint"] = None
+    save(args.ledger, ledger)
+    return ledger
+
+
+def command_discard_checkpoint(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    item = require_branch(ledger, args.id)
+    if item.get("state") != "active":
+        raise LedgerError("discard-checkpoint requires active state")
+    pending = item.get("pending_checkpoint")
+    if not isinstance(pending, dict):
+        raise LedgerError("branch has no pending checkpoint")
+    keep = set(item.get("published", []))
+    pending_paths = set(pending.get("paths", []))
+    item["reservations"] = sorted(
+        set(item.get("reservations", [])) - (pending_paths - keep)
+    )
+    item["replacements"] = sorted(
+        set(item.get("replacements", [])) - (pending_paths - keep)
+    )
+    item["discarded_checkpoint_digest"] = pending.get("digest")
+    item["pending_checkpoint"] = None
     save(args.ledger, ledger)
     return ledger
 
@@ -306,6 +353,10 @@ def command_state(args: argparse.Namespace) -> dict[str, Any]:
     item = require_branch(ledger, args.id)
     current = item["state"]
     target = args.state
+    if item.get("pending_checkpoint"):
+        raise LedgerError(
+            f"cannot change state with an unpublished checkpoint: {args.id}"
+        )
     if target == "locally_saturated":
         if current != "active":
             raise LedgerError("locally_saturated requires active state")
@@ -316,6 +367,15 @@ def command_state(args: argparse.Namespace) -> dict[str, Any]:
                 "locally_saturated requires an exact "
                 "'no useful node: <evidence-based reason>' refusal"
             )
+        if args.id == ledger.get("root"):
+            discovery = ledger.get("discovery_pass")
+            if (
+                not isinstance(discovery, dict)
+                or discovery.get("frontier_epoch") != ledger.get("frontier_epoch", 0)
+            ):
+                raise LedgerError(
+                    "root saturation requires a current scope-level discovery pass"
+                )
         item["state"] = target
         item["owner"] = None
         item["terminal_reason"] = args.terminal_reason
@@ -348,6 +408,62 @@ def command_state(args: argparse.Namespace) -> dict[str, Any]:
     return ledger
 
 
+def command_discovery_pass(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    root = require_branch(ledger, ledger.get("root", "root"))
+    if root.get("state") != "active":
+        raise LedgerError("scope-level discovery requires an active root")
+    unfinished = [
+        item["id"]
+        for item in branches(ledger).values()
+        if item["id"] != root["id"] and item.get("state") != "complete"
+    ]
+    if unfinished:
+        raise LedgerError(
+            "scope-level discovery requires all non-root branches complete: "
+            + ", ".join(sorted(unfinished))
+        )
+    evidence = args.evidence.strip()
+    if not evidence:
+        raise LedgerError("scope-level discovery requires nonempty evidence")
+    ledger["discovery_pass"] = {
+        "frontier_epoch": ledger.get("frontier_epoch", 0),
+        "evidence": evidence,
+    }
+    save(args.ledger, ledger)
+    return ledger
+
+
+def command_resume(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    findings = audit_findings(ledger, final=False)
+    if findings:
+        raise LedgerError(
+            "cannot resume a structurally invalid ledger: "
+            + json.dumps(findings, ensure_ascii=False)
+        )
+    released: list[str] = []
+    discarded_checkpoints: list[str] = []
+    for item in branches(ledger).values():
+        if item["id"] == ledger.get("root"):
+            continue
+        if item.get("state") == "active":
+            if item.get("pending_checkpoint"):
+                discarded_checkpoints.append(item["id"])
+            item["pending_checkpoint"] = None
+            item["owner"] = None
+            item["state"] = "queued"
+            item["terminal_reason"] = None
+            item["resolution"] = None
+            released.append(item["id"])
+    save(args.ledger, ledger)
+    return {
+        "revision": ledger["revision"],
+        "released": sorted(released),
+        "discarded_checkpoints": sorted(discarded_checkpoints),
+    }
+
+
 def audit_findings(ledger: dict[str, Any], final: bool) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
     if ledger.get("schema_version") != SCHEMA_VERSION:
@@ -366,6 +482,26 @@ def audit_findings(ledger: dict[str, Any], final: bool) -> list[dict[str, str]]:
             findings.append({"code": "id", "branch": key, "message": "invalid id"})
         if item.get("state") not in STATES:
             findings.append({"code": "state", "branch": key, "message": "invalid state"})
+        pending = item.get("pending_checkpoint")
+        if pending is not None:
+            if item.get("state") != "active":
+                findings.append(
+                    {
+                        "code": "pending_checkpoint",
+                        "branch": key,
+                        "message": "pending checkpoint requires active state",
+                    }
+                )
+            if not isinstance(pending, dict) or not isinstance(
+                pending.get("digest"), str
+            ):
+                findings.append(
+                    {
+                        "code": "pending_checkpoint",
+                        "branch": key,
+                        "message": "invalid pending checkpoint",
+                    }
+                )
         for field in ("published", "reservations", "replacements"):
             values = item.get(field)
             if not isinstance(values, list):
@@ -541,6 +677,11 @@ def command_summary(args: argparse.Namespace) -> dict[str, Any]:
         "ready": [item["id"] for item in ready],
         "active": non_root_active,
         "blocked": blocked,
+        "pending_checkpoints": sorted(
+            item["id"]
+            for item in items.values()
+            if item.get("pending_checkpoint")
+        ),
         "terminal": "saturated" if final_clean else "blocked" if blocked_stop else None,
     }
 
@@ -548,6 +689,8 @@ def command_summary(args: argparse.Namespace) -> dict[str, Any]:
 def compact_result(args: argparse.Namespace, result: Any) -> Any:
     if not getattr(args, "compact", False) or not isinstance(result, dict):
         return result
+    if args.command == "resume":
+        return {"status": "ok", "command": args.command, **result}
     receipt: dict[str, Any] = {
         "status": "ok",
         "command": args.command,
@@ -626,7 +769,13 @@ def parser() -> argparse.ArgumentParser:
     publish.add_argument("ledger", type=Path)
     publish.add_argument("id")
     publish.add_argument("--path", action="append", required=True)
+    publish.add_argument("--checkpoint-digest")
     publish.set_defaults(handler=command_publish)
+
+    discard = mutation("discard-checkpoint")
+    discard.add_argument("ledger", type=Path)
+    discard.add_argument("id")
+    discard.set_defaults(handler=command_discard_checkpoint)
 
     state = mutation("state")
     state.add_argument("ledger", type=Path)
@@ -642,6 +791,15 @@ def parser() -> argparse.ArgumentParser:
     summary = subparsers.add_parser("summary")
     summary.add_argument("ledger", type=Path)
     summary.set_defaults(handler=command_summary)
+
+    discovery = mutation("discovery-pass")
+    discovery.add_argument("ledger", type=Path)
+    discovery.add_argument("--evidence", required=True)
+    discovery.set_defaults(handler=command_discovery_pass)
+
+    resume = mutation("resume")
+    resume.add_argument("ledger", type=Path)
+    resume.set_defaults(handler=command_resume)
 
     audit = subparsers.add_parser("audit")
     audit.add_argument("ledger", type=Path)

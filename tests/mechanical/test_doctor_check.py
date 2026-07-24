@@ -119,6 +119,27 @@ class DoctorCheckerTests(unittest.TestCase):
             )
             self.assertEqual([], CHECKER.check(root))
 
+    def test_rejects_mapping_workflow_state_in_published_markdown(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "README.md").write_text(
+                "# Architecture\n\n[Identity](identity.md)\n",
+                encoding="utf-8",
+            )
+            (root / "identity.md").write_text(
+                "# Identity\n\nOwns identity.\n\n"
+                "## Coverage frontier\n\n"
+                "- Authentication is a fork candidate.\n",
+                encoding="utf-8",
+            )
+            findings = CHECKER.check(root)
+            leaks = [
+                finding
+                for finding in findings
+                if finding.code == "WORKFLOW_STATE_LEAK"
+            ]
+            self.assertEqual(2, len(leaks))
+
     def test_accepts_kebab_case_directories_and_checks_baseline(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

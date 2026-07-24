@@ -95,6 +95,12 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertTrue(
             (ROOT / "skills/specspine-map/scripts/publish_candidates.py").is_file()
         )
+        self.assertTrue(
+            (ROOT / "skills/specspine-map/scripts/checkpoint.py").is_file()
+        )
+        self.assertTrue(
+            (ROOT / "skills/specspine-map/scripts/finalize_run.py").is_file()
+        )
 
     def test_resume_discards_no_state_and_restarts_untrusted_staging(self):
         normalized = " ".join((self.entrypoint + self.protocol).split())
@@ -103,14 +109,15 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("never publish its candidates", normalized)
         self.assertIn("rerun those branches from their recorded questions", normalized)
         self.assertIn("Delete no prior staging files", normalized)
-        self.assertIn("every non-root `active` owner, including `local`", normalized)
+        self.assertIn("frontier.py resume --compact <ledger>", normalized)
+        self.assertIn("discard pending checkpoint authority", normalized)
         self.assertIn("preserve only the active root", normalized)
         self.assertIn("frontier.py publish", normalized)
         self.assertIn("frontier.py reserve", normalized)
         self.assertIn("exact published and replacement-reserved paths", normalized)
         self.assertIn("Reservations are globally exclusive", normalized)
         self.assertIn("--owner local", normalized)
-        self.assertIn("mark the exact branch `blocked`", normalized)
+        self.assertIn("mark the branch `blocked`", normalized)
 
     def test_map_refuses_terminal_output_and_branch_owner_reaches_saturation(self):
         normalized_map = " ".join(self.mapper.split())
@@ -170,9 +177,9 @@ class MapExhaustiveContractTests(unittest.TestCase):
             "The producer may propose child branches but must never create producers",
             "A same-boundary continuation remains with its current producer",
             "never repurpose that session for an unrelated branch",
-            "`Current-branch continuation`",
-            "`Fork candidates`",
-            "accept conflict-free reservation requests",
+            '"continuation"',
+            '"coverage_frontier"',
+            "atomically imports every frontier item",
             "Treat any checkpoint that published a candidate as `continuing`",
             "regardless of its reported status or missing continuation",
             "only a later candidate-free `no useful node`",
@@ -190,10 +197,10 @@ class MapExhaustiveContractTests(unittest.TestCase):
             "A terminal Map refusal closes only the exact branch question",
             "A broad survey branch cannot become `locally_saturated`",
             "Report every such boundary directly observed",
-            "`Coverage frontier`",
-            "reconcile every `Coverage frontier` item",
+            '"coverage_frontier"',
+            "atomically imports every frontier item",
             "Treat `no useful node` as scoped to the exact assigned question",
-            "Import its complete `Coverage frontier` into the ledger",
+            "Do not manually translate or selectively import its fields",
             "add every observed branch before continuing past the evidence",
             "seed material top-level branches",
             "repeat scope-level discovery",
@@ -207,7 +214,7 @@ class MapExhaustiveContractTests(unittest.TestCase):
             normalized,
         )
         for statement in (
-            "`Source coverage`",
+            '"source_coverage"',
             "eligible production path",
             "tests and generated code",
             "lacks an owner, child branch, or concrete low-value classification",
@@ -279,6 +286,8 @@ class MapExhaustiveContractTests(unittest.TestCase):
             "must begin with the private staging root",
             "Do not reread candidate prose",
             "<map-skill-root>/scripts/publish_candidates.py",
+            "<map-skill-root>/scripts/checkpoint.py",
+            "--checkpoint-digest",
             "--replace-existing",
             "sole producer-publication route",
             "rolls file moves back",
@@ -372,6 +381,7 @@ class MapExhaustiveContractTests(unittest.TestCase):
             normalized,
         )
         self.assertIn("find <run-root> -depth -delete", normalized)
+        self.assertIn("status: finalized", normalized)
         self.assertNotIn("`rm -rf <run-root>`", normalized)
 
     def test_no_capability_uses_root_only_sequential_protocol(self):
@@ -407,8 +417,9 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("After saturation, perform one sequential navigation pass", normalized_parallel)
         self.assertIn("Add every new document to curated `README.md` navigation", normalized_parallel)
         self.assertIn("Run the full deterministic checker once", normalized_parallel)
+        self.assertIn("finalize_run.py", normalized_parallel)
         self.assertIn("Proceed only when it exits zero and prints `[]`", normalized_parallel)
-        self.assertIn("do not normalize or delete the run root", normalized_parallel)
+        self.assertIn("Otherwise preserve it and report exact ledger and staging paths", normalized_parallel)
         self.assertIn("preserve it and report the ledger path", normalized_root)
         self.assertIn("final report must contain the literal phrase `no useful node`", normalized_parallel)
         self.assertIn("run `$specspine-doctor` in a new session", normalized_parallel)
@@ -420,7 +431,7 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("stop without claiming saturation", normalized_parallel)
         self.assertIn("resumable campaign", normalized_parallel)
         self.assertIn("host interrupts the invocation", normalized_parallel)
-        self.assertLessEqual(len(self.protocol.splitlines()), 450)
+        self.assertLessEqual(len(self.protocol.splitlines()), 500)
 
 
 if __name__ == "__main__":

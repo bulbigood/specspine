@@ -40,6 +40,15 @@ SECTION_PREFIXES = {
     "Inferred": "INF",
     "Open questions": "OQ",
 }
+WORKFLOW_STATE_HEADINGS = {
+    "Coverage frontier",
+    "Source coverage",
+}
+WORKFLOW_STATE_PHRASES = (
+    "same-branch continuation",
+    "candidate parent (to add during publication)",
+    "fork candidate",
+)
 
 
 @dataclass(frozen=True)
@@ -374,7 +383,37 @@ def check(root: Path) -> list[Finding]:
                     section = title
                     section_line = line_number
                     section_has_content = False
+                if title in WORKFLOW_STATE_HEADINGS:
+                    add(
+                        findings,
+                        "error",
+                        "WORKFLOW_STATE_LEAK",
+                        path,
+                        root,
+                        f"mapping workflow state must not be published: '{title}'",
+                        line_number,
+                    )
                 continue
+
+            lowered = line.casefold()
+            leaked_phrase = next(
+                (
+                    phrase
+                    for phrase in WORKFLOW_STATE_PHRASES
+                    if phrase in lowered
+                ),
+                None,
+            )
+            if leaked_phrase:
+                add(
+                    findings,
+                    "error",
+                    "WORKFLOW_STATE_LEAK",
+                    path,
+                    root,
+                    f"mapping workflow state must not be published: '{leaked_phrase}'",
+                    line_number,
+                )
 
             if section:
                 section_has_content = True

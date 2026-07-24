@@ -57,11 +57,11 @@ environment. Do not probe capability by starting a subagent.
    <root-question>`. Resolve `<map-skill-root>` as this `SKILL.md` directory.
    Resume an explicitly supplied preserved ledger after auditing it without
    `--final`. Reconcile it with the live Spine and rerun the checker. Delete no
-   prior staging files; treat them as untrusted and unpublishable. Release
-   every non-root `active` owner, including `local`, to `queued`; preserve only
-   the active root. Create fresh staging if needed, reassign each branch to a
-   new producer or `local`, and restart recorded questions. If reconciliation
-   is ambiguous, mark the exact branch `blocked` and request operator direction.
+   prior staging files; treat them as untrusted and unpublishable. Run
+   `frontier.py resume --compact <ledger>` to release stale non-root owners;
+   preserve only the active root. Create fresh staging if needed, reassign each
+   branch to a new producer or `local`, and restart recorded questions. If
+   reconciliation is ambiguous, mark the branch `blocked` and request direction.
 2. Apply one bounded mapping operation at a time directly to the live Spine.
    Record every observed independent branch in the frontier before continuing.
    Before processing a queued branch locally, assign it with `--owner local`.
@@ -80,15 +80,17 @@ environment. Do not probe capability by starting a subagent.
    when no producer exists.
 4. Mark branches `locally_saturated` only with exact refusal reasons and
    `complete` only after their children complete. Repeat scope-level discovery
-   after the ready queue drains. Before normalization require
+   after the ready queue drains and record it with `frontier.py discovery-pass
+   --compact <ledger> --evidence <signals-checked>`. Before normalization require
    `python3 <map-skill-root>/scripts/frontier.py audit
    <run-root>/frontier.json --final` to print `[]`.
    Never end an exhaustive turn merely to report progress. A final response is
    permitted only after that clean final audit or when only concrete `blocked`
    branches remain and operator input is required.
-5. Normalize navigation once and rerun the checker. On success remove only the
-   exact run root with `find <run-root> -depth -delete`. On interruption,
-   preserve it and report the ledger path.
+5. Normalize navigation once and rerun the checker. Require
+   `finalize_run.py <ledger> <spine-root>` to return `status: finalized`, then
+   remove only the exact run root with `find <run-root> -depth -delete`. On
+   interruption, preserve it and report the ledger path.
 6. Report scope, changes, relationships, unresolved drift, limitations, and
    exact terminal reasons. Include the literal phrase `no useful node` and
    recommend `$specspine-doctor` in a new session. Never invoke Doctor during

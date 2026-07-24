@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 FRONTIER = ROOT / "skills/specspine-map/scripts/frontier.py"
+CHECKPOINT = ROOT / "skills/specspine-map/scripts/checkpoint.py"
 PUBLISHER = ROOT / "skills/specspine-map/scripts/publish_candidates.py"
 
 
@@ -71,7 +72,55 @@ class MapPublishCandidatesTests(unittest.TestCase):
         path.write_text(content, encoding="utf-8")
         return path
 
-    def publish(self, checker, *extra):
+    def import_checkpoint(self, *, replace=False):
+        payload = {
+            "status": "continuing",
+            "evidence_inspected": ["src/identity.py"],
+            "candidates": [
+                {
+                    "path": "architecture/identity.md",
+                    "operation": "replace" if replace else "create",
+                }
+            ],
+            "mapped_responsibilities": ["Identity boundary"],
+            "relationships": [],
+            "source_coverage": [
+                {
+                    "paths": ["src/identity.py"],
+                    "classification": "mapped_here",
+                    "owner": None,
+                    "branch_id": None,
+                    "reason": None,
+                }
+            ],
+            "continuation": "terminal-depth check",
+            "coverage_frontier": [],
+            "unresolved": [],
+            "terminal_reason": None,
+        }
+        path = self.root / "checkpoint.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(CHECKPOINT),
+                str(self.ledger),
+                "identity",
+                str(path),
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        return json.loads(result.stdout)["digest"]
+
+    def publish(self, checker, *extra, import_checkpoint=True):
+        digest = (
+            self.import_checkpoint(replace="--replace-existing" in extra)
+            if import_checkpoint
+            else "unimported"
+        )
         return subprocess.run(
             [
                 sys.executable,
@@ -82,6 +131,8 @@ class MapPublishCandidatesTests(unittest.TestCase):
                 str(self.staging),
                 "--path",
                 "architecture/identity.md",
+                "--checkpoint-digest",
+                digest,
                 "--checker",
                 str(checker),
                 *extra,
@@ -195,6 +246,24 @@ class MapPublishCandidatesTests(unittest.TestCase):
         self.assertEqual("new candidate", source.read_text(encoding="utf-8"))
         self.assertEqual("original live file", destination.read_text(encoding="utf-8"))
 
+    def test_identical_replacement_is_rejected(self):
+        source = self.candidate(content="unchanged")
+        destination = self.spine / "architecture/identity.md"
+        destination.parent.mkdir(parents=True)
+        destination.write_text("unchanged", encoding="utf-8")
+        checker = self.checker("import json\nprint(json.dumps([]))\n")
+
+        result = self.publish(
+            checker,
+            "--replace-existing",
+            "architecture/identity.md",
+        )
+
+        self.assertEqual(2, result.returncode)
+        self.assertIn("no content change", result.stderr)
+        self.assertTrue(source.is_file())
+        self.assertEqual("unchanged", destination.read_text(encoding="utf-8"))
+
     def test_misplaced_candidate_is_rejected_without_relocation(self):
         misplaced = self.candidate("identity.md")
         checker = self.checker("import json\nprint(json.dumps([]))\n")
@@ -219,7 +288,7 @@ class MapPublishCandidatesTests(unittest.TestCase):
             "no useful node: evidence exhausted",
         )
 
-        result = self.publish(checker)
+        result = self.publish(checker, import_checkpoint=False)
 
         self.assertEqual(2, result.returncode)
         self.assertTrue(source.is_file())
@@ -241,6 +310,8 @@ class MapPublishCandidatesTests(unittest.TestCase):
                 str(self.spine),
                 "--path",
                 "architecture/identity.md",
+                "--checkpoint-digest",
+                "unimported",
                 "--checker",
                 str(checker),
             ],

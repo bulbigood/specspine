@@ -150,9 +150,12 @@ not initialize a replacement. Audit that ledger without `--final`, reconcile
 its published destinations with the live Spine, and run the full checker.
 Treat every pre-existing private staging directory as untrusted and never
 publish its candidates because the write-barrier report was not durably
-consumed. Release stale `active` owners, rebuild reservations from ledgered
-published/reserved paths and live destinations, create fresh staging, and rerun
-those branches from their recorded questions. This resume-only reconciliation
+consumed. Run `frontier.py resume --compact <ledger>` once to release stale
+non-root `active` owners and discard pending checkpoint authority; inspect its
+receipt. Rebuild reservations from ledgered published/reserved paths and live
+destinations, create fresh staging only after a new producer handle exists,
+and rerun those branches from their recorded questions. This resume-only
+reconciliation
 may read published files when required; the ordinary no-reread optimization
 does not survive process interruption. If a live destination is not ledgered,
 do not infer its branch owner: rerun the recorded branch against the current
@@ -227,32 +230,51 @@ source lacks an owner, child branch, or concrete low-value classification.
 Use the exact supplied evidence baseline near the first Observed section. Do
 not perform a separate validation or reread pass; return the checkpoint.
 
-Return a compact checkpoint report containing only:
+Return only one JSON object accepted by
+`<map-skill-root>/scripts/checkpoint.py`; no prose or Markdown fences. Use
+these exact top-level fields:
 
-- `Branch status`: `continuing`, `locally saturated`, or `blocked`;
-- evidence inspected;
-- created or replaced files and their final relative destinations;
-- mapped responsibilities, boundaries, and relationships;
-- related paths and navigation targets, marking replacement reservations;
-- `Source coverage`: each inspected eligible production path group classified
-  as mapped here, owned by a named specification, requiring a child branch, or
-  lacking durable value with a reason; tests and generated code are
-  evidence-only;
-- `Current-branch continuation`: the next same-boundary work, or `none`;
-- `Coverage frontier`: every directly observed material independent boundary
-  outside the next same-boundary continuation, including children found inside
-  a broad survey; for each give a suggested stable branch ID, exact question,
-  evidence, prerequisite or `none`, suggested namespace, and classification as
-  a fork candidate, already documented, or blocked; use `none` only when
-  inspected evidence exposes no such boundary;
-- `Fork candidates`: each independent branch question, reason, prerequisite,
-  and suggested namespace, or `none`;
-- unresolved inferences or drift;
-- `no useful node` and its reason for terminal refusal.
+```json
+{
+  "status": "continuing",
+  "evidence_inspected": ["repository-relative path or evidence description"],
+  "candidates": [{"path": "area/node.md", "operation": "create"}],
+  "mapped_responsibilities": ["durable responsibility or boundary"],
+  "relationships": ["architectural relationship"],
+  "source_coverage": [{
+    "paths": ["production/path/group"],
+    "classification": "mapped_here",
+    "owner": null,
+    "branch_id": null,
+    "reason": null
+  }],
+  "continuation": "next same-boundary question or terminal-depth check",
+  "coverage_frontier": [{
+    "id": "stable-child-id",
+    "question": "exact independent branch question",
+    "evidence": ["path or signal"],
+    "prerequisite": null,
+    "namespace": "area",
+    "classification": "fork_candidate",
+    "document": null,
+    "reason": null
+  }],
+  "unresolved": [],
+  "terminal_reason": null
+}
+```
 
-Report work only when inspected evidence supports it. Do not repeat document
-prose or speculate to extend the tree. Return the report as the agent result;
-never write control files into staging.
+Candidate operations are `create` or `replace`. Source classifications are
+`mapped_here`, `owned_by`, `child_branch`, or `no_durable_value`; supply
+`owner`, `branch_id`, or `reason` when required. Frontier classifications are
+`fork_candidate`, `documented`, or `blocked`; documented entries require
+`document`, and blocked entries require `reason`. A candidate-bearing
+checkpoint is `continuing`. A `locally_saturated` checkpoint has no candidates
+or continuation and uses `terminal_reason: "no useful node:
+<evidence-based reason>"`. A `blocked` checkpoint is candidate-free and states
+the concrete blocker. Use empty arrays and JSON `null`, never omitted fields.
+Report only evidence-supported work. Never put checkpoint fields, coverage
+scheduling, candidates, continuations, or fork status in published Markdown.
 
 Repository: <repository-root>
 Live Spine, read-only: <spine-root>
@@ -276,13 +298,26 @@ changes. Never infer runtime failure without an attempted start.
 ## Consume checkpoints and resume
 
 Treat a returned checkpoint as a write barrier: the producer must not mutate
-its staging root until the orchestrator has consumed it. Do not reread
-candidate prose or repeat source investigation. If staging is nonempty, publish
-it only through this single consumer command:
+its staging root until the orchestrator has consumed it. Save the exact JSON
+result under `<run-root>/checkpoints/`, outside every staging root, then run and
+inspect this command separately:
+
+```text
+python3 <map-skill-root>/scripts/checkpoint.py \
+  <run-root>/frontier.json <branch-id> <checkpoint-json>
+```
+
+It validates the complete report, atomically imports every frontier item, and
+returns a digest. Any nonzero exit or error rejects the checkpoint; ask the
+same producer for a corrected complete JSON result. Do not manually translate
+or selectively import its fields. Do not reread candidate prose or repeat
+source investigation. If the accepted checkpoint has candidates, publish them
+only through this single consumer command:
 
 ```text
 python3 <map-skill-root>/scripts/publish_candidates.py \
   <run-root>/frontier.json <branch-id> <spine-root> <private-staging-root> \
+  --checkpoint-digest <digest-from-import-receipt> \
   --path <candidate-relative-path>... \
   [--replace-existing <reserved-relative-path>]...
 ```
@@ -304,16 +339,14 @@ session. If interruption nevertheless leaves an unledgered live destination,
 rerun that branch against the current Spine and never infer ownership from the
 file.
 
-Classify the report after publication. Import its complete `Coverage frontier`
-into the ledger before resuming or releasing that producer:
-
-- accept conflict-free reservation requests and keep published paths reserved;
-- reject terminal status while its `Source coverage` contains an unowned group;
-- reconcile every `Coverage frontier` item against the ledger and existing
-  documented branches; add every actionable unowned boundary;
-- add accepted `Fork candidates` as child branches;
-- retain blocked work with its prerequisite or authority requirement;
-- mark the branch `locally_saturated` only after terminal `no useful node`.
+The importer rejects incomplete source ownership, a child absent from the
+frontier, malformed terminal status, conflicting IDs, and omitted fields. The
+publisher rejects paths or replacement flags that differ from the imported
+checkpoint and rejects replacements with no content change. Never resume or
+release a producer while its branch has a pending checkpoint. If a failed
+publication requires changing the checkpoint paths or operations, run
+`frontier.py discard-checkpoint --compact <ledger> <branch-id>`, inspect the
+receipt, obtain corrected JSON from the same producer, and import it anew.
 
 Treat any checkpoint that published a candidate as `continuing`, regardless of
 its reported status or missing continuation. Resume that same producer with a
@@ -331,8 +364,9 @@ reason, never as proof that its parent or siblings lack useful nodes.
 Resume a continuing branch through the environment's native follow-up
 mechanism. Send only the next same-branch assignment and relevant paths
 published since its previous turn; never resend the bundle or immutable shared
-context. Resume only after staging is empty. Do not assign unrelated queued
-work to that session. Once a branch is locally saturated, release its session
+context. Resume only after staging is empty and the imported checkpoint is no
+longer pending. Do not assign unrelated queued work to that session. Once a
+branch is locally saturated, release its session
 and fill the slot from the ledger's `ready` output.
 
 Use this compact continuation command:
@@ -343,7 +377,7 @@ instructions. Perform exactly one Map step for this same-boundary continuation:
 <continuation-or-terminal-depth>.
 Reserved branch destinations, including newly published paths: <paths-or-none>.
 The writable staging root is empty and remains <private-staging-root>.
-Return the same compact checkpoint report.
+Return the same exact JSON checkpoint object.
 ```
 
 Defer index reachability and reciprocal navigation updates until final
@@ -375,7 +409,11 @@ registries and manifests, routes and public interfaces, persistence, external
 integrations, configuration and deployment, security boundaries, failure
 behavior, and observability. Add any newly exposed independent boundary and
 drain the queue again. The root branch may become `locally_saturated` only when
-one complete repeat pass adds no unledgered material boundary.
+one complete repeat pass adds no unledgered material boundary. After that pass
+and only after every non-root branch is complete, record it separately with
+`frontier.py discovery-pass --compact <ledger> --evidence <signals-checked>`.
+The root cannot become locally saturated without a discovery pass for the
+current frontier epoch; adding a later branch invalidates the pass.
 After every terminal result, close complete descendants bottom-up with `state`.
 Before normalization, run:
 
@@ -427,12 +465,19 @@ Reading pre-existing indexes and overviews and running the checker remain allowe
    inferences, and open questions.
 5. Run the full deterministic checker once over the normalized Spine.
 
-After success, remove the exact disposable run root with `find <run-root> -depth
--delete`; never try `rm -rf`. If interrupted or blocked before a clean final
-audit, do not normalize or delete the run root: report the exact ledger and
-staging paths so a later invocation can continue them. Report scope, published
-files, relationships, exact `no useful node` reasons, unresolved drift,
-limitations, normalization, and checks.
+After normalization and its checker, run:
+
+```text
+python3 <map-skill-root>/scripts/finalize_run.py \
+  <run-root>/frontier.json <spine-root> \
+  --staging-root <private-staging-root>...
+```
+
+Only a `status: finalized` receipt permits removing the exact run root with
+`find <run-root> -depth -delete`; never use `rm -rf`. Otherwise preserve it and
+report exact ledger and staging paths. Report scope, published files,
+relationships, exact `no useful node` reasons, unresolved drift, limitations,
+normalization, and checks.
 The final report must contain the literal phrase `no useful node` and recommend
 that the operator run `$specspine-doctor` in a new session for an independent
 integrity and semantic review. Do not invoke Doctor in the current session.

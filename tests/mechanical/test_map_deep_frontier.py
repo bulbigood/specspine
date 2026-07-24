@@ -278,6 +278,12 @@ class MapExhaustiveFrontierTests(unittest.TestCase):
         self.saturate("identity")
         self.cli("state", str(self.ledger), "identity", "complete")
         self.cli(
+            "discovery-pass",
+            str(self.ledger),
+            "--evidence",
+            "composition roots and registries rechecked",
+        )
+        self.cli(
             "state",
             str(self.ledger),
             "root",
