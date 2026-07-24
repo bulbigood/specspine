@@ -19,6 +19,17 @@ class MapModeBenchmarkTests(unittest.TestCase):
             "medium", BENCHMARK.DEFAULT_ORCHESTRATOR_REASONING_EFFORT
         )
         self.assertEqual("weak", BENCHMARK.DEFAULT_SUBAGENT_ROLE)
+        self.assertEqual("gpt-5.6-luna", BENCHMARK.DEFAULT_JUDGE_MODEL)
+        self.assertEqual("medium", BENCHMARK.DEFAULT_JUDGE_REASONING_EFFORT)
+
+    def test_default_quality_judge_uses_the_minimal_bounded_profile(self):
+        command = BENCHMARK.default_judge_command(
+            BENCHMARK.DEFAULT_JUDGE_MODEL,
+            BENCHMARK.DEFAULT_JUDGE_REASONING_EFFORT,
+        )
+        self.assertIn("--model gpt-5.6-luna", command)
+        self.assertIn("--reasoning-effort medium", command)
+        self.assertIn("--subagent-role weak", command)
 
     def test_arms_share_the_exact_fixture(self):
         BENCHMARK.validate_equal_fixtures()

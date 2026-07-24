@@ -61,8 +61,10 @@ ledger or recovery manifest. Final assertions verify
 move-based publication, source protection, disposable run-root cleanup, and
 mechanical Spine validity. Document length is observed, not bounded. The paired
 benchmark adds one blind holistic documentation-quality judgment per sample
-pair. This case normally costs one orchestrator plus several producer sessions
-and belongs in the explicit `expensive` category.
+pair. The judge is an independent bounded task and therefore defaults to
+Luna/medium; its cost is excluded from both arms. This case normally costs one
+Terra/medium orchestrator plus several Luna/medium producer sessions and belongs
+in the explicit `expensive` category.
 
 Remaining distinct behavioral gaps are:
 

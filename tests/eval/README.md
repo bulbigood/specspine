@@ -219,8 +219,10 @@ For each paired sample, one additional blind judge compares the terminal
 generated Spines using architectural fidelity, evidence and epistemic discipline,
 responsibility and boundary clarity, material coverage, coherence/navigation,
 signal-to-noise/usefulness, and holistic overall quality. Length is reported but
-is not a failure or quality penalty by itself. Use `--skip-quality-judge` only
-for mechanical harness debugging.
+is not a failure or quality penalty by itself. This bounded, non-orchestrating
+judge defaults independently to Luna/medium; use `--judge-model` and
+`--judge-reasoning-effort` to override it. Use `--skip-quality-judge` only for
+mechanical harness debugging.
 
 The report compares documentation-quality scores and preference, pass rate,
 document and top-level-invocation counts, word counts, case and

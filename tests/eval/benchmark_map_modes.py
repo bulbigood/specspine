@@ -26,6 +26,8 @@ ARMS = (
 DEFAULT_ORCHESTRATOR_MODEL = "gpt-5.6-terra"
 DEFAULT_ORCHESTRATOR_REASONING_EFFORT = "medium"
 DEFAULT_SUBAGENT_ROLE = "weak"
+DEFAULT_JUDGE_MODEL = "gpt-5.6-luna"
+DEFAULT_JUDGE_REASONING_EFFORT = "medium"
 SUBAGENT_ROLES = ("weak", "medium", "strong")
 QUALITY_DIMENSIONS = (
     "architectural_fidelity",
@@ -91,6 +93,14 @@ def report_command(
         "--report-json", str(report),
         "--agent-command", adapter,
     ], report
+
+
+def default_judge_command(model: str, reasoning_effort: str) -> str:
+    return (
+        f"{sys.executable} {EVAL_DIR / 'adapters' / 'codex.py'} "
+        f"--model {model} --reasoning-effort {reasoning_effort} "
+        f"--subagent-role {DEFAULT_SUBAGENT_ROLE}"
+    )
 
 
 def mean(values: list[float]) -> float | None:
@@ -533,6 +543,10 @@ def main() -> int:
         "--judge-command",
         help="command that accepts the blind quality-review prompt on stdin; defaults to the Codex adapter",
     )
+    parser.add_argument("--judge-model", default=DEFAULT_JUDGE_MODEL)
+    parser.add_argument(
+        "--judge-reasoning-effort", default=DEFAULT_JUDGE_REASONING_EFFORT
+    )
     parser.add_argument(
         "--skip-quality-judge",
         action="store_true",
@@ -564,10 +578,9 @@ def main() -> int:
     judgments: list[dict[str, Any]] = []
     judge_cost: dict[str, Any] = {}
     if not args.skip_quality_judge:
-        judge_command = args.judge_command or (
-            f"{sys.executable} {EVAL_DIR / 'adapters' / 'codex.py'} "
-            f"--model {args.model} --reasoning-effort {args.reasoning_effort} "
-            f"--subagent-role {args.subagent_role}"
+        judge_command = args.judge_command or default_judge_command(
+            args.judge_model,
+            args.judge_reasoning_effort,
         )
         try:
             judgments, judge_cost = judge_reports(
