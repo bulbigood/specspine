@@ -17,8 +17,10 @@ disposable run root and private roots `.specspine-map-run/staging/identity/`,
 `.specspine-map-run/staging/telemetry/`. Give producers complete self-contained
 text commands; they must not load skills or mapping references. There are no
 other material coverage gaps in this fixture. The harness configures producer
-models outside their commands. Use `.eval/tools/check_spine.py` for candidate
-preflight. Do not run SpecSpine Doctor.
+models outside their commands. Keep this small five-document Spine flat; it
+does not justify namespace directories. Cite both source and test evidence
+under their actual repository-relative paths. Use `.eval/tools/check_spine.py`
+for candidate preflight. Do not run SpecSpine Doctor.
 ```
 
 ## Expected behavior

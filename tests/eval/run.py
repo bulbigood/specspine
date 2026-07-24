@@ -168,6 +168,7 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         "file_paths_read": sorted(set(map(str, files_read))) if isinstance(files_read, list) else [],
         "model": trace.get("model"),
         "reasoning_effort": trace.get("reasoning_effort"),
+        "subagent_role": trace.get("subagent_role"),
         "subagent_model": trace.get("subagent_model"),
         "subagent_reasoning_effort": trace.get("subagent_reasoning_effort"),
         "cache_scope": trace.get("cache_scope"),
@@ -1004,6 +1005,58 @@ def evaluate_assertion(
         needles = assertion.get("values", [assertion.get("value", "")])
         found = [needle for needle in needles if any(needle in command for command in commands)]
         return CheckResult(not found, f"forbidden command text found: {found}" if found else "forbidden command text absent")
+    if kind == "candidate_preflight_before_publish":
+        if trace is None:
+            return CheckResult(False, "agent did not produce a trace")
+        metrics = trace.get("event_metrics", {}).get("command_metrics", [])
+        if not isinstance(metrics, list):
+            return CheckResult(False, "agent trace has no command metrics")
+        published = 0
+        failures: list[str] = []
+        for index, item in enumerate(metrics):
+            if not isinstance(item, dict):
+                continue
+            if item.get("status") != "completed" or item.get("exit_code") != 0:
+                continue
+            command = str(item.get("command_excerpt") or "")
+            roots = re.findall(
+                r"\bmv\s+(\.specspine-map-run/staging/[^/\s]+)(?:/|\s)",
+                command,
+            )
+            for root in roots:
+                published += 1
+                preflights = [
+                    previous
+                    for previous in metrics[: index + 1]
+                    if isinstance(previous, dict)
+                    and "check_spine.py" in str(previous.get("command_excerpt") or "")
+                    and "--candidates" in str(previous.get("command_excerpt") or "")
+                    and root in str(previous.get("command_excerpt") or "")
+                    and (
+                        previous is not item
+                        or str(previous.get("command_excerpt") or "").find(
+                            "--candidates"
+                        )
+                        < str(previous.get("command_excerpt") or "").find(
+                            f"mv {root}"
+                        )
+                    )
+                ]
+                latest = preflights[-1] if preflights else None
+                if (
+                    latest is None
+                    or latest.get("status") != "completed"
+                    or latest.get("exit_code") != 0
+                ):
+                    failures.append(root)
+        return CheckResult(
+            published > 0 and not failures,
+            (
+                f"candidate publications without successful latest preflight: {failures}"
+                if failures
+                else f"{published} candidate publications followed successful preflight"
+            ),
+        )
     if kind in {
         "collab_spawn_count",
         "collab_initial_spawn_count",

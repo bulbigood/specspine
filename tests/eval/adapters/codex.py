@@ -35,8 +35,12 @@ SANDBOX_PROTECTED_NAMES = (".git", ".agents", ".codex")
 RETRIEVAL_SCRIPT_NAME = "search_spine.py"
 DEFAULT_ORCHESTRATOR_MODEL = "gpt-5.6-terra"
 DEFAULT_ORCHESTRATOR_REASONING_EFFORT = "medium"
-DEFAULT_SUBAGENT_MODEL = "gpt-5.6-luna"
-DEFAULT_SUBAGENT_REASONING_EFFORT = "medium"
+DEFAULT_SUBAGENT_ROLE = "weak"
+SUBAGENT_ROLE_CONFIG = {
+    "weak": ("gpt-5.6-luna", "medium"),
+    "medium": ("gpt-5.6-terra", "medium"),
+    "strong": ("gpt-5.6-sol", "medium"),
+}
 TERMINAL_AGENT_STATUSES = {
     "cancelled",
     "completed",
@@ -413,6 +417,7 @@ def parse_agent_telemetry(
     tree_token_usage: dict[str, int],
     top_level_model: str,
     top_level_reasoning_effort: str,
+    subagent_role: str,
     subagent_model: str,
     subagent_reasoning_effort: str,
 ) -> dict[str, object]:
@@ -454,6 +459,7 @@ def parse_agent_telemetry(
                     str(thread_id),
                     {
                         "thread_id": str(thread_id),
+                        "role": subagent_role,
                         "model": subagent_model,
                         "reasoning_effort": subagent_reasoning_effort,
                         "spawn_observed": False,
@@ -500,6 +506,7 @@ def parse_agent_telemetry(
                     identifier,
                     {
                         "thread_id": identifier,
+                        "role": subagent_role,
                         "model": subagent_model,
                         "reasoning_effort": subagent_reasoning_effort,
                         "spawn_observed": True,
@@ -532,6 +539,7 @@ def parse_agent_telemetry(
                 identifier,
                 {
                     "thread_id": identifier,
+                    "role": subagent_role,
                     "model": subagent_model,
                     "reasoning_effort": subagent_reasoning_effort,
                     "spawn_observed": False,
@@ -1195,6 +1203,16 @@ def environment_errors(stdout: str, stderr: str = "") -> list[str]:
     def bubblewrap_errors(output: str) -> list[str]:
         return [line.strip() for line in output.splitlines() if line.lstrip().startswith("bwrap:")]
 
+    def subagent_routing_errors(output: str) -> list[str]:
+        return [
+            line.strip()
+            for line in output.splitlines()
+            if (
+                ("Unknown model" in line and "for spawn_agent" in line)
+                or "collab spawn failed" in line
+            )
+        ]
+
     for line in stdout.splitlines():
         try:
             event = json.loads(line)
@@ -1213,7 +1231,15 @@ def environment_errors(stdout: str, stderr: str = "") -> list[str]:
         output = str(item.get("aggregated_output", ""))
         evidence.extend(bubblewrap_errors(output))
     evidence.extend(bubblewrap_errors(stderr))
-    return [f"Codex command sandbox unavailable: {detail}" for detail in dict.fromkeys(evidence)]
+    errors = [
+        f"Codex command sandbox unavailable: {detail}"
+        for detail in dict.fromkeys(evidence)
+    ]
+    errors.extend(
+        f"Codex subagent routing unavailable: {detail}"
+        for detail in dict.fromkeys(subagent_routing_errors(stderr))
+    )
+    return errors
 
 
 def scope_violations(
@@ -1275,6 +1301,15 @@ def scope_violations(
             mask_pruned_group,
             allowed_eval,
         )
+        if re.search(r"(?:^|\s)find\s", allowed_eval) and re.search(
+            r"-name\s+[\"']?\.eval[\"']?[\s\S]*?-prune\b",
+            allowed_eval,
+        ):
+            allowed_eval = re.sub(
+                r"-name\s+[\"']?\.eval[\"']?",
+                "-name <EVAL_EXCLUSION>",
+                allowed_eval,
+            )
         # A depth-one directory listing cannot descend into evaluator files.
         # Permit excluding the `.eval` directory by name in that bounded form,
         # but keep rejecting the same predicate on an unbounded `find`.
@@ -1400,6 +1435,38 @@ def prepare_codex_home(runtime_root: Path) -> Path:
     return codex_home
 
 
+def configure_default_subagent(
+    codex_home: Path,
+    profile: str,
+    model: str,
+    reasoning_effort: str,
+) -> Path:
+    """Route argument-free default spawns through an isolated eval profile."""
+    agents = codex_home / "agents"
+    agents.mkdir()
+    target = agents / "default.toml"
+    target.write_text(
+        "\n".join(
+            (
+                'name = "default"',
+                (
+                    'description = "Default evaluation producer using the '
+                    f'{profile} cost profile."'
+                ),
+                f"model = {json.dumps(model)}",
+                f"model_reasoning_effort = {json.dumps(reasoning_effort)}",
+                (
+                    'developer_instructions = "Complete only the bounded '
+                    'assignment from the parent and return a concise result."'
+                ),
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    return target
+
+
 def macos_external_dependencies(executable: Path) -> list[Path]:
     """Return absolute non-system dependencies of a Mach-O file."""
     if sys.platform != "darwin" or not shutil.which("otool"):
@@ -1509,8 +1576,6 @@ def stage_runtime_tools(runtime_root: Path) -> None:
 def build_codex_command(
     model: str,
     reasoning_effort: str,
-    subagent_model: str,
-    subagent_reasoning_effort: str,
     root: Path,
     runtime_root: Path,
     retrieval_telemetry: str | None = None,
@@ -1569,13 +1634,6 @@ def build_codex_command(
         "--config",
         f'model_reasoning_effort="{reasoning_effort}"',
         "--config",
-        f'agents.default_subagent_model="{subagent_model}"',
-        "--config",
-        (
-            "agents.default_subagent_reasoning_effort="
-            f'"{subagent_reasoning_effort}"'
-        ),
-        "--config",
         'default_permissions="specspine_eval"',
         "--config",
         f"permissions.specspine_eval.workspace_roots={workspace_roots}",
@@ -1594,14 +1652,22 @@ def build_codex_command(
         "exec",
         "--strict-config",
         "--json",
-        "--ephemeral",
-        "--ignore-user-config",
         "--ignore-rules",
         "--skip-git-repo-check",
         "-C",
         str(root),
         "-",
     ]
+
+
+def routed_prompt(prompt: str, subagent_role: str) -> str:
+    return (
+        "EVALUATION RUNTIME ROUTING: The isolated runtime maps the default "
+        f"spawned agent to the {subagent_role} profile. For every spawn_agent "
+        "call, use the default agent type and omit agent_type, model, and "
+        "reasoning_effort overrides.\n\n"
+        + prompt
+    )
 
 
 def enable_retrieval_telemetry(root: Path, level: str) -> None:
@@ -1635,10 +1701,10 @@ def main() -> int:
     parser.add_argument(
         "--reasoning-effort", default=DEFAULT_ORCHESTRATOR_REASONING_EFFORT
     )
-    parser.add_argument("--subagent-model", default=DEFAULT_SUBAGENT_MODEL)
     parser.add_argument(
-        "--subagent-reasoning-effort",
-        default=DEFAULT_SUBAGENT_REASONING_EFFORT,
+        "--subagent-role",
+        choices=tuple(SUBAGENT_ROLE_CONFIG),
+        default=DEFAULT_SUBAGENT_ROLE,
     )
     parser.add_argument(
         "--retrieval-telemetry",
@@ -1652,9 +1718,12 @@ def main() -> int:
         help="benchmark-only: make the disposable accelerator available or unavailable",
     )
     args = parser.parse_args()
+    subagent_model, subagent_reasoning_effort = SUBAGENT_ROLE_CONFIG[
+        args.subagent_role
+    ]
     root = Path.cwd()
     selected_retrieval_script = retrieval_script(root)
-    prompt = sys.stdin.read()
+    prompt = routed_prompt(sys.stdin.read(), args.subagent_role)
     candidates = relative_files(root)
     eval_dir = root / ".eval"
     configured_runtime = os.environ.get("SPECSPINE_EVAL_RUNTIME_DIR")
@@ -1679,6 +1748,12 @@ def main() -> int:
         workspace_mountpoints = prepare_sandbox_mountpoints(root, runtime_root)
         stage_runtime_tools(runtime_root)
         codex_home = prepare_codex_home(runtime_root)
+        configure_default_subagent(
+            codex_home,
+            args.subagent_role,
+            subagent_model,
+            subagent_reasoning_effort,
+        )
         (runtime_root / "gitconfig").touch()
         safe_path = sandbox_path(runtime_root)
         profile = f"export PATH={shlex.quote(safe_path)}\n"
@@ -1697,8 +1772,6 @@ def main() -> int:
         command = build_codex_command(
             args.model,
             args.reasoning_effort,
-            args.subagent_model,
-            args.subagent_reasoning_effort,
             root,
             runtime_root,
             args.retrieval_telemetry,
@@ -1745,8 +1818,9 @@ def main() -> int:
         tree_token_usage=token_usage,
         top_level_model=args.model,
         top_level_reasoning_effort=args.reasoning_effort,
-        subagent_model=args.subagent_model,
-        subagent_reasoning_effort=args.subagent_reasoning_effort,
+        subagent_role=args.subagent_role,
+        subagent_model=subagent_model,
+        subagent_reasoning_effort=subagent_reasoning_effort,
     )
     execution_errors = environment_errors(completed.stdout, completed.stderr)
     boundary_violations = scope_violations(commands, root, (runtime_root,))
@@ -1796,8 +1870,9 @@ def main() -> int:
                 "scope_violations": boundary_violations,
                 "model": args.model,
                 "reasoning_effort": args.reasoning_effort,
-                "subagent_model": args.subagent_model,
-                "subagent_reasoning_effort": args.subagent_reasoning_effort,
+                "subagent_role": args.subagent_role,
+                "subagent_model": subagent_model,
+                "subagent_reasoning_effort": subagent_reasoning_effort,
                 "cache_scope": "private-per-sample",
                 "runtime": {
                     "adapter_sha256": file_sha256(Path(__file__)),

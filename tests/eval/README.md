@@ -143,13 +143,15 @@ python3 tests/eval/run.py \
 `run.py` does not select a model itself; it executes the command supplied by
 `--agent-command`. The standard Codex adapter defaults the top-level agent
 (the Map Large orchestrator) to `gpt-5.6-terra` with `medium` reasoning and
-spawned agents to `gpt-5.6-luna` with `medium` reasoning. Pass overrides
-through the quoted adapter command. This example states all defaults explicitly:
+creates an isolated Codex runtime whose default spawned-agent profile resolves
+the selected `weak` role to `gpt-5.6-luna` with `medium` reasoning. The
+orchestrator therefore spawns the default agent without passing a model or
+`agent_type` override. This example states all defaults explicitly:
 
 ```bash
 python3 tests/eval/run.py \
   --category core \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium --subagent-model gpt-5.6-luna --subagent-reasoning-effort medium"
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium --subagent-role weak"
 ```
 
 `--case` and `--category` are repeatable and may be combined. There is no
@@ -171,8 +173,10 @@ rereading the generated file. Producers do not load Map, references, or
 templates.
 
 The Codex adapter defaults the top-level agent to `gpt-5.6-terra` with medium
-reasoning and nested agents to `gpt-5.6-luna` with medium reasoning. The
-Map-Large case asserts all four values from the runtime trace.
+reasoning. In its private disposable `CODEX_HOME`, it maps the default
+spawned-agent profile to the selected `weak` role, currently
+`gpt-5.6-luna` with medium reasoning. The Map-Large case asserts the requested
+role and the model metadata resolved by the adapter.
 
 ```bash
 python3 tests/eval/run.py \

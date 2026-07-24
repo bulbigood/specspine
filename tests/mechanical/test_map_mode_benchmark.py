@@ -18,8 +18,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
         self.assertEqual(
             "medium", BENCHMARK.DEFAULT_ORCHESTRATOR_REASONING_EFFORT
         )
-        self.assertEqual("gpt-5.6-luna", BENCHMARK.DEFAULT_SUBAGENT_MODEL)
-        self.assertEqual("medium", BENCHMARK.DEFAULT_SUBAGENT_REASONING_EFFORT)
+        self.assertEqual("weak", BENCHMARK.DEFAULT_SUBAGENT_ROLE)
 
     def test_arms_share_the_exact_fixture(self):
         BENCHMARK.validate_equal_fixtures()
@@ -29,19 +28,14 @@ class MapModeBenchmarkTests(unittest.TestCase):
         command, report = BENCHMARK.report_command(
             Path("/reports"), "map", "map-direct-comparison-small",
             samples=2, model="model", reasoning_effort="medium",
-            subagent_model="worker-model",
-            subagent_reasoning_effort="medium", timestamp="stamp",
+            subagent_role="weak", timestamp="stamp",
         )
         rendered = " ".join(command)
         self.assertIn("--case map-direct-comparison-small", rendered)
         self.assertIn("--samples 2", rendered)
         self.assertIn("--jobs 1", rendered)
         self.assertIn("--model model --reasoning-effort medium", rendered)
-        self.assertIn(
-            "--subagent-model worker-model "
-            "--subagent-reasoning-effort medium",
-            rendered,
-        )
+        self.assertIn("--subagent-role weak", rendered)
         self.assertEqual(Path("/reports/map.json"), report)
 
     def test_both_arms_use_the_same_top_level_model(self):
@@ -54,15 +48,14 @@ class MapModeBenchmarkTests(unittest.TestCase):
                 samples=1,
                 model="gpt-5.6-terra",
                 reasoning_effort="medium",
-                subagent_model="gpt-5.6-luna",
-                subagent_reasoning_effort="medium",
+                subagent_role="weak",
                 timestamp="stamp",
             )
             rendered.append(" ".join(command))
 
         self.assertTrue(all("--model gpt-5.6-terra" in item for item in rendered))
         self.assertTrue(all("--reasoning-effort medium" in item for item in rendered))
-        self.assertTrue(all("--subagent-model gpt-5.6-luna" in item for item in rendered))
+        self.assertTrue(all("--subagent-role weak" in item for item in rendered))
 
     def test_comparison_contains_quality_cost_and_parallelism(self):
         sample = {
@@ -81,6 +74,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
                 "spawned_agent_count": 3,
                 "model": "gpt-5.6-terra",
                 "reasoning_effort": "medium",
+                "subagent_role": "weak",
                 "subagent_model": "gpt-5.6-luna",
                 "subagent_reasoning_effort": "medium",
                 "cost_ledger": {"tool_cycles": 5},
@@ -103,7 +97,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
             BENCHMARK.write_comparison(target, reports)
             text = target.read_text(encoding="utf-8")
         for value in (
-            "top_level_model", "top_level_reasoning_effort",
+            "top_level_model", "top_level_reasoning_effort", "subagent_role",
             "subagent_model", "subagent_reasoning_effort",
             "pass_rate", "mechanical_quality_pass_rate", "mean_case_wall_time_seconds",
             "mean_agent_tree_wall_time_seconds", "mean_agent_tree_total_tokens",

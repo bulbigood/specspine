@@ -141,6 +141,8 @@ publish-ready Markdown only under the writable output root. Keep source, tests,
 configuration, the live Spine, its README, and every other staging root
 read-only. This execution override controls output location and publication
 when the embedded general Map instructions describe live writes.
+Put a short summary immediately below each H1. Cite repository evidence paths
+as inline code, never as Markdown links outside the Spine.
 After writing the candidate and compact report, stop. Do not run a checker,
 reread the candidate, or perform a final validation pass; the consumer owns all
 post-production validation.
@@ -161,7 +163,8 @@ Return a compact report containing only: evidence inspected; created files and
 relative final destinations; mapped responsibilities and relationships;
 material follow-up architectural questions with prerequisites; unresolved
 inferences or drift; and whether no useful node was found. Do not repeat the
-document prose.
+document prose. Return this report only as the agent result; never write
+reports, manifests, notes, or other control files into the staging root.
 
 Repository: <repository-root>
 Immutable source revision: <revision>
@@ -202,7 +205,8 @@ index reachability and translated semantic-section names. The producer owns
 source evidence and semantic fitness for its assigned zone; the orchestrator
 must not repeat that work.
 
-Candidate mode exits nonzero for any finding. Publish only after a successful
+Candidate mode exits nonzero for any finding, including notes. Fix every
+finding and rerun the candidate check. Publish only after a successful
 empty result. Treat findings as a focused correction question and keep its
 staging path recorded until corrected or explicitly failed. Do not manually
 reread, merge, semantically rewrite, or selectively copy candidate content.
@@ -275,10 +279,11 @@ Spine contents:
 This normalization is part of completing a large-repository Map request and
 needs no separate prompt. Perform it once, not during continuous mapping.
 Run the full deterministic checker exactly once after normalization; do not
-repeat it during cleanup. When tooling permits, batch that check,
-source-fingerprint verification, successful run-root deletion, and final
-source-state verification into one conditional filesystem command rather than
-separate model/tool cycles.
+repeat it during cleanup. When tooling permits, batch that check with
+source-fingerprint and final source-state verification. Do not use recursive
+deletion for the disposable root. Delete its known ledger and generated
+instruction file with the available file-editing tool, then remove the exact
+empty staging and run directories with `rmdir`.
 
 ## Optional post-map Doctor
 

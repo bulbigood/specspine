@@ -25,8 +25,8 @@ ARMS = (
 )
 DEFAULT_ORCHESTRATOR_MODEL = "gpt-5.6-terra"
 DEFAULT_ORCHESTRATOR_REASONING_EFFORT = "medium"
-DEFAULT_SUBAGENT_MODEL = "gpt-5.6-luna"
-DEFAULT_SUBAGENT_REASONING_EFFORT = "medium"
+DEFAULT_SUBAGENT_ROLE = "weak"
+SUBAGENT_ROLES = ("weak", "medium", "strong")
 QUALITY_DIMENSIONS = (
     "architectural_fidelity",
     "evidence_and_epistemic_discipline",
@@ -57,16 +57,14 @@ def report_command(
     samples: int,
     model: str,
     reasoning_effort: str,
-    subagent_model: str,
-    subagent_reasoning_effort: str,
+    subagent_role: str,
     timestamp: str,
 ) -> tuple[list[str], Path]:
     report = output_dir / f"{label}.json"
     adapter = (
         f"{sys.executable} {EVAL_DIR / 'adapters' / 'codex.py'} "
         f"--model {model} --reasoning-effort {reasoning_effort} "
-        f"--subagent-model {subagent_model} "
-        f"--subagent-reasoning-effort {subagent_reasoning_effort}"
+        f"--subagent-role {subagent_role}"
     )
     return [
         sys.executable, str(EVAL_DIR / "run.py"),
@@ -139,6 +137,9 @@ def summarize(report: dict[str, Any]) -> dict[str, Any]:
         ),
         "subagent_model": common_value(
             [run.get("subagent_model") for run in runs]
+        ),
+        "subagent_role": common_value(
+            [run.get("subagent_role") for run in runs]
         ),
         "subagent_reasoning_effort": common_value(
             [run.get("subagent_reasoning_effort") for run in runs]
@@ -449,10 +450,10 @@ def main() -> int:
     parser.add_argument(
         "--reasoning-effort", default=DEFAULT_ORCHESTRATOR_REASONING_EFFORT
     )
-    parser.add_argument("--subagent-model", default=DEFAULT_SUBAGENT_MODEL)
     parser.add_argument(
-        "--subagent-reasoning-effort",
-        default=DEFAULT_SUBAGENT_REASONING_EFFORT,
+        "--subagent-role",
+        choices=SUBAGENT_ROLES,
+        default=DEFAULT_SUBAGENT_ROLE,
     )
     parser.add_argument(
         "--judge-command",
@@ -477,8 +478,7 @@ def main() -> int:
             samples=args.samples,
             model=args.model,
             reasoning_effort=args.reasoning_effort,
-            subagent_model=args.subagent_model,
-            subagent_reasoning_effort=args.subagent_reasoning_effort,
+            subagent_role=args.subagent_role,
             timestamp=timestamp,
         )
         print("+", " ".join(command), flush=True)
@@ -493,8 +493,7 @@ def main() -> int:
         judge_command = args.judge_command or (
             f"{sys.executable} {EVAL_DIR / 'adapters' / 'codex.py'} "
             f"--model {args.model} --reasoning-effort {args.reasoning_effort} "
-            f"--subagent-model {args.subagent_model} "
-            f"--subagent-reasoning-effort {args.subagent_reasoning_effort}"
+            f"--subagent-role {args.subagent_role}"
         )
         try:
             judgments, judge_cost = judge_reports(

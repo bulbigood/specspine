@@ -94,6 +94,102 @@ class RunnerTests(unittest.TestCase):
             self.assertTrue(passed.passed)
             self.assertFalse(failed.passed)
 
+    def test_candidate_publication_requires_latest_successful_preflight(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            failed_trace = {
+                "event_metrics": {
+                    "command_metrics": [
+                        {
+                            "command_excerpt": (
+                                "python3 check_spine.py specspine --candidates "
+                                ".specspine-map-run/staging/identity --json"
+                            ),
+                            "status": "failed",
+                            "exit_code": 1,
+                        },
+                        {
+                            "command_excerpt": (
+                                "mv .specspine-map-run/staging/identity/doc.md "
+                                "specspine/doc.md"
+                            ),
+                            "status": "completed",
+                            "exit_code": 0,
+                        },
+                    ]
+                }
+            }
+            passed_trace = json.loads(json.dumps(failed_trace))
+            passed_trace["event_metrics"]["command_metrics"][0].update(
+                status="completed", exit_code=0
+            )
+            batched_trace = {
+                "event_metrics": {
+                    "command_metrics": [
+                        {
+                            "command_excerpt": (
+                                "python3 check_spine.py specspine --candidates "
+                                ".specspine-map-run/staging/identity --json && "
+                                "mv .specspine-map-run/staging/identity/doc.md "
+                                "specspine/doc.md"
+                            ),
+                            "status": "completed",
+                            "exit_code": 0,
+                        }
+                    ]
+                }
+            }
+            ignored_failed_move = json.loads(json.dumps(passed_trace))
+            ignored_failed_move["event_metrics"]["command_metrics"].insert(
+                1,
+                {
+                    "command_excerpt": (
+                        "mv .specspine-map-run/staging/identity/doc.md "
+                        "specspine/doc.md"
+                    ),
+                    "status": "failed",
+                    "exit_code": 1,
+                },
+            )
+
+            failed = RUNNER.evaluate_assertion(
+                {"type": "candidate_preflight_before_publish"},
+                workspace,
+                {},
+                {},
+                "",
+                failed_trace,
+            )
+            passed = RUNNER.evaluate_assertion(
+                {"type": "candidate_preflight_before_publish"},
+                workspace,
+                {},
+                {},
+                "",
+                passed_trace,
+            )
+            batched = RUNNER.evaluate_assertion(
+                {"type": "candidate_preflight_before_publish"},
+                workspace,
+                {},
+                {},
+                "",
+                batched_trace,
+            )
+            ignored = RUNNER.evaluate_assertion(
+                {"type": "candidate_preflight_before_publish"},
+                workspace,
+                {},
+                {},
+                "",
+                ignored_failed_move,
+            )
+
+            self.assertFalse(failed.passed)
+            self.assertTrue(passed.passed)
+            self.assertTrue(batched.passed)
+            self.assertTrue(ignored.passed)
+
     def test_semantic_id_assertion_uses_doctor_commonmark_rules(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)

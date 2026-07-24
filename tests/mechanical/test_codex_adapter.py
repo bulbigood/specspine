@@ -20,8 +20,28 @@ class CodexAdapterTests(unittest.TestCase):
     def test_default_model_routing_uses_terra_orchestrator_and_luna_subagents(self):
         self.assertEqual("gpt-5.6-terra", ADAPTER.DEFAULT_ORCHESTRATOR_MODEL)
         self.assertEqual("medium", ADAPTER.DEFAULT_ORCHESTRATOR_REASONING_EFFORT)
-        self.assertEqual("gpt-5.6-luna", ADAPTER.DEFAULT_SUBAGENT_MODEL)
-        self.assertEqual("medium", ADAPTER.DEFAULT_SUBAGENT_REASONING_EFFORT)
+        self.assertEqual("weak", ADAPTER.DEFAULT_SUBAGENT_ROLE)
+        self.assertEqual(
+            ("gpt-5.6-luna", "medium"),
+            ADAPTER.SUBAGENT_ROLE_CONFIG["weak"],
+        )
+
+    def test_routes_subagents_by_role_without_direct_model_override(self):
+        prompt = ADAPTER.routed_prompt("task", "weak")
+        self.assertIn("default spawned agent to the weak profile", prompt)
+        self.assertIn("omit agent_type, model, and reasoning_effort", prompt)
+        self.assertTrue(prompt.endswith("\n\ntask"))
+
+    def test_configures_isolated_default_subagent_profile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            target = ADAPTER.configure_default_subagent(
+                home, "weak", "gpt-5.6-luna", "medium"
+            )
+            text = target.read_text(encoding="utf-8")
+            self.assertIn('name = "default"', text)
+            self.assertIn('model = "gpt-5.6-luna"', text)
+            self.assertIn('model_reasoning_effort = "medium"', text)
 
     def test_run_codex_timestamps_each_stdout_line(self):
         command = [
@@ -458,12 +478,14 @@ class CodexAdapterTests(unittest.TestCase):
             tree_token_usage={"input_tokens": 1000, "output_tokens": 50},
             top_level_model="terra",
             top_level_reasoning_effort="medium",
+            subagent_role="weak",
             subagent_model="luna",
             subagent_reasoning_effort="medium",
         )
 
         producer = telemetry["producers"][0]
         self.assertEqual("worker-1", producer["thread_id"])
+        self.assertEqual("weak", producer["role"])
         self.assertEqual("luna", producer["model"])
         self.assertEqual("map background jobs", producer["assignment"])
         self.assertEqual(len(prompt.encode()), producer["prompt_utf8_bytes"])
@@ -777,6 +799,34 @@ class CodexAdapterTests(unittest.TestCase):
         )
         self.assertEqual([], ADAPTER.environment_errors(stdout))
 
+    def test_detects_rejected_direct_subagent_model_override(self):
+        stderr = (
+            "ERROR router: Unknown model `gpt-5.6-luna` for spawn_agent. "
+            "Available models: gpt-5.6-sol, gpt-5.6-terra\n"
+        )
+        self.assertEqual(
+            [
+                "Codex subagent routing unavailable: "
+                "ERROR router: Unknown model `gpt-5.6-luna` for spawn_agent. "
+                "Available models: gpt-5.6-sol, gpt-5.6-terra"
+            ],
+            ADAPTER.environment_errors("", stderr),
+        )
+
+    def test_detects_missing_parent_thread_for_subagent_spawn(self):
+        stderr = (
+            "ERROR codex_core::tools::router: error=collab spawn failed: "
+            "no thread with id: parent-id\n"
+        )
+        self.assertEqual(
+            [
+                "Codex subagent routing unavailable: "
+                "ERROR codex_core::tools::router: error=collab spawn failed: "
+                "no thread with id: parent-id"
+            ],
+            ADAPTER.environment_errors("", stderr),
+        )
+
     def test_does_not_classify_successful_output_mention_as_environment_error(self):
         stdout = json.dumps(
             {
@@ -875,6 +925,12 @@ PATCH"""
                 "\\( -path './.git' -o -path './.eval' -o -path './specspine' \\) "
                 "-prune -o -print"
             ),
+            (
+                "find . -maxdepth 5 \\\n"
+                "  \\( -type d \\( \\\n"
+                "    -name .git -o -name .eval -o -name node_modules \\\n"
+                "  \\) \\) -prune -o -print | LC_ALL=C sort"
+            ),
             "find . -maxdepth 1 -type d -not -name .eval -print",
             "rg --files -g '!.eval/**'",
             "rg --files -g '! .eval/**'",
@@ -952,7 +1008,7 @@ PATCH"""
 
     def test_codex_command_uses_restricted_permission_profile(self):
         command = ADAPTER.build_codex_command(
-            "agent-model", "medium", "worker-model", "low",
+            "agent-model", "medium",
             Path("/workspace"), Path("/runtime")
         )
         rendered = " ".join(command)
@@ -973,12 +1029,15 @@ PATCH"""
         path_setting = environment_argument.split('PATH="', 1)[1].split('"', 1)[0]
         self.assertNotIn(str(Path.home()), path_setting)
         self.assertNotIn("pyenv", path_setting.lower())
-        self.assertIn("--ignore-user-config", command)
+        self.assertNotIn("--ignore-user-config", command)
         self.assertIn("--ignore-rules", command)
+        self.assertNotIn("--ephemeral", command)
         self.assertIn("allow_login_shell=false", command)
-        self.assertIn('agents.default_subagent_model="worker-model"', command)
-        self.assertIn(
-            'agents.default_subagent_reasoning_effort="low"', command
+        self.assertFalse(
+            any("agents.default_subagent_model" in item for item in command)
+        )
+        self.assertFalse(
+            any("agents.default_subagent_reasoning_effort" in item for item in command)
         )
         self.assertNotIn("workspace-write", rendered)
         self.assertNotIn('.agents"="read', rendered)
@@ -986,7 +1045,7 @@ PATCH"""
 
     def test_codex_command_uses_private_accelerator_cache(self):
         command = ADAPTER.build_codex_command(
-            "agent-model", "medium", "worker-model", "low",
+            "agent-model", "medium",
             Path("/workspace"), Path("/runtime")
         )
         environment_argument = next(
@@ -1002,8 +1061,6 @@ PATCH"""
         command = ADAPTER.build_codex_command(
             "agent-model",
             "medium",
-            "worker-model",
-            "low",
             Path("/workspace"),
             Path("/runtime"),
             force_retrieval_fallback=True,
@@ -1017,8 +1074,6 @@ PATCH"""
         command = ADAPTER.build_codex_command(
             "agent-model",
             "medium",
-            "worker-model",
-            "low",
             Path("/workspace"),
             Path("/runtime"),
             retrieval_telemetry="minimal",
