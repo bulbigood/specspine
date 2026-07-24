@@ -416,6 +416,7 @@ def parse_rollout_collaboration(
                 "prompt_ciphertext_bytes": len(message.encode("utf-8")),
                 "task_name": arguments.get("task_name"),
                 "target": arguments.get("target"),
+                "fork_turns": arguments.get("fork_turns"),
                 "agents_states": {},
                 "status": "started",
             }

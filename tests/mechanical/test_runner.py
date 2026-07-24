@@ -453,6 +453,7 @@ class RunnerTests(unittest.TestCase):
                 "kind": "collab",
                 "event_id": identifier,
                 "tool": "spawn_agent",
+                "fork_turns": "none",
                 "receiver_thread_ids": [f"agent-{identifier}"],
                 "prompt": prompt,
                 "prompt_ciphertext_bytes": 100,
@@ -543,6 +544,8 @@ class RunnerTests(unittest.TestCase):
                 "min_spawn_bytes": 100,
                 "max_resume_to_spawn_ratio": 0.2,
             },
+            {"type": "collab_spawn_context_isolated"},
+            {"type": "collab_tools_absent", "values": ["interrupt_agent"]},
             {"type": "collab_refill_without_wait"},
             {"type": "collab_max_active", "max": 2},
             {

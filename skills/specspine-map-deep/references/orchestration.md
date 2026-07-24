@@ -39,16 +39,22 @@ mark the branch `active`, and count its slot. A failed start or missing handle
 leaves the branch queued and does not reserve capacity. Capacity exhaustion
 reduces concurrency: it never completes, drops, or blocks queued work and does
 not imply that every subagent is unavailable. Continue with confirmed sessions
-and retry ready branches only after capacity may have been released.
+and retry ready branches only after capacity may have been released. When the environment exposes subagents, attempt to start producer subagents and use every safely available slot; never choose local execution for convenience or unknown capacity, only after no usable producer handle can be obtained.
 
 If a confirmed producer fails before returning a valid checkpoint, keep its
 staging unpublished, clear its ownership, and requeue the branch with fresh
 private staging unless an authority or prerequisite blocker was reported.
 Never count planned, attempted, failed, or terminated sessions as active.
+Never interrupt a running producer to switch to local execution, reclaim a
+slot, or because it has not responded yet. Interrupt only for operator
+cancellation or a confirmed hang or failure.
 
 Split the initial scope into independent coherent architectural branches.
 Avoid competing ownership of the same concept. Assign one branch to one
 producer session and never repurpose that session for an unrelated branch.
+Give each initial assignment exactly one independent architectural branch
+question. Never combine sibling responsibilities to reduce producer starts or
+fit available slots; leave undispatched siblings queued.
 The producer may propose child branches but must never create producers.
 Deduplicate proposals against queued, active, locally saturated, complete, and
 already documented branches. The orchestrator alone accepts forks, resolves
@@ -84,6 +90,13 @@ bundle and emits the same text. Capture stdout directly; do not read the
 generated file or assemble resources manually. Embed the bundle only in the
 initial command for each new producer session. Producers must not load skills,
 resources, or orchestration instructions themselves.
+Prefix every new `spawn_agent` message with the complete captured bundle,
+including sibling starts and later refills; isolated producers share no bundle.
+
+Start each producer with an isolated new-thread context. With Codex
+`spawn_agent`, pass `fork_turns="none"`; use the equivalent isolation elsewhere.
+Its initial command is self-contained. Never copy the growing ToDo, sibling
+reports, or orchestration history into it.
 
 Use this initial command with resolved placeholders:
 ```text
@@ -105,6 +118,8 @@ another producer can own.
 
 Create publish-ready Markdown only under the writable output root. Keep source,
 tests, configuration, the live Spine, and every other staging root read-only.
+Tool-level write access does not authorize live-Spine writes: every path you
+create or replace in this turn must begin with the private staging root.
 The writable root mirrors `<spine-root>`: place every candidate at its exact
 final relative path. A candidate may be a new specification or a complete
 replacement of a reserved live destination. Preserve unrelated content and
@@ -112,6 +127,9 @@ accepted intent in replacements. Never replace an unreserved path or README.
 
 Apply Map's refusal rules exactly. When they stop this branch, create nothing
 and report `no useful node`; never manufacture output to keep the branch alive.
+Any checkpoint that created or replaced a file must be `continuing`, never
+`locally saturated`. A `locally saturated` checkpoint must be candidate-free
+and follow a terminal Map refusal in that turn.
 Use the exact supplied evidence baseline near the first Observed section. Do
 not perform a separate validation or reread pass; return the checkpoint.
 
@@ -145,9 +163,12 @@ Reserved existing destinations: <relative-paths-or-none>
 Architectural branch: <branch-question>
 ```
 
-When no usable producer can be started, including environments without
-subagents, execute the same branch protocol locally. The current agent performs
-orchestrator, producer, and consumer roles; only concurrency changes.
+Use local execution only with observed evidence that no producer can start:
+the environment exposes no collaboration/subagent tool, or an actual start
+attempt returned failure or no addressable handle. Never infer unavailability
+without one of those observations. Then execute the same branch protocol
+locally; the current agent performs orchestrator, producer, and consumer roles,
+and only concurrency changes.
 
 ## Consume checkpoints and resume
 
@@ -156,7 +177,7 @@ its staging root until the orchestrator has consumed it. Do not reread
 candidate prose or repeat source investigation. If staging is nonempty, run:
 
 ```text
-python3 <checker-path>/check_spine.py <spine-root> \
+python3 <map-deep-skill-root>/scripts/check_spine.py <spine-root> \
   --candidates <private-staging-root> <reserved --replace-existing args or none> --json
 ```
 
@@ -172,6 +193,11 @@ Classify the report after publication:
 - enqueue accepted `Fork candidates` as child branches;
 - retain blocked work with its prerequisite or authority requirement;
 - mark the branch locally saturated only after terminal `no useful node`.
+
+Treat any checkpoint that published a candidate as `continuing`, regardless of
+its reported status or missing continuation. Resume that same producer with a
+terminal-depth assignment; only a later candidate-free `no useful node`
+checkpoint may release the session as locally saturated.
 
 Resume a continuing branch through the environment's native follow-up
 mechanism. Send only the next same-branch assignment and relevant paths
@@ -204,6 +230,9 @@ Immediately dispatch ready work into every free slot. Continuing owners and
 queued branches are both ready work: dispatch them without waiting for siblings
 or forming pairs or waves. When several results arrive, classify only enough to
 keep dispatching until all available slots are occupied.
+After consuming any candidate-free terminal checkpoint, spawn one ready queued
+branch before calling `wait`, listing agents, or processing another sibling
+result. Never wait for another active owner while that free slot has ready work.
 The run is saturated only when no producer is active, no actionable branch
 remains, and every requested branch tree is complete. Do not stop at a
 predetermined document count or shallow overview coverage, and do not invent
@@ -229,6 +258,7 @@ reports, published destinations, the Spine index, and relevant overviews:
 After success, remove the exact disposable run root with `find <run-root> -depth
 -delete`; never try `rm -rf`. Report scope, published files, relationships, exact
 `no useful node` reasons, unresolved drift, limitations, normalization, and checks.
+The final report must contain the literal phrase `no useful node`.
 
 Run SpecSpine Doctor only when the operator explicitly requests a post-map
 semantic review; apply repairs after final checks and only with approval.

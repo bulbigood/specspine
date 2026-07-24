@@ -170,8 +170,8 @@ calibration.
 Its fixture exposes more independent responsibilities than available producer
 slots. Trace assertions require two initial workers, cap observed concurrency
 at two, require multiple branch-affine sessions and resumptions, and use
-encrypted rollout-message sizes to reject repeated immutable instructions in
-continuations. The concurrency check coalesces terminal/spawn rollout events
+encrypted rollout-message sizes to confirm that resumptions remain materially
+smaller than initial assignments. The concurrency check coalesces terminal/spawn rollout events
 within one second because delivery order can differ from execution order. Both
 benchmark arms use the same
 `tests/eval/fixtures/map-modes-six-area` tree rather than duplicated manifest

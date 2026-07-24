@@ -216,10 +216,10 @@ not a mandatory intermediary for every internal skill operation.
 
 ### Adapter generator
 
-The six publishable packages under `skills/` and common instructions under
-`shared/references/` are the source of truth. References reused across skills
-live under `shared/references/` and appear in each consumer as relative symbolic
-links registered in
+The six publishable packages under `skills/`, common instructions under
+`shared/references/`, and common deterministic tools under `shared/scripts/`
+are the source of truth. Reused resources live under `shared/` and appear in
+each consumer as relative symbolic links. Shared references are registered in
 `tools/specspine-adapter-generator/scripts/generate_resources.py`. A reference
 that defines only one skill's private execution protocol remains a regular file
 inside that skill; do not put it under `shared/` or register it as a shared
@@ -691,6 +691,8 @@ specspine/
 ├── README.md
 ├── LICENSE
 ├── shared/
+│   ├── scripts/
+│   │   └── check_spine.py
 │   └── references/
 │       ├── spec-format.md
 │       ├── spec-semantics.md
@@ -738,7 +740,8 @@ specspine/
 │   │   ├── references/
 │   │   │   └── orchestration.md
 │   │   └── scripts/
-│   │       └── bundle_skill.py
+│   │       ├── bundle_skill.py
+│   │       └── check_spine.py -> ../../../shared/scripts/check_spine.py
 │   └── specspine-doctor/
 │   │   ├── SKILL.md
 │   │   ├── references/
@@ -746,7 +749,7 @@ specspine/
 │   │   │   ├── spec-semantics.md -> ../../../shared/references/spec-semantics.md
 │   │   │   └── review-method.md -> ../../../shared/references/specspine-doctor/review-method.md
 │   │   └── scripts/
-│   │       └── check_spine.py
+│   │       └── check_spine.py -> ../../../shared/scripts/check_spine.py
 ├── tools/
 │   └── specspine-adapter-generator/
 │       ├── MAINTAINER.md

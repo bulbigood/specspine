@@ -754,6 +754,18 @@ def matches_any(path: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatch(path, pattern) for pattern in patterns)
 
 
+def command_options(command: str, option: str) -> list[str]:
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return []
+    return [
+        tokens[index + 1]
+        for index, token in enumerate(tokens[:-1])
+        if token == option
+    ]
+
+
 def markdown_h2_sections(text: str) -> dict[str, str]:
     sections: dict[str, list[str]] = {}
     current: str | None = None
@@ -1084,11 +1096,16 @@ def evaluate_assertion(
             if item.get("status") != "completed" or item.get("exit_code") != 0:
                 continue
             command = str(item.get("command_excerpt") or "")
-            roots = re.findall(
-                r"\bmv\s+(\.specspine-map-run/staging/[^/\s]+)(?:/|\s)",
-                command,
-            )
-            for root in roots:
+            sources: list[str] = []
+            try:
+                tokens = shlex.split(command)
+            except ValueError:
+                tokens = []
+            for token_index, token in enumerate(tokens[:-1]):
+                if Path(token).name != "mv":
+                    continue
+                sources.append(tokens[token_index + 1])
+            for source in sources:
                 published += 1
                 preflights = [
                     previous
@@ -1096,14 +1113,21 @@ def evaluate_assertion(
                     if isinstance(previous, dict)
                     and "check_spine.py" in str(previous.get("command_excerpt") or "")
                     and "--candidates" in str(previous.get("command_excerpt") or "")
-                    and root in str(previous.get("command_excerpt") or "")
+                    and any(
+                        source == candidate_root
+                        or source.startswith(candidate_root.rstrip("/") + "/")
+                        for candidate_root in command_options(
+                            str(previous.get("command_excerpt") or ""),
+                            "--candidates",
+                        )
+                    )
                     and (
                         previous is not item
                         or str(previous.get("command_excerpt") or "").find(
                             "--candidates"
                         )
                         < str(previous.get("command_excerpt") or "").find(
-                            f"mv {root}"
+                            f"mv {source}"
                         )
                     )
                 ]
@@ -1113,7 +1137,7 @@ def evaluate_assertion(
                     or latest.get("status") != "completed"
                     or latest.get("exit_code") != 0
                 ):
-                    failures.append(root)
+                    failures.append(source)
         return CheckResult(
             published > 0 and not failures,
             (
@@ -1128,6 +1152,8 @@ def evaluate_assertion(
         "collab_resume_count",
         "collab_resume_prompts",
         "collab_spawn_assignments",
+        "collab_spawn_context_isolated",
+        "collab_tools_absent",
         "collab_message_size_ratio",
         "collab_refill_without_wait",
         "collab_max_active",
@@ -1153,6 +1179,21 @@ def evaluate_assertion(
             for item in calls
             if item.get("tool") in {"followup_task", "send_input"}
         ]
+        if kind == "collab_tools_absent":
+            forbidden = set(assertion.get("values", []))
+            found = sorted(
+                {
+                    str(item.get("tool"))
+                    for item in calls
+                    if item.get("tool") in forbidden
+                }
+            )
+            return CheckResult(
+                not found,
+                f"forbidden collaboration tools used: {found}"
+                if found
+                else "forbidden collaboration tools absent",
+            )
         if kind == "collab_spawn_count":
             minimum = assertion.get("min", 0)
             maximum = assertion.get("max", sys.maxsize)
@@ -1230,6 +1271,13 @@ def evaluate_assertion(
                     f"spawn assignments {assignments}; expected partition "
                     f"counts {counts}, per-assignment counts {per_assignment}"
                 ),
+            )
+        if kind == "collab_spawn_context_isolated":
+            values = [item.get("fork_turns") for item in spawns]
+            passed = bool(values) and all(value == "none" for value in values)
+            return CheckResult(
+                passed,
+                f"spawn fork_turns values: {values}; expected all 'none'",
             )
         if kind == "collab_message_size_ratio":
             spawn_sizes = [

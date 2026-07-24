@@ -82,6 +82,14 @@ class MapDeepContractTests(unittest.TestCase):
         self.assertIn("Create or change no document when", normalized_map)
         self.assertIn("Report that terminal reason explicitly", normalized_map)
         self.assertIn("never manufacture output to keep the branch alive", normalized)
+        self.assertIn(
+            "Any checkpoint that created or replaced a file must be `continuing`",
+            normalized,
+        )
+        self.assertIn(
+            "A `locally saturated` checkpoint must be candidate-free",
+            normalized,
+        )
         self.assertIn("until it reports terminal `no useful node`", normalized)
         self.assertIn("do not create a fresh producer merely to probe the same branch", normalized)
         self.assertIn("no actionable branch remains", normalized)
@@ -96,6 +104,10 @@ class MapDeepContractTests(unittest.TestCase):
         self.assertIn("complete-generated-map-instructions", self.protocol)
         self.assertIn("Do not load or invoke any skill", self.protocol)
         self.assertIn("only in the initial command for each new producer session", normalized)
+        self.assertIn("Prefix every new `spawn_agent` message", normalized)
+        self.assertIn("isolated producers share no bundle", normalized)
+        self.assertIn('pass `fork_turns="none"`', normalized)
+        self.assertIn("initial command is self-contained", normalized)
         self.assertIn("never resend the bundle or immutable shared context", normalized)
         self.assertNotIn("$specspine-map", self.protocol)
 
@@ -113,12 +125,17 @@ class MapDeepContractTests(unittest.TestCase):
         normalized = " ".join((self.deep + self.protocol).split())
         for statement in (
             "The orchestrator is the sole scheduling authority",
+            "Give each initial assignment exactly one independent architectural branch question",
+            "Never combine sibling responsibilities",
             "The producer may propose child branches but must never create producers",
             "A same-boundary continuation remains with its current producer",
             "never repurpose that session for an unrelated branch",
             "`Current-branch continuation`",
             "`Fork candidates`",
             "accept conflict-free reservation requests",
+            "Treat any checkpoint that published a candidate as `continuing`",
+            "regardless of its reported status or missing continuation",
+            "only a later candidate-free `no useful node`",
             "Resume a continuing branch through the environment's native follow-up mechanism",
             "complete` only when it is locally saturated and every accepted child branch is complete",
         ):
@@ -130,6 +147,9 @@ class MapDeepContractTests(unittest.TestCase):
         for statement in (
             "Treat producer capacity as observed, not planned",
             "an exact limit need not be known in advance",
+            "attempt to start producer subagents",
+            "never choose local execution for convenience",
+            "only after no usable producer handle can be obtained",
             "Keep a branch `queued` and unowned until the environment confirms",
             "Only then assign that handle, mark the branch `active`, and count its slot",
             "A failed start or missing handle leaves the branch queued",
@@ -137,6 +157,8 @@ class MapDeepContractTests(unittest.TestCase):
             "retry ready branches only after capacity may have been released",
             "clear its ownership, and requeue the branch with fresh private staging",
             "Never count planned, attempted, failed, or terminated sessions as active",
+            "Never interrupt a running producer",
+            "Interrupt only for operator cancellation or a confirmed hang or failure",
         ):
             with self.subTest(statement=statement):
                 self.assertIn(statement, normalized)
@@ -147,7 +169,10 @@ class MapDeepContractTests(unittest.TestCase):
             "one private staging root per active producer session",
             "Resolve one current evidence baseline once",
             "Keep source, tests, configuration, the live Spine",
+            "Tool-level write access does not authorize live-Spine writes",
+            "must begin with the private staging root",
             "Do not reread candidate prose",
+            "<map-deep-skill-root>/scripts/check_spine.py",
             "--replace-existing",
             "Move every accepted candidate unchanged",
             "Never reconstruct a file by reading and rewriting it",
@@ -155,6 +180,17 @@ class MapDeepContractTests(unittest.TestCase):
         ):
             with self.subTest(statement=statement):
                 self.assertIn(statement, normalized)
+
+    def test_checker_has_one_shared_source_and_two_skill_symlinks(self):
+        shared = ROOT / "shared/scripts/check_spine.py"
+        self.assertTrue(shared.is_file())
+        for consumer in (
+            ROOT / "skills/specspine-map-deep/scripts/check_spine.py",
+            ROOT / "skills/specspine-doctor/scripts/check_spine.py",
+        ):
+            with self.subTest(consumer=consumer):
+                self.assertTrue(consumer.is_symlink())
+                self.assertEqual(shared.resolve(), consumer.resolve())
 
     def test_map_owns_mapping_rules_and_override_only_adapts_execution(self):
         normalized_map = " ".join(self.mapper.split())
@@ -215,13 +251,22 @@ class MapDeepContractTests(unittest.TestCase):
         normalized = " ".join(self.protocol.split())
         self.assertIn("Immediately dispatch ready work into every free slot", normalized)
         self.assertIn("without waiting for siblings or forming pairs or waves", normalized)
+        self.assertIn(
+            "spawn one ready queued branch before calling `wait`",
+            normalized,
+        )
+        self.assertIn(
+            "Never wait for another active owner while that free slot has ready work",
+            normalized,
+        )
         self.assertIn("find <run-root> -depth -delete", normalized)
         self.assertNotIn("`rm -rf <run-root>`", normalized)
 
     def test_sequential_fallback_changes_only_concurrency(self):
         normalized = " ".join((self.deep + self.protocol).split())
-        self.assertIn("When no usable producer can be started", normalized)
-        self.assertIn("including environments without subagents", normalized)
+        self.assertIn("only with observed evidence that no producer can start", normalized)
+        self.assertIn("actual start attempt returned failure", normalized)
+        self.assertIn("Never infer unavailability", normalized)
         self.assertIn("orchestrator, producer, and consumer roles", normalized)
         self.assertIn("only concurrency changes", normalized)
 
@@ -231,8 +276,9 @@ class MapDeepContractTests(unittest.TestCase):
         self.assertIn("After saturation, perform one sequential navigation pass", normalized)
         self.assertIn("Add every new document to curated `README.md` navigation", normalized)
         self.assertIn("Run the full deterministic checker once", normalized)
+        self.assertIn("final report must contain the literal phrase `no useful node`", normalized)
         self.assertIn("only when the operator explicitly requests", normalized)
-        self.assertLessEqual(len(self.protocol.splitlines()), 235)
+        self.assertLessEqual(len(self.protocol.splitlines()), 265)
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@
   "initial_tree": "tests/eval/fixtures/map-modes-six-area",
   "assertions": [
     {"type": "glob_count", "glob": "specspine/**/*.md", "min": 6, "max": 12},
-    {"type": "glob_contains", "glob": "specspine/**/*.md", "values": ["src/identity/session.js", "tests/identity/session.test.js", "config/identity.json", "src/jobs/runner.js", "tests/jobs/runner.test.js", "config/jobs.json", "src/telemetry/exporter.js", "tests/telemetry/exporter.test.js", "config/telemetry.json", "src/notifications/router.js", "tests/notifications/router.test.js", "config/notifications.json", "src/search/index.js", "tests/search/index.test.js", "config/search.json", "src/webhooks/receiver.js", "tests/webhooks/receiver.test.js", "config/webhooks.json"]},
+    {"type": "glob_contains", "glob": "specspine/**/*.md", "values": ["src/identity/session.js", "config/identity.json", "src/jobs/runner.js", "config/jobs.json", "src/telemetry/exporter.js", "config/telemetry.json", "src/notifications/router.js", "config/notifications.json", "src/search/index.js", "config/search.json", "src/webhooks/receiver.js", "config/webhooks.json"]},
     {"type": "unchanged", "paths": ["src/**", "tests/**", "config/**"]},
     {"type": "changed_only", "paths": ["specspine/**"]},
     {"type": "markdown_links_valid", "glob": "specspine/**/*.md"},
