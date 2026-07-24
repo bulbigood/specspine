@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 
@@ -53,6 +54,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("skill_root", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument(
+        "--print",
+        action="store_true",
+        dest="print_bundle",
+        help="also write the complete bundle to stdout",
+    )
     args = parser.parse_args()
     try:
         bundle = build_bundle(args.skill_root)
@@ -60,6 +67,8 @@ def main() -> int:
         parser.error(str(error))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(bundle, encoding="utf-8")
+    if args.print_bundle:
+        sys.stdout.write(bundle)
     return 0
 
 

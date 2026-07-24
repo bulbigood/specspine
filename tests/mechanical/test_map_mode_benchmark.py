@@ -84,6 +84,14 @@ class MapModeBenchmarkTests(unittest.TestCase):
                 "subagent_model": "gpt-5.6-luna",
                 "subagent_reasoning_effort": "medium",
                 "cost_ledger": {"tool_cycles": 5},
+                "agent_telemetry": {
+                    "producers": [
+                        {
+                            "observed_duration_seconds": 2.5,
+                            "prompt_utf8_bytes": 12000,
+                        }
+                    ]
+                },
             }],
         }
         reports = {
@@ -105,6 +113,9 @@ class MapModeBenchmarkTests(unittest.TestCase):
             "mean_agent_tree_output_tokens", "mean_agent_tree_reasoning_tokens",
             "mean_document_words", "mean_total_document_words",
             "mean_files_read", "mean_tool_cycles", "mean_spawned_agents",
+            "mean_observed_producer_wall_time_seconds",
+            "producer_duration_coverage_rate",
+            "mean_producer_prompt_utf8_bytes",
             "documentation_quality_architectural_fidelity",
             "documentation_quality_evidence_and_epistemic_discipline",
             "documentation_quality_responsibility_and_boundary_clarity",
@@ -116,7 +127,8 @@ class MapModeBenchmarkTests(unittest.TestCase):
         ):
             self.assertIn(value, text)
         self.assertIn("orchestrator plus every nested producer", text)
-        self.assertIn("per-thread token usage", text)
+        self.assertIn("per-producer token counters", text)
+        self.assertIn("terminal lifecycle notification", text)
         self.assertIn("do not penalize length by itself", text)
 
     def test_quality_rubric_uses_holistic_scores_and_does_not_reward_brevity(self):

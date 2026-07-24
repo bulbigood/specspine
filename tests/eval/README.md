@@ -165,8 +165,10 @@ iteration; use repeated samples only for release calibration.
 The harness installs Map as a companion only for the Map Large orchestrator.
 The orchestrator runs the generic skill bundler once. It strips Map
 frontmatter, concatenates the complete Map body and every UTF-8 file under Map
-`references/`, and embeds that generated text in producer commands. Producers
-do not load Map, references, or templates.
+`references/`, saves the bundle, and emits the same complete text in that one
+tool result. The orchestrator embeds that result in producer commands without
+rereading the generated file. Producers do not load Map, references, or
+templates.
 
 The Codex adapter defaults the top-level agent to `gpt-5.6-terra` with medium
 reasoning and nested agents to `gpt-5.6-luna` with medium reasoning. The
@@ -203,11 +205,16 @@ The report compares documentation-quality scores and preference, pass rate,
 word counts, case and complete-agent-tree wall time, cumulative tree
 input/cache-read/cache-write/uncached/output/reasoning tokens, project reads,
 tool cycles, spawned agents, and sanitized collaboration lifecycle counts
-(spawn/wait/close outcomes and latest producer statuses). Judge time and tokens
-are reported separately and excluded from both arms. Current Codex JSONL exposes only cumulative token usage for the
+(spawn/wait/close outcomes and latest producer statuses). Raw per-run telemetry
+also records every observed producer thread, model, assignment, prompt
+size/hash, terminal status, spawn-to-terminal observation interval, and every
+collaboration-call duration. Failed command diagnostics retain a bounded output
+excerpt. Judge time and tokens are reported separately and excluded from both
+arms. Current Codex JSONL exposes only cumulative token usage for the
 orchestrator plus nested producers; it does not expose exact orchestrator-only
-or per-producer token/time breakdowns. The report states this limitation and
-does not estimate missing counters. Keep one sample for routine calibration;
+or per-producer token counters. Producer wall times are observed lifecycle
+intervals and report their coverage; unavailable counters stay null and are
+never estimated. Keep one sample for routine calibration;
 repeated samples are release-level evidence. Successful reports include only
 the explicitly requested `specspine/**/*.md` snapshots needed by the blind
 judge.

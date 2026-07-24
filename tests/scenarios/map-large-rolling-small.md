@@ -24,8 +24,11 @@ preflight. Do not run SpecSpine Doctor.
 ## Expected behavior
 
 The orchestrator should process the three independent zones concurrently within
-the available capacity, publish candidates as they complete without a batch
-barrier, normalize once, and remove the successful disposable run root.
+the available capacity. It should seed work from one path-only tree listing
+without reading zone source or tests itself. Producers stop after writing and
+reporting; the consumer alone validates and publishes candidates as they
+complete without a batch barrier, then normalizes once and removes the
+successful disposable run root.
 
 ## Failure indicators
 

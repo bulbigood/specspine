@@ -2,16 +2,32 @@
 
 ## Preconditions
 
-- Resolve and read the live `<spine-root>`.
-- Perform or confirm a shallow breadth-first topology survey.
+- Resolve the live `<spine-root>` from project paths.
+- Perform the initial survey with exactly this one path-only command; do not
+  substitute another discovery command:
+
+  ```sh
+  find . -maxdepth 5 \
+    \( -type d \( \
+      -name .git -o -name .eval -o -name .specspine-map-run -o \
+      -name node_modules -o -name .venv -o -name venv -o \
+      -name .gradle -o -name .next -o -name __pycache__ -o \
+      -name dist -o -name build -o -name target \
+    \) \) -prune -o -print | LC_ALL=C sort
+  ```
+
+  Use only directory and file names from its output to seed the initial
+  questions and identify existing Spine documents. Do not read source, tests,
+  configuration, or Markdown contents during initial planning. Do not make
+  another discovery call before dispatching initial ready questions.
 - Capture a concise source revision and dirty-state fingerprint when available.
   Exclude `<spine-root>` and the disposable run root from the fingerprint.
   Verify that identifier before publishing results and at completion. If it
   changes, stop rather than mix evidence from different source states.
 
-If the Spine does not yet have `README.md`, create a minimal index and
-topology-level entry points during the shallow survey before starting staged
-production. Do not turn this bootstrap into deep repository mapping.
+If the path listing shows that the Spine has no `README.md`, create a minimal
+index and topology-level entry points before starting staged production. Do not
+turn this bootstrap into repository-content inspection.
 
 Do not use a requested or desired document count to plan areas, worker prompts,
 splits, or stopping decisions.
@@ -28,12 +44,13 @@ the ledger, reconcile published paths, return interrupted active questions to
 ready, and continue. Delete the run root after successful completion. If the
 run stops incomplete, preserve and report its location for resumption.
 
-Inspect only enough repository shape and current Mapping status to seed the run.
-Do not deeply explore the codebase or enumerate every possible area up front.
-Build only a small bounded backlog of ready architectural questions. Extend it
-from producer reports. Assign exactly one coherent architectural zone to each
-producer. A zone may contain related questions, but never combine independent
-zones merely to amortize producer startup. Each assignment should have:
+Seed the run only from the single project-tree listing. Do not inspect file
+contents or read the current Mapping status during initial planning. Do not
+enumerate every possible area up front. Build only a small bounded backlog of
+ready architectural questions. Extend it from producer reports. Assign exactly
+one coherent architectural zone to each producer. A zone may contain related
+questions, but never combine independent zones merely to amortize producer
+startup. Each assignment should have:
 
 - a durable responsibility, runtime boundary, cross-cutting flow, or ownership
   problem to investigate;
@@ -87,16 +104,21 @@ Create one private staging root per active producer inside the disposable run
 root. Build the shared topology snapshot, current ownership summary, source
 revision, and applicable project instructions once in the orchestrator. Reuse
 that text for every producer; do not make workers repeat common topology,
-index, instruction, or revision discovery.
+index, instruction, or revision discovery. Derive the initial topology and
+ownership summaries only from the single path listing; an existing Spine path
+means only that a document exists, not that its contents or ownership claims
+are known.
 
 Build the complete Map instruction bundle once as directed by the parent skill,
 at `<run-root>/producer-instructions.md`. The builder includes every Map
-reference without optional-reference filtering. Read that generated file once.
-Build and load it in one filesystem tool call when possible:
+reference without optional-reference filtering, saves the bundle, and emits
+the same complete text. Capture that stdout directly as producer-command
+context. Do not read the generated file or collect Map references manually.
+Use exactly one filesystem tool call:
 
 ```text
 python3 <map-large-skill-root>/scripts/bundle_skill.py \
-  <map-skill-root> <run-root>/producer-instructions.md
+  <map-skill-root> <run-root>/producer-instructions.md --print
 ```
 
 Pass every worker the complete command below as plain text with placeholders
@@ -119,6 +141,9 @@ publish-ready Markdown only under the writable output root. Keep source, tests,
 configuration, the live Spine, its README, and every other staging root
 read-only. This execution override controls output location and publication
 when the embedded general Map instructions describe live writes.
+After writing the candidate and compact report, stop. Do not run a checker,
+reread the candidate, or perform a final validation pass; the consumer owns all
+post-production validation.
 
 Do not omit material architectural boundaries, relationships to known owners
 or overview specifications, or evidence-supported unknowns merely for brevity.
@@ -129,9 +154,8 @@ The writable root mirrors `<spine-root>`: create every candidate at its exact
 final path relative to the writable root, including the final namespace. For
 example, final `jobs/runner.md` must be staged as
 `<private-staging-root>/jobs/runner.md`, not
-`<private-staging-root>/runner.md`. Verify that every candidate is a regular
-non-symlink file, has a non-colliding meaningful destination, and can be moved
-unchanged to the same relative path under the live Spine.
+`<private-staging-root>/runner.md`. Use a non-colliding meaningful destination
+that can be moved unchanged to the same relative path under the live Spine.
 
 Return a compact report containing only: evidence inspected; created files and
 relative final destinations; mapped responsibilities and relationships;

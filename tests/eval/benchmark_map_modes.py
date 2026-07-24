@@ -109,6 +109,14 @@ def summarize(report: dict[str, Any]) -> dict[str, Any]:
         run for sample in samples for run in sample.get("agent_runs", [])
         if isinstance(run, dict)
     ]
+    producer_rows = [
+        producer
+        for run in runs
+        for telemetry in [run.get("agent_telemetry")]
+        if isinstance(telemetry, dict)
+        for producer in telemetry.get("producers", [])
+        if isinstance(producer, dict)
+    ]
     artifact_sets = [
         sample.get("artifacts", {})
         for sample in samples
@@ -188,6 +196,25 @@ def summarize(report: dict[str, Any]) -> dict[str, Any]:
         "mean_spawned_agents": mean([
             float(run["spawned_agent_count"]) for run in runs
             if isinstance(run.get("spawned_agent_count"), int)
+        ]),
+        "mean_observed_producer_wall_time_seconds": mean([
+            float(producer["observed_duration_seconds"])
+            for producer in producer_rows
+            if isinstance(producer.get("observed_duration_seconds"), (int, float))
+        ]),
+        "producer_duration_coverage_rate": (
+            sum(
+                isinstance(producer.get("observed_duration_seconds"), (int, float))
+                for producer in producer_rows
+            )
+            / len(producer_rows)
+            if producer_rows
+            else None
+        ),
+        "mean_producer_prompt_utf8_bytes": mean([
+            float(producer["prompt_utf8_bytes"])
+            for producer in producer_rows
+            if isinstance(producer.get("prompt_utf8_bytes"), int)
         ]),
     }
 
@@ -388,9 +415,13 @@ def write_comparison(
         "Token counters are cumulative for the complete agent tree: orchestrator "
         "plus every nested producer.",
         "",
-        "`codex exec --json` currently exposes neither per-thread token usage nor "
-        "per-thread execution duration. Exact orchestrator-only and per-producer "
-        "breakdowns are therefore unavailable and are not estimated.",
+        "Producer wall time is the observed interval from successful spawn to "
+        "terminal lifecycle notification; coverage is reported explicitly. "
+        "`codex exec --json` exposes only cumulative agent-tree tokens, so exact "
+        "orchestrator-only and per-producer token counters remain unavailable "
+        "and are not estimated. Raw reports retain every observed producer "
+        "thread, model, assignment, prompt size/hash, status, and collaboration-call "
+        "duration.",
         "",
         "Raw reports: `map.json`, `map-large.json`.",
         "",

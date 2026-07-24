@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -36,6 +37,13 @@ DEFAULT_ORCHESTRATOR_MODEL = "gpt-5.6-terra"
 DEFAULT_ORCHESTRATOR_REASONING_EFFORT = "medium"
 DEFAULT_SUBAGENT_MODEL = "gpt-5.6-luna"
 DEFAULT_SUBAGENT_REASONING_EFFORT = "medium"
+TERMINAL_AGENT_STATUSES = {
+    "cancelled",
+    "completed",
+    "failed",
+    "not_found",
+    "shutdown",
+}
 
 
 def retrieval_script(root: Path) -> Path:
@@ -330,6 +338,256 @@ def parse_activity(stdout: str) -> list[dict[str, object]]:
     return activity
 
 
+def run_codex(
+    command: list[str],
+    prompt: str,
+    environment: dict[str, str],
+) -> tuple[subprocess.CompletedProcess[str], list[dict[str, object]]]:
+    """Capture Codex streams while timestamping each emitted JSONL line."""
+    started = time.monotonic()
+    stdout_lines: list[str] = []
+    stderr_parts: list[str] = []
+    event_timings: list[dict[str, object]] = []
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        env=environment,
+    )
+    assert process.stdin is not None
+    assert process.stdout is not None
+    assert process.stderr is not None
+
+    def read_stdout() -> None:
+        for line in process.stdout:
+            stdout_lines.append(line)
+            event_timings.append(
+                {
+                    "line_number": len(stdout_lines),
+                    "observed_seconds": round(time.monotonic() - started, 6),
+                }
+            )
+
+    def read_stderr() -> None:
+        stderr_parts.extend(process.stderr)
+
+    stdout_thread = threading.Thread(target=read_stdout, daemon=True)
+    stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+    stdout_thread.start()
+    stderr_thread.start()
+    process.stdin.write(prompt)
+    process.stdin.close()
+    returncode = process.wait()
+    stdout_thread.join()
+    stderr_thread.join()
+    process.stdout.close()
+    process.stderr.close()
+    return (
+        subprocess.CompletedProcess(
+            command,
+            returncode,
+            "".join(stdout_lines),
+            "".join(stderr_parts),
+        ),
+        event_timings,
+    )
+
+
+def prompt_assignment(prompt: str) -> str | None:
+    match = re.search(
+        r"^Architectural zone and question:\s*(.+)$",
+        prompt,
+        re.MULTILINE,
+    )
+    return match.group(1).strip() if match else None
+
+
+def parse_agent_telemetry(
+    stdout: str,
+    event_timings: list[dict[str, object]],
+    *,
+    tree_duration_seconds: float,
+    tree_token_usage: dict[str, int],
+    top_level_model: str,
+    top_level_reasoning_effort: str,
+    subagent_model: str,
+    subagent_reasoning_effort: str,
+) -> dict[str, object]:
+    """Build observed per-thread lifecycle telemetry without token estimates."""
+    observed_by_line = {
+        int(item["line_number"]): float(item["observed_seconds"])
+        for item in event_timings
+        if isinstance(item.get("line_number"), int)
+        and isinstance(item.get("observed_seconds"), (int, float))
+    }
+    call_starts: dict[str, float] = {}
+    call_prompts: dict[str, str] = {}
+    calls: list[dict[str, object]] = []
+    agents: dict[str, dict[str, object]] = {}
+
+    for line_number, line in enumerate(stdout.splitlines(), 1):
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        event_type = event.get("type")
+        item = event.get("item")
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get("type")
+        if item_type not in {"collab_tool_call", "collab_agent_tool_call"}:
+            continue
+        item_id = str(item.get("id") or f"line-{line_number}")
+        observed = observed_by_line.get(line_number)
+        tool = str(item.get("tool") or "unknown")
+        prompt = str(item.get("prompt") or "")
+        if event_type == "item.started":
+            if observed is not None:
+                call_starts[item_id] = observed
+            if prompt:
+                call_prompts[item_id] = prompt
+            for thread_id in item.get("receiver_thread_ids", []):
+                agent = agents.setdefault(
+                    str(thread_id),
+                    {
+                        "thread_id": str(thread_id),
+                        "model": subagent_model,
+                        "reasoning_effort": subagent_reasoning_effort,
+                        "spawn_observed": False,
+                        "first_observed_seconds": observed,
+                        "terminal_observed_seconds": None,
+                        "observed_duration_seconds": None,
+                        "latest_status": None,
+                        "assignment": None,
+                        "prompt_utf8_bytes": None,
+                        "prompt_sha256": None,
+                        "token_usage": None,
+                    },
+                )
+                if agent["first_observed_seconds"] is None:
+                    agent["first_observed_seconds"] = observed
+            continue
+        if event_type not in {None, "item.completed"}:
+            continue
+
+        started = call_starts.get(item_id)
+        call_prompt = prompt or call_prompts.get(item_id, "")
+        call = {
+            "event_id": item_id,
+            "tool": tool,
+            "status": item.get("status"),
+            "started_observed_seconds": started,
+            "completed_observed_seconds": observed,
+            "observed_duration_seconds": (
+                round(observed - started, 6)
+                if observed is not None and started is not None
+                else None
+            ),
+            "receiver_thread_ids": [
+                str(value) for value in item.get("receiver_thread_ids", [])
+            ],
+        }
+        calls.append(call)
+
+        receivers = item.get("receiver_thread_ids", [])
+        if tool == "spawn_agent" and item.get("status") == "completed":
+            for thread_id in receivers if isinstance(receivers, list) else []:
+                identifier = str(thread_id)
+                agent = agents.setdefault(
+                    identifier,
+                    {
+                        "thread_id": identifier,
+                        "model": subagent_model,
+                        "reasoning_effort": subagent_reasoning_effort,
+                        "spawn_observed": True,
+                        "first_observed_seconds": observed,
+                        "terminal_observed_seconds": None,
+                        "observed_duration_seconds": None,
+                        "latest_status": None,
+                        "assignment": None,
+                        "prompt_utf8_bytes": None,
+                        "prompt_sha256": None,
+                        "token_usage": None,
+                    },
+                )
+                agent["spawn_observed"] = True
+                agent["first_observed_seconds"] = observed
+                if call_prompt:
+                    encoded = call_prompt.encode("utf-8")
+                    agent["assignment"] = prompt_assignment(call_prompt)
+                    agent["prompt_utf8_bytes"] = len(encoded)
+                    agent["prompt_sha256"] = hashlib.sha256(encoded).hexdigest()
+
+        states = item.get("agents_states", {})
+        if not isinstance(states, dict):
+            continue
+        for thread_id, state in states.items():
+            if not isinstance(state, dict):
+                continue
+            identifier = str(thread_id)
+            agent = agents.setdefault(
+                identifier,
+                {
+                    "thread_id": identifier,
+                    "model": subagent_model,
+                    "reasoning_effort": subagent_reasoning_effort,
+                    "spawn_observed": False,
+                    "first_observed_seconds": observed,
+                    "terminal_observed_seconds": None,
+                    "observed_duration_seconds": None,
+                    "latest_status": None,
+                    "assignment": None,
+                    "prompt_utf8_bytes": None,
+                    "prompt_sha256": None,
+                    "token_usage": None,
+                },
+            )
+            status = state.get("status")
+            if status:
+                agent["latest_status"] = str(status)
+            if status in TERMINAL_AGENT_STATUSES and observed is not None:
+                agent["terminal_observed_seconds"] = observed
+                first = agent.get("first_observed_seconds")
+                if isinstance(first, (int, float)):
+                    agent["observed_duration_seconds"] = round(
+                        observed - float(first), 6
+                    )
+
+    producers = sorted(agents.values(), key=lambda item: str(item["thread_id"]))
+    duration_count = sum(
+        isinstance(item.get("observed_duration_seconds"), (int, float))
+        for item in producers
+    )
+    return {
+        "top_level": {
+            "model": top_level_model,
+            "reasoning_effort": top_level_reasoning_effort,
+            "agent_tree_duration_seconds": tree_duration_seconds,
+            "agent_tree_token_usage": tree_token_usage,
+            "exclusive_duration_seconds": None,
+            "exclusive_token_usage": None,
+        },
+        "producers": producers,
+        "collaboration_calls": calls,
+        "coverage": {
+            "observed_producer_count": len(producers),
+            "spawn_observed_count": sum(
+                bool(item.get("spawn_observed")) for item in producers
+            ),
+            "producer_duration_count": duration_count,
+            "producer_token_usage_count": 0,
+        },
+        "limitations": [
+            "Codex JSONL exposes cumulative agent-tree tokens, not per-thread tokens.",
+            "Producer durations are spawn-to-terminal observation intervals and include notification delay.",
+            "Top-level exclusive time and tokens are unavailable and are not estimated.",
+        ],
+    }
+
+
 def command_category(command: str, inferred_reads: set[str]) -> str:
     source = shell_source(command)
     if is_retrieval_command(source):
@@ -426,6 +684,15 @@ def parse_event_metrics(stdout: str, candidates: list[str]) -> dict[str, object]
                 "inferred_file_count": len(inferred_reads),
                 "inferred_file_paths": sorted(inferred_reads),
                 "command_excerpt": shell_source(command)[:1000],
+                "failure_output_excerpt": (
+                    output[:2000]
+                    if item.get("status") == "failed"
+                    or (
+                        isinstance(item.get("exit_code"), int)
+                        and item.get("exit_code") != 0
+                    )
+                    else None
+                ),
             }
         )
     return {
@@ -1072,11 +1339,19 @@ def write_codex_artifacts(
     stderr: str,
     returncode: int,
     duration_seconds: float,
+    event_timings: list[dict[str, object]] | None = None,
 ) -> None:
     """Persist every unfiltered stream exposed by `codex exec --json`."""
     eval_dir.mkdir(parents=True, exist_ok=True)
     (eval_dir / "codex-prompt.md").write_text(prompt, encoding="utf-8")
     (eval_dir / "codex-events.jsonl").write_text(stdout, encoding="utf-8")
+    (eval_dir / "codex-event-timings.jsonl").write_text(
+        "".join(
+            json.dumps(item, sort_keys=True) + "\n"
+            for item in (event_timings or [])
+        ),
+        encoding="utf-8",
+    )
     (eval_dir / "codex-stderr.txt").write_text(stderr, encoding="utf-8")
     (eval_dir / "codex-invocation.json").write_text(
         json.dumps(
@@ -1388,6 +1663,7 @@ def main() -> int:
     runtime_root = Path(tempfile.mkdtemp(prefix="specspine-runtime-", dir=runtime_parent))
     workspace_mountpoints: list[Path] = []
     retrieval_telemetry: list[dict[str, object]] = []
+    event_timings: list[dict[str, object]] = []
     try:
         for directory in (
             runtime_root / "bin",
@@ -1433,13 +1709,10 @@ def main() -> int:
         codex_version = command_version(command[0])
         started_at = utc_now()
         started = time.monotonic()
-        completed = subprocess.run(
+        completed, event_timings = run_codex(
             command,
-            input=prompt,
-            text=True,
-            capture_output=True,
-            check=False,
-            env=process_environment,
+            prompt,
+            process_environment,
         )
         retrieval_telemetry = read_retrieval_telemetry(
             runtime_root / "retrieval-telemetry.jsonl"
@@ -1457,6 +1730,7 @@ def main() -> int:
         stderr=completed.stderr,
         returncode=completed.returncode,
         duration_seconds=duration_seconds,
+        event_timings=event_timings,
     )
     reads, commands, messages = parse_events(completed.stdout, candidates)
     activity = parse_activity(completed.stdout)
@@ -1464,6 +1738,16 @@ def main() -> int:
     merge_retrieval_telemetry(retrieval_attempts, retrieval_telemetry)
     event_metrics = parse_event_metrics(completed.stdout, candidates)
     token_usage = parse_token_usage(completed.stdout)
+    agent_telemetry = parse_agent_telemetry(
+        completed.stdout,
+        event_timings,
+        tree_duration_seconds=duration_seconds,
+        tree_token_usage=token_usage,
+        top_level_model=args.model,
+        top_level_reasoning_effort=args.reasoning_effort,
+        subagent_model=args.subagent_model,
+        subagent_reasoning_effort=args.subagent_reasoning_effort,
+    )
     execution_errors = environment_errors(completed.stdout, completed.stderr)
     boundary_violations = scope_violations(commands, root, (runtime_root,))
     final_response = messages[-1] if messages else ""
@@ -1498,6 +1782,7 @@ def main() -> int:
                     attempt.get("mode") == "unknown" for attempt in retrieval_attempts
                 ),
                 "event_metrics": event_metrics,
+                "agent_telemetry": agent_telemetry,
                 "cost_ledger": cost_ledger,
                 "retrieval_usefulness": usefulness,
                 "duration_seconds": duration_seconds,

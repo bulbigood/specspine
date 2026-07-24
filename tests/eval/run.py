@@ -131,6 +131,7 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
     event_metrics = trace.get("event_metrics")
     cost_ledger = trace.get("cost_ledger")
     usefulness = trace.get("retrieval_usefulness")
+    agent_telemetry = trace.get("agent_telemetry")
     return {
         "evaluation_profile": trace.get("evaluation_profile"),
         "ranking_system": trace.get("ranking_system"),
@@ -144,6 +145,9 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         "unexpected_retry": bool(trace.get("unexpected_retry", False)),
         "unknown_attempt_count": trace.get("unknown_attempt_count"),
         "event_metrics": event_metrics if isinstance(event_metrics, dict) else {},
+        "agent_telemetry": (
+            agent_telemetry if isinstance(agent_telemetry, dict) else {}
+        ),
         "collab_tool_count": (
             event_metrics.get("collab_tool_count")
             if isinstance(event_metrics, dict)

@@ -32,6 +32,9 @@ class RunnerTests(unittest.TestCase):
                 "graph_limit": 2,
                 "cost_ledger": {"prompt_utf8_bytes": 12},
                 "retrieval_usefulness": {"returned_direct": 2},
+                "agent_telemetry": {
+                    "coverage": {"observed_producer_count": 2}
+                },
             }
         )
 
@@ -40,6 +43,10 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(2, compact["graph_limit"])
         self.assertEqual(12, compact["cost_ledger"]["prompt_utf8_bytes"])
         self.assertEqual(2, compact["retrieval_usefulness"]["returned_direct"])
+        self.assertEqual(
+            2,
+            compact["agent_telemetry"]["coverage"]["observed_producer_count"],
+        )
 
     def test_all_documented_scenarios_are_registered(self):
         documented, registered, _ = RUNNER.scenario_coverage(RUNNER.load_cases())
@@ -1028,6 +1035,15 @@ class RunnerTests(unittest.TestCase):
                         "command_count": 4,
                         "command_output_chars": 321,
                     },
+                    "agent_telemetry": {
+                        "producers": [
+                            {
+                                "thread_id": "worker-1",
+                                "observed_duration_seconds": 3.5,
+                                "token_usage": None,
+                            }
+                        ]
+                    },
                     "token_usage": {"input_tokens": 90, "total_tokens": 100},
                 },
             ),
@@ -1055,6 +1071,12 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(
             4,
             payload["samples"][0]["agent_runs"][0]["event_metrics"]["command_count"],
+        )
+        self.assertEqual(
+            3.5,
+            payload["samples"][0]["agent_runs"][0]["agent_telemetry"]["producers"][0][
+                "observed_duration_seconds"
+            ],
         )
         self.assertTrue(payload["samples"][0]["environment_valid"])
         self.assertEqual("sentinel-check", payload["samples"][0]["failed_checks"][0]["type"])

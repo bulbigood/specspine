@@ -50,7 +50,29 @@ class SkillBundlerTests(unittest.TestCase):
             )
 
             self.assertEqual(0, completed.returncode, completed.stderr)
+            self.assertEqual("", completed.stdout)
             self.assertEqual(BUILDER.build_bundle(map_root), output.read_text())
+
+    def test_cli_can_write_and_print_the_same_complete_bundle(self):
+        map_root = ROOT / "skills/specspine-map"
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "run/producer-instructions.md"
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    str(map_root),
+                    str(output),
+                    "--print",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            self.assertEqual(BUILDER.build_bundle(map_root), completed.stdout)
+            self.assertEqual(completed.stdout, output.read_text())
 
     def test_unclosed_frontmatter_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "unclosed YAML frontmatter"):

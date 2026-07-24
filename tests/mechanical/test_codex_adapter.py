@@ -23,6 +23,28 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertEqual("gpt-5.6-luna", ADAPTER.DEFAULT_SUBAGENT_MODEL)
         self.assertEqual("medium", ADAPTER.DEFAULT_SUBAGENT_REASONING_EFFORT)
 
+    def test_run_codex_timestamps_each_stdout_line(self):
+        command = [
+            sys.executable,
+            "-c",
+            (
+                "import sys,time; sys.stdin.read(); "
+                "print('first', flush=True); time.sleep(0.01); "
+                "print('second', flush=True); "
+                "print('diagnostic', file=sys.stderr, flush=True)"
+            ),
+        ]
+
+        completed, timings = ADAPTER.run_codex(command, "prompt", os.environ.copy())
+
+        self.assertEqual(0, completed.returncode)
+        self.assertEqual("first\nsecond\n", completed.stdout)
+        self.assertEqual("diagnostic\n", completed.stderr)
+        self.assertEqual([1, 2], [item["line_number"] for item in timings])
+        self.assertLessEqual(
+            timings[0]["observed_seconds"], timings[1]["observed_seconds"]
+        )
+
     def test_retrieval_entrypoint_comes_from_staged_skill_marker(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -366,6 +388,95 @@ class CodexAdapterTests(unittest.TestCase):
             metrics["producer_latest_status_counts"],
         )
 
+    def test_agent_telemetry_records_observed_producer_lifecycle(self):
+        prompt = (
+            "Shared instructions.\n"
+            "Architectural zone and question: map background jobs\n"
+        )
+        events = [
+            {
+                "type": "item.started",
+                "item": {
+                    "id": "spawn-1",
+                    "type": "collab_tool_call",
+                    "tool": "spawn_agent",
+                    "receiver_thread_ids": [],
+                    "prompt": prompt,
+                    "status": "in_progress",
+                },
+            },
+            {
+                "type": "item.completed",
+                "item": {
+                    "id": "spawn-1",
+                    "type": "collab_tool_call",
+                    "tool": "spawn_agent",
+                    "receiver_thread_ids": ["worker-1"],
+                    "prompt": prompt,
+                    "agents_states": {
+                        "worker-1": {"status": "pending_init", "message": None}
+                    },
+                    "status": "completed",
+                },
+            },
+            {
+                "type": "item.started",
+                "item": {
+                    "id": "wait-1",
+                    "type": "collab_tool_call",
+                    "tool": "wait",
+                    "receiver_thread_ids": ["worker-1"],
+                    "status": "in_progress",
+                },
+            },
+            {
+                "type": "item.completed",
+                "item": {
+                    "id": "wait-1",
+                    "type": "collab_tool_call",
+                    "tool": "wait",
+                    "receiver_thread_ids": ["worker-1"],
+                    "agents_states": {
+                        "worker-1": {"status": "completed", "message": "done"}
+                    },
+                    "status": "completed",
+                },
+            },
+        ]
+        stdout = "\n".join(json.dumps(event) for event in events)
+        timings = [
+            {"line_number": 1, "observed_seconds": 1.0},
+            {"line_number": 2, "observed_seconds": 1.25},
+            {"line_number": 3, "observed_seconds": 2.0},
+            {"line_number": 4, "observed_seconds": 4.5},
+        ]
+
+        telemetry = ADAPTER.parse_agent_telemetry(
+            stdout,
+            timings,
+            tree_duration_seconds=5.0,
+            tree_token_usage={"input_tokens": 1000, "output_tokens": 50},
+            top_level_model="terra",
+            top_level_reasoning_effort="medium",
+            subagent_model="luna",
+            subagent_reasoning_effort="medium",
+        )
+
+        producer = telemetry["producers"][0]
+        self.assertEqual("worker-1", producer["thread_id"])
+        self.assertEqual("luna", producer["model"])
+        self.assertEqual("map background jobs", producer["assignment"])
+        self.assertEqual(len(prompt.encode()), producer["prompt_utf8_bytes"])
+        self.assertEqual(3.25, producer["observed_duration_seconds"])
+        self.assertEqual("completed", producer["latest_status"])
+        self.assertIsNone(producer["token_usage"])
+        self.assertEqual(1, telemetry["coverage"]["producer_duration_count"])
+        self.assertEqual(0, telemetry["coverage"]["producer_token_usage_count"])
+        self.assertEqual(
+            2.5,
+            telemetry["collaboration_calls"][1]["observed_duration_seconds"],
+        )
+
     def test_records_marker_protocol_and_batched_queries(self):
         queries = json.dumps(
             [
@@ -541,6 +652,27 @@ class CodexAdapterTests(unittest.TestCase):
         command = metrics["command_metrics"][0]
         self.assertEqual("project_content", command["category"])
         self.assertEqual(["specspine/owner.md"], command["inferred_file_paths"])
+        self.assertIsNone(command["failure_output_excerpt"])
+
+    def test_event_metrics_retain_bounded_failed_command_output(self):
+        output = "candidate finding\n" * 300
+        stdout = json.dumps(
+            {
+                "type": "item.completed",
+                "item": {
+                    "id": "check-1",
+                    "type": "command_execution",
+                    "command": "python3 check_spine.py specspine --candidates staging",
+                    "status": "failed",
+                    "exit_code": 1,
+                    "aggregated_output": output,
+                },
+            }
+        )
+
+        command = ADAPTER.parse_event_metrics(stdout, [])["command_metrics"][0]
+
+        self.assertEqual(output[:2000], command["failure_output_excerpt"])
 
     def test_cost_ledger_records_stable_byte_proxies(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -671,10 +803,19 @@ class CodexAdapterTests(unittest.TestCase):
                 stderr="diagnostic\n",
                 returncode=7,
                 duration_seconds=1.25,
+                event_timings=[
+                    {"line_number": 1, "observed_seconds": 0.75}
+                ],
             )
             self.assertEqual(events, (target / "codex-events.jsonl").read_text())
             self.assertEqual("diagnostic\n", (target / "codex-stderr.txt").read_text())
             self.assertEqual("Do the work.\n", (target / "codex-prompt.md").read_text())
+            self.assertEqual(
+                {"line_number": 1, "observed_seconds": 0.75},
+                json.loads(
+                    (target / "codex-event-timings.jsonl").read_text()
+                ),
+            )
             invocation = json.loads((target / "codex-invocation.json").read_text())
             self.assertEqual(7, invocation["returncode"])
             self.assertEqual(["codex", "exec", "--json", "-"], invocation["command"])
@@ -947,10 +1088,8 @@ PATCH"""
             root = Path(directory)
             observed_runtime: Path | None = None
 
-            def complete(command, **kwargs):
+            def complete(command, prompt, process_environment):
                 nonlocal observed_runtime
-                if command == ["codex", "--version"]:
-                    return ADAPTER.subprocess.CompletedProcess(command, 0, "codex-test\n", "")
                 environment_argument = next(
                     item for item in command if item.startswith("shell_environment_policy.set=")
                 )
@@ -961,21 +1100,20 @@ PATCH"""
                 self.assertTrue((observed_runtime / "gitconfig").is_file())
                 self.assertTrue((observed_runtime / "home" / ".zprofile").is_file())
                 self.assertTrue((observed_runtime / "bin" / "python").is_symlink())
-                process_environment = kwargs["env"]
                 private_codex_home = Path(process_environment["CODEX_HOME"])
                 self.assertEqual(
                     (observed_runtime / "codex-home").resolve(),
                     private_codex_home.resolve(),
                 )
                 self.assertTrue(private_codex_home.is_dir())
-                return ADAPTER.subprocess.CompletedProcess([], 0, "", "")
+                return ADAPTER.subprocess.CompletedProcess([], 0, "", ""), []
 
             with mock.patch.object(Path, "cwd", return_value=root), mock.patch.object(
                 sys, "argv", ["codex.py"]
             ), mock.patch("sys.stdin.read", return_value="prompt"), mock.patch.object(
-                ADAPTER.subprocess,
-                "run",
-                side_effect=complete,
+                ADAPTER, "run_codex", side_effect=complete
+            ), mock.patch.object(
+                ADAPTER, "command_version", return_value="codex-test"
             ), mock.patch.object(ADAPTER, "stage_runtime_tools"):
                 self.assertEqual(0, ADAPTER.main())
 
@@ -1003,8 +1141,10 @@ PATCH"""
             with mock.patch.object(Path, "cwd", return_value=root), mock.patch.object(
                 sys, "argv", ["codex.py"]
             ), mock.patch("sys.stdin.read", return_value="prompt"), mock.patch.object(
-                ADAPTER.subprocess, "run", return_value=completed
-            ):
+                ADAPTER, "run_codex", return_value=(completed, [])
+            ), mock.patch.object(
+                ADAPTER, "command_version", return_value="codex-test"
+            ), mock.patch.object(ADAPTER, "stage_runtime_tools"):
                 self.assertEqual(70, ADAPTER.main())
 
             trace = json.loads((root / ".eval" / "trace.json").read_text())

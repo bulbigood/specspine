@@ -15,12 +15,13 @@ current agent performs every role sequentially.
   before starting or resuming a run. It owns scheduling, staging, publication,
   recovery, producer-command composition, saturation, normalization, and
   optional post-map Doctor behavior.
-- Run `scripts/bundle_skill.py` once with the installed `specspine-map` root
-  and a file under the disposable run root. The generic script strips Map
-  frontmatter and concatenates its complete body with every UTF-8 file under
-  Map `references/`. Read the generated file once and embed it in every
-  producer command. Producers must not load skills, references, or templates
-  themselves.
+- Run `scripts/bundle_skill.py --print` once with the installed
+  `specspine-map` root and a file under the disposable run root. The generic
+  script strips Map frontmatter, concatenates its complete body with every
+  UTF-8 file under Map `references/`, saves the result, and returns that same
+  complete bundle in the tool output. Do not read the generated file afterward.
+  Embed the returned bundle in every producer command. Producers must not load
+  skills, references, or templates themselves.
 
 ## Scope
 
@@ -35,8 +36,12 @@ code/spec conformance, or apply semantic Doctor repairs without approval.
 
 ## Workflow
 
-1. Resolve the repository root and `<spine-root>`. Read the current architecture
-   index and only enough repository topology to seed the bounded backlog.
+1. Resolve the repository root and `<spine-root>`. Use exactly one path-only
+   project-tree listing—the exact `find` command specified by
+   `references/orchestration.md`—to seed the bounded backlog from directory and
+   file names, including the paths of existing Spine documents. Do not read
+   source, tests, configuration, or existing Spine contents during initial
+   planning.
 2. Follow `references/orchestration.md` as the execution contract.
 3. Send each worker the complete self-contained producer command composed from
    the generated Map instruction bundle, staging contract, source revision,

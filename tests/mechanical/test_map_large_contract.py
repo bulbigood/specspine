@@ -25,7 +25,11 @@ class MapLargeContractTests(unittest.TestCase):
         self.assertIn("references/orchestration.md", large)
         self.assertIn("complete self-contained producer command", large)
         self.assertIn("bundle_skill.py", large)
-        self.assertIn("complete body with every UTF-8", large)
+        self.assertIn("bundle_skill.py --print", large)
+        self.assertIn(
+            "complete body with every UTF-8", " ".join(large.split())
+        )
+        self.assertIn("Do not read the generated file afterward", large)
         self.assertNotIn("specspine:map-core:", mapper)
         self.assertIn("allow_implicit_invocation: false", metadata)
         self.assertEqual(
@@ -93,7 +97,17 @@ class MapLargeContractTests(unittest.TestCase):
         self.assertIn("When subagents are unavailable", protocol)
         self.assertIn("one local producer", normalized)
         self.assertIn("Never attempt to hold the whole repository map", normalized)
-        self.assertIn("Do not deeply explore the codebase", normalized)
+        self.assertIn(
+            "initial survey with exactly this one path-only command", normalized
+        )
+        self.assertIn("find . -maxdepth 5", protocol)
+        self.assertIn("do not substitute another discovery command", normalized)
+        self.assertIn("-name node_modules", protocol)
+        self.assertIn("-name .specspine-map-run", protocol)
+        self.assertIn("-print | LC_ALL=C sort", protocol)
+        self.assertIn("Use only directory and file names", normalized)
+        self.assertIn("Do not read source, tests, configuration", normalized)
+        self.assertIn("Do not make another discovery call before dispatching", normalized)
         self.assertIn("small bounded backlog", normalized)
         self.assertIn("primary discovery mechanism", normalized)
         self.assertIn("without rereading repository source", normalized)
@@ -141,16 +155,25 @@ class MapLargeContractTests(unittest.TestCase):
         self.assertIn("SpecSpine mapping producer", protocol)
         self.assertIn("Do not load or invoke any skill", protocol)
         self.assertIn("Do not repeat the document prose", normalized)
+        self.assertIn("Do not read the generated file", protocol)
         producer = (
             protocol.split("You are a SpecSpine mapping producer.", 1)[1]
             .split("```", 1)[0]
         )
         normalized_producer = " ".join(producer.split())
+        self.assertIn("Do not run a checker", producer)
+        self.assertIn(
+            "consumer owns all post-production validation", normalized_producer
+        )
+        self.assertNotIn("Verify that every candidate", producer)
         self.assertNotIn("$specspine-map", producer)
         self.assertNotIn("SKILL.md", producer)
         self.assertNotIn("references/", producer)
         self.assertIn("<complete-generated-map-instructions>", producer)
         self.assertIn("All Map instructions and references", producer)
+        self.assertIn("Capture that stdout directly", protocol)
+        self.assertIn("Do not read the generated file", protocol)
+        self.assertIn("--print", protocol)
         self.assertIn("exact final path relative to the writable root", normalized_producer)
         self.assertIn("<private-staging-root>/jobs/runner.md", producer)
         self.assertLess(producer.index("Do not load or invoke"), producer.index("Assignment:"))
