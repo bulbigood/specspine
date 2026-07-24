@@ -49,8 +49,8 @@ All three benchmark arms copy the same 21-file
 slices, require the same terminal evidence coverage, and stop only after the
 requested repository scope is saturated. Generated artifacts verify material
 coverage through their evidence. The
-runtime trace pins the orchestrator to Terra/medium and configures
-producers as Luna/medium. Map is installed only so the orchestrator can obtain,
+runtime trace pins the orchestrator and producers to Terra/medium. Map is
+installed only so the orchestrator can obtain,
 save, and emit in one script call a generated bundle containing the complete
 Map body, every UTF-8 reference, and every UTF-8 Markdown template; producers
 must not load those source files themselves. Collaboration assertions require
@@ -63,7 +63,7 @@ mechanical Spine validity. Document length is observed, not bounded. The
 benchmark adds one blind holistic three-way documentation-quality judgment per
 aligned sample. The judge is an independent bounded task and therefore defaults
 to Terra/medium; its cost is excluded from all arms. This case normally costs one
-Terra/medium orchestrator plus several Luna/medium producer sessions and belongs
+Terra/medium orchestrator plus several Terra/medium producer sessions and belongs
 in the explicit `expensive` category.
 
 `map-deep-repository-no-subagents` runs the same six-area fixture with

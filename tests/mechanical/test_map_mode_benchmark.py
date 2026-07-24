@@ -13,12 +13,12 @@ SPEC.loader.exec_module(BENCHMARK)
 
 
 class MapModeBenchmarkTests(unittest.TestCase):
-    def test_default_model_routing_uses_terra_orchestrator_and_luna_subagents(self):
+    def test_default_model_routing_uses_terra_medium_agents(self):
         self.assertEqual("gpt-5.6-terra", BENCHMARK.DEFAULT_ORCHESTRATOR_MODEL)
         self.assertEqual(
             "medium", BENCHMARK.DEFAULT_ORCHESTRATOR_REASONING_EFFORT
         )
-        self.assertEqual("weak", BENCHMARK.DEFAULT_SUBAGENT_ROLE)
+        self.assertEqual("medium", BENCHMARK.DEFAULT_SUBAGENT_ROLE)
         self.assertEqual("gpt-5.6-terra", BENCHMARK.DEFAULT_JUDGE_MODEL)
         self.assertEqual("medium", BENCHMARK.DEFAULT_JUDGE_REASONING_EFFORT)
 
@@ -29,7 +29,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
         )
         self.assertIn("--model gpt-5.6-terra", command)
         self.assertIn("--reasoning-effort medium", command)
-        self.assertIn("--subagent-role weak", command)
+        self.assertIn("--subagent-role medium", command)
 
     def test_arms_share_the_exact_fixture(self):
         BENCHMARK.validate_equal_fixtures()

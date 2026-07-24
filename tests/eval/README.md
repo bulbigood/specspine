@@ -192,8 +192,8 @@ select it. Use one sample during iteration and repeated samples only for release
 calibration.
 
 Its fixture exposes more independent responsibilities than available producer
-slots. Trace assertions require two initial workers, cap observed concurrency
-at two, require multiple branch-affine sessions and resumptions, and use
+slots. Trace assertions require three initial workers, cap observed concurrency
+at three, require multiple branch-affine sessions and resumptions, and use
 encrypted rollout-message sizes to confirm that resumptions remain materially
 smaller than initial assignments. The concurrency check coalesces terminal/spawn rollout events
 within one second because delivery order can differ from execution order. Both
@@ -209,16 +209,15 @@ one tool result. The orchestrator embeds it in each new producer's initial
 command without rereading the generated file. Producers do not load Map
 resources, and same-branch resumptions do not repeat the bundle.
 
-The Codex adapter defaults the top-level agent to `gpt-5.6-terra` with medium
-reasoning. In its private disposable `CODEX_HOME`, it maps the default
-spawned-agent profile to the selected `weak` role, currently
-`gpt-5.6-luna` with medium reasoning. The Map-Deep case asserts the requested
-role and the model metadata resolved by the adapter.
+The benchmark defaults the top-level agent and parallel producers to
+`gpt-5.6-terra` with medium reasoning. The Map-Deep case asserts the requested
+role and the model metadata resolved by the adapter. This avoids depending on
+optional models that may not be exposed by the current Codex runtime.
 
 ```bash
 python3 tests/eval/run.py \
   --case map-deep-rolling-small --samples 1 --jobs 1 \
-  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py"
+  --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium --subagent-role medium"
 ```
 
 To compare sequential one-step Map invocations with parallel Map Deep and
@@ -235,7 +234,7 @@ All arms use the same top-level model and reasoning effort: Terra/medium by
 default. The Map arm repeats independent one-step invocations in the same
 workspace until a terminal invocation leaves `specspine/**` unchanged. The Map
 Deep arms reach the same endpoint in one top-level invocation. Only parallel
-Map Deep creates producers; those use Luna/medium by default. The sequential
+Map Deep creates producers; those use Terra/medium by default. The sequential
 Map Deep arm disables their tools with `agents.enabled=false`. Model overrides
 apply symmetrically to all top-level arms.
 

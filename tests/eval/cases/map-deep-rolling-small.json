@@ -12,8 +12,8 @@
   "assertions": [
     {"type": "trace_equals", "field": "model", "value": "gpt-5.6-terra"},
     {"type": "trace_equals", "field": "reasoning_effort", "value": "medium"},
-    {"type": "trace_equals", "field": "subagent_role", "value": "weak"},
-    {"type": "trace_equals", "field": "subagent_model", "value": "gpt-5.6-luna"},
+    {"type": "trace_equals", "field": "subagent_role", "value": "medium"},
+    {"type": "trace_equals", "field": "subagent_model", "value": "gpt-5.6-terra"},
     {"type": "trace_equals", "field": "subagent_reasoning_effort", "value": "medium"},
     {"type": "trace_equals", "field": "subagent_max_concurrent_threads", "value": 3},
     {"type": "trace_equals", "field": "collaboration_telemetry_source", "value": "rollout"},

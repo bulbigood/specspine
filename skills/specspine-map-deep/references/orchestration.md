@@ -93,10 +93,10 @@ resources, or orchestration instructions themselves.
 Prefix every new `spawn_agent` message with the complete captured bundle,
 including sibling starts and later refills; isolated producers share no bundle.
 
-Start each producer with an isolated new-thread context. With Codex
-`spawn_agent`, pass `fork_turns="none"`; use the equivalent isolation elsewhere.
-Its initial command is self-contained. Never copy the growing ToDo, sibling
-reports, or orchestration history into it.
+Start each producer with a medium-strength model in an isolated new-thread
+context. With Codex `spawn_agent`, pass `agent_type="medium"` and
+`fork_turns="none"`; elsewhere use the equivalent medium-capability role and
+isolation. The initial command is self-contained; never copy the growing ToDo, sibling reports, or orchestration history.
 
 Use this initial command with resolved placeholders:
 ```text
@@ -244,6 +244,9 @@ branches remain.
 
 After saturation, perform one sequential navigation pass using producer
 reports, published destinations, the Spine index, and relevant overviews:
+
+Do not reread published producer documents; use their reports and destinations.
+Reading pre-existing indexes and overviews and running the checker remain allowed.
 
 1. Keep the established layout unless cohesive clusters make navigation
    materially difficult. Never mirror the source tree.
