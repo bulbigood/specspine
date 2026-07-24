@@ -197,8 +197,9 @@ python3 tests/eval/run.py \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py"
 ```
 
-To compare direct Map with orchestrated Map Deep on the same controlled
-six-area repository:
+To compare sequential one-step Map invocations with orchestrated Map Deep on
+the same controlled six-area repository, with both arms required to reach
+terminal mapping saturation:
 
 ```bash
 report_dir=$(mktemp -d -t specspine-map-modes.XXXXXX)
@@ -207,19 +208,23 @@ python3 tests/eval/benchmark_map_modes.py \
 ```
 
 Both arms use the same top-level model and reasoning effort: Terra/medium by
-default. Only Map Deep creates producers; those use Luna/medium by default.
-Model overrides apply symmetrically to both top-level arms.
+default. The Map arm repeats independent one-step invocations in the same
+workspace until a terminal invocation leaves `specspine/**` unchanged. The Map
+Deep arm reaches the same endpoint in one orchestrated agent tree. Only Map
+Deep creates producers; those use Luna/medium by default. Model overrides apply
+symmetrically to both top-level arms.
 
-The arms use identical project files and common mechanical assertions. For each
-paired sample, one additional blind judge compares the complete generated
-Spines using architectural fidelity, evidence and epistemic discipline,
+The arms use identical project files and the same final coverage assertions.
+For each paired sample, one additional blind judge compares the terminal
+generated Spines using architectural fidelity, evidence and epistemic discipline,
 responsibility and boundary clarity, material coverage, coherence/navigation,
 signal-to-noise/usefulness, and holistic overall quality. Length is reported but
 is not a failure or quality penalty by itself. Use `--skip-quality-judge` only
 for mechanical harness debugging.
 
 The report compares documentation-quality scores and preference, pass rate,
-word counts, case and complete-agent-tree wall time, cumulative tree
+document and top-level-invocation counts, word counts, case and
+complete-agent-tree wall time, cumulative tree
 input/cache-read/cache-write/uncached/output/reasoning tokens, initial and
 generated-document reads, tool cycles, observed spawned agents, parallelism
 evidence, and sanitized collaboration lifecycle counts

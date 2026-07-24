@@ -998,6 +998,86 @@ class RunnerTests(unittest.TestCase):
             }
             self.assertTrue(RUNNER.run_case(case, [sys.executable, str(adapter)], False))
 
+    def test_repeats_until_monitored_output_is_unchanged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            adapter = Path(directory) / "adapter.py"
+            adapter.write_text(
+                "from pathlib import Path\n"
+                "import sys\n"
+                "sys.stdin.read()\n"
+                "path = Path('specspine/result.md')\n"
+                "path.parent.mkdir(exist_ok=True)\n"
+                "path.write_text('# Result\\n', encoding='utf-8')\n",
+                encoding="utf-8",
+            )
+            case = {
+                "id": "repeat-until-unchanged-self-test",
+                "scenario": "tests/scenarios/initialize-project.md",
+                "skill": "skills/specspine-map",
+                "repeat_until_unchanged": {
+                    "paths": ["specspine/**"],
+                    "min_runs": 2,
+                    "max_runs": 4,
+                },
+                "initial_files": {},
+                "assertions": [
+                    {"type": "path_exists", "path": "specspine/result.md"}
+                ],
+            }
+            output = io.StringIO()
+            self.assertTrue(
+                RUNNER.run_case(
+                    case,
+                    [sys.executable, str(adapter)],
+                    False,
+                    output,
+                )
+            )
+            self.assertIn(
+                "mapping saturation observed after 2 runs",
+                output.getvalue(),
+            )
+
+    def test_repeat_until_unchanged_fails_at_run_limit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            adapter = Path(directory) / "adapter.py"
+            adapter.write_text(
+                "from pathlib import Path\n"
+                "import sys\n"
+                "sys.stdin.read()\n"
+                "path = Path('specspine/result.md')\n"
+                "path.parent.mkdir(exist_ok=True)\n"
+                "before = path.read_text() if path.exists() else ''\n"
+                "path.write_text(before + 'x', encoding='utf-8')\n",
+                encoding="utf-8",
+            )
+            case = {
+                "id": "repeat-limit-self-test",
+                "scenario": "tests/scenarios/initialize-project.md",
+                "skill": "skills/specspine-map",
+                "repeat_until_unchanged": {
+                    "paths": ["specspine/**"],
+                    "max_runs": 2,
+                },
+                "initial_files": {},
+                "assertions": [
+                    {"type": "path_exists", "path": "specspine/result.md"}
+                ],
+            }
+            output = io.StringIO()
+            self.assertFalse(
+                RUNNER.run_case(
+                    case,
+                    [sys.executable, str(adapter)],
+                    False,
+                    output,
+                )
+            )
+            self.assertIn(
+                "mapping did not reach an unchanged terminal run within 2 runs",
+                output.getvalue(),
+            )
+
     def test_aggregates_token_usage_across_agent_invocations(self):
         total = {}
         RUNNER.add_token_usage(

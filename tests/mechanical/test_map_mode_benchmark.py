@@ -29,12 +29,12 @@ class MapModeBenchmarkTests(unittest.TestCase):
 
     def test_commands_use_one_case_and_serial_execution(self):
         command, report = BENCHMARK.report_command(
-            Path("/reports"), "map", "map-direct-comparison-small",
+            Path("/reports"), "map", "map-sequential-saturation-small",
             samples=2, model="model", reasoning_effort="medium",
             subagent_role="weak", timestamp="stamp",
         )
         rendered = " ".join(command)
-        self.assertIn("--case map-direct-comparison-small", rendered)
+        self.assertIn("--case map-sequential-saturation-small", rendered)
         self.assertIn("--samples 2", rendered)
         self.assertIn("--jobs 1", rendered)
         self.assertIn("--model model --reasoning-effort medium", rendered)
@@ -111,6 +111,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
             "mean_agent_tree_uncached_input_tokens",
             "mean_agent_tree_output_tokens", "mean_agent_tree_reasoning_tokens",
             "mean_document_words", "mean_total_document_words",
+            "mean_document_count", "mean_top_level_agent_runs",
             "mean_initial_files_read", "mean_generated_files_read",
             "mean_tool_cycles", "parallelism_evidence",
             "mean_observed_spawned_agents",
@@ -159,6 +160,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
             {"specspine/a.md": "short"},
         )
         self.assertIn("ordinary engineering judgment", prompt)
+        self.assertIn("map every useful architecture responsibility", prompt)
         self.assertIn("Do not penalize length by itself", prompt)
         self.assertIn("Do not reward brevity by itself", prompt)
         for dimension in BENCHMARK.QUALITY_DIMENSIONS:

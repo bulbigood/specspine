@@ -22,8 +22,9 @@ includes repository-backed observations.
 
 ### Map coverage
 
-Executable `specspine-map` coverage currently consists of six agent calls
-across five cases:
+Executable `specspine-map` coverage currently consists of seven to fifteen
+agent calls across five cases, depending on when the saturation benchmark
+reaches its unchanged terminal invocation:
 
 - `lifecycle-survey-deepen`: a shallow initial survey followed by bounded
   deepening without reopening unrelated source;
@@ -33,8 +34,9 @@ across five cases:
   references;
 - `map-staged-producer`: one bounded producer writes a publish-ready candidate
   to a private output root while the live Spine remains read-only.
-- `map-direct-comparison-small`: maps the same controlled six-area repository
-  used by `map-deep-rolling-small`, enabling a paired semantic-quality/cost
+- `map-sequential-saturation-small`: repeatedly performs one Map step on the same
+  controlled six-area repository used by `map-deep-rolling-small` until an
+  unchanged terminal invocation, enabling a paired saturation-quality/cost
   benchmark.
 
 `map-deep-rolling-small` provides one controlled executable orchestration case.
@@ -44,8 +46,9 @@ than slots. Codex JSONL collaboration events verify spawning and same-session
 continuation.
 Both A/B arms copy the same 21-file
 `map-modes-six-area` fixture tree, including six source/test/config evidence
-slices, so project drift between manifests cannot bias the comparison.
-Generated artifacts verify material coverage through their evidence. The
+slices, require the same terminal evidence coverage, and stop only after the
+requested repository scope is saturated. Generated artifacts verify material
+coverage through their evidence. The
 runtime trace pins the orchestrator to Terra/medium and configures
 producers as Luna/medium. Map is installed only so the orchestrator can obtain,
 save, and emit in one script call a generated bundle containing the complete
@@ -85,13 +88,14 @@ The executable set is divided by resource cost and necessity:
 |---|---:|---:|---|
 | `core` | 8 | 8 | Minimum behavioral regression set, including atomic staged Map output |
 | `extended` | 12 | 15 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
-| `expensive` | 2 | 2 | Paired one-step Map and saturating Map Deep benchmark with constrained producer capacity |
+| `expensive` | 2 | 3–11 per sample | Paired sequential Map saturation and Map Deep saturation benchmark with constrained producer capacity |
 | `planned` | 10 | 0 | Documentation and future redesign only |
 
-The table counts harness invocations. `map-deep-rolling-small` additionally
-creates multiple producer sessions and resumes useful branches toward terminal
-depth. Its separate category prevents ordinary `core` or `extended` runs from
-selecting it.
+The table counts top-level agent invocations. The sequential Map arm uses 2–10
+invocations, stopping at the first unchanged terminal result; Map Deep uses one
+top-level orchestrator and additionally creates multiple producer sessions.
+The separate category prevents ordinary `core` or `extended` runs from
+selecting either expensive arm.
 
 Core and extended cases currently cover:
 

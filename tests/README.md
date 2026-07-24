@@ -100,8 +100,8 @@ python3 tests/eval/benchmark_extract_agents.py \
   --samples 3 --jobs 4
 ```
 
-Compare direct Map with orchestrated Map Deep on an identical controlled
-three-area repository:
+Compare sequential Map saturation with orchestrated Map Deep saturation on an
+identical controlled six-area repository:
 
 ```text
 python3 tests/eval/benchmark_map_modes.py \

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare direct Map with orchestrated Map Deep on one small repository."""
+"""Compare sequential Map saturation with orchestrated Map Deep saturation."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = Path(__file__).resolve().parent
 ARMS = (
-    ("map", "map-direct-comparison-small"),
+    ("map", "map-sequential-saturation-small"),
     ("map-deep", "map-deep-rolling-small"),
 )
 DEFAULT_ORCHESTRATOR_MODEL = "gpt-5.6-terra"
@@ -122,6 +122,14 @@ def summarize(report: dict[str, Any], *, uses_subagents: bool = True) -> dict[st
         run for sample in samples for run in sample.get("agent_runs", [])
         if isinstance(run, dict)
     ]
+    runs_by_sample = [
+        [
+            run
+            for run in sample.get("agent_runs", [])
+            if isinstance(run, dict)
+        ]
+        for sample in samples
+    ]
     producer_rows = [
         producer
         for run in runs
@@ -171,7 +179,13 @@ def summarize(report: dict[str, Any], *, uses_subagents: bool = True) -> dict[st
             for sample in samples
         ]),
         "mean_document_words": mean([float(value) for value in per_document_words]),
+        "mean_document_count": mean([
+            float(len(artifacts)) for artifacts in artifact_sets
+        ]),
         "mean_total_document_words": mean([float(value) for value in total_document_words]),
+        "mean_top_level_agent_runs": mean([
+            float(len(sample_runs)) for sample_runs in runs_by_sample
+        ]),
         "mean_case_wall_time_seconds": mean([
             float(sample["case_duration_seconds"]) for sample in samples
             if isinstance(sample.get("case_duration_seconds"), (int, float))
@@ -204,17 +218,26 @@ def summarize(report: dict[str, Any], *, uses_subagents: bool = True) -> dict[st
             float(row.get("reasoning_output_tokens", 0)) for row in token_rows
         ]),
         "mean_initial_files_read": mean([
-            float(run["files_read"]) for run in runs
-            if isinstance(run.get("files_read"), int)
+            float(sum(
+                run["files_read"] for run in sample_runs
+                if isinstance(run.get("files_read"), int)
+            ))
+            for sample_runs in runs_by_sample
         ]),
         "mean_generated_files_read": mean([
-            float(run["generated_files_read"]) for run in runs
-            if isinstance(run.get("generated_files_read"), int)
+            float(sum(
+                run["generated_files_read"] for run in sample_runs
+                if isinstance(run.get("generated_files_read"), int)
+            ))
+            for sample_runs in runs_by_sample
         ]),
         "mean_tool_cycles": mean([
-            float(run["cost_ledger"]["tool_cycles"]) for run in runs
-            if isinstance(run.get("cost_ledger"), dict)
-            and isinstance(run["cost_ledger"].get("tool_cycles"), int)
+            float(sum(
+                run["cost_ledger"]["tool_cycles"] for run in sample_runs
+                if isinstance(run.get("cost_ledger"), dict)
+                and isinstance(run["cost_ledger"].get("tool_cycles"), int)
+            ))
+            for sample_runs in runs_by_sample
         ]),
         "parallelism_evidence": (
             "observed"
@@ -273,9 +296,11 @@ def quality_prompt(
 ) -> str:
     rubric = "\n".join(f"- {name}: integer 1-10" for name in QUALITY_DIMENSIONS)
     return f"""Act as a blind senior architecture-documentation reviewer.
-Compare two SpecSpine outputs produced from the same small repository. Use the
-rubric and ordinary engineering judgment. Judge architectural documentation,
-not the implementation strategy that produced it.
+Compare two terminal SpecSpine outputs produced from the same small repository.
+Both workflows were required to map every useful architecture responsibility
+supported by the repository; one used sequential one-step Map invocations and
+the other used Map Deep. Use the rubric and ordinary engineering judgment.
+Judge architectural documentation, not the implementation strategy.
 
 Score:
 {rubric}
@@ -446,7 +471,7 @@ def write_comparison(
             ]
         )
     lines = [
-        "# Map vs Map Deep benchmark",
+        "# Sequential Map saturation vs Map Deep saturation benchmark",
         "",
         "| Metric | Map | Map Deep |",
         "|---|---:|---:|",

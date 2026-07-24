@@ -415,6 +415,46 @@ def validate_case(case: dict[str, Any]) -> list[str]:
         errors.append("executable cases cannot use category planned")
     if not isinstance(case.get("runs", 1), int) or case.get("runs", 1) < 1:
         errors.append("runs must be a positive integer")
+    repeat = case.get("repeat_until_unchanged")
+    if repeat is not None:
+        if "stages" in case:
+            errors.append("repeat_until_unchanged is supported only for non-staged cases")
+        if "runs" in case:
+            errors.append("repeat_until_unchanged cannot be combined with runs")
+        if not isinstance(repeat, dict):
+            errors.append("repeat_until_unchanged must be an object")
+        else:
+            unexpected = sorted(set(repeat) - {"paths", "min_runs", "max_runs"})
+            if unexpected:
+                errors.append(
+                    "repeat_until_unchanged has unsupported fields: "
+                    + ", ".join(unexpected)
+                )
+            paths = repeat.get("paths")
+            if (
+                not isinstance(paths, list)
+                or not paths
+                or any(
+                    not isinstance(path, str)
+                    or not path
+                    or Path(path).is_absolute()
+                    or ".." in Path(path).parts
+                    for path in paths
+                )
+            ):
+                errors.append(
+                    "repeat_until_unchanged.paths must be non-empty safe relative globs"
+                )
+            minimum = repeat.get("min_runs", 1)
+            maximum = repeat.get("max_runs")
+            if not isinstance(minimum, int) or isinstance(minimum, bool) or minimum < 1:
+                errors.append("repeat_until_unchanged.min_runs must be a positive integer")
+            if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum < 1:
+                errors.append("repeat_until_unchanged.max_runs must be a positive integer")
+            elif isinstance(minimum, int) and maximum < minimum:
+                errors.append(
+                    "repeat_until_unchanged.max_runs must be >= min_runs"
+                )
     judgments = case.get("handoff_judgments")
     if judgments is not None:
         if not isinstance(judgments, dict):
@@ -1843,7 +1883,25 @@ def run_case(
         scope_checks: list[CheckResult] = []
         returncode = 0
         completed_runs = 0
-        for run_number in range(1, case.get("runs", 1) + 1):
+        repeat = case.get("repeat_until_unchanged")
+        maximum_runs = (
+            int(repeat["max_runs"])
+            if isinstance(repeat, dict)
+            else case.get("runs", 1)
+        )
+        minimum_runs = (
+            int(repeat.get("min_runs", 1))
+            if isinstance(repeat, dict)
+            else maximum_runs
+        )
+        repeat_paths = (
+            [str(path) for path in repeat["paths"]]
+            if isinstance(repeat, dict)
+            else []
+        )
+        saturation_observed = False
+        for run_number in range(1, maximum_runs + 1):
+            run_before = snapshot(temp)
             trace_path = temp / ".eval" / "trace.json"
             if trace_path.exists():
                 trace_path.unlink()
@@ -1869,6 +1927,16 @@ def run_case(
             if completed.returncode:
                 returncode = completed.returncode
                 break
+            if isinstance(repeat, dict) and run_number >= minimum_runs:
+                run_after = snapshot(temp)
+                monitored_changes = {
+                    path
+                    for path in changed_paths(run_before, run_after)
+                    if matches_any(path, repeat_paths)
+                }
+                if not monitored_changes:
+                    saturation_observed = True
+                    break
         response = "\n".join(responses)
         stderr = "\n".join(item for item in errors if item)
         after = snapshot(temp)
@@ -1878,16 +1946,39 @@ def run_case(
             evaluate_assertion(item, temp, before, after, response, trace)
             for item in assertions
         ]
-        results.extend(scope_checks)
-        passed = returncode == 0 and all(result.passed for result in results)
+        repeat_results = (
+            [
+                CheckResult(
+                    saturation_observed,
+                    (
+                        f"mapping saturation observed after {completed_runs} runs"
+                        if saturation_observed
+                        else (
+                            "mapping did not reach an unchanged terminal run "
+                            f"within {maximum_runs} runs"
+                        )
+                    ),
+                )
+            ]
+            if isinstance(repeat, dict)
+            else []
+        )
+        passed = returncode == 0 and all(
+            result.passed for result in results + repeat_results + scope_checks
+        )
         failed_checks = [
             {"type": assertion["type"], "message": result.message}
             for assertion, result in zip(assertions, results)
             if not result.passed
         ]
         failed_checks.extend(
+            {"type": "repeat_until_unchanged", "message": result.message}
+            for result in repeat_results
+            if not result.passed
+        )
+        failed_checks.extend(
             {"type": "workspace_boundary", "message": result.message}
-            for result in results[len(assertions):]
+            for result in scope_checks
             if not result.passed
         )
         if returncode:
@@ -1912,7 +2003,7 @@ def run_case(
             f"  metrics: {format_metrics(duration_seconds, token_usage)}",
             file=output,
         )
-        print_results(results, output=output)
+        print_results(results + repeat_results + scope_checks, output=output)
         if stderr:
             print("  agent stderr:", file=output)
             print("    " + stderr.strip().replace("\n", "\n    "), file=output)
@@ -2036,12 +2127,33 @@ def main() -> int:
         print(f"executable scenarios: {len(executable)}")
         for category in sorted(CASE_CATEGORIES):
             category_cases = [case for case in cases if case["category"] == category]
-            agent_calls = sum(
-                len([stage for stage in case.get("stages", []) if "skill" in stage])
-                if "stages" in case
-                else case.get("runs", 1)
-                for case in category_cases
-                if case["status"] == "executable"
+            call_ranges: list[tuple[int, int]] = []
+            for case in category_cases:
+                if case["status"] != "executable":
+                    continue
+                if "stages" in case:
+                    count = len(
+                        [stage for stage in case["stages"] if "skill" in stage]
+                    )
+                    call_ranges.append((count, count))
+                    continue
+                repeat = case.get("repeat_until_unchanged")
+                if isinstance(repeat, dict):
+                    call_ranges.append(
+                        (
+                            int(repeat.get("min_runs", 1)),
+                            int(repeat["max_runs"]),
+                        )
+                    )
+                else:
+                    count = int(case.get("runs", 1))
+                    call_ranges.append((count, count))
+            minimum_calls = sum(item[0] for item in call_ranges)
+            maximum_calls = sum(item[1] for item in call_ranges)
+            agent_calls = (
+                str(minimum_calls)
+                if minimum_calls == maximum_calls
+                else f"{minimum_calls}-{maximum_calls}"
             )
             print(
                 f"category {category}: {len(category_cases)} cases, "
