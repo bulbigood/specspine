@@ -1,6 +1,6 @@
 ---
 name: specspine-extract
-description: Extract a minimal read-only architecture context handoff from an existing linked Markdown SpecSpine. Use for feature work, planning, review, SDD, or coding that needs authoritative specification owners, related decisions and constraints, evidence status, or blocking questions without loading the full documentation.
+description: Use only to extract a minimal read-only architecture context handoff from a verified existing linked Markdown SpecSpine for a downstream feature, planning, review, SDD, or coding task that needs authoritative specification owners, decisions, constraints, evidence status, or blocking questions. Do not use for maintaining, debugging, testing, or implementing SpecSpine skills or tooling, generic repository work, or when no configured Spine root exists.
 ---
 
 # SpecSpine Extract
@@ -12,18 +12,22 @@ change. Do not modify the project or SpecSpine.
 
 1. Resolve `<spine-root>` and documentation language from the request or
    project instructions; default the root to `specspine`.
-2. Split the request into independently owned architecture targets. Form all
+2. Verify that the task is downstream architecture-context work and that
+   `<spine-root>/README.md` exists. If either condition fails, stop without
+   invoking the script because this skill is not applicable. A repository name
+   or work on SpecSpine skills and tooling does not establish applicability.
+3. Split the request into independently owned architecture targets. Form all
    query slices before using tools.
-3. Always invoke the bundled script exactly once:
+4. After applicability is established, invoke the bundled script exactly once:
 
 ```text
 python3 <skill-root>/scripts/search_spine.py <spine-root> --queries-json '<compact-json>'
 ```
 
-4. Produce the handoff directly from returned `DOCUMENT` blocks. Do not reread
+5. Produce the handoff directly from returned `DOCUMENT` blocks. Do not reread
    returned files. Read a file only when it is necessary and marked
    `DOCUMENT_OMITTED`.
-5. If execution is unavailable, output is malformed, or a necessary slice is
+6. If execution is unavailable, output is malformed, or a necessary slice is
    `no_match`, do not retry. Use the returned root `DOCUMENT`; read
    `<spine-root>/README.md` only if it was not returned, then follow only the
    links needed to fill the gap.
