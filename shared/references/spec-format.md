@@ -21,6 +21,7 @@ these ordinary Markdown documents without owning their format.
 - [Specification node](#specification-node)
 - [Section guidance](#section-guidance)
 - [Extension sections](#extension-sections)
+- [Quality and compression](#quality-and-compression)
 - [Addressable statements](#addressable-statements)
 - [Visual representations](#visual-representations)
 - [Canonical ownership](#canonical-ownership)
@@ -110,7 +111,8 @@ directives, generated indexes, or tool-specific parsers for its meaning.
 The first paragraph should explain the concept in one or two sentences.
 
 A new agent should understand why the specification exists without reading the
-rest of the file.
+rest of the file. Summarize the responsibility and architectural significance;
+do not inventory files, paraphrase functions, or compress code line by line.
 
 ### Responsibility
 
@@ -230,9 +232,14 @@ Useful optional sections include:
 
 - `Interfaces` — architectural inputs, outputs, commands, events, and external
   contracts;
+- `Information model` — durable entities, value sets, relationships, and
+  ownership without reproducing physical schemas;
 - `Data ownership` — owned data and mutation authority;
-- `Lifecycle` — significant states and transitions;
+- `Lifecycle and invariants` — significant states, transitions, and durable
+  truths that constrain behavior;
 - `Failure behavior` — retries, degradation, recovery, and failure boundaries;
+- `Edge cases` — architecturally significant boundary conditions that change
+  externally visible behavior, ownership, safety, or recovery;
 - `Quality attributes` — security, privacy, consistency, availability, latency,
   and similar architectural properties;
 - `Terminology` — local domain language when a project-wide glossary is
@@ -242,6 +249,42 @@ Useful optional sections include:
 
 Do not add an `Assumptions` section. Put unconfirmed interpretation under
 `Inferred` and unresolved choices under `Open questions`.
+
+Do not copy feature-SDD structure into the Spine. Feature requirements,
+acceptance criteria, user journeys, exhaustive endpoint matrices, example
+payloads, delivery status, and changelogs belong to downstream workflows unless
+they express a durable architectural contract owned by this concept.
+
+## Quality and compression
+
+Judge a specification by the architectural work it saves, not by its length.
+A useful mapped scope has:
+
+- **ownership coverage** — each relevant production area has a canonical
+  architectural owner, or was classified during discovery as generated,
+  vendored, test-only, or without durable architectural value;
+- **orientation** — a reader can explain the area's purpose, responsibility,
+  boundaries, and significant behavior without reconstructing it file by file;
+- **information gain** — the document captures non-local facts such as
+  interactions, data or control flow, invariants, failure and edge behavior,
+  decisions, constraints, or unresolved questions when they matter;
+- **change utility** — a coding agent can identify the owning specification,
+  neighboring responsibilities, important contracts, and likely risk surfaces;
+- **non-duplication** — prose does not mirror functions, classes, directories,
+  or local algorithms that are clearer in source.
+
+Coverage is not a requirement to mention every source file in published
+Markdown. During exhaustive brownfield discovery, source paths may be grouped
+under one responsibility when they share an owner and behavior.
+
+For unusually large mapping campaigns, a summary-to-source ratio near `1:10`
+may be used as an advisory compression signal. Count only production source;
+exclude tests, fixtures, snapshots, generated code, vendored dependencies, and
+build outputs. Treat a large deviation as a prompt to review missing coverage
+or source duplication, never as a word quota or pass/fail rule. Architectural
+information beyond the summary—edge cases, diagrams, contracts, constraints,
+decisions, and questions—earns its place through information gain and need not
+fit that ratio.
 
 ## Addressable statements
 
@@ -347,6 +390,15 @@ Choose the smallest representation that makes the relationship easier to read:
 - Mermaid `mindmap` for a compact area overview when the target renderer
   supports it reliably.
 
+Use a focused diagram when prose would otherwise make the reader reconstruct a
+non-trivial topology, interaction, lifecycle, or data relationship. In
+particular, an overview connecting three or more independently owned
+components normally needs a flowchart; a multi-party protocol normally needs a
+sequence diagram; a meaningful lifecycle normally needs a state diagram; and
+several durable data relationships may need an ER diagram. Omit a diagram when
+the relationship is genuinely clearer as a short list or table. Do not add a
+decorative diagram merely to satisfy a count.
+
 Never use ASCII diagrams. They render inconsistently and break under wrapping
 or automated editing.
 
@@ -391,11 +443,14 @@ Refine a specification until an implementation agent can understand:
 - boundaries;
 - significant behavior;
 - dependencies;
+- important interfaces, data ownership, and lifecycle where relevant;
+- architecturally significant failure and edge behavior;
 - accepted decisions;
 - important constraints.
 
-Stop when additional prose would mostly reproduce source code, framework
-boilerplate, function calls, or local algorithms.
+Stop when the quality and compression criteria are satisfied and additional
+prose would mostly reproduce source code, framework boilerplate, function
+calls, local algorithms, or exhaustive input matrices.
 
 ## Reachability
 

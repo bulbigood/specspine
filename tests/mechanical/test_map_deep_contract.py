@@ -19,6 +19,12 @@ class MapExhaustiveContractTests(unittest.TestCase):
         cls.protocol = (
             ROOT / "skills/specspine-map/references/orchestration.md"
         ).read_text(encoding="utf-8")
+        cls.format = (
+            ROOT / "shared/references/spec-format.md"
+        ).read_text(encoding="utf-8")
+        cls.template = (
+            ROOT / "skills/specspine-map/assets/templates/specification.md"
+        ).read_text(encoding="utf-8")
         cls.metadata = (
             ROOT / "skills/specspine-map/agents/openai.yaml"
         ).read_text(encoding="utf-8")
@@ -200,6 +206,47 @@ class MapExhaustiveContractTests(unittest.TestCase):
             "specifications, not to discovery or scheduling",
             normalized,
         )
+        for statement in (
+            "`Source coverage`",
+            "eligible production path",
+            "tests and generated code",
+            "lacks an owner, child branch, or concrete low-value classification",
+            "qualitative coverage",
+            "`1:10` ratio can trigger review but never force prose",
+        ):
+            with self.subTest(statement=statement):
+                self.assertIn(statement, normalized)
+
+    def test_depth_uses_quality_with_advisory_compression(self):
+        normalized = " ".join((self.mapper + self.format + self.template).split())
+        for statement in (
+            "ownership coverage",
+            "information gain",
+            "change utility",
+            "non-duplication",
+            "summary-to-source ratio near `1:10`",
+            "tests, fixtures, snapshots, generated code",
+            "never as a word quota or pass/fail rule",
+            "Architectural information beyond the summary",
+        ):
+            with self.subTest(statement=statement):
+                self.assertIn(statement, normalized)
+        self.assertIn("Do not copy feature-SDD structure", self.format)
+        self.assertIn("Do not copy a feature-SDD outline", normalized)
+
+    def test_visuals_are_required_only_when_they_reduce_reconstruction(self):
+        normalized = " ".join((self.format + self.template).split())
+        for statement in (
+            "when prose would otherwise make the reader reconstruct",
+            "three or more independently owned components",
+            "sequence diagram",
+            "state diagram",
+            "ER diagram",
+            "Omit a diagram when",
+            "Do not add a decorative diagram",
+        ):
+            with self.subTest(statement=statement):
+                self.assertIn(statement, normalized)
 
     def test_unknown_and_partial_capacity_are_transactional(self):
         normalized = " ".join(self.protocol.split())
@@ -237,6 +284,7 @@ class MapExhaustiveContractTests(unittest.TestCase):
             "rolls file moves back",
             "rejects rather than relocates",
             "Defer index reachability",
+            "temporarily defers only reachability and translated-ID notes",
         ):
             with self.subTest(statement=statement):
                 self.assertIn(statement, normalized)
@@ -370,7 +418,9 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertNotIn("only when the operator explicitly requests", normalized_parallel)
         self.assertIn("never pass the brackets, ellipsis, or the word `none`", normalized_parallel)
         self.assertIn("stop without claiming saturation", normalized_parallel)
-        self.assertLessEqual(len(self.protocol.splitlines()), 430)
+        self.assertIn("resumable campaign", normalized_parallel)
+        self.assertIn("host interrupts the invocation", normalized_parallel)
+        self.assertLessEqual(len(self.protocol.splitlines()), 450)
 
 
 if __name__ == "__main__":

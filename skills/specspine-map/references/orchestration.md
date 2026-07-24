@@ -28,6 +28,12 @@ may be enumerated internally to discover the coverage frontier. The prohibition
 on mirroring source structure applies to published specifications, not to
 discovery or scheduling.
 
+For whole-repository work, account for eligible production paths or cohesive
+path groups using `mapping-method.md`. Exclude tests and generated code from
+compression estimates, not evidence discovery. Keep the inventory out of
+published Markdown. Use `1:10` only as an advisory signal; qualitative value
+decides depth.
+
 ## Own the durable branch frontier
 
 The orchestrator is the sole scheduling authority. Create a unique temporary
@@ -111,14 +117,13 @@ document; record every actionable fork with `add`. A failed start uses
 Seed and extend the ledger from the orchestrator's own inspected evidence
 as well as producer proposals; producer proposals never define the completeness
 of the requested scope. For every broad survey branch, maintain a coverage
-frontier of directly observed independent responsibilities. Reconcile each
-frontier item to its own ledger branch. Do not encode “blocked” or “refused” as
-prose on the parent: a blocked item is a `blocked` child, and an independently
-refused item must have been assigned, investigated, and transitioned through
-`locally_saturated` with its evidence-based terminal reason. Before the first
-producer starts on a whole-repository request, seed material top-level branches
-from the repository signals already inspected; continue adding signals found
-later.
+frontier of directly observed independent responsibilities and classify its
+eligible source groups. Reconcile each independent item to its own ledger
+branch. A blocked item is a `blocked` child; an independently refused item must
+be assigned, investigated, and transitioned through `locally_saturated` with
+an evidence-based reason. Before the first producer starts on a
+whole-repository request, seed material top-level branches from inspected
+signals; add later signals as found.
 
 A same-boundary continuation remains with its current producer. A materially
 independent responsibility or boundary is a fork candidate for a new producer.
@@ -217,7 +222,8 @@ Apply Map's refusal rules exactly. When they stop this branch, create nothing
 and report `no useful node`; never manufacture output to keep the branch alive.
 Any checkpoint that created or replaced a file must be `continuing`, never
 `locally saturated`. A `locally saturated` checkpoint must be candidate-free
-and follow a terminal Map refusal in that turn.
+and follow a terminal Map refusal in that turn. Do not refuse while eligible
+source lacks an owner, child branch, or concrete low-value classification.
 Use the exact supplied evidence baseline near the first Observed section. Do
 not perform a separate validation or reread pass; return the checkpoint.
 
@@ -228,6 +234,10 @@ Return a compact checkpoint report containing only:
 - created or replaced files and their final relative destinations;
 - mapped responsibilities, boundaries, and relationships;
 - related paths and navigation targets, marking replacement reservations;
+- `Source coverage`: each inspected eligible production path group classified
+  as mapped here, owned by a named specification, requiring a child branch, or
+  lacking durable value with a reason; tests and generated code are
+  evidence-only;
 - `Current-branch continuation`: the next same-boundary work, or `none`;
 - `Coverage frontier`: every directly observed material independent boundary
   outside the next same-boundary continuation, including children found inside
@@ -281,9 +291,11 @@ Omit `--replace-existing` entirely when the producer reserved no existing
 destination; never pass the brackets, ellipsis, or the word `none`.
 The helper is the sole producer-publication route. It requires an active owner,
 exact agreement between declared destinations and staging-relative paths,
-durable conflict-free reservations, and empty candidate and live checker JSON.
-Any nonzero exit, `error` object, malformed output, or nonempty finding list
-leaves live files untouched and blocks classification. It moves accepted
+durable conflict-free reservations, and a clean candidate check. The live
+check temporarily defers only reachability and translated-ID notes until
+normalization. Any nonzero exit, `error` object, malformed output, or other
+finding blocks
+classification and leaves live files untouched. The helper moves accepted
 candidates unchanged, rolls file moves back on a later failure, then records
 publication and emits one compact receipt. Never reproduce these stages in a
 shell pipeline, manually move or rewrite a candidate, bypass the helper, or
@@ -296,6 +308,7 @@ Classify the report after publication. Import its complete `Coverage frontier`
 into the ledger before resuming or releasing that producer:
 
 - accept conflict-free reservation requests and keep published paths reserved;
+- reject terminal status while its `Source coverage` contains an unowned group;
 - reconcile every `Coverage frontier` item against the ledger and existing
   documented branches; add every actionable unowned boundary;
 - add accepted `Fork candidates` as child branches;
@@ -352,7 +365,9 @@ result. Never wait for another active owner while that free slot has ready work.
 The run is saturated only when no producer is active, no actionable branch
 remains, and every requested branch tree is complete. Do not stop at a
 predetermined document count or shallow overview coverage, and do not invent
-branches solely to prove depth.
+branches solely to prove depth. Before closing a branch, apply the qualitative
+coverage, information-gain, change-utility, and visual criteria. The advisory
+`1:10` ratio can trigger review but never force prose.
 Whenever the ready queue first becomes empty, repeat scope-level discovery
 against the current repository evidence. For a whole repository, revisit every
 material architecture-signal class that exists there: composition roots,
@@ -376,12 +391,13 @@ discovery evidence already inspected. A broad overview that names independently
 evolving responsibilities without child ledger entries is remaining actionable
 work, even when every current producer has returned `no useful node`.
 
-This is a hard response gate: do not emit a final response to report progress,
-stop immediately after spawning a producer, or ask the operator to say
-“continue” while `summary` reports ready or active work. Continue dispatching,
-consuming, and waiting. A final response is allowed only after the clean final
-audit, or when only concrete blocked branches remain and the exact operator
-input needed to unblock them is reported.
+Treat exhaustive work as a resumable campaign, not a promise that a large
+repository fits one invocation. Do not stop for elapsed time, fatigue, a
+document milestone, or progress while the environment permits. A normal final
+requires a clean final audit or only concrete blocked branches with exact
+unblock input. If the operator or host interrupts the invocation, preserve the
+ledger and report an incomplete campaign checkpoint without claiming
+saturation.
 
 Do not reorganize the live Spine or perform final normalization while mapping
 branches remain.

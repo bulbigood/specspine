@@ -40,6 +40,7 @@ def run_checker(
     spine_root: Path,
     staging_root: Path | None = None,
     replacements: list[str] | None = None,
+    ignored_codes: set[str] | None = None,
 ) -> None:
     command = [sys.executable, str(checker), str(spine_root)]
     if staging_root is not None:
@@ -53,8 +54,15 @@ def run_checker(
     except json.JSONDecodeError as error:
         detail = result.stderr.strip() or result.stdout.strip() or "no output"
         raise PublishError(f"checker returned invalid JSON: {detail}") from error
-    if result.returncode != 0 or findings != []:
-        raise PublishError("checker blocked publication", findings)
+    ignored = ignored_codes or set()
+    blocking = [
+        finding
+        for finding in findings
+        if finding.get("severity") == "error"
+        or finding.get("code") not in ignored
+    ]
+    if result.returncode != 0 or blocking:
+        raise PublishError("checker blocked publication", blocking or findings)
 
 
 def rollback_moves(
@@ -157,7 +165,11 @@ def publish(args: argparse.Namespace) -> dict[str, Any]:
             os.replace(source, destination)
             change["candidate_moved"] = True
 
-        run_checker(args.checker, args.spine_root)
+        run_checker(
+            args.checker,
+            args.spine_root,
+            ignored_codes={"ID_SECTION_UNVERIFIED", "UNREACHABLE_SPEC"},
+        )
         updated = frontier.command_publish(
             SimpleNamespace(
                 ledger=args.ledger,

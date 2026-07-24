@@ -10,6 +10,7 @@ the format and semantics references define valid artifacts and claim authority.
 - [Evidence signals](#evidence-signals)
 - [Choosing specification nodes](#choosing-specification-nodes)
 - [Mapping modes](#mapping-modes)
+- [Coverage and depth](#coverage-and-depth)
 - [Evidence discipline](#evidence-discipline)
 - [Search stopping signals](#search-stopping-signals)
 - [Failure modes](#failure-modes)
@@ -98,6 +99,33 @@ Update observations, preserve accepted intent, and record unresolved drift.
 Refresh an evidence baseline only for observations actually rechecked against
 the named source. Do not remap the whole repository for a local change.
 
+## Coverage and depth
+
+For exhaustive brownfield mapping, enumerate source internally to establish
+coverage without publishing a source-tree catalog. Treat production source,
+runtime configuration, owned schemas, and deployment behavior as eligible.
+Exclude tests, fixtures, snapshots, generated code, vendored dependencies, and
+build outputs from compression estimates; tests remain useful evidence for
+behavior, edge cases, and failure contracts.
+
+Classify each eligible path or cohesive path group as:
+
+- summarized by a canonical architectural owner;
+- evidence for a queued or active mapping branch;
+- owned by an already documented neighboring specification; or
+- lacking durable architectural value, with a concrete reason.
+
+Grouping is preferred when files share one responsibility. A package or file
+does not deserve its own specification merely to prove coverage.
+
+Use the quality and compression criteria in `spec-format.md` as the depth gate.
+The primary test is qualitative: ownership is accounted for, normal and
+significant edge or failure behavior are understandable, relationships are
+navigable, and the documentation adds non-local information without replaying
+source. A summary-to-production-source ratio near `1:10` is only a campaign
+diagnostic. Never pad prose to reach it or discard useful diagrams, contracts,
+constraints, decisions, or questions to stay below it.
+
 ## Evidence discipline
 
 Use `spec-semantics.md` as the sole definition of intent, evidence,
@@ -110,9 +138,12 @@ the syntax from `spec-format.md`.
 
 ## Search stopping signals
 
-Stop expanding the evidence search when the relevant code, responsibility,
-boundary, and significant dependencies are known, and remaining detail is
-local implementation or has low architectural value.
+For a focused branch, stop expanding the evidence search when the relevant
+production area is classified, the responsibility, boundary, significant
+behavior, dependencies, edge and failure surfaces are known, and remaining
+detail is local implementation or has low architectural value. A broad survey
+does not stop until its directly exposed independent responsibilities are
+classified into owners or child branches.
 
 ## Failure modes
 
@@ -126,5 +157,7 @@ local implementation or has low architectural value.
   its intended status is established.
 - **Excessive path references:** use paths as evidence and navigation aids, not
   as the document structure.
+- **Word-target writing:** use compression ratios only to diagnose suspicious
+  undercoverage or source duplication, never to allocate prose.
 - **Claiming completeness:** report qualitative remaining coverage and
   uncertainty.

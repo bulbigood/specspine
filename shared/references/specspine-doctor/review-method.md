@@ -29,6 +29,10 @@ Look for architectural risks supported by the inspected specifications:
 - important direct relationships hidden behind unnecessary navigation hops;
 - feature-specific scope, acceptance criteria, tasks, or status;
 - source-level walkthroughs and fragile implementation inventories;
+- missing architecturally significant edge or failure behavior required by the
+  specification's stated responsibility;
+- non-trivial topology, interaction, lifecycle, or data relationships that
+  prose makes the reader reconstruct despite the format's visual criterion;
 - diagrams that are the only source of important meaning;
 - semantic IDs used indiscriminately or changed after external reference.
 

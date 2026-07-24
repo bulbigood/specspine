@@ -39,9 +39,12 @@ Do not:
    entry points, composition roots, public interfaces, schemas, integrations,
    deployment configuration, and representative tests as applicable. Inspect
    every cited source during the current operation; never cite unread evidence.
+   Tests may reveal edge and failure behavior even though they are excluded
+   from production-source compression estimates.
 4. Model stable responsibilities, boundaries, runtime and data-flow shape, and
-   relationships rather than directories or implementation details. Classify
-   claims with `spec-semantics.md`.
+   relationships rather than directories or implementation details. Apply the
+   coverage, quality, compression, and visual criteria from the mapping and
+   format references. Classify claims with `spec-semantics.md`.
 5. Treat the explicit mapping, refresh, or restructuring request as approval.
    Ask only before changing accepted intent or choosing among materially
    different canonical owners.
@@ -58,11 +61,13 @@ Do not:
    owning Markdown file as its destination, without emphasis or a URL fragment.
 8. Report evidence inspected, files created or changed, mapped
    responsibilities and relationships, material adjacent architectural
-   questions, unconfirmed inferences, unresolved drift, and qualitative
-   remaining coverage. Create or change no document when the live Spine already
-   answers the question, evidence cannot support a useful architectural node,
-   or further detail would reproduce implementation. Report that terminal
-   reason explicitly instead of manufacturing output.
+   questions, unconfirmed inferences, unresolved drift, source areas classified
+   during this step, and qualitative remaining coverage. Create or change no
+   document when the live Spine already answers the question at the quality
+   gate, evidence cannot support a useful architectural node, or further detail
+   would reproduce implementation. Report that terminal reason explicitly
+   instead of manufacturing output.
 
-Stop when the requested architectural scope is answered and additional reading
-would have low architectural value or mostly reproduce implementation.
+Stop when the requested architectural scope passes the qualitative depth gate
+and additional reading would have low architectural value or mostly reproduce
+implementation.

@@ -143,6 +143,36 @@ class MapPublishCandidatesTests(unittest.TestCase):
         ledger = json.loads(self.ledger.read_text(encoding="utf-8"))
         self.assertEqual([], ledger["branches"]["identity"]["published"])
 
+    def test_late_unreachable_warning_is_deferred_to_normalization(self):
+        source = self.candidate()
+        checker = self.checker(
+            "import json, sys\n"
+            "findings = [] if '--candidates' in sys.argv else "
+            "[{'severity': 'warning', 'code': 'UNREACHABLE_SPEC'}]\n"
+            "print(json.dumps(findings))\n"
+        )
+
+        result = self.publish(checker)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse(source.exists())
+        self.assertTrue((self.spine / "architecture/identity.md").is_file())
+
+    def test_late_non_navigation_warning_rolls_move_back(self):
+        source = self.candidate()
+        checker = self.checker(
+            "import json, sys\n"
+            "findings = [] if '--candidates' in sys.argv else "
+            "[{'severity': 'warning', 'code': 'OTHER_WARNING'}]\n"
+            "print(json.dumps(findings))\n"
+        )
+
+        result = self.publish(checker)
+
+        self.assertEqual(2, result.returncode)
+        self.assertTrue(source.is_file())
+        self.assertFalse((self.spine / "architecture/identity.md").exists())
+
     def test_late_failure_restores_replaced_live_file(self):
         source = self.candidate(content="new candidate")
         destination = self.spine / "architecture/identity.md"
