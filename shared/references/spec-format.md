@@ -95,7 +95,9 @@ top-level concepts and let those specifications link to more detailed concepts.
 ## Specification node
 
 Use the specification template routed from `SKILL.md` when creating a node.
-Select only useful sections; the template is a menu, not a required schema.
+Every specification node has an H1 title, a short summary immediately below it,
+and a nonempty `Responsibility` section. Select other sections only when useful;
+the rest of the template is a menu, not a required schema.
 
 The document must remain understandable outside the producing skill. Use
 ordinary Markdown and relative links. Do not require custom frontmatter,
@@ -196,7 +198,8 @@ baseline records freshness and provenance, not conformance. Update it only when
 the observations are rechecked.
 
 When an observation needs traceability, add representative repository-relative
-evidence without claiming exhaustive coverage:
+evidence without claiming exhaustive coverage. Write repository paths as inline
+code rather than Markdown links:
 
 ```markdown
 - **OBS-worker-retries** — Failed jobs are retried by the worker.

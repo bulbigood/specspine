@@ -4,7 +4,7 @@
 
 The publishable packages under `<repo-root>/skills/specspine-*` and common
 references under `<repo-root>/shared/references/` are the canonical runtime
-sources. Edit skill-specific instructions, references, scripts, templates, and
+sources. Edit private skill instructions, references, scripts, templates, and
 agent metadata under `skills/`; edit shared rules only under `shared/`.
 
 The maintainer tool must not contain copies or snapshots of those packages. It
@@ -13,18 +13,18 @@ duplicated between separately published members of the coordinated suite.
 
 ## Shared rules
 
-`shared/references/` owns every additional skill reference. The framework-wide
-rules are:
+`shared/references/` owns references reused by multiple skills. The
+framework-wide rules are:
 
 - `spec-format.md`;
 - `spec-semantics.md`.
 
-Skill-specific references live under matching subdirectories such as
-`shared/references/specspine-map/`. Every file under a runtime skill's
-`references/` directory is a relative symbolic link to its canonical shared
-file. The generator validates or atomically repairs the links; it never copies
-their contents. Selecting `--skill` limits validation or repair to that skill.
-Run the full check before a release.
+Each consuming skill exposes a shared reference through a relative symbolic
+link. A private reference that defines only one skill's execution remains a
+regular file in that skill and is not registered with this generator. The
+generator validates or atomically repairs only registered shared links; it
+never copies their contents. Selecting `--skill` limits validation or repair
+to that skill. Run the full check before a release.
 
 ## Framework-adapter boundary
 

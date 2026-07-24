@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bundle one skill body and all of its UTF-8 references into one file."""
+"""Bundle one skill body, references, and Markdown templates into one file."""
 
 from __future__ import annotations
 
@@ -34,9 +34,23 @@ def reference_files(references: Path) -> list[Path]:
     return files
 
 
+def template_files(templates: Path) -> list[Path]:
+    if not templates.exists():
+        return []
+    if not templates.is_dir():
+        raise ValueError(f"templates path is not a directory: {templates}")
+    files: list[Path] = []
+    for path in sorted(templates.rglob("*.md")):
+        if not path.is_file():
+            raise ValueError(f"template is not a readable regular file: {path}")
+        files.append(path)
+    return files
+
+
 def build_bundle(skill_root: Path) -> str:
     skill = skill_root / "SKILL.md"
     references = skill_root / "references"
+    templates = skill_root / "assets" / "templates"
     if not skill.is_file():
         raise ValueError(f"SKILL.md does not exist: {skill}")
     if not references.is_dir():
@@ -46,6 +60,10 @@ def build_bundle(skill_root: Path) -> str:
     sections.extend(
         path.read_text(encoding="utf-8").strip()
         for path in reference_files(references)
+    )
+    sections.extend(
+        path.read_text(encoding="utf-8").strip()
+        for path in template_files(templates)
     )
     return SECTION_SEPARATOR.join(sections) + "\n"
 

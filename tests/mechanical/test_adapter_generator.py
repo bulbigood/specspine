@@ -42,10 +42,27 @@ class AdapterGeneratorTests(unittest.TestCase):
                 consumer,
             )
 
-    def test_every_skill_reference_is_a_symlink(self):
+    def test_shared_references_are_symlinks_and_private_references_are_local(self):
+        shared = {
+            PROJECT_ROOT / "skills" / skill / relative
+            for skill in GENERATOR.SKILL_REFERENCES
+            for relative in GENERATOR.shared_files(PROJECT_ROOT, skill)
+        }
         for root in (PROJECT_ROOT / "skills").glob("specspine-*/references"):
             for path in root.iterdir():
-                self.assertTrue(path.is_symlink(), str(path))
+                if path in shared:
+                    self.assertTrue(path.is_symlink(), str(path))
+                else:
+                    self.assertTrue(path.is_file(), str(path))
+                    self.assertFalse(path.is_symlink(), str(path))
+
+        private_references = (
+            PROJECT_ROOT / "skills/specspine-map/references/mapping-method.md",
+            PROJECT_ROOT / "skills/specspine-map-deep/references/orchestration.md",
+        )
+        for private in private_references:
+            self.assertTrue(private.is_file())
+            self.assertFalse(private.is_symlink())
 
     def test_prompt_budgets_are_enforced_on_canonical_skills(self):
         skills_root = PROJECT_ROOT / "skills"
@@ -57,6 +74,13 @@ class AdapterGeneratorTests(unittest.TestCase):
         legacy_manifest = ".generated-by-specspine-adapter-generator.json"
         for name in GENERATOR.PACKAGES:
             self.assertFalse((PROJECT_ROOT / "skills" / name / legacy_manifest).exists())
+
+    def test_generator_does_not_manage_private_mapping_protocols(self):
+        self.assertNotIn(
+            "mapping-method.md",
+            GENERATOR.SKILL_REFERENCES["specspine-map"],
+        )
+        self.assertNotIn("specspine-map-deep", GENERATOR.SKILL_REFERENCES)
 
     def test_cli_synchronizes_only_shared_skill_resources(self):
         with tempfile.TemporaryDirectory() as directory:

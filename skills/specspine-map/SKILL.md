@@ -5,9 +5,10 @@ description: Map observed brownfield repository architecture into a linked Markd
 
 # SpecSpine Map
 
-Map the requested repository scope into the smallest useful set of linked
-architectural specifications. Map breadth before depth and preserve the
-difference between accepted intent and repository evidence.
+Map the requested repository scope by one shallowest useful step into the
+smallest coherent set of linked architectural specifications. Map breadth
+before depth and preserve the difference between accepted intent and repository
+evidence.
 
 ## Resources
 
@@ -17,8 +18,6 @@ difference between accepted intent and repository evidence.
   editing, or restructuring specifications.
 - Read [references/mapping-method.md](references/mapping-method.md) before a
   substantial survey, refresh, or restructuring.
-- Read [references/examples.md](references/examples.md) only when mapping depth
-  or a specification boundary is unclear.
 - Start new files from `assets/templates/` and omit empty sections.
 
 ## Authority and scope
@@ -26,10 +25,10 @@ difference between accepted intent and repository evidence.
 Use this skill for an initial high-level survey, one or more selected areas or
 questions, deepening, refresh, or drift recording.
 
-Repository evidence may establish observations and support inferences. It does
-not establish decisions or constraints and never overrides accepted intent.
-Preserve disagreements until the user or an authorized architecture workflow
-resolves them.
+Source code, tests, configuration, and other repository behavior may establish
+observations and support inferences. They do not establish decisions or
+constraints and never override accepted intent. Preserve disagreements until
+the user or an authorized architecture workflow resolves them.
 
 Do not:
 
@@ -45,10 +44,12 @@ Do not:
 1. Resolve `<spine-root>` using `references/spec-format.md`. Read its index,
    relevant specifications, and only the repository documentation or
    architecture records needed to understand existing intent.
-2. Choose the shallowest operation that answers the request. For an
+2. Perform one shallowest useful mapping step for the requested scope. A step is
+   the smallest coherent documentation change, not necessarily one file. For an
    initial survey, inspect whole-system shape but create only a few useful entry
    points. For a selected area or refresh, begin with the named specification
-   and relevant changed paths.
+   and relevant changed paths. Report further depth and adjacent branches
+   instead of pursuing them recursively in the same operation.
 3. Inspect representative evidence: root documentation, manifests, runtime
    entry points, composition roots, public interfaces, schemas, integrations,
    deployment configuration, and representative tests as applicable. Inspect
@@ -61,7 +62,8 @@ Do not:
    materially different canonical owners.
 6. Write only under the explicitly supplied writable documentation root. By
    default this is `<spine-root>`. If the request supplies a separate output
-   root, keep the live Spine read-only and create only publish-ready new
+   root, keep the live Spine read-only and create publish-ready new
+   specifications or complete replacements of explicitly assigned existing
    specifications at paths relative to their final live destinations; do not
    update `README.md`.
 7. For live writes, apply the smallest coherent change and preserve unrelated

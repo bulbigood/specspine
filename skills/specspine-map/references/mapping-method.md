@@ -1,1 +1,130 @@
-../../../shared/references/specspine-map/mapping-method.md
+# SpecSpine brownfield mapping method
+
+Discover durable architecture without turning SpecSpine into a source-code
+catalog. `SKILL.md` defines the scope and stopping point of one Map operation;
+the format and semantics references define valid artifacts and claim authority.
+
+## Contents
+
+- [Discovery strategy](#discovery-strategy)
+- [Evidence signals](#evidence-signals)
+- [Choosing specification nodes](#choosing-specification-nodes)
+- [Mapping modes](#mapping-modes)
+- [Evidence discipline](#evidence-discipline)
+- [Search stopping signals](#search-stopping-signals)
+- [Failure modes](#failure-modes)
+
+## Discovery strategy
+
+Start with system shape, then inspect internals only where boundaries remain
+unclear. A useful sequence is:
+
+1. Existing SpecSpine documents and repository architecture documentation.
+2. Package, workspace, and build manifests.
+3. Top-level directories.
+4. Runtime entry points and composition roots.
+5. Deployment, container, process, and runtime configuration.
+6. Public interfaces, routes, consumers, schedulers, and commands.
+7. Schemas, migrations, and owned contracts.
+8. Representative integration or end-to-end tests.
+9. Local implementation needed to resolve remaining architectural questions.
+
+Adapt the order to the requested scope; this is not a checklist.
+
+## Evidence signals
+
+| Source | Usually reveals | Common misreading |
+|---|---|---|
+| Root documentation | Product purpose, named components, stated architecture | Documentation may be stale |
+| Manifests and workspace configuration | Packages, executables, dependencies, technology choices | A package is not automatically an architectural boundary |
+| Entry points and composition roots | Runtime components, dependency assembly, public adapters | Framework wiring may obscure the durable responsibility |
+| Routes, consumers, schedulers, commands | Capabilities, external inputs, integrations, asynchronous behavior | A handler does not deserve its own specification |
+| Schemas and migrations | Durable concepts, ownership clues, lifecycle constraints | A table is not automatically a subsystem |
+| Integration and end-to-end tests | Significant behavior, failure cases, hidden contracts | Test structure may reflect fixtures rather than architecture |
+| Deployment and operations files | Deployable units, external services, process relationships, scaling boundaries | Infrastructure layout may not express domain ownership |
+
+Prefer sources that expose boundaries, ownership, runtime shape, or
+cross-component behavior. Use local implementation only to answer a concrete
+architectural uncertainty.
+
+## Choosing specification nodes
+
+Prefer durable architectural concepts such as:
+
+- a deployable runtime component;
+- a domain or capability boundary;
+- a shared platform responsibility;
+- persistence ownership;
+- a significant integration;
+- a cross-cutting concern with project-specific rules.
+
+Avoid nodes based only on utility directories, generic framework layers,
+individual classes or endpoints, generated code, trivial adapters, or one-off
+scripts.
+
+For a candidate node, ask:
+
+1. Does it own a distinct responsibility?
+2. Would an agent navigate to it for a class of changes?
+3. Does it have meaningful boundaries, relationships, or decisions?
+4. Can it evolve independently?
+5. Is it more stable than the current file layout?
+
+If most answers are no, describe it within a broader specification. Apply the
+canonical decomposition and ownership rules from `spec-format.md` when writing
+or restructuring files.
+
+## Mapping modes
+
+### Initial survey
+
+Establish a small number of linked entry points covering major runtime,
+capability, ownership, and data-flow boundaries. Keep each file concise. Follow
+the organization rules and templates routed from `SKILL.md`; do not reproduce
+the repository tree.
+
+### Deepening a branch
+
+Start from the existing specification and its direct relationships. Inspect
+public entry points, representative behavior tests, owned schemas or contracts,
+integration edges, and only then necessary local internals. Update the smallest
+affected specification set. Split a node only under the canonical decomposition
+rules.
+
+### Refreshing after code changes
+
+Start from affected specifications and the relevant diff or changed areas.
+Update observations, preserve accepted intent, and record unresolved drift.
+Refresh an evidence baseline only for observations actually rechecked against
+the named source. Do not remap the whole repository for a local change.
+
+## Evidence discipline
+
+Use `spec-semantics.md` as the sole definition of intent, evidence,
+interpretation, and uncertainty. Repository repetition does not establish
+accepted intent.
+
+Cite only representative locations that support non-obvious claims or help
+future navigation. Do not let paths become the main content; record them using
+the syntax from `spec-format.md`.
+
+## Search stopping signals
+
+Stop expanding the evidence search when the relevant code, responsibility,
+boundary, and significant dependencies are known, and remaining detail is
+local implementation or has low architectural value.
+
+## Failure modes
+
+- **Mirroring directories:** model responsibilities, capabilities, runtimes,
+  ownership, and relationships instead.
+- **Mapping too deeply too early:** establish system shape before subsystem
+  internals.
+- **Treating names as intent:** verify names through usage, tests, interfaces,
+  and accepted documentation.
+- **Canonizing technical debt:** record repository structure as observed unless
+  its intended status is established.
+- **Excessive path references:** use paths as evidence and navigation aids, not
+  as the document structure.
+- **Claiming completeness:** report qualitative remaining coverage and
+  uncertainty.

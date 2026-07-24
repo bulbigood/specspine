@@ -38,28 +38,28 @@ across five cases:
   benchmark.
 
 `map-deep-rolling-small` provides one controlled executable orchestration case.
-One top-level invocation must create six branch-affine mapper sessions within
-two available worker slots and resume each session for terminal depth. Codex
-JSONL collaboration events verify both spawning and same-session continuation.
+One top-level invocation receives a production-like whole-repository request
+and must keep two available producer slots working across more ready branches
+than slots. Codex JSONL collaboration events verify spawning and same-session
+continuation.
 Both A/B arms copy the same 21-file
 `map-modes-six-area` fixture tree, including six source/test/config evidence
 slices, so project drift between manifests cannot bias the comparison.
-Generated artifacts verify the six-zone partition through their evidence
-coverage. The runtime trace pins the orchestrator to Terra/medium and configures
+Generated artifacts verify material coverage through their evidence. The
+runtime trace pins the orchestrator to Terra/medium and configures
 producers as Luna/medium. Map is installed only so the orchestrator can obtain,
 save, and emit in one script call a generated bundle containing the complete
-Map body and every UTF-8 file under Map `references/`; producers must not load
-those source files themselves. Collaboration assertions require exactly two
-initial producers, no more than two simultaneously active producers, exactly
-six total producer spawns, one-zone prompt partitions, at least six resumptions
-of spawned sessions, and an encrypted-message size ratio that rejects repeated
-bundles in continuations. Discovery is adaptive and keeps no ledger or recovery
-manifest. Final assertions verify
+Map body, every UTF-8 reference, and every UTF-8 Markdown template; producers
+must not load those source files themselves. Collaboration assertions require
+two initial producers, no more than two simultaneously active producers,
+multiple total spawns and resumptions, and an encrypted-message size ratio that
+rejects repeated bundles in continuations. Discovery is adaptive and keeps no
+ledger or recovery manifest. Final assertions verify
 move-based publication, source protection, disposable run-root cleanup, and
 mechanical Spine validity. Document length is observed, not bounded. The paired
 benchmark adds one blind holistic documentation-quality judgment per sample
-pair. This case normally costs one orchestrator plus six producer sessions and
-belongs in the explicit `expensive` category.
+pair. This case normally costs one orchestrator plus several producer sessions
+and belongs in the explicit `expensive` category.
 
 Remaining distinct behavioral gaps are:
 
@@ -85,13 +85,13 @@ The executable set is divided by resource cost and necessity:
 |---|---:|---:|---|
 | `core` | 8 | 8 | Minimum behavioral regression set, including atomic staged Map output |
 | `extended` | 12 | 15 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
-| `expensive` | 2 | 2 | Paired direct Map and rolling Map Deep benchmark; the latter creates six branch-affine producer sessions |
+| `expensive` | 2 | 2 | Paired one-step Map and saturating Map Deep benchmark with constrained producer capacity |
 | `planned` | 10 | 0 | Documentation and future redesign only |
 
 The table counts harness invocations. `map-deep-rolling-small` additionally
-creates six useful producer sessions and resumes each for terminal depth. Its
-separate category prevents ordinary `core` or `extended` runs from selecting
-it.
+creates multiple producer sessions and resumes useful branches toward terminal
+depth. Its separate category prevents ordinary `core` or `extended` runs from
+selecting it.
 
 Core and extended cases currently cover:
 

@@ -18,10 +18,11 @@ SPEC.loader.exec_module(BUILDER)
 
 
 class SkillBundlerTests(unittest.TestCase):
-    def test_bundle_strips_frontmatter_and_includes_every_map_reference(self):
+    def test_bundle_includes_map_body_references_and_markdown_templates(self):
         map_root = ROOT / "skills/specspine-map"
         bundle = BUILDER.build_bundle(map_root)
         references = BUILDER.reference_files(map_root / "references")
+        templates = BUILDER.template_files(map_root / "assets/templates")
 
         self.assertTrue(bundle.startswith("# SpecSpine Map\n"))
         self.assertNotIn("name: specspine-map", bundle)
@@ -31,11 +32,17 @@ class SkillBundlerTests(unittest.TestCase):
             with self.subTest(reference=reference.name):
                 self.assertEqual(1, bundle.count(content))
                 positions.append(bundle.index(content))
+        for template in templates:
+            content = template.read_text(encoding="utf-8").strip()
+            with self.subTest(template=template.name):
+                self.assertEqual(1, bundle.count(content))
+                positions.append(bundle.index(content))
         self.assertEqual(sorted(positions), positions)
         expected = [BUILDER.strip_frontmatter(
             (map_root / "SKILL.md").read_text(encoding="utf-8")
         ).strip()]
         expected.extend(path.read_text(encoding="utf-8").strip() for path in references)
+        expected.extend(path.read_text(encoding="utf-8").strip() for path in templates)
         self.assertEqual(BUILDER.SECTION_SEPARATOR.join(expected) + "\n", bundle)
 
     def test_cli_writes_the_deterministic_bundle(self):

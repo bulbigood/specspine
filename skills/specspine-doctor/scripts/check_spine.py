@@ -566,10 +566,16 @@ def _candidate_sections(path: Path, root: Path) -> list[Finding]:
     return findings
 
 
-def check_candidates(spine_root: Path, staging_root: Path) -> list[Finding]:
+def check_candidates(
+    spine_root: Path,
+    staging_root: Path,
+    *,
+    allowed_replacements: set[str] | None = None,
+) -> list[Finding]:
     """Check staged Markdown against the live Spine without publishing it."""
     spine_root = spine_root.resolve()
     staging_root = staging_root.absolute()
+    replacements = allowed_replacements or set()
     findings: list[Finding] = []
     if not spine_root.is_dir():
         return [Finding("error", "ROOT_MISSING", ".", None, f"SpecSpine root does not exist: {spine_root}")]
@@ -596,7 +602,12 @@ def check_candidates(spine_root: Path, staging_root: Path) -> list[Finding]:
             add(findings, "error", "STAGED_INDEX", path, staging_root, "a producer must not replace README.md")
             continue
         destination = spine_root / relative
-        if destination.exists() or destination.is_symlink():
+        if destination.is_symlink() or (
+            destination.exists() and not destination.is_file()
+        ):
+            add(findings, "error", "DESTINATION_COLLISION", path, staging_root, f"destination already exists: {relative}")
+            continue
+        if destination.exists() and relative.as_posix() not in replacements:
             add(findings, "error", "DESTINATION_COLLISION", path, staging_root, f"destination already exists: {relative}")
             continue
         candidates.append((path, relative))
@@ -613,7 +624,10 @@ def check_candidates(spine_root: Path, staging_root: Path) -> list[Finding]:
             if live.is_file() and not live.is_symlink():
                 _link_or_copy(live, overlay / live.relative_to(spine_root))
         for source, relative in candidates:
-            _link_or_copy(source, overlay / relative)
+            destination = overlay / relative
+            if destination.exists():
+                destination.unlink()
+            _link_or_copy(source, destination)
         for item in check(overlay):
             if item.code in ignored_overlay_codes or _finding_key(item) in baseline:
                 continue
@@ -627,10 +641,32 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("spine_root", type=Path)
     parser.add_argument("--candidates", type=Path, help="check a private staging root against the live Spine")
+    parser.add_argument(
+        "--replace-existing",
+        action="append",
+        default=[],
+        metavar="RELATIVE_PATH",
+        help="allow one reserved existing Markdown destination; repeat as needed",
+    )
     parser.add_argument("--json", action="store_true", help="emit a JSON array")
     args = parser.parse_args()
+    replacements: set[str] = set()
+    for value in args.replace_existing:
+        path = Path(value)
+        if (
+            path.is_absolute()
+            or ".." in path.parts
+            or path.suffix != ".md"
+            or path == Path("README.md")
+        ):
+            parser.error(f"unsafe replacement path: {value}")
+        replacements.add(path.as_posix())
     findings = (
-        check_candidates(args.spine_root, args.candidates)
+        check_candidates(
+            args.spine_root,
+            args.candidates,
+            allowed_replacements=replacements,
+        )
         if args.candidates
         else check(args.spine_root)
     )

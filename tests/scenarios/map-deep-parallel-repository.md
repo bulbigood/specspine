@@ -9,10 +9,9 @@ remain only partially mapped.
 ## User request
 
 ```text
-Use `$specspine-map-deep` to continue mapping this large repository. Use
-isolated subagents for independent architectural areas, then publish every
-worker-produced specification without re-reading source. After saturation,
-normalize the SpecSpine once and run one final Doctor semantic review.
+Use `$specspine-map-deep` to map every remaining architectural area in this
+large repository as deeply as useful evidence supports. After mapping is
+complete, run one SpecSpine Doctor semantic review.
 ```
 
 ## Expected behavior

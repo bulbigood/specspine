@@ -2,10 +2,9 @@
 
 ## Initial repository
 
-The publishable `connect`, `extract`, `grow`, `map`, and `doctor` packages under
-`skills/` are canonical together with all additional instructions under
-`shared/references/`. One or more skill-local reference symlinks are missing or
-incorrect.
+The publishable packages under `skills/` are canonical together with common
+instructions under `shared/references/`. One or more registered shared-reference
+symlinks are missing or incorrect.
 
 ## User request
 
@@ -18,8 +17,9 @@ runtime skills.
 
 The skill should:
 
-- treat `shared/references/` as the sole source of additional instructions;
-- expose references through relative symlinks in each consuming skill;
+- treat `shared/references/` as the source of reused instructions;
+- expose reused references through relative symlinks in each consuming skill;
+- preserve private execution references as regular files in their owning skill;
 - run drift checking and available validation gates;
 - avoid publishing without explicit authorization.
 
@@ -27,6 +27,7 @@ The skill should:
 
 - canonical shared resources are overwritten from skill-local paths;
 - common references are copied into skill directories instead of symlinked;
+- a private reference is moved into `shared/`;
 - full skill copies or snapshots are created under `tools/`;
 - a runtime skill depends on the generator;
 - publication occurs automatically;

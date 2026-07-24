@@ -175,9 +175,9 @@ never modifies source code.
 
 ### `specspine-map`
 
-Maps a requested part of an existing brownfield project: an initial survey,
-one or more architectural questions, selected subsystems, deepening, refresh,
-or drift.
+Advances a requested part of an existing brownfield project by one shallowest
+useful mapping step: an initial survey, one or more architectural questions,
+selected subsystems, deepening, refresh, or drift.
 
 It records observed repository evidence separately from intended architectural
 decisions and preserves disagreements.
@@ -186,10 +186,11 @@ decisions and preserves disagreements.
 
 Orchestrates an explicitly requested deep mapping run over one area, several
 areas, or a whole brownfield repository. It gives each architectural branch an
-isolated producer session with self-contained Map instructions, resumes that
-session for same-branch work, and centrally schedules independent forks.
-Mechanically valid results are published continuously until every branch is
-saturated. Without subagents one agent performs all roles sequentially.
+isolated producer session with self-contained Map instructions, publishes one
+Map step per checkpoint, resumes that session for the next same-branch step,
+and centrally schedules independent forks. Mechanically valid results are
+published continuously until every branch is saturated. Without subagents one
+agent performs all roles sequentially.
 
 ### `specspine-extract`
 
@@ -215,13 +216,14 @@ not a mandatory intermediary for every internal skill operation.
 
 ### Adapter generator
 
-The six publishable packages under `skills/` and canonical instructions under
-`shared/references/` are the source of truth. Every file under a runtime
-skill's `references/` directory must be a relative symbolic link to its
-canonical file under `shared/references/`; never keep a copied regular file
-there. Add framework-wide references at the shared root and skill-specific
-references under the matching shared subdirectory, then register the consuming
-link in `tools/specspine-adapter-generator/scripts/generate_resources.py`.
+The six publishable packages under `skills/` and common instructions under
+`shared/references/` are the source of truth. References reused across skills
+live under `shared/references/` and appear in each consumer as relative symbolic
+links registered in
+`tools/specspine-adapter-generator/scripts/generate_resources.py`. A reference
+that defines only one skill's private execution protocol remains a regular file
+inside that skill; do not put it under `shared/` or register it as a shared
+link.
 Repository-only tooling under `tools/specspine-adapter-generator/` validates or
 atomically repairs those links and is the only place for generating
 framework-specific SDD adapters. Runtime skills remain framework-neutral. The
@@ -696,13 +698,8 @@ specspine/
 │       │   └── bootstrap-contract.md
 │       ├── specspine-doctor/
 │       │   └── review-method.md
-│       ├── specspine-grow/
-│       │   └── examples.md
-│       ├── specspine-map/
-│       │   ├── examples.md
-│       │   └── mapping-method.md
-│       └── specspine-map-deep/
-│           └── orchestration.md
+│       └── specspine-grow/
+│           └── examples.md
 ├── skills/
 │   ├── specspine-connect/
 │   │   ├── SKILL.md
@@ -729,10 +726,9 @@ specspine/
 │   ├── specspine-map/
 │   │   ├── SKILL.md
 │   │   ├── references/
-│   │   │   ├── mapping-method.md -> ../../../shared/references/specspine-map/mapping-method.md
+│   │   │   ├── mapping-method.md
 │   │   │   ├── spec-format.md -> ../../../shared/references/spec-format.md
-│   │   │   ├── spec-semantics.md -> ../../../shared/references/spec-semantics.md
-│   │   │   └── examples.md -> ../../../shared/references/specspine-map/examples.md
+│   │   │   └── spec-semantics.md -> ../../../shared/references/spec-semantics.md
 │   │   └── assets/
 │   │       └── templates/
 │   │           ├── architecture-index.md
@@ -740,7 +736,7 @@ specspine/
 │   ├── specspine-map-deep/
 │   │   ├── SKILL.md
 │   │   ├── references/
-│   │   │   └── orchestration.md -> ../../../shared/references/specspine-map-deep/orchestration.md
+│   │   │   └── orchestration.md
 │   │   └── scripts/
 │   │       └── bundle_skill.py
 │   └── specspine-doctor/
@@ -782,13 +778,13 @@ specspine/
 ```
 
 The six runtime skills form a coordinated suite with explicit scope and
-degraded-operation boundaries. Each package exposes its required references
-through local paths backed by repository-level SSOT symlinks, while the
-connected downstream path prefers `specspine-extract` and falls back to the
-Markdown graph. `specspine-adapter-generator` is maintainer-only tooling: it
-validates shared links and owns framework-specific adapter generation without
-adding environment knowledge or mandatory runtime dependencies to canonical
-skills.
+degraded-operation boundaries. Reused references appear through local paths
+backed by repository-level SSOT symlinks; private execution references stay in
+their owning packages. The connected downstream path prefers
+`specspine-extract` and falls back to the Markdown graph.
+`specspine-adapter-generator` is maintainer-only tooling: it validates shared
+links and owns framework-specific adapter generation without adding environment
+knowledge or mandatory runtime dependencies to canonical skills.
 
 ## What SpecSpine is not
 

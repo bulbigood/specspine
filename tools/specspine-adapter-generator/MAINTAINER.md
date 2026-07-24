@@ -6,7 +6,8 @@ runtime skill.
 
 Treat the publishable packages under `<repo-root>/skills/specspine-*` and
 `<repo-root>/shared/references/` as the framework-neutral source of truth. This
-tool owns shared-link validation and any framework-specific adapter generation.
+tool owns links for references reused across skills and any framework-specific
+adapter generation. Private execution references remain in their owning skill.
 Never put SDD framework knowledge into canonical runtime skills.
 
 ## Resources
@@ -21,23 +22,23 @@ Never put SDD framework knowledge into canonical runtime skills.
 ## Workflow
 
 1. Modify skill-specific files under `skills/`.
-2. Keep all additional skill references canonical only in
-   `shared/references/`.
+2. Keep reused references in `shared/references/` and private references in
+   their owning skill.
 3. Run `scripts/generate_resources.py` to repair links from runtime skills to
    shared references.
 4. Run `scripts/generate_resources.py --check`.
 5. Run skill validation, unit tests, the eval-manifest audit, and representative
    deterministic scripts.
-6. Inspect the diff. Fix canonical shared resources and regenerate links; do
-   not replace symlinks with skill-local copies.
+6. Inspect the diff. Fix canonical shared resources and regenerate their links;
+   do not copy a shared reference into a skill.
 7. Prepare publishing only after every gate passes. Publish through the
    repository's explicit release mechanism and only when the user authorizes
    the external action.
 
 ## Generation rules
 
-- Keep additional instructions under `shared/` and expose them in each
-  consuming skill through relative symbolic links.
+- Keep reused instructions under `shared/` and expose them through relative
+  symbolic links; keep single-skill execution protocols local.
 - Put reusable executable logic in skill `scripts/` directories.
 - Keep `SKILL.md` files concise and route conditional detail to references.
 - Prefer build-time shared copies over runtime skill dependencies.

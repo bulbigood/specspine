@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import re
 import subprocess
 import sys
@@ -474,6 +475,102 @@ class DoctorCheckerTests(unittest.TestCase):
                 }
                 <= codes
             )
+
+    def test_candidate_preflight_can_overlay_an_existing_reserved_document(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spine = root / "specspine"
+            staging = root / "staging"
+            spine.mkdir()
+            staging.mkdir()
+            original = (
+                "# Runtime\n\nExisting runtime summary.\n\n"
+                "## Responsibility\n\nOwns process lifecycle.\n"
+            )
+            (spine / "README.md").write_text(
+                "# Architecture\n\n[Runtime](runtime.md)\n", encoding="utf-8"
+            )
+            (spine / "runtime.md").write_text(original, encoding="utf-8")
+            (staging / "runtime.md").write_text(
+                "# Runtime\n\nExpanded runtime summary.\n\n"
+                "## Responsibility\n\nOwns process lifecycle and composition.\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                [],
+                CHECKER.check_candidates(
+                    spine,
+                    staging,
+                    allowed_replacements={"runtime.md"},
+                ),
+            )
+            self.assertEqual(original, (spine / "runtime.md").read_text())
+
+    def test_candidate_cli_accepts_replacement_flag_without_mutating_live_spine(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spine = root / "specspine"
+            staging = root / "staging"
+            spine.mkdir()
+            staging.mkdir()
+            original = (
+                "# Runtime\n\nExisting runtime summary.\n\n"
+                "## Responsibility\n\nOwns process lifecycle.\n"
+            )
+            (spine / "README.md").write_text(
+                "# Architecture\n\n[Runtime](runtime.md)\n", encoding="utf-8"
+            )
+            (spine / "runtime.md").write_text(original, encoding="utf-8")
+            (staging / "runtime.md").write_text(
+                "# Runtime\n\nExpanded runtime summary.\n\n"
+                "## Responsibility\n\nOwns process lifecycle and composition.\n",
+                encoding="utf-8",
+            )
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(MODULE_PATH),
+                    str(spine),
+                    "--candidates",
+                    str(staging),
+                    "--replace-existing",
+                    "runtime.md",
+                    "--json",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            self.assertEqual([], json.loads(completed.stdout))
+            self.assertEqual(original, (spine / "runtime.md").read_text())
+
+    def test_candidate_preflight_never_replaces_the_index(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spine = root / "specspine"
+            staging = root / "staging"
+            spine.mkdir()
+            staging.mkdir()
+            (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+            (staging / "README.md").write_text(
+                "# Replacement\n\nSummary.\n\n"
+                "## Responsibility\n\nOwns navigation.\n",
+                encoding="utf-8",
+            )
+
+            codes = {
+                finding.code
+                for finding in CHECKER.check_candidates(
+                    spine,
+                    staging,
+                    allowed_replacements={"README.md"},
+                )
+            }
+            self.assertIn("STAGED_INDEX", codes)
 
     def test_candidate_preflight_rejects_symlinks_and_missing_responsibility(self):
         with tempfile.TemporaryDirectory() as directory:
