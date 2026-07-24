@@ -32,6 +32,20 @@ intended namespace, reserved live destinations, and accepted children. States
 are `queued`, `active`, `locally saturated`, `blocked`, and `complete`. Do not
 write this control state into the repository or staging.
 
+Treat producer capacity as observed, not planned; an exact limit need not be
+known in advance. Keep a branch `queued` and unowned until the environment
+confirms a usable, addressable producer handle. Only then assign that handle,
+mark the branch `active`, and count its slot. A failed start or missing handle
+leaves the branch queued and does not reserve capacity. Capacity exhaustion
+reduces concurrency: it never completes, drops, or blocks queued work and does
+not imply that every subagent is unavailable. Continue with confirmed sessions
+and retry ready branches only after capacity may have been released.
+
+If a confirmed producer fails before returning a valid checkpoint, keep its
+staging unpublished, clear its ownership, and requeue the branch with fresh
+private staging unless an authority or prerequisite blocker was reported.
+Never count planned, attempted, failed, or terminated sessions as active.
+
 Split the initial scope into independent coherent architectural branches.
 Avoid competing ownership of the same concept. Assign one branch to one
 producer session and never repurpose that session for an unrelated branch.
@@ -131,9 +145,9 @@ Reserved existing destinations: <relative-paths-or-none>
 Architectural branch: <branch-question>
 ```
 
-When subagents are unavailable, execute the same branch protocol locally. The
-current agent performs orchestrator, producer, and consumer roles; only
-concurrency changes.
+When no usable producer can be started, including environments without
+subagents, execute the same branch protocol locally. The current agent performs
+orchestrator, producer, and consumer roles; only concurrency changes.
 
 ## Consume checkpoints and resume
 

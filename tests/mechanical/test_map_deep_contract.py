@@ -125,6 +125,22 @@ class MapDeepContractTests(unittest.TestCase):
             with self.subTest(statement=statement):
                 self.assertIn(statement, normalized)
 
+    def test_unknown_and_partial_capacity_are_transactional(self):
+        normalized = " ".join(self.protocol.split())
+        for statement in (
+            "Treat producer capacity as observed, not planned",
+            "an exact limit need not be known in advance",
+            "Keep a branch `queued` and unowned until the environment confirms",
+            "Only then assign that handle, mark the branch `active`, and count its slot",
+            "A failed start or missing handle leaves the branch queued",
+            "Capacity exhaustion reduces concurrency",
+            "retry ready branches only after capacity may have been released",
+            "clear its ownership, and requeue the branch with fresh private staging",
+            "Never count planned, attempted, failed, or terminated sessions as active",
+        ):
+            with self.subTest(statement=statement):
+                self.assertIn(statement, normalized)
+
     def test_parallel_producers_are_isolated_and_consumer_moves_results(self):
         normalized = " ".join(self.protocol.split())
         for statement in (
@@ -204,7 +220,8 @@ class MapDeepContractTests(unittest.TestCase):
 
     def test_sequential_fallback_changes_only_concurrency(self):
         normalized = " ".join((self.deep + self.protocol).split())
-        self.assertIn("When subagents are unavailable", normalized)
+        self.assertIn("When no usable producer can be started", normalized)
+        self.assertIn("including environments without subagents", normalized)
         self.assertIn("orchestrator, producer, and consumer roles", normalized)
         self.assertIn("only concurrency changes", normalized)
 
@@ -215,7 +232,7 @@ class MapDeepContractTests(unittest.TestCase):
         self.assertIn("Add every new document to curated `README.md` navigation", normalized)
         self.assertIn("Run the full deterministic checker once", normalized)
         self.assertIn("only when the operator explicitly requests", normalized)
-        self.assertLessEqual(len(self.protocol.splitlines()), 220)
+        self.assertLessEqual(len(self.protocol.splitlines()), 235)
 
 
 if __name__ == "__main__":

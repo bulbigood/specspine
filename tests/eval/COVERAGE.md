@@ -2,7 +2,7 @@
 
 ## Current inventory
 
-The repository has thirty-one prose behavioral scenarios. Every scenario is
+The repository has thirty-three prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
@@ -10,12 +10,12 @@ classified.
 |---|---:|---:|
 | `specspine-grow` | 9 | 7 |
 | `specspine-map` | 9 | 5 |
-| `specspine-map-deep` | 3 | 1 |
+| `specspine-map-deep` | 4 | 1 |
 | `specspine-connect` | 2 | 2 |
 | `specspine-extract` | 5 | 5 |
 | `specspine-doctor` | 3 | 2 |
 | package generator tooling | 1 | 0 |
-| Total | 32 | 22 |
+| Total | 33 | 22 |
 
 `traceable-rule` is assigned to `specspine-map` because its expected result
 includes repository-backed observations.
@@ -74,6 +74,8 @@ Remaining distinct behavioral gaps are:
 - large-Map candidate rejection and path-collision handling;
 - a controlled no-subagent execution mode that proves the same protocol is
   retained sequentially;
+- unknown partial producer capacity with rejected starts retained as queued
+  work;
 - focused large-Map scope that ignores unrelated repository areas;
 - post-saturation normalization without candidate rereads and optional Doctor
   gating.
@@ -89,7 +91,7 @@ The executable set is divided by resource cost and necessity:
 | `core` | 8 | 8 | Minimum behavioral regression set, including atomic staged Map output |
 | `extended` | 12 | 15 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
 | `expensive` | 2 | 3–11 per sample | Paired sequential Map saturation and Map Deep saturation benchmark with constrained producer capacity |
-| `planned` | 10 | 0 | Documentation and future redesign only |
+| `planned` | 11 | 0 | Documentation and future redesign only |
 
 The table counts top-level agent invocations. The sequential Map arm uses 2–10
 invocations, stopping at the first unchanged terminal result; Map Deep uses one

@@ -157,7 +157,7 @@ python3 tests/eval/run.py \
 `--case` and `--category` are repeatable and may be combined. There is no
 implicit run-all mode. Planned cases are never executed. Categories are
 disjoint: `core` has 8 executable cases, `extended` has 12, `expensive` has 2,
-and `planned` has 10 documented non-executable cases.
+and `planned` has 11 documented non-executable cases.
 
 `map-deep-rolling-small` makes one top-level call with a production-like request
 to map the whole repository. The prompt exposes only the environmental limit of
