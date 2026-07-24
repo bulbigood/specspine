@@ -448,12 +448,15 @@ class RunnerTests(unittest.TestCase):
 
     def test_checks_collaboration_handoff_and_refill_order(self):
         def spawn(identifier, prompt):
+            task_name = prompt.rsplit("/", 1)[-1]
             return {
                 "kind": "collab",
                 "event_id": identifier,
                 "tool": "spawn_agent",
                 "receiver_thread_ids": [f"agent-{identifier}"],
                 "prompt": prompt,
+                "prompt_ciphertext_bytes": 100,
+                "task_name": task_name,
                 "agents_states": {},
                 "status": "completed",
             }
@@ -468,10 +471,45 @@ class RunnerTests(unittest.TestCase):
             },
             "status": "completed",
         }
+        resume = {
+            "kind": "collab",
+            "event_id": "resume-1",
+            "tool": "followup_task",
+            "receiver_thread_ids": ["agent-spawn-1"],
+            "prompt": "Continue the same architectural branch; terminal depth.",
+            "prompt_ciphertext_bytes": 10,
+            "agents_states": {
+                "agent-spawn-1": {"status": "running", "message": None}
+            },
+            "status": "completed",
+        }
+        terminal_wait = {
+            "kind": "collab",
+            "event_id": "wait-2",
+            "tool": "wait",
+            "receiver_thread_ids": ["agent-spawn-1"],
+            "agents_states": {
+                "agent-spawn-1": {"status": "completed", "message": "saturated"}
+            },
+            "status": "completed",
+        }
+        terminal = {
+            "kind": "collab",
+            "event_id": "terminal-1",
+            "tool": "agent_terminal",
+            "receiver_thread_ids": ["agent-spawn-1"],
+            "agents_states": {
+                "agent-spawn-1": {"status": "completed", "message": None}
+            },
+            "status": "completed",
+        }
         activity = [
             spawn("spawn-1", "specspine-map staging/identity"),
             spawn("spawn-2", "specspine-map staging/jobs"),
             wait,
+            resume,
+            terminal_wait,
+            terminal,
             spawn("spawn-3", "specspine-map staging/telemetry"),
             {
                 "kind": "command_started",
@@ -490,6 +528,22 @@ class RunnerTests(unittest.TestCase):
         assertions = [
             {"type": "collab_spawn_count", "min": 3, "max": 3},
             {"type": "collab_initial_spawn_count", "min": 2, "max": 2},
+            {"type": "collab_resume_count", "min": 1, "max": 1},
+            {
+                "type": "collab_resume_prompts",
+                "each_contains": ["Continue the same architectural branch"],
+                "none_contains": ["Producer execution override:"],
+            },
+            {
+                "type": "collab_spawn_assignments",
+                "values": ["identity", "jobs", "telemetry"],
+            },
+            {
+                "type": "collab_message_size_ratio",
+                "min_spawn_bytes": 100,
+                "max_resume_to_spawn_ratio": 0.2,
+            },
+            {"type": "collab_refill_without_wait"},
             {"type": "collab_max_active", "max": 2},
             {
                 "type": "collab_spawn_prompts",
@@ -533,6 +587,37 @@ class RunnerTests(unittest.TestCase):
         )
         self.assertFalse(capacity.passed)
 
+        jittered_spawns = [
+            dict(spawn("jitter-1", "specspine-map staging/identity")),
+            dict(spawn("jitter-2", "specspine-map staging/jobs")),
+            dict(spawn("jitter-3", "specspine-map staging/search")),
+        ]
+        for item, timestamp in zip(
+            jittered_spawns,
+            (
+                "2026-01-01T00:00:00.000Z",
+                "2026-01-01T00:00:01.000Z",
+                "2026-01-01T00:00:02.000Z",
+            ),
+        ):
+            item["timestamp"] = timestamp
+        delayed_terminal = dict(terminal)
+        delayed_terminal["receiver_thread_ids"] = ["agent-jitter-1"]
+        delayed_terminal["timestamp"] = "2026-01-01T00:00:02.100Z"
+        jittered = {
+            "activity": jittered_spawns + [delayed_terminal],
+            "collab_calls": jittered_spawns + [delayed_terminal],
+        }
+        capacity = RUNNER.evaluate_assertion(
+            {"type": "collab_max_active", "max": 2},
+            Path("."),
+            unchanged,
+            unchanged,
+            "",
+            jittered,
+        )
+        self.assertTrue(capacity.passed, capacity.message)
+
         partial_wait = dict(wait)
         partial_wait["receiver_thread_ids"] = [
             "agent-spawn-1",
@@ -558,7 +643,7 @@ class RunnerTests(unittest.TestCase):
         self.assertTrue(partial_capacity.passed, partial_capacity.message)
 
         reordered = dict(trace)
-        reordered["activity"] = activity[:3] + [activity[4], activity[3]]
+        reordered["activity"] = activity[:3] + [activity[7], activity[6]]
         violation = RUNNER.evaluate_assertion(
             {
                 "type": "collab_refill_before_staging_consume",
@@ -571,6 +656,21 @@ class RunnerTests(unittest.TestCase):
             reordered,
         )
         self.assertFalse(violation.passed)
+
+        delayed_refill = dict(trace)
+        delayed_refill["collab_calls"] = (
+            trace["collab_calls"][:6]
+            + [wait, trace["collab_calls"][6]]
+        )
+        refill = RUNNER.evaluate_assertion(
+            {"type": "collab_refill_without_wait"},
+            Path("."),
+            unchanged,
+            unchanged,
+            "",
+            delayed_refill,
+        )
+        self.assertFalse(refill.passed)
 
         forbidden_prompt = dict(trace)
         forbidden_calls = [dict(item) for item in trace["collab_calls"]]

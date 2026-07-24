@@ -1,4 +1,4 @@
-# Scenario: rolling large-Map orchestration with two worker slots
+# Scenario: branch-affine deep-Map orchestration with two worker slots
 
 ## Existing SpecSpine
 
@@ -13,14 +13,18 @@ telemetry export, notification delivery, search indexing, and webhook ingestion
 as deeply as repository evidence supports. The environment provides individual
 completion and exactly two safe mapping-worker slots in addition to the
 orchestrator. Never have more than two producers active. Treat the six areas as
-independent starting questions and keep both slots occupied while undispatched
-starting questions remain. A completed producer must free a slot for the next
-ready starting question before its staging output is consumed.
+independent starting branches. Assign each branch to one producer session and
+never reuse that session for another area. Keep both slots occupied whenever
+ready work can run without violating branch affinity.
 
-Continue every evidence-backed follow-up until Map can add no useful
-architectural document. Each of the six branches requires a terminal depth
-probe after its useful document, so the run has at least twelve producer tasks
-while only two may run concurrently.
+After a producer returns its useful checkpoint, preflight and publish it, then
+resume that same producer session with the compact instruction `Continue the
+same architectural branch to terminal depth; do not reload or repeat immutable
+instructions.` The resumed turn must create nothing and report `no useful
+node`. Thus the run creates exactly six producer sessions and resumes each at
+least once while only two sessions may run concurrently. Producers may propose
+independent fork candidates, but only the orchestrator may accept and schedule
+them; this fixture contains none.
 
 Use `.specspine-map-run/` as the disposable run root and a unique private path
 under `.specspine-map-run/staging/` for every producer. Give producers complete
@@ -47,24 +51,26 @@ from it without rereading the new documents. Do not run SpecSpine Doctor.
 ## Expected behavior
 
 The orchestrator should start exactly two producers, then refill every freed
-slot from the four undispatched starting questions without a batch barrier.
+slot from the four undispatched starting branches without a batch barrier.
 It may inspect the repository and existing Spine as needed to understand the
 requested scope, while producers own deep evidence investigation. Producers
-stop after writing and reporting; the consumer alone validates and publishes
-candidates. Because the fixture contains no material deeper nodes, reports
-should not add new architectural branches. After publishing the six useful
-documents, one terminal depth probe per branch should create nothing and report
-`no useful node`. The orchestrator then normalizes once and removes the
-successful disposable run root.
+pause after writing and reporting; the consumer alone validates and publishes
+candidates. It then resumes the same session for that branch without resending
+the Map bundle. Because the fixture contains no material deeper nodes, no fork
+candidate should be accepted. Each resumed session reaches terminal `no useful
+node`, after which its slot can be assigned to another branch. The orchestrator
+then normalizes once and removes the successful disposable run root.
 
 ## Failure indicators
 
-- fewer than six useful assignments or six terminal probes are dispatched;
+- other than six producer sessions are created;
+- any branch lacks a same-session terminal continuation;
 - more than two producers are active;
-- a worker slot remains idle while an undispatched starting question is ready;
-- the orchestrator consumes completed staging before refilling an available
-  slot from the initial queue;
+- a producer session is reused for a different architectural area;
+- a terminal continuation repeats the Map bundle or immutable shared context;
 - one producer receives more than one architectural zone;
 - producer prompts omit the inline mapping contract or tell workers to load it;
+- any checker finding is bypassed or a candidate is moved after nonzero preflight;
+- the final report omits the literal terminal phrase `no useful node`;
 - source or tests change;
 - the disposable run root remains after success.

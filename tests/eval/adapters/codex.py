@@ -351,6 +351,155 @@ def parse_activity(stdout: str) -> list[dict[str, object]]:
     return activity
 
 
+def root_thread_id(stdout: str) -> str | None:
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") == "thread.started" and event.get("thread_id"):
+            return str(event["thread_id"])
+    return None
+
+
+def parse_rollout_collaboration(
+    codex_home: Path,
+    thread_id: str | None,
+) -> list[dict[str, object]]:
+    """Recover collaboration calls hidden by the compact exec JSONL stream."""
+    if not thread_id:
+        return []
+    paths = sorted((codex_home / "sessions").glob(f"**/rollout-*-{thread_id}.jsonl"))
+    if not paths:
+        return []
+
+    calls: dict[str, dict[str, object]] = {}
+    ordered: list[dict[str, object]] = []
+    thread_by_path: dict[str, str] = {}
+    terminal_number = 0
+
+    for line in paths[-1].read_text(encoding="utf-8").splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        payload = event.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        timestamp = event.get("timestamp")
+
+        if (
+            event.get("type") == "response_item"
+            and payload.get("type") == "function_call"
+            and payload.get("namespace") == "collaboration"
+        ):
+            call_id = str(payload.get("call_id") or payload.get("id") or "")
+            try:
+                arguments = json.loads(str(payload.get("arguments") or "{}"))
+            except json.JSONDecodeError:
+                arguments = {}
+            if not isinstance(arguments, dict):
+                arguments = {}
+            message = str(arguments.get("message") or "")
+            tool = str(payload.get("name") or "unknown")
+            if tool == "wait_agent":
+                tool = "wait"
+            record: dict[str, object] = {
+                "kind": "collab",
+                "source": "rollout",
+                "event_id": call_id,
+                "timestamp": timestamp,
+                "tool": tool,
+                "sender_thread_id": thread_id,
+                "receiver_thread_ids": [],
+                "prompt": None,
+                "prompt_ciphertext_bytes": len(message.encode("utf-8")),
+                "task_name": arguments.get("task_name"),
+                "target": arguments.get("target"),
+                "agents_states": {},
+                "status": "started",
+            }
+            calls[call_id] = record
+            ordered.append(record)
+            continue
+
+        if (
+            event.get("type") == "event_msg"
+            and payload.get("type") == "sub_agent_activity"
+        ):
+            call_id = str(payload.get("event_id") or "")
+            identifier = str(payload.get("agent_thread_id") or "")
+            path = str(payload.get("agent_path") or "")
+            if identifier and path:
+                thread_by_path[path] = identifier
+                thread_by_path[path.rsplit("/", 1)[-1]] = identifier
+            record = calls.get(call_id)
+            if record is not None and identifier:
+                record["receiver_thread_ids"] = [identifier]
+                record["agent_path"] = path
+                record["agents_states"] = {
+                    identifier: {"status": "running", "message": None}
+                }
+            continue
+
+        if (
+            event.get("type") == "response_item"
+            and payload.get("type") == "function_call_output"
+        ):
+            record = calls.get(str(payload.get("call_id") or ""))
+            if record is not None:
+                record["status"] = "completed"
+            continue
+
+        if (
+            event.get("type") == "response_item"
+            and payload.get("type") == "agent_message"
+        ):
+            author = str(payload.get("author") or "")
+            recipient = str(payload.get("recipient") or "")
+            if not author or author == "/root" or recipient != "/root":
+                continue
+            identifier = thread_by_path.get(author) or thread_by_path.get(
+                author.rsplit("/", 1)[-1]
+            )
+            if not identifier:
+                continue
+            terminal_number += 1
+            ordered.append(
+                {
+                    "kind": "collab",
+                    "source": "rollout",
+                    "event_id": f"agent-terminal-{terminal_number}",
+                    "timestamp": timestamp,
+                    "tool": "agent_terminal",
+                    "sender_thread_id": identifier,
+                    "receiver_thread_ids": [identifier],
+                    "prompt": None,
+                    "prompt_ciphertext_bytes": 0,
+                    "task_name": None,
+                    "target": "/root",
+                    "agents_states": {
+                        identifier: {"status": "completed", "message": None}
+                    },
+                    "status": "completed",
+                }
+            )
+
+    for record in ordered:
+        if record.get("tool") != "followup_task" or record.get("receiver_thread_ids"):
+            continue
+        target = str(record.get("target") or "")
+        identifier = thread_by_path.get(target) or thread_by_path.get(
+            target.rsplit("/", 1)[-1]
+        )
+        if identifier:
+            record["receiver_thread_ids"] = [identifier]
+            record["agents_states"] = {
+                identifier: {"status": "running", "message": None}
+            }
+    return ordered
+
+
 def run_codex(
     command: list[str],
     prompt: str,
@@ -418,6 +567,122 @@ def prompt_assignment(prompt: str) -> str | None:
     return match.group(1).strip() if match else None
 
 
+def rollout_agent_telemetry(
+    rollout_calls: list[dict[str, object]],
+    *,
+    tree_started_at: str,
+    tree_duration_seconds: float,
+    tree_token_usage: dict[str, int],
+    top_level_model: str,
+    top_level_reasoning_effort: str,
+    subagent_role: str,
+    subagent_model: str,
+    subagent_reasoning_effort: str,
+) -> dict[str, object]:
+    started = datetime.datetime.fromisoformat(tree_started_at)
+
+    def elapsed(value: object) -> float | None:
+        if not isinstance(value, str):
+            return None
+        try:
+            observed = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return round((observed - started).total_seconds(), 6)
+
+    calls: list[dict[str, object]] = []
+    agents: dict[str, dict[str, object]] = {}
+    for item in rollout_calls:
+        observed = elapsed(item.get("timestamp"))
+        tool = str(item.get("tool") or "unknown")
+        receivers = [
+            str(value) for value in item.get("receiver_thread_ids", [])
+        ]
+        calls.append(
+            {
+                "event_id": item.get("event_id"),
+                "tool": tool,
+                "status": item.get("status"),
+                "completed_observed_seconds": observed,
+                "receiver_thread_ids": receivers,
+                "task_name": item.get("task_name"),
+                "prompt_ciphertext_bytes": item.get("prompt_ciphertext_bytes"),
+            }
+        )
+        if tool == "spawn_agent":
+            for identifier in receivers:
+                agents[identifier] = {
+                    "thread_id": identifier,
+                    "role": subagent_role,
+                    "model": subagent_model,
+                    "reasoning_effort": subagent_reasoning_effort,
+                    "spawn_observed": True,
+                    "first_observed_seconds": observed,
+                    "terminal_observed_seconds": None,
+                    "observed_duration_seconds": None,
+                    "latest_status": "running",
+                    "assignment": item.get("task_name"),
+                    "prompt_utf8_bytes": None,
+                    "prompt_ciphertext_bytes": item.get(
+                        "prompt_ciphertext_bytes"
+                    ),
+                    "prompt_sha256": None,
+                    "followup_count": 0,
+                    "checkpoint_count": 0,
+                    "token_usage": None,
+                }
+        elif tool == "followup_task":
+            for identifier in receivers:
+                if identifier in agents:
+                    agents[identifier]["followup_count"] = (
+                        int(agents[identifier]["followup_count"]) + 1
+                    )
+                    agents[identifier]["latest_status"] = "running"
+        elif tool == "agent_terminal":
+            for identifier in receivers:
+                if identifier not in agents:
+                    continue
+                agent = agents[identifier]
+                agent["checkpoint_count"] = int(agent["checkpoint_count"]) + 1
+                agent["latest_status"] = "completed"
+                agent["terminal_observed_seconds"] = observed
+                first = agent.get("first_observed_seconds")
+                if isinstance(first, (int, float)) and observed is not None:
+                    agent["observed_duration_seconds"] = round(
+                        observed - float(first), 6
+                    )
+
+    producers = sorted(agents.values(), key=lambda item: str(item["thread_id"]))
+    duration_count = sum(
+        isinstance(item.get("observed_duration_seconds"), (int, float))
+        for item in producers
+    )
+    return {
+        "top_level": {
+            "model": top_level_model,
+            "reasoning_effort": top_level_reasoning_effort,
+            "agent_tree_duration_seconds": tree_duration_seconds,
+            "agent_tree_token_usage": tree_token_usage,
+            "exclusive_duration_seconds": None,
+            "exclusive_token_usage": None,
+        },
+        "producers": producers,
+        "collaboration_calls": calls,
+        "coverage": {
+            "observed_producer_count": len(producers),
+            "spawn_observed_count": len(producers),
+            "producer_duration_count": duration_count,
+            "producer_token_usage_count": 0,
+        },
+        "limitations": [
+            "Codex exposes cumulative agent-tree tokens, not per-thread tokens.",
+            "Rollout telemetry exposes collaboration routing but redacts message plaintext.",
+            "Producer durations are spawn-to-latest-checkpoint intervals.",
+            "Top-level exclusive time and tokens are unavailable and are not estimated.",
+        ],
+    }
+
+
 def parse_agent_telemetry(
     stdout: str,
     event_timings: list[dict[str, object]],
@@ -429,8 +694,22 @@ def parse_agent_telemetry(
     subagent_role: str,
     subagent_model: str,
     subagent_reasoning_effort: str,
+    rollout_calls: list[dict[str, object]] | None = None,
+    tree_started_at: str | None = None,
 ) -> dict[str, object]:
     """Build observed per-thread lifecycle telemetry without token estimates."""
+    if rollout_calls and tree_started_at:
+        return rollout_agent_telemetry(
+            rollout_calls,
+            tree_started_at=tree_started_at,
+            tree_duration_seconds=tree_duration_seconds,
+            tree_token_usage=tree_token_usage,
+            top_level_model=top_level_model,
+            top_level_reasoning_effort=top_level_reasoning_effort,
+            subagent_role=subagent_role,
+            subagent_model=subagent_model,
+            subagent_reasoning_effort=subagent_reasoning_effort,
+        )
     observed_by_line = {
         int(item["line_number"]): float(item["observed_seconds"])
         for item in event_timings
@@ -749,6 +1028,65 @@ def parse_event_metrics(stdout: str, candidates: list[str]) -> dict[str, object]
         "agent_message_count": agent_message_count,
         "turn_count": turn_count,
     }
+
+
+def apply_rollout_collaboration_metrics(
+    metrics: dict[str, object],
+    rollout_calls: list[dict[str, object]],
+) -> None:
+    calls = [
+        item
+        for item in rollout_calls
+        if item.get("tool") != "agent_terminal"
+        and item.get("status") == "completed"
+    ]
+    counts: dict[str, int] = {}
+    statuses: dict[str, int] = {}
+    first_wait = next(
+        (index for index, item in enumerate(calls) if item.get("tool") == "wait"),
+        len(calls),
+    )
+    spawns = [item for item in calls if item.get("tool") == "spawn_agent"]
+    initial_spawns = [
+        item for item in calls[:first_wait] if item.get("tool") == "spawn_agent"
+    ]
+    for item in calls:
+        tool = str(item.get("tool") or "unknown")
+        counts[tool] = counts.get(tool, 0) + 1
+        key = f"{tool}:{item.get('status') or 'unknown'}"
+        statuses[key] = statuses.get(key, 0) + 1
+    spawned_count = sum(
+        len(item.get("receiver_thread_ids", [])) or 1 for item in spawns
+    )
+    initial_count = sum(
+        len(item.get("receiver_thread_ids", [])) or 1 for item in initial_spawns
+    )
+    terminal_ids = {
+        str(identifier)
+        for item in rollout_calls
+        if item.get("tool") == "agent_terminal"
+        for identifier in item.get("receiver_thread_ids", [])
+    }
+    metrics.update(
+        {
+            "collab_tool_count": len(calls),
+            "spawned_agent_count": spawned_count,
+            "initial_spawned_agent_count": initial_count,
+            "additional_spawned_agent_count": max(
+                0, spawned_count - initial_count
+            ),
+            "collab_tool_counts": dict(sorted(counts.items())),
+            "collab_call_status_counts": dict(sorted(statuses.items())),
+            "producer_latest_status_counts": (
+                {"completed": len(terminal_ids)} if terminal_ids else {}
+            ),
+            "failed_spawn_call_count": 0,
+            "confirmed_failed_producer_count": 0,
+            "transport_not_found_count": 0,
+            "wait_call_count": counts.get("wait", 0),
+            "close_call_count": counts.get("close_agent", 0),
+        }
+    )
 
 
 def command_option(command: str, option: str) -> str | None:
@@ -1219,6 +1557,7 @@ def environment_errors(stdout: str, stderr: str = "") -> list[str]:
             if (
                 ("Unknown model" in line and "for spawn_agent" in line)
                 or "collab spawn failed" in line
+                or "unknown agent_type" in line
             )
         ]
 
@@ -1742,6 +2081,7 @@ def main() -> int:
     workspace_mountpoints: list[Path] = []
     retrieval_telemetry: list[dict[str, object]] = []
     event_timings: list[dict[str, object]] = []
+    rollout_calls: list[dict[str, object]] = []
     try:
         for directory in (
             runtime_root / "bin",
@@ -1796,6 +2136,10 @@ def main() -> int:
             prompt,
             process_environment,
         )
+        rollout_calls = parse_rollout_collaboration(
+            codex_home,
+            root_thread_id(completed.stdout),
+        )
         retrieval_telemetry = read_retrieval_telemetry(
             runtime_root / "retrieval-telemetry.jsonl"
         )
@@ -1815,11 +2159,23 @@ def main() -> int:
         event_timings=event_timings,
     )
     reads, commands, messages = parse_events(completed.stdout, candidates)
-    activity = parse_activity(completed.stdout)
+    stream_activity = parse_activity(completed.stdout)
+    activity = (
+        [
+            item
+            for item in stream_activity
+            if item.get("kind") != "collab"
+        ]
+        + rollout_calls
+        if rollout_calls
+        else stream_activity
+    )
     retrieval_attempts = parse_retrieval_attempts(completed.stdout)
     merge_retrieval_telemetry(retrieval_attempts, retrieval_telemetry)
     all_candidates = relative_files(root)
     event_metrics = parse_event_metrics(completed.stdout, candidates)
+    if rollout_calls:
+        apply_rollout_collaboration_metrics(event_metrics, rollout_calls)
     generated_file_reads = sorted(
         set().union(
             *(explicit_content_reads(command, all_candidates) for command in commands)
@@ -1837,6 +2193,8 @@ def main() -> int:
         subagent_role=args.subagent_role,
         subagent_model=subagent_model,
         subagent_reasoning_effort=subagent_reasoning_effort,
+        rollout_calls=rollout_calls,
+        tree_started_at=started_at,
     )
     execution_errors = environment_errors(completed.stdout, completed.stderr)
     boundary_violations = scope_violations(commands, root, (runtime_root,))
@@ -1859,6 +2217,9 @@ def main() -> int:
                 "collab_calls": [
                     item for item in activity if item.get("kind") == "collab"
                 ],
+                "collaboration_telemetry_source": (
+                    "rollout" if rollout_calls else "exec-jsonl"
+                ),
                 "retrieval_telemetry": args.retrieval_telemetry,
                 "retrieval_profile": args.retrieval_profile,
                 "ranking_system": "normalized",

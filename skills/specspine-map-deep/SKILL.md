@@ -1,6 +1,6 @@
 ---
 name: specspine-map-deep
-description: Recursively deepen evidence-backed architecture documentation for an operator-specified brownfield repository scope through isolated Map producers, follow-up discovery, continuous publication, and final normalization. Use only when the operator explicitly invokes $specspine-map-deep to exhaust useful architectural depth in one area, several areas, or the whole project. Works with concurrent producers or one local producer.
+description: Recursively deepen evidence-backed architecture documentation for an operator-specified brownfield repository scope through branch-affine Map producer sessions, centrally scheduled forks, continuous publication, and final normalization. Use only when the operator explicitly invokes $specspine-map-deep to exhaust useful architectural depth in one area, several areas, or the whole project. Works with concurrent producers or one local producer.
 ---
 
 # SpecSpine Map Deep
@@ -19,7 +19,8 @@ agent's bounded pass.
 - Run `scripts/bundle_skill.py --print` once with the installed
   `specspine-map` root and a destination under the disposable run root. It
   strips Map frontmatter and concatenates its body with every UTF-8 file under
-  Map `references/`. Embed the returned bundle in every producer command.
+  Map `references/`. Embed the returned bundle in the initial command for every
+  new producer session, but never resend it when resuming that session.
   Producers must not load skills or references themselves.
 
 ## Authority
@@ -32,28 +33,35 @@ without approval.
 ## Workflow
 
 1. Resolve the repository, `<spine-root>`, and exact user-requested mapping
-   scope. Read existing Spine context and discover repository evidence
-   adaptively; do not use a prescribed survey command or fixed traversal depth.
-2. Decompose the scope into independent architectural questions. Send each
-   producer the complete generated Map bundle, shared context, private writable
-   staging root, and one coherent question.
-3. Consume completed reports continuously. Mechanically preflight useful
-   candidates and move them unchanged into the live Spine without rereading or
-   reconstructing them.
-4. For every useful result, enqueue its material independent in-scope follow-up
-   questions. After exhausting them, send one terminal depth probe for the
-   branch. Continue until that Map producer creates no document because the
-   Spine already answers it, evidence cannot support a useful node, or further
-   depth would reproduce implementation.
-5. Stop only when every requested branch has reached that terminal condition
-   and no actionable question remains. Normalize navigation once and run the
-   full mechanical checker.
-6. When subagents are unavailable, execute the same producer commands locally,
-   one question at a time. The current agent performs all roles; only
-   concurrency changes.
-7. Report scope, published files, mapped relationships, saturated branches,
-   unresolved questions or drift, execution limitations, normalization, and
-   mechanical-check results.
+   scope. Read existing Spine context, resolve one shared evidence baseline, and
+   discover repository evidence adaptively; prescribe no survey command or depth.
+2. Decompose the scope into independent architectural branches and keep their
+   queued, active, locally saturated, and complete states in an in-memory ToDo
+   tree. The orchestrator alone accepts forks, owns slots, and starts producers.
+3. Assign each branch to one producer session. Send its initial command the
+   complete Map bundle, shared context, and private writable staging root.
+   Resume that same session for continuations of the same branch without
+   resending immutable instructions; never repurpose it for an unrelated branch.
+4. Consume checkpoints continuously. Mechanically preflight useful candidates
+   and move them unchanged into the live Spine without rereading or
+   reconstructing them. Resume the producer only after its staging root is
+   empty again.
+5. Keep same-boundary continuations with their current producer. Deduplicate and
+   enqueue material independent in-scope fork candidates. Fill every free slot
+   with a ready continuation or queued branch without waiting for a batch.
+   Producers propose forks but never create producers.
+6. Continue every producer session until its branch reaches a terminal Map
+   refusal because the Spine already answers it, evidence cannot support a
+   useful node, or further depth would reproduce implementation. A branch is
+   complete only when it is locally saturated and all accepted child branches
+   are complete.
+7. Stop only when every requested branch is complete and no actionable branch
+   remains. Normalize navigation once and run the full mechanical checker.
+8. When subagents are unavailable, execute the same branch protocol locally.
+   The current agent performs all roles; only concurrency changes.
+9. Report scope, files, relationships, saturated branches, unresolved drift,
+   limitations, normalization, and checks. Include the literal `no useful node`
+   terminal reason for every saturated branch.
 
 An explicit invocation approves staged mapping, move-based publication, and
 final navigation normalization. Ask only before changing accepted intent,

@@ -185,11 +185,11 @@ decisions and preserves disagreements.
 ### `specspine-map-deep`
 
 Orchestrates an explicitly requested deep mapping run over one area, several
-areas, or a whole brownfield repository. It gives isolated producers
-self-contained Map instructions, publishes mechanically valid results, and
-recursively follows evidence-backed architectural questions until producers
-can add no useful documentation. Without subagents one agent performs
-orchestrator, producer, and consumer roles sequentially.
+areas, or a whole brownfield repository. It gives each architectural branch an
+isolated producer session with self-contained Map instructions, resumes that
+session for same-branch work, and centrally schedules independent forks.
+Mechanically valid results are published continuously until every branch is
+saturated. Without subagents one agent performs all roles sequentially.
 
 ### `specspine-extract`
 
@@ -445,7 +445,8 @@ Use $specspine-map-deep to map Google OAuth as deeply as repository evidence sup
 ```
 
 The same skill can map the whole project when that is the requested scope. It
-uses parallel producers when available and one local producer otherwise.
+uses branch-affine parallel producers when available and one local producer
+otherwise.
 
 ### Prepare an architecture context handoff
 

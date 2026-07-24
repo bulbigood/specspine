@@ -12,27 +12,49 @@ code, claim complete code/spec conformance, or apply semantic Doctor repairs
 without approval.
 
 Resolve the repository root and `<spine-root>`. Read the Spine index and
-relevant existing specifications before planning work. Discover repository
-evidence adaptively with the tools and depth appropriate to the requested
-scope. Do not prescribe a universal listing command, fixed traversal depth,
-document count, or initial backlog size.
+relevant specifications, then discover evidence adaptively for the requested
+scope. Resolve one current evidence baseline once and include its exact marker
+in shared producer context. Do not prescribe a universal listing command,
+fixed traversal depth, document count, or initial backlog size.
 
 For a focused request, follow the connected architectural boundary as far as
-repository evidence remains relevant. For a whole-repository request, first
-identify the system shape and material areas, then deepen each area. In either
-case, prefer architectural questions about stable responsibilities,
-boundaries, interfaces, runtime and data flows, persistence, integrations,
-configuration, deployment, security, failure behavior, and observability over
-questions that merely reproduce directories or implementation detail.
+repository evidence remains relevant. For a whole-repository request, identify
+the system shape and material top-level branches, then deepen each branch.
+Prefer stable responsibilities, boundaries, interfaces, runtime and data
+flows, persistence, integrations, configuration, deployment, security,
+failure behavior, and observability over directory or implementation detail.
 
-## Prepare producers
+## Own the branch ToDo
+
+The orchestrator is the sole scheduling authority. Keep an in-memory tree of
+branches with their parent, question, state, owner session, prerequisites,
+intended namespace, and accepted children. States are `queued`, `active`,
+`locally saturated`, `blocked`, and `complete`. Do not write this control state
+into the repository or staging.
+
+Split the initial scope into independent coherent architectural branches.
+Avoid competing ownership of the same concept. Assign one branch to one
+producer session and never repurpose that session for an unrelated branch.
+The producer may propose child branches but must never create producers.
+Deduplicate proposals against queued, active, locally saturated, complete, and
+already documented branches. The orchestrator alone accepts forks, resolves
+prerequisites and namespace ownership, and starts queued branches when slots
+are free.
+
+A same-boundary continuation remains with its current producer. A materially
+independent responsibility or boundary is a fork candidate for a new producer.
+A branch becomes `locally saturated` only after its owner reaches a terminal
+Map refusal. It becomes `complete` only when it is locally saturated and every
+accepted child branch is complete.
+
+## Prepare producer sessions
 
 Create a unique disposable run root outside the live `<spine-root>` and one
-private staging root per active producer. This state belongs only to the
-current invocation. Do not create a ledger, checkpoint, recovery manifest,
-source inventory, or resumable run protocol. Already published Spine files are
-the durable mapping result. If execution is interrupted, report any remaining
-staging paths; a later invocation rediscovers coverage from the current Spine.
+private staging root per active producer session. This state belongs only to
+the current invocation. Do not create a ledger, checkpoint, recovery manifest,
+source inventory, or resumable run protocol. Published Spine files are the
+durable result. If interrupted, report remaining staging paths; a later run
+rediscovers coverage from the current Spine.
 
 Build the complete Map instruction bundle once at
 `<run-root>/producer-instructions.md`:
@@ -44,18 +66,11 @@ python3 <map-deep-skill-root>/scripts/bundle_skill.py \
 
 The builder includes the Map body and every UTF-8 file under Map `references/`,
 saves the bundle, and emits the same text. Capture stdout directly; do not read
-the generated file or assemble references manually. Embed this complete bundle
-in every producer command so producers do not load skills, references,
-templates, or orchestration instructions themselves.
+the generated file or assemble references manually. Embed the bundle only in
+the initial command for each new producer session. Producers must not load
+skills, references, templates, or orchestration instructions themselves.
 
-Split the requested scope into independent coherent architectural questions.
-Avoid competing ownership of the same concept. A question may include tightly
-related subquestions, but do not combine unrelated areas merely to reduce
-producer startup. Dispatch independent questions concurrently when the
-environment supports it. Agent lifecycle, routing, and concurrency mechanics
-belong to the execution environment.
-
-Use this self-contained producer command with resolved placeholders:
+Use this initial command with resolved placeholders:
 
 ```text
 You are a SpecSpine mapping producer.
@@ -64,121 +79,131 @@ You are a SpecSpine mapping producer.
 
 Producer execution override:
 
-All Map instructions and references needed for this assignment are embedded
-above. Do not load or invoke any skill, reference, template, or instruction
-file.
+All Map instructions and references needed for this branch are embedded above.
+Do not load or invoke any skill, reference, template, or instruction file.
+Never create another producer.
 
-Map the assigned architectural question as deeply as repository evidence
-supports. Inspect only relevant evidence. Create publish-ready Markdown only
-under the writable output root. Keep source, tests, configuration, the live
-Spine, and every other staging root read-only. The writable root mirrors
-`<spine-root>`: place every new candidate at its exact final relative path.
+Own only the assigned architectural branch. Inspect relevant evidence and map
+it recursively until a publishable checkpoint or terminal refusal. Keep
+same-boundary continuations in this session. Propose a fork only for a material
+independent responsibility or boundary that another producer can own.
+
+Create publish-ready Markdown only under the writable output root. Keep source,
+tests, configuration, the live Spine, and every other staging root read-only.
+The writable root mirrors `<spine-root>`: place every candidate at its exact
+final relative path.
 
 Create a document only when it adds useful architectural knowledge. If the
-live Spine already answers the question, evidence cannot support a useful
-node, or further detail would merely reproduce implementation, create nothing
-and report `no useful node` with a concise reason. Never manufacture output to
-keep the mapping branch alive.
+live Spine already answers the remaining branch, evidence cannot support a
+useful node, or further detail would reproduce implementation, create nothing
+and report `no useful node`. Never manufacture output to keep the branch alive.
 
-Put a short summary immediately below each H1. Cite every repository evidence
-path inline as code, never as a Markdown link outside the Spine. Preserve the
-difference between accepted intent, observations, and unconfirmed inferences.
-Do not run a checker, reread candidates, or perform final validation.
+Put a short summary below each H1. Write repository paths only as inline code,
+such as `src/file.js`; never use a Markdown link for evidence. Code supports
+only Observed or Inferred claims; never derive Decisions or Constraints without
+accepted intent. Every candidate must contain a `## Responsibility` section and
+the exact supplied baseline near its first Observed; never check or reread it.
 
-After writing candidates, return a compact report containing only:
+Return a compact checkpoint report containing only:
 
+- `Branch status`: `continuing`, `locally saturated`, or `blocked`;
 - evidence inspected;
 - created files and their final relative destinations;
 - mapped responsibilities, boundaries, and relationships;
 - related existing Spine paths and evidence-supported navigation targets;
-- material follow-up architectural questions within the requested scope,
-  including prerequisites;
+- `Current-branch continuation`: the next same-boundary work, or `none`;
+- `Fork candidates`: each independent branch question, reason, prerequisite,
+  and suggested namespace, or `none`;
 - unresolved inferences or drift;
-- `no useful node` and its reason when no file was created.
+- `no useful node` and its reason for terminal refusal.
 
-Report a follow-up only when inspected evidence indicates that another Map
-operation could add useful architecture documentation. Do not repeat document
-prose or speculate merely to extend the queue. Return the report as the agent
-result; never write control files into staging.
+Report work only when inspected evidence supports it. Do not repeat document
+prose or speculate to extend the tree. Return the report as the agent result;
+never write control files into staging.
 
 Repository: <repository-root>
 Live Spine, read-only: <spine-root>
 Requested mapping scope: <operator-scope>
 Shared repository and Spine context: <shared-context>
+Evidence baseline marker for this run: <exact-evidence-baseline-marker>
 
 Assignment:
 Writable output root mirroring the Spine: <private-staging-root>
 Final namespace: <relative-destination>
-Architectural question: <question>
+Architectural branch: <branch-question>
 ```
 
-When subagents are unavailable, run the same producer command locally for one
-question at a time. The current agent performs orchestrator, producer, and
-consumer roles; only concurrency changes.
+When subagents are unavailable, execute the same branch protocol locally. The
+current agent performs orchestrator, producer, and consumer roles; only
+concurrency changes.
 
-## Consume and publish
+## Consume checkpoints and resume
 
-Consume each completed producer report without rereading candidate prose or
-repeating its source investigation. If the producer reports `no useful node`
-and staging is empty, close that branch. Otherwise run the deterministic
-checker once against the producer's complete staging root:
+Treat a returned checkpoint as a write barrier: the producer must not mutate
+its staging root until the orchestrator has consumed it. Do not reread
+candidate prose or repeat source investigation. If staging is nonempty, run:
 
 ```text
 python3 <checker-path>/check_spine.py <spine-root> \
   --candidates <private-staging-root> --json
 ```
 
-Resolve checker findings through a focused producer correction. Publish only
-after candidate mode returns no findings. The producer owns semantic fitness
-and source evidence for its question; the orchestrator must not re-investigate
-them.
+Resolve findings through the same producer session. A nonzero exit or nonempty
+JSON, including a note, blocks publication; never bypass it. Move every accepted
+candidate unchanged after zero findings. Never reconstruct a file by reading and
+rewriting it, reread, overwrite, or add an arbitrary numeric suffix.
 
-Move every accepted candidate unchanged to the same relative path under the
-live Spine using a filesystem move or rename tool. Never reconstruct a file by
-reading and rewriting it, reread it after moving, overwrite an existing path,
-or add an arbitrary numeric suffix after a collision. Remove empty private
-staging roots after publication.
+Classify the report after publication:
+
+- keep `Current-branch continuation` with the owner session;
+- enqueue accepted `Fork candidates` as child branches;
+- retain blocked work with its prerequisite or authority requirement;
+- mark the branch locally saturated only after terminal `no useful node`.
+
+Resume a continuing branch through the environment's native follow-up
+mechanism. Send only the next same-branch assignment and relevant paths
+published since its previous turn; never resend the bundle or immutable shared
+context. Resume only after staging is empty. Do not assign unrelated queued
+work to that session. Once a branch is locally saturated, release its session
+and fill the slot from the branch ToDo.
+
+Use this compact continuation command:
+
+```text
+Continue the same architectural branch; do not reload or repeat immutable
+instructions. Next same-branch assignment: <continuation-or-terminal-depth>.
+Relevant paths published since your previous turn: <path-delta-or-none>.
+The writable staging root is empty and remains <private-staging-root>.
+Return the same compact checkpoint report.
+```
 
 Defer index reachability and reciprocal navigation updates until final
 normalization so producers never compete over shared overview files.
 
-## Continue to architectural saturation
+## Reach saturation
 
-Treat useful producer reports as the discovery mechanism after the initial
-plan. Add every material, independent, in-scope follow-up question that could
-produce useful architecture documentation. Deduplicate it against active,
-completed, and already documented questions. Continue each branch after a
-successful document instead of treating the first output as sufficient.
-
-After completing every reported follow-up in a branch, enqueue one terminal
-depth probe asking Map whether any material architecture documentation remains
-within that branch. A useful result reopens the branch and contributes its own
-follow-ups. Close the branch only when this probe creates no document and
-reports `no useful node`. Do not repeat a terminal probe after that refusal.
-
-A branch is saturated only when:
-
-- its terminal depth probe creates no document because the Spine already answers it,
-  available evidence cannot support a useful node, or further depth would
-  reproduce implementation;
-- every reported material follow-up has already been answered, is outside the
-  requested scope, or requires unavailable evidence or operator authority.
-
-The run is saturated only when no producer is active, no actionable question
-remains, and every branch of the requested scope has reached that terminal
-condition. Do not stop at a predetermined number of documents or at shallow
-overview coverage. Do not invent questions solely to prove depth.
+Keep ready slots occupied with queued independent branches while preserving
+branch ownership and prerequisites. Do not use batch barriers. Continue each
+owner session after useful checkpoints until it reports terminal `no useful
+node`; do not create a fresh producer merely to probe the same branch.
+Immediately dispatch ready work into every free slot. Continuing owners and
+queued branches are both ready work: dispatch them without waiting for siblings
+or forming pairs or waves. When several results arrive, classify only enough to
+keep dispatching until all available slots are occupied.
+The run is saturated only when no producer is active, no actionable branch
+remains, and every requested branch tree is complete. Do not stop at a
+predetermined document count or shallow overview coverage, and do not invent
+branches solely to prove depth.
 
 Do not invoke SpecSpine Doctor, reorganize the live Spine, or perform final
-normalization while mapping questions remain.
+normalization while mapping branches remain.
 
 ## Normalize once
 
 After saturation, perform one sequential navigation pass using producer
-reports, published destinations, the Spine index, and only relevant overview
-documents:
+reports, published destinations, the Spine index, and relevant overviews:
 
-1. Keep the established layout unless stable cohesive clusters make navigation
+1. Keep the established layout unless cohesive clusters make navigation
    materially difficult. Never mirror the source tree.
 2. Add every new document to curated `README.md` navigation.
 3. Apply evidence-supported reciprocal links to named overview documents and
@@ -187,11 +212,9 @@ documents:
    inferences, and open questions.
 5. Run the full deterministic checker once over the normalized Spine.
 
-Remove known disposable run artifacts after success. Report the requested
-scope, published files, mapped responsibilities and relationships, terminal
-branches, unresolved questions or drift, execution limitations, normalization,
-and mechanical-check results.
+After success, remove the exact disposable run root with `find <run-root> -depth
+-delete`; never try `rm -rf`. Report scope, published files, relationships, exact
+`no useful node` reasons, unresolved drift, limitations, normalization, and checks.
 
-Run SpecSpine Doctor only when the operator explicitly requests a post-map
-semantic review. Run it after saturation, normalization, and mechanical
-checking; apply semantic repairs only with operator approval.
+Run SpecSpine Doctor only when the operator explicitly requests a post-map semantic
+review. Run it after final checks; apply semantic repairs only with approval.

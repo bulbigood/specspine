@@ -1085,6 +1085,11 @@ def evaluate_assertion(
     if kind in {
         "collab_spawn_count",
         "collab_initial_spawn_count",
+        "collab_resume_count",
+        "collab_resume_prompts",
+        "collab_spawn_assignments",
+        "collab_message_size_ratio",
+        "collab_refill_without_wait",
         "collab_max_active",
         "collab_spawn_prompts",
         "collab_refill_before_staging_consume",
@@ -1103,6 +1108,11 @@ def evaluate_assertion(
             if item.get("status") == "completed"
         ]
         spawns = [item for item in calls if item.get("tool") == "spawn_agent"]
+        resumes = [
+            item
+            for item in calls
+            if item.get("tool") in {"followup_task", "send_input"}
+        ]
         if kind == "collab_spawn_count":
             minimum = assertion.get("min", 0)
             maximum = assertion.get("max", sys.maxsize)
@@ -1124,6 +1134,128 @@ def evaluate_assertion(
             return CheckResult(
                 minimum <= count <= maximum,
                 f"spawn calls before first wait: {count}, expected {minimum}..{maximum}",
+            )
+        if kind == "collab_resume_count":
+            minimum = assertion.get("min", 0)
+            maximum = assertion.get("max", sys.maxsize)
+            count = len(resumes)
+            return CheckResult(
+                minimum <= count <= maximum,
+                f"completed same-session resume calls: {count}, expected {minimum}..{maximum}",
+            )
+        if kind == "collab_resume_prompts":
+            prompts = [str(item.get("prompt") or "") for item in resumes]
+            every = assertion.get("each_contains", [])
+            forbidden = assertion.get("none_contains", [])
+            missing_each = [
+                value
+                for value in every
+                if any(value not in prompt for prompt in prompts)
+            ]
+            present_forbidden = [
+                value
+                for value in forbidden
+                if any(value in prompt for prompt in prompts)
+            ]
+            passed = bool(prompts) and not missing_each and not present_forbidden
+            return CheckResult(
+                passed,
+                (
+                    f"resume prompts missing per-prompt {missing_each}; "
+                    f"contain forbidden {present_forbidden}"
+                )
+                if not passed
+                else "resume prompts preserve branch affinity without immutable instructions",
+            )
+        if kind == "collab_spawn_assignments":
+            assignments = [
+                re.sub(r"[-_/]+", " ", str(item.get("task_name") or "")).lower()
+                for item in spawns
+            ]
+            expected = [str(value).lower() for value in assertion.get("values", [])]
+            counts = {
+                value: sum(value in assignment for assignment in assignments)
+                for value in expected
+            }
+            per_assignment = [
+                sum(value in assignment for value in expected)
+                for assignment in assignments
+            ]
+            passed = bool(assignments) and all(
+                count == 1 for count in counts.values()
+            ) and all(count == 1 for count in per_assignment)
+            return CheckResult(
+                passed,
+                (
+                    f"spawn assignments {assignments}; expected partition "
+                    f"counts {counts}, per-assignment counts {per_assignment}"
+                ),
+            )
+        if kind == "collab_message_size_ratio":
+            spawn_sizes = [
+                int(item["prompt_ciphertext_bytes"])
+                for item in spawns
+                if isinstance(item.get("prompt_ciphertext_bytes"), int)
+            ]
+            resume_sizes = [
+                int(item["prompt_ciphertext_bytes"])
+                for item in resumes
+                if isinstance(item.get("prompt_ciphertext_bytes"), int)
+            ]
+            minimum_spawn = assertion.get("min_spawn_bytes", 1)
+            maximum_ratio = float(assertion.get("max_resume_to_spawn_ratio", 1.0))
+            observed_ratio = (
+                max(resume_sizes) / min(spawn_sizes)
+                if spawn_sizes and resume_sizes and min(spawn_sizes) > 0
+                else None
+            )
+            passed = (
+                bool(spawn_sizes)
+                and bool(resume_sizes)
+                and min(spawn_sizes) >= minimum_spawn
+                and observed_ratio is not None
+                and observed_ratio <= maximum_ratio
+            )
+            return CheckResult(
+                passed,
+                (
+                    f"spawn ciphertext bytes {spawn_sizes}; resume ciphertext "
+                    f"bytes {resume_sizes}; max/min ratio {observed_ratio}, "
+                    f"expected <= {maximum_ratio}"
+                ),
+            )
+        if kind == "collab_refill_without_wait":
+            final_terminal_indexes: dict[str, int] = {}
+            for index, item in enumerate(calls):
+                if item.get("tool") != "agent_terminal":
+                    continue
+                for receiver in item.get("receiver_thread_ids", []):
+                    final_terminal_indexes[str(receiver)] = index
+            final_indexes = set(final_terminal_indexes.values())
+            total_spawns = len(spawns)
+            violations: list[str] = []
+            observed = 0
+            for terminal_index in sorted(final_indexes):
+                spawned_so_far = sum(
+                    item.get("tool") == "spawn_agent"
+                    for item in calls[: terminal_index + 1]
+                )
+                if spawned_so_far >= total_spawns:
+                    continue
+                observed += 1
+                before_refill = []
+                for item in calls[terminal_index + 1 :]:
+                    if item.get("tool") == "spawn_agent":
+                        break
+                    if item.get("tool") == "wait":
+                        before_refill.append("wait")
+                violations.extend(before_refill)
+            return CheckResult(
+                observed > 0 and not violations,
+                (
+                    f"post-saturation refill opportunities: {observed}; "
+                    f"waits before refill: {violations}"
+                ),
             )
         if kind == "collab_spawn_prompts":
             prompts = [str(item.get("prompt") or "") for item in spawns]
@@ -1201,7 +1333,8 @@ def evaluate_assertion(
             targeted = [
                 (str(item.get("tool")), str(receiver))
                 for item in all_calls
-                if item.get("tool") in {"wait", "send_input", "close_agent"}
+                if item.get("tool")
+                in {"wait", "send_input", "followup_task", "close_agent"}
                 for receiver in item.get("receiver_thread_ids", [])
             ]
             unknown = [
@@ -1228,7 +1361,20 @@ def evaluate_assertion(
         if kind == "collab_max_active":
             active: set[str] = set()
             observed_maximum = 0
-            for item in activity:
+            grace_seconds = float(assertion.get("ordering_grace_seconds", 1.0))
+
+            def event_time(item: dict[str, Any]) -> datetime.datetime | None:
+                value = item.get("timestamp")
+                if not isinstance(value, str):
+                    return None
+                try:
+                    return datetime.datetime.fromisoformat(
+                        value.replace("Z", "+00:00")
+                    )
+                except ValueError:
+                    return None
+
+            for index, item in enumerate(activity):
                 if (
                     not isinstance(item, dict)
                     or item.get("kind") != "collab"
@@ -1262,6 +1408,8 @@ def evaluate_assertion(
                 active.difference_update(terminal)
                 if tool == "close_agent":
                     active.difference_update(receivers)
+                elif tool in {"followup_task", "send_input"}:
+                    active.update(receivers)
                 elif (
                     tool == "wait"
                     and terminal
@@ -1271,6 +1419,29 @@ def evaluate_assertion(
                     active.difference_update(receivers)
                 if tool == "spawn_agent":
                     active.update(receivers)
+                if tool in {"spawn_agent", "followup_task", "send_input"}:
+                    started_at = event_time(item)
+                    if started_at is not None and len(active) > observed_maximum:
+                        for later in activity[index + 1 :]:
+                            if not isinstance(later, dict):
+                                continue
+                            ended_at = event_time(later)
+                            if ended_at is None:
+                                continue
+                            delta = (ended_at - started_at).total_seconds()
+                            if delta > grace_seconds:
+                                break
+                            if (
+                                later.get("kind") == "collab"
+                                and later.get("tool") == "agent_terminal"
+                                and later.get("status") == "completed"
+                            ):
+                                active.difference_update(
+                                    str(value)
+                                    for value in later.get(
+                                        "receiver_thread_ids", []
+                                    )
+                                )
                     observed_maximum = max(observed_maximum, len(active))
             minimum = assertion.get("min", 1)
             maximum = assertion.get("max", sys.maxsize)

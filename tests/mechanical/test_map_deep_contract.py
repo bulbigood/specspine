@@ -58,35 +58,53 @@ class MapDeepContractTests(unittest.TestCase):
             (ROOT / "skills/specspine-map-deep/scripts/survey_repository.py").exists()
         )
 
-    def test_map_refuses_terminal_output_and_deep_uses_that_as_saturation(self):
+    def test_map_refuses_terminal_output_and_branch_owner_reaches_saturation(self):
         normalized_map = " ".join(self.mapper.split())
         normalized = " ".join((self.deep + self.protocol).split())
         self.assertIn("Create or change no document when", normalized_map)
         self.assertIn("Report that terminal reason explicitly", normalized_map)
-        self.assertIn("Never manufacture output to keep the mapping branch alive", normalized)
-        self.assertIn("Continue each branch after a successful document", normalized)
-        self.assertIn("one terminal depth probe", normalized)
-        self.assertIn("Close the branch only when this probe creates no document", normalized)
-        self.assertIn("Do not repeat a terminal probe after that refusal", normalized)
-        self.assertIn("no actionable question remains", normalized)
-        self.assertIn("Do not stop at a predetermined number of documents", normalized)
+        self.assertIn("Never manufacture output to keep the branch alive", normalized)
+        self.assertIn("until it reports terminal `no useful node`", normalized)
+        self.assertIn("do not create a fresh producer merely to probe the same branch", normalized)
+        self.assertIn("no actionable branch remains", normalized)
+        self.assertIn("Do not stop at a predetermined document count", normalized)
 
-    def test_producers_receive_complete_map_instructions_once(self):
+    def test_new_producers_receive_complete_map_instructions_once(self):
         normalized = " ".join((self.deep + self.protocol).split())
         self.assertIn("bundle_skill.py --print", self.deep)
         self.assertIn("every UTF-8 file under Map `references/`", normalized)
         self.assertIn("Build the complete Map instruction bundle once", self.protocol)
         self.assertIn("complete-generated-map-instructions", self.protocol)
         self.assertIn("Do not load or invoke any skill", self.protocol)
-        self.assertIn("Report a follow-up only when inspected evidence indicates", normalized)
+        self.assertIn("only in the initial command for each new producer session", normalized)
+        self.assertIn("never resend the bundle or immutable shared context", normalized)
         self.assertNotIn("$specspine-map", self.protocol)
+
+    def test_orchestrator_owns_forks_and_producers_keep_branch_affinity(self):
+        normalized = " ".join((self.deep + self.protocol).split())
+        for statement in (
+            "The orchestrator is the sole scheduling authority",
+            "The producer may propose child branches but must never create producers",
+            "A same-boundary continuation remains with its current producer",
+            "never repurpose that session for an unrelated branch",
+            "`Current-branch continuation`",
+            "`Fork candidates`",
+            "Resume a continuing branch through the environment's native follow-up mechanism",
+            "complete only when it is locally saturated and all accepted child branches are complete",
+        ):
+            with self.subTest(statement=statement):
+                self.assertIn(statement, normalized)
 
     def test_parallel_producers_are_isolated_and_consumer_moves_results(self):
         normalized = " ".join(self.protocol.split())
         for statement in (
-            "one private staging root per active producer",
+            "one private staging root per active producer session",
+            "Every candidate must contain a `## Responsibility` section",
+            "Resolve one current evidence baseline once",
+            "never use a Markdown link for evidence",
+            "never derive Decisions or Constraints without accepted intent",
             "Keep source, tests, configuration, the live Spine",
-            "without rereading candidate prose",
+            "Do not reread candidate prose",
             "--candidates <private-staging-root> --json",
             "Move every accepted candidate unchanged",
             "Never reconstruct a file by reading and rewriting it",
@@ -94,6 +112,13 @@ class MapDeepContractTests(unittest.TestCase):
         ):
             with self.subTest(statement=statement):
                 self.assertIn(statement, normalized)
+
+    def test_scheduler_refills_without_batches_and_cleans_safely(self):
+        normalized = " ".join(self.protocol.split())
+        self.assertIn("Immediately dispatch ready work into every free slot", normalized)
+        self.assertIn("without waiting for siblings or forming pairs or waves", normalized)
+        self.assertIn("find <run-root> -depth -delete", normalized)
+        self.assertNotIn("`rm -rf <run-root>`", normalized)
 
     def test_sequential_fallback_changes_only_concurrency(self):
         normalized = " ".join((self.deep + self.protocol).split())

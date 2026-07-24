@@ -357,6 +357,137 @@ class CodexAdapterTests(unittest.TestCase):
             activity[2]["command"],
         )
 
+    def test_recovers_spawn_and_followup_from_private_rollout(self):
+        thread_id = "root-thread"
+        worker_id = "worker-1"
+        events = [
+            {
+                "timestamp": "2026-07-24T10:00:01+00:00",
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call",
+                    "namespace": "collaboration",
+                    "name": "spawn_agent",
+                    "call_id": "spawn-call",
+                    "arguments": json.dumps(
+                        {"task_name": "identity_sessions", "message": "x" * 100}
+                    ),
+                },
+            },
+            {
+                "timestamp": "2026-07-24T10:00:01.1+00:00",
+                "type": "event_msg",
+                "payload": {
+                    "type": "sub_agent_activity",
+                    "event_id": "spawn-call",
+                    "agent_thread_id": worker_id,
+                    "agent_path": "/root/identity_sessions",
+                    "kind": "started",
+                },
+            },
+            {
+                "timestamp": "2026-07-24T10:00:01.2+00:00",
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call_output",
+                    "call_id": "spawn-call",
+                    "output": "",
+                },
+            },
+            {
+                "timestamp": "2026-07-24T10:00:05+00:00",
+                "type": "response_item",
+                "payload": {
+                    "type": "agent_message",
+                    "id": "checkpoint-1",
+                    "author": "/root/identity_sessions",
+                    "recipient": "/root",
+                },
+            },
+            {
+                "timestamp": "2026-07-24T10:00:06+00:00",
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call",
+                    "namespace": "collaboration",
+                    "name": "followup_task",
+                    "call_id": "followup-call",
+                    "arguments": json.dumps(
+                        {"target": "identity_sessions", "message": "y" * 10}
+                    ),
+                },
+            },
+            {
+                "timestamp": "2026-07-24T10:00:06.1+00:00",
+                "type": "event_msg",
+                "payload": {
+                    "type": "sub_agent_activity",
+                    "event_id": "followup-call",
+                    "agent_thread_id": worker_id,
+                    "agent_path": "/root/identity_sessions",
+                    "kind": "interacted",
+                },
+            },
+            {
+                "timestamp": "2026-07-24T10:00:06.2+00:00",
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call_output",
+                    "call_id": "followup-call",
+                    "output": "",
+                },
+            },
+            {
+                "timestamp": "2026-07-24T10:00:08+00:00",
+                "type": "response_item",
+                "payload": {
+                    "type": "agent_message",
+                    "id": "checkpoint-2",
+                    "author": "/root/identity_sessions",
+                    "recipient": "/root",
+                },
+            },
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            session = (
+                home
+                / "sessions/2026/07/24"
+                / f"rollout-2026-07-24T10-00-00-{thread_id}.jsonl"
+            )
+            session.parent.mkdir(parents=True)
+            session.write_text(
+                "".join(json.dumps(item) + "\n" for item in events),
+                encoding="utf-8",
+            )
+            calls = ADAPTER.parse_rollout_collaboration(home, thread_id)
+
+        self.assertEqual(
+            ["spawn_agent", "agent_terminal", "followup_task", "agent_terminal"],
+            [item["tool"] for item in calls],
+        )
+        self.assertEqual([worker_id], calls[0]["receiver_thread_ids"])
+        self.assertEqual([worker_id], calls[2]["receiver_thread_ids"])
+        self.assertEqual(100, calls[0]["prompt_ciphertext_bytes"])
+        self.assertEqual(10, calls[2]["prompt_ciphertext_bytes"])
+
+        telemetry = ADAPTER.rollout_agent_telemetry(
+            calls,
+            tree_started_at="2026-07-24T10:00:00+00:00",
+            tree_duration_seconds=9.0,
+            tree_token_usage={"input_tokens": 100},
+            top_level_model="terra",
+            top_level_reasoning_effort="medium",
+            subagent_role="weak",
+            subagent_model="luna",
+            subagent_reasoning_effort="medium",
+        )
+        producer = telemetry["producers"][0]
+        self.assertEqual("identity_sessions", producer["assignment"])
+        self.assertEqual(1, producer["followup_count"])
+        self.assertEqual(2, producer["checkpoint_count"])
+        self.assertEqual(7.0, producer["observed_duration_seconds"])
+
     def test_event_metrics_count_completed_spawned_agents(self):
         items = [
             {
@@ -838,6 +969,18 @@ class CodexAdapterTests(unittest.TestCase):
                 "Codex subagent routing unavailable: "
                 "ERROR codex_core::tools::router: error=collab spawn failed: "
                 "no thread with id: parent-id"
+            ],
+            ADAPTER.environment_errors("", stderr),
+        )
+
+    def test_detects_unknown_subagent_role(self):
+        stderr = (
+            "ERROR codex_core::tools::router: error=unknown agent_type 'weak'\n"
+        )
+        self.assertEqual(
+            [
+                "Codex subagent routing unavailable: "
+                "ERROR codex_core::tools::router: error=unknown agent_type 'weak'"
             ],
             ADAPTER.environment_errors("", stderr),
         )

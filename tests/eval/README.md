@@ -159,16 +159,21 @@ implicit run-all mode. Planned cases are never executed. Categories are
 disjoint: `core` has 8 executable cases, `extended` has 12, `expensive` has 2,
 and `planned` has 10 documented non-executable cases.
 
-`map-deep-rolling-small` makes one top-level call, six useful producer calls,
-and at least six terminal depth probes. It is isolated in `expensive`, so ordinary `core` and
-`extended` runs never select it. Run it with one sample during ordinary
-iteration; use repeated samples only for release calibration.
+`map-deep-rolling-small` makes one top-level call and creates six branch-affine
+producer sessions. Each session returns a useful checkpoint and is then resumed
+for terminal depth without receiving the Map bundle again. It is isolated in
+`expensive`, so ordinary `core` and `extended` runs never select it. Run it with
+one sample during ordinary iteration; use repeated samples only for release
+calibration.
 
 Its fixture exposes six independent starting questions but permits only two
 active producers. Trace assertions require exactly two initial workers, cap
-observed concurrent producers at two, require 12–18 total spawns including
-terminal probes, and verify that at least four initial-queue slots are refilled
-before completed staging is consumed. Both benchmark arms use the same
+observed concurrent producers at two, require exactly six total spawns and at
+least six same-session resumptions, verify one branch per initial assignment,
+and use encrypted rollout-message sizes to reject repeated immutable instructions
+in continuations. The concurrency check coalesces terminal/spawn rollout events
+within one second because delivery order can differ from execution order. Both
+benchmark arms use the same
 `tests/eval/fixtures/map-modes-six-area` tree rather than duplicated manifest
 content.
 
@@ -176,9 +181,9 @@ The harness installs Map as a companion only for the Map Deep orchestrator.
 The orchestrator runs the generic skill bundler once. It strips Map
 frontmatter, concatenates the complete Map body and every UTF-8 file under Map
 `references/`, saves the bundle, and emits the same complete text in that one
-tool result. The orchestrator embeds that result in producer commands without
-rereading the generated file. Producers do not load Map, references, or
-templates.
+tool result. The orchestrator embeds that result in each new producer's initial
+command without rereading the generated file. Producers do not load Map,
+references, or templates, and same-branch resumptions do not repeat the bundle.
 
 The Codex adapter defaults the top-level agent to `gpt-5.6-terra` with medium
 reasoning. In its private disposable `CODEX_HOME`, it maps the default
@@ -310,7 +315,10 @@ Supported assertions:
 - trace: `read_only`, `read_includes`, `max_files_read`, `trace_equals`;
 - commands: `command_includes`, `command_excludes`;
 - collaboration: `collab_spawn_count`, `collab_initial_spawn_count`,
-  `collab_spawn_prompts`, `collab_targets_spawned_agents`,
+  `collab_resume_count`, `collab_spawn_assignments`,
+  `collab_message_size_ratio`, `collab_refill_without_wait`,
+  `collab_spawn_prompts`,
+  `collab_resume_prompts`, `collab_targets_spawned_agents`,
   `collab_refill_before_staging_consume`;
 - structure: `balanced_markers`, `no_template_placeholders`,
   `markdown_links_valid`, `semantic_ids_valid`, `spine_mechanical_valid`.
