@@ -225,6 +225,15 @@ class MapExhaustiveFrontierTests(unittest.TestCase):
             "locally_saturated",
             "--terminal-reason",
             "no useful node",
+            expected=2,
+        )
+        self.cli(
+            "state",
+            str(self.ledger),
+            "identity",
+            "locally_saturated",
+            "--terminal-reason",
+            "no useful node: inspected evidence is implementation detail",
         )
         self.cli(
             "state", str(self.ledger), "identity", "complete", expected=2
@@ -302,6 +311,29 @@ class MapExhaustiveFrontierTests(unittest.TestCase):
         self.assertEqual(["tokens"], [item["id"] for item in self.cli(
             "ready", str(self.ledger)
         )])
+
+    def test_compact_mutation_receipt_and_summary_bound_output(self):
+        receipt = self.cli(
+            "add",
+            "--compact",
+            str(self.ledger),
+            "identity",
+            "--parent",
+            "root",
+            "--question",
+            "Map identity",
+            "--origin",
+            "router registry",
+        )
+        self.assertEqual("ok", receipt["status"])
+        self.assertEqual("add", receipt["command"])
+        self.assertEqual("identity", receipt["branch"])
+        self.assertNotIn("branches", receipt)
+
+        summary = self.cli("summary", str(self.ledger))
+        self.assertEqual(["identity"], summary["ready"])
+        self.assertEqual([], summary["active"])
+        self.assertIsNone(summary["terminal"])
 
 
 if __name__ == "__main__":

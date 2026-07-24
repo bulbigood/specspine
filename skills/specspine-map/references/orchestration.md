@@ -66,7 +66,9 @@ destination. Use `assign --owner <handle>` after a producer handle exists,
 `state ... blocked --terminal-reason <reason>`, and `state ...
 locally_saturated --terminal-reason <exact-refusal>`. Use `state ... complete`
 bottom-up and `ready` to select dispatchable work. Run the command with `--help`
-if exact argument placement is unclear.
+if exact argument placement is unclear. Pass `--compact` to every mutating
+frontier command so routine receipts do not inject the complete ledger into
+agent context. Use `summary` when scheduling needs a compact state view.
 
 Treat producer capacity as observed, not planned; an exact limit need not be
 known in advance. Keep a branch `queued` and unowned until the environment
@@ -150,6 +152,9 @@ may read published files when required; the ordinary no-reread optimization
 does not survive process interruption. If a live destination is not ledgered,
 do not infer its branch owner: rerun the recorded branch against the current
 Spine or mark the collision `blocked`.
+After releasing stale owners, immediately fill every safely available producer
+slot from `ready`; do not start one branch and return a progress report while
+other ready work or active producers remain.
 
 Build the complete bounded Map producer bundle once at
 `<run-root>/producer-instructions.md`:
@@ -168,6 +173,8 @@ in the initial command for each new producer session. Producers must not load
 skills, resources, or orchestration instructions themselves.
 Prefix every new `spawn_agent` message with the complete captured bundle,
 including sibling starts and later refills; isolated producers share no bundle.
+Do not redirect `--print` output to a second file, use shell command
+substitution, or reread either output file to construct producer messages.
 
 Start each producer with a medium-strength model in an isolated new-thread
 context. With Codex `spawn_agent`, pass `agent_type="medium"` and
@@ -202,6 +209,9 @@ The writable root mirrors `<spine-root>`: place every candidate at its exact
 final relative path. A candidate may be a new specification or a complete
 replacement of a reserved live destination. Preserve unrelated content and
 accepted intent in replacements. Never replace an unreserved path or README.
+The reported destination must exactly equal the candidate path relative to the
+staging root. The orchestrator rejects rather than relocates a misplaced
+candidate because relocation changes Markdown link resolution.
 
 Apply Map's refusal rules exactly. When they stop this branch, create nothing
 and report `no useful node`; never manufacture output to keep the branch alive.
@@ -257,39 +267,30 @@ changes. Never infer runtime failure without an attempted start.
 
 Treat a returned checkpoint as a write barrier: the producer must not mutate
 its staging root until the orchestrator has consumed it. Do not reread
-candidate prose or repeat source investigation. If staging is nonempty, run:
+candidate prose or repeat source investigation. If staging is nonempty, publish
+it only through this single consumer command:
 
 ```text
-python3 <map-skill-root>/scripts/check_spine.py <spine-root> \
-  --candidates <private-staging-root> \
-  [--replace-existing <reserved-relative-path>]... --json
+python3 <map-skill-root>/scripts/publish_candidates.py \
+  <run-root>/frontier.json <branch-id> <spine-root> <private-staging-root> \
+  --path <candidate-relative-path>... \
+  [--replace-existing <reserved-relative-path>]...
 ```
 
 Omit `--replace-existing` entirely when the producer reserved no existing
 destination; never pass the brackets, ellipsis, or the word `none`.
-Take allowed replacement paths from that branch's durable ledger
-`replacements`, never from producer prose or memory. Before this check, reserve
-every candidate destination reported by the checkpoint. A conflict returned by
-`reserve` blocks publication until the same producer chooses another path or
-the operator resolves canonical ownership.
-Resolve findings through the same producer session. A nonzero exit or nonempty
-JSON, including a note, blocks publication; never bypass it. Move every accepted
-candidate unchanged after zero findings. Replace only a destination reserved
-for that producer. Never reconstruct a file by reading and rewriting it, reread,
-replace an unreserved path, or add an arbitrary numeric suffix.
-Immediately after the moves, durably record every exact destination before
-classifying the checkpoint:
-
-```text
-python3 <map-skill-root>/scripts/frontier.py publish \
-  <run-root>/frontier.json <branch-id> \
-  --path <published-relative-path>...
-```
-
-Repeat `--path` once per path. `publish` rejects a path not already reserved by
-that branch. If interruption occurs between a move and this record, resume by
-rerunning that branch against the current Spine and never infer ownership
-merely from the unledgered file.
+The helper is the sole producer-publication route. It requires an active owner,
+exact agreement between declared destinations and staging-relative paths,
+durable conflict-free reservations, and empty candidate and live checker JSON.
+Any nonzero exit, `error` object, malformed output, or nonempty finding list
+leaves live files untouched and blocks classification. It moves accepted
+candidates unchanged, rolls file moves back on a later failure, then records
+publication and emits one compact receipt. Never reproduce these stages in a
+shell pipeline, manually move or rewrite a candidate, bypass the helper, or
+continue after a failed receipt. Resolve findings through the same producer
+session. If interruption nevertheless leaves an unledgered live destination,
+rerun that branch against the current Spine and never infer ownership from the
+file.
 
 Classify the report after publication. Import its complete `Coverage frontier`
 into the ledger before resuming or releasing that producer:
@@ -304,7 +305,8 @@ into the ledger before resuming or releasing that producer:
 Treat any checkpoint that published a candidate as `continuing`, regardless of
 its reported status or missing continuation. Resume that same producer with a
 terminal-depth assignment; only a later candidate-free `no useful node`
-checkpoint may release the session as locally saturated.
+checkpoint may release the session as locally saturated. The refusal must use
+`no useful node: <evidence-based reason>`; a bare phrase is invalid.
 
 Reject a broad survey's `locally saturated` status when its mapped
 responsibilities or relationships expose material independent boundaries that
@@ -373,6 +375,13 @@ mention after stopping. Also audit the ledger against coverage frontiers and
 discovery evidence already inspected. A broad overview that names independently
 evolving responsibilities without child ledger entries is remaining actionable
 work, even when every current producer has returned `no useful node`.
+
+This is a hard response gate: do not emit a final response to report progress,
+stop immediately after spawning a producer, or ask the operator to say
+“continue” while `summary` reports ready or active work. Continue dispatching,
+consuming, and waiting. A final response is allowed only after the clean final
+audit, or when only concrete blocked branches remain and the exact operator
+input needed to unblock them is reported.
 
 Do not reorganize the live Spine or perform final normalization while mapping
 branches remain.

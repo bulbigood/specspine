@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import os
 import re
@@ -16,6 +17,7 @@ from typing import Any
 SCHEMA_VERSION = 2
 STATES = {"queued", "active", "locally_saturated", "blocked", "complete"}
 BRANCH_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+TERMINAL_REFUSAL = re.compile(r"^no useful node:\s+\S")
 
 
 class LedgerError(ValueError):
@@ -307,8 +309,13 @@ def command_state(args: argparse.Namespace) -> dict[str, Any]:
     if target == "locally_saturated":
         if current != "active":
             raise LedgerError("locally_saturated requires active state")
-        if not args.terminal_reason:
-            raise LedgerError("locally_saturated requires --terminal-reason")
+        if not args.terminal_reason or not TERMINAL_REFUSAL.match(
+            args.terminal_reason.strip()
+        ):
+            raise LedgerError(
+                "locally_saturated requires an exact "
+                "'no useful node: <evidence-based reason>' refusal"
+            )
         item["state"] = target
         item["owner"] = None
         item["terminal_reason"] = args.terminal_reason
@@ -452,8 +459,17 @@ def audit_findings(ledger: dict[str, Any], final: bool) -> list[dict[str, str]]:
             )
         if item.get("state") == "active" and not item.get("owner") and key != "root":
             findings.append({"code": "owner", "branch": key, "message": "active without owner"})
-        if item.get("state") == "locally_saturated" and not item.get("terminal_reason"):
-            findings.append({"code": "reason", "branch": key, "message": "missing refusal"})
+        if item.get("state") == "locally_saturated" and (
+            not isinstance(item.get("terminal_reason"), str)
+            or not TERMINAL_REFUSAL.match(item["terminal_reason"].strip())
+        ):
+            findings.append(
+                {
+                    "code": "reason",
+                    "branch": key,
+                    "message": "missing exact refusal reason",
+                }
+            )
         if item.get("state") == "complete":
             incomplete = [
                 child["id"]
@@ -497,18 +513,72 @@ def command_ready(args: argparse.Namespace) -> list[dict[str, Any]]:
     ]
 
 
+def command_summary(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    items = branches(ledger)
+    counts = Counter(item["state"] for item in items.values())
+    ready = command_ready(args)
+    non_root_active = sorted(
+        item["id"]
+        for item in items.values()
+        if item["id"] != "root" and item["state"] == "active"
+    )
+    blocked = sorted(
+        item["id"] for item in items.values() if item["state"] == "blocked"
+    )
+    final_clean = not audit_findings(ledger, final=True)
+    blocked_stop = (
+        bool(blocked)
+        and not ready
+        and not non_root_active
+        and counts["queued"] == 0
+    )
+    return {
+        "revision": ledger.get("revision"),
+        "state_counts": {
+            state: counts[state] for state in sorted(STATES) if counts[state]
+        },
+        "ready": [item["id"] for item in ready],
+        "active": non_root_active,
+        "blocked": blocked,
+        "terminal": "saturated" if final_clean else "blocked" if blocked_stop else None,
+    }
+
+
+def compact_result(args: argparse.Namespace, result: Any) -> Any:
+    if not getattr(args, "compact", False) or not isinstance(result, dict):
+        return result
+    receipt: dict[str, Any] = {
+        "status": "ok",
+        "command": args.command,
+        "revision": result.get("revision"),
+    }
+    if hasattr(args, "id"):
+        receipt["branch"] = args.id
+    return receipt
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     subparsers = result.add_subparsers(dest="command", required=True)
 
-    init = subparsers.add_parser("init")
+    def mutation(name: str) -> argparse.ArgumentParser:
+        command = subparsers.add_parser(name)
+        command.add_argument(
+            "--compact",
+            action="store_true",
+            help="emit a compact mutation receipt instead of the full ledger",
+        )
+        return command
+
+    init = mutation("init")
     init.add_argument("ledger", type=Path)
     init.add_argument("--scope", required=True)
     init.add_argument("--root-question", required=True)
     init.add_argument("--force", action="store_true")
     init.set_defaults(handler=command_init)
 
-    add = subparsers.add_parser("add")
+    add = mutation("add")
     add.add_argument("ledger", type=Path)
     add.add_argument("id")
     add.add_argument("--parent", required=True)
@@ -518,7 +588,7 @@ def parser() -> argparse.ArgumentParser:
     add.add_argument("--namespace")
     add.set_defaults(handler=command_add)
 
-    documented = subparsers.add_parser("documented")
+    documented = mutation("documented")
     documented.add_argument("ledger", type=Path)
     documented.add_argument("id")
     documented.add_argument("--parent", required=True)
@@ -528,37 +598,37 @@ def parser() -> argparse.ArgumentParser:
     documented.add_argument("--namespace")
     documented.set_defaults(handler=command_documented)
 
-    assign = subparsers.add_parser("assign")
+    assign = mutation("assign")
     assign.add_argument("ledger", type=Path)
     assign.add_argument("id")
     assign.add_argument("--owner", required=True)
     assign.set_defaults(handler=command_assign)
 
-    release = subparsers.add_parser("release")
+    release = mutation("release")
     release.add_argument("ledger", type=Path)
     release.add_argument("id")
     release.set_defaults(handler=command_release)
 
-    reserve = subparsers.add_parser("reserve")
+    reserve = mutation("reserve")
     reserve.add_argument("ledger", type=Path)
     reserve.add_argument("id")
     reserve.add_argument("--path", action="append", required=True)
     reserve.add_argument("--replace-existing", action="append", default=[])
     reserve.set_defaults(handler=command_reserve)
 
-    unreserve = subparsers.add_parser("unreserve")
+    unreserve = mutation("unreserve")
     unreserve.add_argument("ledger", type=Path)
     unreserve.add_argument("id")
     unreserve.add_argument("--path", action="append", required=True)
     unreserve.set_defaults(handler=command_unreserve)
 
-    publish = subparsers.add_parser("publish")
+    publish = mutation("publish")
     publish.add_argument("ledger", type=Path)
     publish.add_argument("id")
     publish.add_argument("--path", action="append", required=True)
     publish.set_defaults(handler=command_publish)
 
-    state = subparsers.add_parser("state")
+    state = mutation("state")
     state.add_argument("ledger", type=Path)
     state.add_argument("id")
     state.add_argument("state", choices=sorted(STATES))
@@ -568,6 +638,10 @@ def parser() -> argparse.ArgumentParser:
     ready = subparsers.add_parser("ready")
     ready.add_argument("ledger", type=Path)
     ready.set_defaults(handler=command_ready)
+
+    summary = subparsers.add_parser("summary")
+    summary.add_argument("ledger", type=Path)
+    summary.set_defaults(handler=command_summary)
 
     audit = subparsers.add_parser("audit")
     audit.add_argument("ledger", type=Path)
@@ -586,6 +660,7 @@ def main() -> int:
     exit_code = 0
     if isinstance(result, tuple):
         result, exit_code = result
+    result = compact_result(args, result)
     print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     return exit_code
 

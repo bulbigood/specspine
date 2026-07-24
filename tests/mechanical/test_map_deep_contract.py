@@ -86,6 +86,9 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertTrue(
             (ROOT / "skills/specspine-map/scripts/frontier.py").is_file()
         )
+        self.assertTrue(
+            (ROOT / "skills/specspine-map/scripts/publish_candidates.py").is_file()
+        )
 
     def test_resume_discards_no_state_and_restarts_untrusted_staging(self):
         normalized = " ".join((self.entrypoint + self.protocol).split())
@@ -228,10 +231,11 @@ class MapExhaustiveContractTests(unittest.TestCase):
             "Tool-level write access does not authorize live-Spine writes",
             "must begin with the private staging root",
             "Do not reread candidate prose",
-            "<map-skill-root>/scripts/check_spine.py",
+            "<map-skill-root>/scripts/publish_candidates.py",
             "--replace-existing",
-            "Move every accepted candidate unchanged",
-            "Never reconstruct a file by reading and rewriting it",
+            "sole producer-publication route",
+            "rolls file moves back",
+            "rejects rather than relocates",
             "Defer index reachability",
         ):
             with self.subTest(statement=statement):

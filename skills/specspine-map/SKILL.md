@@ -68,18 +68,24 @@ environment. Do not probe capability by starting a subagent.
    Continue same-boundary and ready adjacent branches until each reaches the
    bounded protocol's terminal refusal. A refusal closes only its exact branch.
 3. Before a coherent write, reserve every exact destination with
-   `frontier.py reserve <ledger> <branch-id> --path <path>`, adding
+   `frontier.py reserve --compact <ledger> <branch-id> --path <path>`, adding
    `--replace-existing <path>` only for an approved replacement. After writing,
-   record each changed path with `frontier.py publish <ledger> <branch-id>
+   record each changed path with `frontier.py publish --compact <ledger> <branch-id>
    --path <path>`; repeat `--path` per file. Then run
    `python3 <map-skill-root>/scripts/check_spine.py <spine-root> --json`;
    resolve errors before
-   continuing. Do not create producer staging when no producer exists.
+   continuing. Execute and inspect each state mutation, write, and check
+   separately; never chain them in one shell or continue after a nonzero exit,
+   an `error` object, or nonempty checker JSON. Do not create producer staging
+   when no producer exists.
 4. Mark branches `locally_saturated` only with exact refusal reasons and
    `complete` only after their children complete. Repeat scope-level discovery
    after the ready queue drains. Before normalization require
    `python3 <map-skill-root>/scripts/frontier.py audit
    <run-root>/frontier.json --final` to print `[]`.
+   Never end an exhaustive turn merely to report progress. A final response is
+   permitted only after that clean final audit or when only concrete `blocked`
+   branches remain and operator input is required.
 5. Normalize navigation once and rerun the checker. On success remove only the
    exact run root with `find <run-root> -depth -delete`. On interruption,
    preserve it and report the ledger path.
