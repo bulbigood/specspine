@@ -38,9 +38,9 @@ this tool. An adapter may translate the neutral handoff into a framework's
 native workflow, but must not redefine SpecSpine semantics or turn downstream
 artifacts into architectural authority.
 
-`specspine-connect` owns only the framework-neutral managed block in persistent
-project-agent instructions. It does not discover SDD frameworks or generate
-bindings and adapters.
+The connection-administration mode of `specspine-doctor` owns only the
+framework-neutral managed block in persistent project-agent instructions. It
+does not discover SDD frameworks or generate bindings and adapters.
 
 ## Safety properties
 
@@ -66,6 +66,5 @@ Before publishing:
 Generation and testing do not authorize external publishing.
 
 The generator enforces maximum word counts for the always-loaded bootstrap and
-latency-sensitive `connect` and `doctor` skill bodies. Change a budget only with
-an explicit architectural reason and a before and after runtime-cost
-comparison.
+latency-sensitive `doctor` skill body. Change a budget only with an explicit
+architectural reason and a before and after runtime-cost comparison.

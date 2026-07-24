@@ -1,15 +1,15 @@
-# SpecSpine Map Deep orchestration
+# SpecSpine Map exhaustive orchestration
 
 ## Scope and authority
 
 Map exactly the scope requested by the operator: one focused concern, several
 areas, or the whole repository. Treat the scope the same way as SpecSpine Map;
-Map-Deep changes execution strategy, not mapping semantics.
+exhaustive mode changes execution strategy, not mapping semantics.
 
 Repository evidence may establish observations and support inferences, but
 never establishes accepted decisions or constraints. Do not modify production
 code, claim complete code/spec conformance, or perform semantic repair.
-SpecSpine Doctor is outside this run: never invoke it from Map-Deep.
+SpecSpine Doctor is outside this run: never invoke it during exhaustive Map.
 
 Resolve the repository root and `<spine-root>`. Read the Spine index and
 relevant specifications, then discover evidence adaptively for the requested
@@ -32,20 +32,23 @@ discovery or scheduling.
 
 The orchestrator is the sole scheduling authority. Create a unique temporary
 run root outside the live Spine with `mktemp -d`. Use
-`<run-root>/frontier.json` as the sole scheduling record and mutate it only
-through `python3 <map-deep-skill-root>/scripts/frontier.py`. The helper writes
-atomically. Never put this control state in the repository or producer staging.
+`<run-root>/frontier.json` as the sole durable branch-scheduling record and
+mutate it only through `python3 <map-skill-root>/scripts/frontier.py`. Producer
+staging is disposable: only published Spine files and ledgered branch state
+survive interruption. The helper writes atomically. Never put this control
+state in the repository or producer staging.
 Initialize it before discovery:
 
 ```text
-python3 <map-deep-skill-root>/scripts/frontier.py init \
+python3 <map-skill-root>/scripts/frontier.py init \
   <run-root>/frontier.json --scope <operator-scope> \
   --root-question <root-question>
 ```
 
 The ledger records stable lowercase kebab-case branch IDs, parent, question,
 state, owner, prerequisite, intended namespace, terminal reason, and
-resolution. States are `queued`, `active`, `locally_saturated`, `blocked`, and
+resolution, plus exact published and replacement-reserved paths. States are
+`queued`, `active`, `locally_saturated`, `blocked`, and
 `complete`. Treat it as a write-ahead frontier: add every observed branch
 before continuing past the evidence or checkpoint that exposed it. Commands
 are idempotent when their complete branch data agrees and reject conflicting
@@ -54,8 +57,12 @@ reuse of an ID.
 Use `add <ledger> <id> --parent <id> --question <text> --origin <evidence>`
 for a new branch, adding `--prerequisite` and `--namespace` when known. Use
 `documented` with the same identity fields plus `--document <relative-path>`
-only after verifying its canonical owner. Use `assign --owner <handle>` after a
-producer handle exists, `release` after a failed start or resolved blocker,
+only after verifying its canonical owner. Before dispatch or publication use
+`reserve --path <relative-path>` for every exact destination, adding
+`--replace-existing <same-path>` only for an approved replacement. Reservations
+are globally exclusive; use `unreserve` before selecting another unpublished
+destination. Use `assign --owner <handle>` after a producer handle exists,
+`release` after a failed start or resolved blocker,
 `state ... blocked --terminal-reason <reason>`, and `state ...
 locally_saturated --terminal-reason <exact-refusal>`. Use `state ... complete`
 bottom-up and `ready` to select dispatchable work. Run the command with `--help`
@@ -65,7 +72,8 @@ Treat producer capacity as observed, not planned; an exact limit need not be
 known in advance. Keep a branch `queued` and unowned until the environment
 confirms a usable, addressable producer handle. Only then assign that handle,
 mark the branch `active`, and count its slot. A failed start or missing handle
-leaves the branch queued and does not reserve capacity. Capacity exhaustion
+leaves the branch queued and does not reserve capacity; durable destination
+reservations remain attached to the queued branch. Capacity exhaustion
 reduces concurrency: it never completes, drops, or blocks queued work and does
 not imply that every subagent is unavailable. Continue with confirmed sessions
 and retry ready branches only after capacity may have been released. When the environment exposes subagents, attempt to start producer subagents and use every safely available slot; never choose local execution for convenience or unknown capacity, only after no usable producer handle can be obtained.
@@ -77,6 +85,12 @@ Never count planned, attempted, failed, or terminated sessions as active.
 Never interrupt a running producer to switch to local execution, reclaim a
 slot, or because it has not responded yet. Interrupt only for operator
 cancellation or a confirmed hang or failure.
+
+If all actual start attempts return no addressable handle, reserve the local
+branch destinations, run `assign <ledger> <branch-id> --owner local`, and
+execute the same branch protocol locally. On a later invocation every non-root
+owner, including `local`, is stale: release it to `queued`, then assign a new
+producer handle or `local` before continuing.
 
 Split the initial scope into independent coherent architectural branches.
 Avoid competing ownership of the same concept. Assign one branch to one
@@ -126,23 +140,32 @@ documentation result.
 
 If the operator supplies a preserved ledger path from an interrupted run, do
 not initialize a replacement. Audit that ledger without `--final`, reconcile
-its published destinations with the live Spine, release stale `active` owners,
-and continue its `ready` branches in the preserved run root.
+its published destinations with the live Spine, and run the full checker.
+Treat every pre-existing private staging directory as untrusted and never
+publish its candidates because the write-barrier report was not durably
+consumed. Release stale `active` owners, rebuild reservations from ledgered
+published/reserved paths and live destinations, create fresh staging, and rerun
+those branches from their recorded questions. This resume-only reconciliation
+may read published files when required; the ordinary no-reread optimization
+does not survive process interruption. If a live destination is not ledgered,
+do not infer its branch owner: rerun the recorded branch against the current
+Spine or mark the collision `blocked`.
 
-Build the complete Map instruction bundle once at
+Build the complete bounded Map producer bundle once at
 `<run-root>/producer-instructions.md`:
 
 ```text
-python3 <map-deep-skill-root>/scripts/bundle_skill.py \
+python3 <map-skill-root>/scripts/bundle_skill.py \
   <map-skill-root> <run-root>/producer-instructions.md --print
 ```
 
-The builder includes the Map body, every UTF-8 file under Map `references/`,
-and every UTF-8 Markdown file under Map `assets/templates/`. It saves the
-bundle and emits the same text. Capture stdout directly; do not read the
-generated file or assemble resources manually. Embed the bundle only in the
-initial command for each new producer session. Producers must not load skills,
-resources, or orchestration instructions themselves.
+The builder includes `bounded-mode.md`, its required semantics, format and
+mapping-method references, and every Markdown template. It explicitly excludes
+the Map dispatcher and exhaustive orchestration so producers cannot recurse.
+It saves the bundle and emits the same text. Capture stdout directly; do not
+read the generated file or assemble resources manually. Embed the bundle only
+in the initial command for each new producer session. Producers must not load
+skills, resources, or orchestration instructions themselves.
 Prefix every new `spawn_agent` message with the complete captured bundle,
 including sibling starts and later refills; isolated producers share no bundle.
 
@@ -237,15 +260,36 @@ its staging root until the orchestrator has consumed it. Do not reread
 candidate prose or repeat source investigation. If staging is nonempty, run:
 
 ```text
-python3 <map-deep-skill-root>/scripts/check_spine.py <spine-root> \
-  --candidates <private-staging-root> <reserved --replace-existing args or none> --json
+python3 <map-skill-root>/scripts/check_spine.py <spine-root> \
+  --candidates <private-staging-root> \
+  [--replace-existing <reserved-relative-path>]... --json
 ```
 
+Omit `--replace-existing` entirely when the producer reserved no existing
+destination; never pass the brackets, ellipsis, or the word `none`.
+Take allowed replacement paths from that branch's durable ledger
+`replacements`, never from producer prose or memory. Before this check, reserve
+every candidate destination reported by the checkpoint. A conflict returned by
+`reserve` blocks publication until the same producer chooses another path or
+the operator resolves canonical ownership.
 Resolve findings through the same producer session. A nonzero exit or nonempty
 JSON, including a note, blocks publication; never bypass it. Move every accepted
 candidate unchanged after zero findings. Replace only a destination reserved
 for that producer. Never reconstruct a file by reading and rewriting it, reread,
 replace an unreserved path, or add an arbitrary numeric suffix.
+Immediately after the moves, durably record every exact destination before
+classifying the checkpoint:
+
+```text
+python3 <map-skill-root>/scripts/frontier.py publish \
+  <run-root>/frontier.json <branch-id> \
+  --path <published-relative-path>...
+```
+
+Repeat `--path` once per path. `publish` rejects a path not already reserved by
+that branch. If interruption occurs between a move and this record, resume by
+rerunning that branch against the current Spine and never infer ownership
+merely from the unledgered file.
 
 Classify the report after publication. Import its complete `Coverage frontier`
 into the ledger before resuming or releasing that producer:
@@ -319,7 +363,7 @@ After every terminal result, close complete descendants bottom-up with `state`.
 Before normalization, run:
 
 ```text
-python3 <map-deep-skill-root>/scripts/frontier.py audit \
+python3 <map-skill-root>/scripts/frontier.py audit \
   <run-root>/frontier.json --final
 ```
 
@@ -332,6 +376,14 @@ work, even when every current producer has returned `no useful node`.
 
 Do not reorganize the live Spine or perform final normalization while mapping
 branches remain.
+
+A branch is `blocked` only when a concrete missing permission, unavailable
+evidence, unresolved destination conflict, or operator decision prevents safe
+progress. Retry recoverable execution failures while another safe approach
+exists. When only blocked work remains, stop without claiming saturation,
+preserve the run root, report each branch and exact unblock condition, and ask
+for that input. On a later invocation, verify the condition, release the branch
+to `queued`, and continue.
 
 ## Normalize once
 

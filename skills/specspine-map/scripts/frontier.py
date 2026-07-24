@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Maintain the run-scoped SpecSpine Map-Deep coverage frontier."""
+"""Maintain the run-scoped exhaustive SpecSpine Map coverage frontier."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ import os
 import re
 import sys
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 STATES = {"queued", "active", "locally_saturated", "blocked", "complete"}
 BRANCH_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
@@ -71,6 +71,9 @@ def branch(
         "owner": None,
         "terminal_reason": None,
         "resolution": None,
+        "published": [],
+        "reservations": [],
+        "replacements": [],
     }
     result.update(extra)
     return result
@@ -82,6 +85,18 @@ def validate_id(value: str) -> str:
             f"invalid branch id {value!r}; use lowercase kebab-case"
         )
     return value
+
+
+def validate_relative_path(value: str) -> str:
+    candidate = PurePosixPath(value)
+    if (
+        not value
+        or "\\" in value
+        or candidate.is_absolute()
+        or any(part in {"", ".", ".."} for part in candidate.parts)
+    ):
+        raise LedgerError(f"invalid relative path: {value!r}")
+    return candidate.as_posix()
 
 
 def branches(ledger: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -214,6 +229,76 @@ def command_release(args: argparse.Namespace) -> dict[str, Any]:
     return ledger
 
 
+def command_reserve(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    item = require_branch(ledger, args.id)
+    if item["state"] not in {"queued", "active"}:
+        raise LedgerError(f"reserve requires queued or active state: {args.id}")
+    requested = sorted({validate_relative_path(value) for value in args.path})
+    replacements = sorted(
+        {validate_relative_path(value) for value in args.replace_existing}
+    )
+    unknown = sorted(set(replacements) - set(requested))
+    if unknown:
+        raise LedgerError(
+            "replacement paths are not reserved paths: "
+            + ", ".join(unknown)
+        )
+    conflicts: list[str] = []
+    for other_id, other in branches(ledger).items():
+        if other_id == args.id:
+            continue
+        occupied = set(other.get("reservations", [])) | set(
+            other.get("published", [])
+        )
+        conflicts.extend(sorted(set(requested) & occupied))
+    if conflicts:
+        raise LedgerError(
+            "destination reserved by another branch: "
+            + ", ".join(sorted(set(conflicts)))
+        )
+    item["reservations"] = sorted(
+        set(item.get("reservations", [])) | set(requested)
+    )
+    item["replacements"] = sorted(
+        set(item.get("replacements", [])) | set(replacements)
+    )
+    save(args.ledger, ledger)
+    return ledger
+
+
+def command_unreserve(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    item = require_branch(ledger, args.id)
+    if item["state"] not in {"queued", "active", "blocked"}:
+        raise LedgerError(f"unreserve requires queued, active, or blocked state: {args.id}")
+    requested = {validate_relative_path(value) for value in args.path}
+    published = set(item.get("published", []))
+    if requested & published:
+        raise LedgerError("cannot unreserve a published path")
+    item["reservations"] = sorted(set(item.get("reservations", [])) - requested)
+    item["replacements"] = sorted(set(item.get("replacements", [])) - requested)
+    save(args.ledger, ledger)
+    return ledger
+
+
+def command_publish(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    item = require_branch(ledger, args.id)
+    if item["state"] != "active":
+        raise LedgerError(f"publish requires active state: {args.id}")
+    published = sorted({validate_relative_path(value) for value in args.path})
+    unknown = sorted(set(published) - set(item.get("reservations", [])))
+    if unknown:
+        raise LedgerError(
+            "published paths were not reserved by this branch: "
+            + ", ".join(unknown)
+        )
+    item["published"] = sorted(set(item.get("published", [])) | set(published))
+    save(args.ledger, ledger)
+    return ledger
+
+
 def command_state(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
     item = require_branch(ledger, args.id)
@@ -274,6 +359,72 @@ def audit_findings(ledger: dict[str, Any], final: bool) -> list[dict[str, str]]:
             findings.append({"code": "id", "branch": key, "message": "invalid id"})
         if item.get("state") not in STATES:
             findings.append({"code": "state", "branch": key, "message": "invalid state"})
+        for field in ("published", "reservations", "replacements"):
+            values = item.get(field)
+            if not isinstance(values, list):
+                findings.append(
+                    {"code": field, "branch": key, "message": f"{field} must be a list"}
+                )
+                continue
+            try:
+                normalized = [validate_relative_path(value) for value in values]
+            except (LedgerError, TypeError) as error:
+                findings.append(
+                    {"code": field, "branch": key, "message": str(error)}
+                )
+                continue
+            if normalized != sorted(set(normalized)):
+                findings.append(
+                    {"code": field, "branch": key, "message": f"{field} must be sorted and unique"}
+                )
+        reservations = item.get("reservations", [])
+        replacements = item.get("replacements", [])
+        published = item.get("published", [])
+        if (
+            isinstance(reservations, list)
+            and isinstance(published, list)
+            and all(isinstance(value, str) for value in reservations + published)
+            and set(published) - set(reservations)
+        ):
+            findings.append(
+                {
+                    "code": "published",
+                    "branch": key,
+                    "message": "published path is not reserved by its branch",
+                }
+            )
+        if (
+            isinstance(reservations, list)
+            and isinstance(replacements, list)
+            and all(isinstance(value, str) for value in reservations + replacements)
+            and set(replacements) - set(reservations)
+        ):
+            findings.append(
+                {
+                    "code": "replacements",
+                    "branch": key,
+                    "message": "replacement path is not reserved by its branch",
+                }
+            )
+    reservation_owners: dict[str, str] = {}
+    for key, item in sorted(items.items()):
+        if not isinstance(item, dict):
+            continue
+        reserved_paths = item.get("reservations", [])
+        if not isinstance(reserved_paths, list):
+            reserved_paths = []
+        for path in reserved_paths:
+            if not isinstance(path, str):
+                continue
+            owner = reservation_owners.setdefault(path, key)
+            if owner != key:
+                findings.append(
+                    {
+                        "code": "reservation_conflict",
+                        "branch": key,
+                        "message": f"{path} is also reserved by {owner}",
+                    }
+                )
         parent = item.get("parent")
         if key == "root":
             if parent is not None:
@@ -387,6 +538,25 @@ def parser() -> argparse.ArgumentParser:
     release.add_argument("ledger", type=Path)
     release.add_argument("id")
     release.set_defaults(handler=command_release)
+
+    reserve = subparsers.add_parser("reserve")
+    reserve.add_argument("ledger", type=Path)
+    reserve.add_argument("id")
+    reserve.add_argument("--path", action="append", required=True)
+    reserve.add_argument("--replace-existing", action="append", default=[])
+    reserve.set_defaults(handler=command_reserve)
+
+    unreserve = subparsers.add_parser("unreserve")
+    unreserve.add_argument("ledger", type=Path)
+    unreserve.add_argument("id")
+    unreserve.add_argument("--path", action="append", required=True)
+    unreserve.set_defaults(handler=command_unreserve)
+
+    publish = subparsers.add_parser("publish")
+    publish.add_argument("ledger", type=Path)
+    publish.add_argument("id")
+    publish.add_argument("--path", action="append", required=True)
+    publish.set_defaults(handler=command_publish)
 
     state = subparsers.add_parser("state")
     state.add_argument("ledger", type=Path)

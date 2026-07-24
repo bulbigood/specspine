@@ -224,6 +224,20 @@ class DoctorCheckerTests(unittest.TestCase):
                 [finding.code for finding in findings],
             )
 
+    def test_translated_observed_id_still_requires_evidence_baseline(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "README.md").write_text(
+                "# Архитектура\n\n<!-- specspine:semantic-ids:begin -->\n"
+                "## Наблюдения\n\n"
+                "- **OBS-worker-retries** — Воркер повторяет задания.\n"
+                "<!-- specspine:semantic-ids:end -->\n",
+                encoding="utf-8",
+            )
+            codes = [finding.code for finding in CHECKER.check(root)]
+            self.assertIn("ID_SECTION_UNVERIFIED", codes)
+            self.assertIn("MISSING_BASELINE", codes)
+
     def test_reports_out_of_scope_link_without_checking_it_as_broken(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "specspine"

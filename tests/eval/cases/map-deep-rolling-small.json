@@ -1,12 +1,11 @@
 {
   "id": "map-deep-rolling-small",
   "scenario": "tests/scenarios/map-deep-rolling-small.md",
-  "skill": "skills/specspine-map-deep",
+  "skill": "skills/specspine-map",
   "status": "executable",
   "category": "expensive",
   "timeout_seconds": 1200,
   "subagent_max_concurrent_threads": 3,
-  "companion_skills": ["skills/specspine-map"],
   "report_artifacts": ["specspine/**/*.md"],
   "initial_tree": "tests/eval/fixtures/map-modes-six-area",
   "assertions": [

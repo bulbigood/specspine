@@ -12,7 +12,7 @@
   "stages": [
     {
       "id": "request-root",
-      "skill": "skills/specspine-connect",
+      "skill": "skills/specspine-doctor",
       "prompt": "Set up SpecSpine for this project.",
       "assertions": [
         {"type": "max_changed_files", "max": 0},
@@ -23,7 +23,7 @@
     },
     {
       "id": "select-existing-root",
-      "skill": "skills/specspine-connect",
+      "skill": "skills/specspine-doctor",
       "prompt": "Use `architecture` as the SpecSpine root.",
       "assertions": [
         {"type": "max_changed_files", "max": 0},
@@ -34,14 +34,15 @@
     },
     {
       "id": "accept-detected-defaults",
-      "skill": "skills/specspine-connect",
+      "skill": "skills/specspine-doctor",
       "prompt": "Use `architecture` as the root and accept detected Russian, `AGENTS.md`, and `auto`. Complete the connection now.",
       "assertions": [
         {"type": "changed_only", "paths": ["AGENTS.md"]},
         {"type": "unchanged", "paths": ["architecture/**"]},
         {"type": "file_contains", "path": "AGENTS.md", "value": "Preserve this user-authored sentence."},
         {"type": "file_contains", "path": "AGENTS.md", "values": ["SpecSpine index: `architecture/README.md`", "Documentation language: `Russian`", "Retrieval accelerator: `auto`"]},
-        {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1}
+        {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1},
+        {"type": "command_includes", "value": "check_spine.py"}
       ]
     }
   ],

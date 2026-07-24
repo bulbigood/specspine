@@ -1,12 +1,11 @@
 {
   "id": "map-deep-repository-no-subagents",
   "scenario": "tests/scenarios/map-deep-repository-no-subagents.md",
-  "skill": "skills/specspine-map-deep",
+  "skill": "skills/specspine-map",
   "status": "executable",
   "category": "expensive",
   "timeout_seconds": 1200,
   "subagents": "disabled",
-  "companion_skills": ["skills/specspine-map"],
   "report_artifacts": ["specspine/**/*.md"],
   "initial_tree": "tests/eval/fixtures/map-modes-six-area",
   "assertions": [

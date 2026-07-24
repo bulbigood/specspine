@@ -9,9 +9,9 @@ remain only partially mapped.
 ## User request
 
 ```text
-Use `$specspine-map-deep` to map every remaining architectural area in this
-large repository as deeply as useful evidence supports. After mapping is
-complete, run one SpecSpine Doctor semantic review.
+Use `$specspine-map` in exhaustive mode to map every remaining architectural
+area in this large repository until every useful evidence-backed branch is
+saturated. After mapping, recommend a separate SpecSpine Doctor review.
 ```
 
 ## Expected behavior
@@ -40,8 +40,7 @@ The orchestrator should:
 - after saturation, perform one SpecSpine-only normalization of broad
   directories, relative links, and curated navigation;
 - run the deterministic checker after normalization;
-- invoke Doctor once after the complete map, then request operator approval
-  before applying its proposed semantic repairs.
+- recommend Doctor in a new session after the complete map without invoking it.
 
 ## Failure indicators
 
@@ -58,5 +57,4 @@ The orchestrator should:
 - an acceptable worker output is merged, rewritten, or selectively copied;
 - the orchestrator reorganizes documents while mapping work remains;
 - normalization inspects repository source or changes architectural meaning;
-- Doctor runs between worker completions or writes semantic repairs without
-  approval.
+- Doctor runs during exhaustive mapping.

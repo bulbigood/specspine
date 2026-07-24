@@ -314,6 +314,7 @@ def check(root: Path) -> list[Finding]:
         id_regions = 0
         region_definitions = 0
         observed_content = False
+        observed_id_content = False
         baselines: list[tuple[int, str, str]] = []
         h1_count = 0
 
@@ -395,6 +396,8 @@ def check(root: Path) -> list[Finding]:
                     else:
                         expected = SECTION_PREFIXES.get(section)
                         actual = identifier.split("-", 1)[0]
+                        if actual == "OBS":
+                            observed_id_content = True
                         if not section:
                             add(findings, "error", "ID_SECTION", path, root, f"{identifier} is not under a semantic section", line_number)
                         elif expected is None:
@@ -414,7 +417,7 @@ def check(root: Path) -> list[Finding]:
             add(findings, "warning", "EMPTY_ID_REGION", path, root, "semantic-ID region defines no IDs")
         if len(baselines) > 1:
             add(findings, "warning", "MULTIPLE_BASELINES", path, root, "use at most one evidence baseline", baselines[1][0])
-        if observed_content and not baselines:
+        if (observed_content or observed_id_content) and not baselines:
             add(findings, "warning", "MISSING_BASELINE", path, root, "Observed content has no evidence baseline")
         if section and not section_has_content:
             add(findings, "warning", "EMPTY_SECTION", path, root, f"section '{section}' is empty", section_line)

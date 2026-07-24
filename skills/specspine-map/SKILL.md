@@ -1,17 +1,23 @@
 ---
 name: specspine-map
-description: Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use for initial repository surveys, one or more architectural questions, evidence-backed subsystem mapping, selective deepening, local refresh after code changes, and drift recording. Do not invent intended architecture, perform general integrity audits, extract downstream context, implement changes, or claim code/spec conformance.
+description: Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use bounded mode by default for surveys, architectural questions, selected subsystems, local refresh, and drift. Use exhaustive mode only when the operator explicitly asks to recurse until the requested scope is saturated; it coordinates branch-affine producers when available or runs sequentially. Do not invent intended architecture, perform general integrity audits, implement changes, or claim code/spec conformance.
 ---
 
 # SpecSpine Map
 
-Map the requested repository scope by one shallowest useful step into the
-smallest coherent set of linked architectural specifications. Map breadth
-before depth and preserve the difference between accepted intent and repository
-evidence.
+Select one execution mode before project discovery:
+
+- Use **bounded mode** unless the operator explicitly requests exhaustive,
+  recursive mapping through terminal depth or saturation. Repository size,
+  whole-project scope, or the word “deep” alone does not authorize exhaustive
+  orchestration.
+- Use **exhaustive mode** only for explicit intent such as “continue until
+  saturated”, “fully map every useful branch”, or an unambiguous equivalent.
 
 ## Resources
 
+- Read [references/bounded-mode.md](references/bounded-mode.md) completely for
+  both modes. It is the sole mapping operation contract.
 - Read [references/spec-semantics.md](references/spec-semantics.md) before
   classifying claims or recording code/spec disagreement.
 - Read [references/spec-format.md](references/spec-format.md) before creating,
@@ -20,64 +26,65 @@ evidence.
   substantial survey, refresh, or restructuring.
 - Start new files from `assets/templates/` and omit empty sections.
 
-## Authority and scope
+## Bounded mode
 
-Use this skill for an initial high-level survey, one or more selected areas or
-questions, deepening, refresh, or drift recording.
+Perform exactly one bounded mapping operation and stop at its reported
+continuation or terminal refusal. Do not load exhaustive orchestration
+instructions, create a frontier ledger, or start producers.
 
-Source code, tests, configuration, and other repository behavior may establish
-observations and support inferences. They do not establish decisions or
-constraints and never override accepted intent. Preserve disagreements until
-the user or an authorized architecture workflow resolves them.
+## Exhaustive mode
 
-Do not:
+Explicit exhaustive intent approves repeated documentation writes and final
+navigation normalization. It does not authorize changing accepted intent or
+choosing among materially different canonical owners.
 
-- invent or evolve intended architecture; use `specspine-grow`;
-- perform a general Spine integrity review; use `specspine-doctor`;
-- extract downstream task context; use `specspine-extract`;
-- modify production code or create requirements, plans, tasks, or
-  implementation status;
-- prove code/spec conformance or complete coverage.
+Before discovery, inspect callable capabilities already exposed by the
+environment. Do not probe capability by starting a subagent.
 
-## Workflow
+- If a subagent-creation mechanism is exposed, read
+  [references/orchestration.md](references/orchestration.md) completely and
+  follow it as the sole parallel protocol.
+- If no such mechanism is exposed, do not read that reference. Follow the
+  sequential protocol below. Unrelated async or wait tools do not count.
 
-1. Resolve `<spine-root>` using `references/spec-format.md`. Read its index,
-   relevant specifications, and only the repository documentation or
-   architecture records needed to understand existing intent.
-2. Perform one shallowest useful mapping step for the requested scope. A step is
-   the smallest coherent documentation change, not necessarily one file. For an
-   initial survey, inspect whole-system shape but create only a few useful entry
-   points. For a selected area or refresh, begin with the named specification
-   and relevant changed paths. Report further depth and adjacent branches
-   instead of pursuing them recursively in the same operation.
-3. Inspect representative evidence: root documentation, manifests, runtime
-   entry points, composition roots, public interfaces, schemas, integrations,
-   deployment configuration, and representative tests as applicable. Inspect
-   every cited source during the current operation; never cite unread evidence.
-4. Model stable responsibilities, boundaries, runtime and data-flow shape, and
-   relationships rather than directories or implementation details. Classify
-   claims with `references/spec-semantics.md`.
-5. Treat the explicit mapping, refresh, or restructuring request as
-   approval. Ask only before changing accepted intent or choosing among
-   materially different canonical owners.
-6. Write only under the explicitly supplied writable documentation root. By
-   default this is `<spine-root>`. If the request supplies a separate output
-   root, keep the live Spine read-only and create publish-ready new
-   specifications or complete replacements of explicitly assigned existing
-   specifications at paths relative to their final live destinations; do not
-   update `README.md`.
-7. For live writes, apply the smallest coherent change and preserve unrelated
-   content, accepted intent, useful links, and reachability from the index.
-   Verify changed relative links and semantic-ID definitions and references.
-   A semantic-ID reference uses the plain ID as its complete link label and the
-   owning Markdown file as its destination, without emphasis or a URL fragment.
-8. Report evidence inspected, files created or changed, mapped
-   responsibilities and relationships, material adjacent architectural
-   questions, unconfirmed inferences, unresolved drift, and qualitative
-   remaining coverage. Create or change no document when the live Spine already
-   answers the question, evidence cannot support a useful architectural node,
-   or further detail would reproduce implementation. Report that terminal
-   reason explicitly instead of manufacturing output.
+### Sequential exhaustive protocol
 
-Stop when the requested architectural scope is answered and additional reading
-would have low architectural value or mostly reproduce implementation.
+1. Resolve repository and Spine roots, existing intent, and one evidence
+   baseline. Create a unique temporary run root outside the Spine with
+   `mktemp -d`, then initialize:
+   `python3 <map-skill-root>/scripts/frontier.py init
+   <run-root>/frontier.json --scope <operator-scope> --root-question
+   <root-question>`. Resolve `<map-skill-root>` as this `SKILL.md` directory.
+   Resume an explicitly supplied preserved ledger after auditing it without
+   `--final`. Reconcile it with the live Spine and rerun the checker. Delete no
+   prior staging files; treat them as untrusted and unpublishable. Release
+   every non-root `active` owner, including `local`, to `queued`; preserve only
+   the active root. Create fresh staging if needed, reassign each branch to a
+   new producer or `local`, and restart recorded questions. If reconciliation
+   is ambiguous, mark the exact branch `blocked` and request operator direction.
+2. Apply one bounded mapping operation at a time directly to the live Spine.
+   Record every observed independent branch in the frontier before continuing.
+   Before processing a queued branch locally, assign it with `--owner local`.
+   Continue same-boundary and ready adjacent branches until each reaches the
+   bounded protocol's terminal refusal. A refusal closes only its exact branch.
+3. Before a coherent write, reserve every exact destination with
+   `frontier.py reserve <ledger> <branch-id> --path <path>`, adding
+   `--replace-existing <path>` only for an approved replacement. After writing,
+   record each changed path with `frontier.py publish <ledger> <branch-id>
+   --path <path>`; repeat `--path` per file. Then run
+   `python3 <map-skill-root>/scripts/check_spine.py <spine-root> --json`;
+   resolve errors before
+   continuing. Do not create producer staging when no producer exists.
+4. Mark branches `locally_saturated` only with exact refusal reasons and
+   `complete` only after their children complete. Repeat scope-level discovery
+   after the ready queue drains. Before normalization require
+   `python3 <map-skill-root>/scripts/frontier.py audit
+   <run-root>/frontier.json --final` to print `[]`.
+5. Normalize navigation once and rerun the checker. On success remove only the
+   exact run root with `find <run-root> -depth -delete`. On interruption,
+   preserve it and report the ledger path.
+6. Report scope, changes, relationships, unresolved drift, limitations, and
+   exact terminal reasons. Include the literal phrase `no useful node` and
+   recommend `$specspine-doctor` in a new session. Never invoke Doctor during
+   exhaustive Map. If only `blocked` branches remain, stop without claiming
+   saturation, preserve the run root, and report each exact unblock condition.

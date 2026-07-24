@@ -8,11 +8,9 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parents[2]
 SKILLS = (
-    "specspine-connect",
     "specspine-extract",
     "specspine-grow",
     "specspine-map",
-    "specspine-map-deep",
     "specspine-doctor",
 )
 LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")

@@ -18,7 +18,8 @@ The benchmark controller should invoke Map repeatedly in the same workspace.
 Each invocation applies at most one smallest coherent specification change and
 reports further depth. The sequence stops only after one invocation leaves the
 SpecSpine unchanged. The final Spine should cover all six material
-responsibilities to the same terminal depth required from the Map Deep arm.
+responsibilities to the same terminal depth required from each exhaustive Map
+arm.
 Source, tests, and configuration remain unchanged.
 
 ## Failure indicators

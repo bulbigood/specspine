@@ -1,7 +1,7 @@
 {
   "id": "connect-generic-agent-idempotent",
   "scenario": "tests/scenarios/connect-generic-agent-idempotent.md",
-  "skill": "skills/specspine-connect",
+  "skill": "skills/specspine-doctor",
   "status": "executable",
   "category": "extended",
   "initial_files": {
@@ -14,6 +14,7 @@
     {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1},
     {"type": "file_contains", "path": "AGENTS.md", "value": "Preserve this user-authored sentence."},
     {"type": "file_contains", "path": "AGENTS.md", "value": "Retrieval accelerator: `disabled`"},
+    {"type": "command_includes", "value": "check_spine.py"},
     {"type": "max_changed_files", "max": 0},
     {"type": "unchanged", "paths": ["AGENTS.md", "specspine/**", "src/**"]}
   ]

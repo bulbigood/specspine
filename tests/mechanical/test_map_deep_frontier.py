@@ -7,10 +7,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).parents[2]
-SCRIPT = ROOT / "skills/specspine-map-deep/scripts/frontier.py"
+SCRIPT = ROOT / "skills/specspine-map/scripts/frontier.py"
 
 
-class MapDeepFrontierTests(unittest.TestCase):
+class MapExhaustiveFrontierTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.ledger = Path(self.temporary.name) / "frontier.json"
@@ -65,7 +65,7 @@ class MapDeepFrontierTests(unittest.TestCase):
 
     def test_init_is_private_atomic_json(self):
         ledger = json.loads(self.ledger.read_text(encoding="utf-8"))
-        self.assertEqual(1, ledger["schema_version"])
+        self.assertEqual(2, ledger["schema_version"])
         self.assertEqual("active", ledger["branches"]["root"]["state"])
         self.assertEqual(0o600, self.ledger.stat().st_mode & 0o777)
         self.assertFalse(list(self.ledger.parent.glob("*.tmp")))
@@ -103,6 +103,109 @@ class MapDeepFrontierTests(unittest.TestCase):
         )
         ledger = self.cli("release", str(self.ledger), "identity")
         self.assertEqual("queued", ledger["branches"]["identity"]["state"])
+
+    def test_publication_paths_and_replacement_reservations_are_durable(self):
+        self.add()
+        self.cli("assign", str(self.ledger), "identity", "--owner", "producer-1")
+        ledger = self.cli(
+            "reserve",
+            str(self.ledger),
+            "identity",
+            "--path",
+            "architecture/identity.md",
+            "--path",
+            "README.md",
+            "--replace-existing",
+            "README.md",
+        )
+        ledger = self.cli(
+            "publish",
+            str(self.ledger),
+            "identity",
+            "--path",
+            "architecture/identity.md",
+            "--path",
+            "README.md",
+        )
+        identity = ledger["branches"]["identity"]
+        self.assertEqual(
+            ["README.md", "architecture/identity.md"], identity["published"]
+        )
+        self.assertEqual(
+            ["README.md", "architecture/identity.md"], identity["reservations"]
+        )
+        self.assertEqual(["README.md"], identity["replacements"])
+        self.assertEqual([], self.cli("audit", str(self.ledger)))
+
+    def test_publication_rejects_unsafe_or_unpublished_reservations(self):
+        self.add()
+        self.cli("assign", str(self.ledger), "identity", "--owner", "producer-1")
+        self.cli(
+            "reserve",
+            str(self.ledger),
+            "identity",
+            "--path",
+            "../outside.md",
+            expected=2,
+        )
+        self.cli(
+            "reserve",
+            str(self.ledger),
+            "identity",
+            "--path",
+            "identity.md",
+            "--replace-existing",
+            "other.md",
+            expected=2,
+        )
+
+    def test_reservations_are_globally_exclusive_and_releasable(self):
+        self.add("identity")
+        self.add("tokens")
+        self.cli(
+            "reserve",
+            str(self.ledger),
+            "identity",
+            "--path",
+            "identity.md",
+        )
+        self.cli(
+            "reserve",
+            str(self.ledger),
+            "tokens",
+            "--path",
+            "identity.md",
+            expected=2,
+        )
+        self.cli(
+            "unreserve",
+            str(self.ledger),
+            "identity",
+            "--path",
+            "identity.md",
+        )
+        ledger = self.cli(
+            "reserve",
+            str(self.ledger),
+            "tokens",
+            "--path",
+            "identity.md",
+        )
+        self.assertEqual(
+            ["identity.md"], ledger["branches"]["tokens"]["reservations"]
+        )
+
+    def test_publish_requires_prior_branch_reservation(self):
+        self.add()
+        self.cli("assign", str(self.ledger), "identity", "--owner", "local")
+        self.cli(
+            "publish",
+            str(self.ledger),
+            "identity",
+            "--path",
+            "identity.md",
+            expected=2,
+        )
 
     def test_terminal_reason_and_children_gate_completion(self):
         self.add()

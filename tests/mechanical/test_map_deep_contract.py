@@ -5,51 +5,52 @@ from pathlib import Path
 ROOT = Path(__file__).parents[2]
 
 
-class MapDeepContractTests(unittest.TestCase):
+class MapExhaustiveContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.mapper = (ROOT / "skills/specspine-map/SKILL.md").read_text(
+        cls.entrypoint = (ROOT / "skills/specspine-map/SKILL.md").read_text(
             encoding="utf-8"
         )
-        cls.deep = (ROOT / "skills/specspine-map-deep/SKILL.md").read_text(
+        cls.mapper = (
+            ROOT / "skills/specspine-map/references/bounded-mode.md"
+        ).read_text(
             encoding="utf-8"
         )
         cls.protocol = (
-            ROOT / "skills/specspine-map-deep/references/orchestration.md"
+            ROOT / "skills/specspine-map/references/orchestration.md"
         ).read_text(encoding="utf-8")
         cls.metadata = (
-            ROOT / "skills/specspine-map-deep/agents/openai.yaml"
+            ROOT / "skills/specspine-map/agents/openai.yaml"
         ).read_text(encoding="utf-8")
         cls.eval_scenario = (
             ROOT / "tests/scenarios/map-deep-rolling-small.md"
         ).read_text(encoding="utf-8")
 
-    def test_map_stays_atomic_and_deep_is_explicit(self):
+    def test_bounded_stays_atomic_and_exhaustive_is_explicit(self):
         self.assertNotIn("references/orchestration.md", self.mapper)
         self.assertNotIn("producer", self.mapper.lower())
         self.assertNotIn("specspine-map-deep", self.mapper)
         self.assertIn("the requested repository scope", self.mapper)
         self.assertIn("one shallowest useful mapping step", self.mapper)
         self.assertIn("instead of pursuing them recursively", self.mapper)
-        self.assertIn("references/orchestration.md", self.deep)
-        self.assertIn("allow_implicit_invocation: false", self.metadata)
+        self.assertIn("references/orchestration.md", self.entrypoint)
+        self.assertIn("Use **bounded mode** unless", self.entrypoint)
+        self.assertIn("Use **exhaustive mode** only", self.entrypoint)
 
-    def test_map_deep_accepts_the_same_user_scope_as_map(self):
-        normalized = " ".join((self.deep + self.protocol).split())
-        self.assertIn("Accept the same scope as `specspine-map`", normalized)
+    def test_exhaustive_accepts_the_same_scope_as_bounded(self):
+        normalized = " ".join((self.entrypoint + self.protocol).split())
         self.assertIn("one focused concern, several areas, or the whole repository", normalized)
         self.assertIn("Map exactly the scope requested by the operator", normalized)
-        self.assertNotIn("Do not use for a focused survey", self.deep)
-        self.assertNotIn("complete large-repository Map run", self.deep)
+        self.assertNotIn("Do not use for a focused survey", self.entrypoint)
 
     def test_entrypoint_gates_parallel_reference_before_discovery(self):
-        normalized = " ".join(self.deep.split())
-        self.assertIn("Before reading any reference or starting discovery", normalized)
+        normalized = " ".join(self.entrypoint.split())
+        self.assertIn("Before discovery, inspect callable capabilities", normalized)
         self.assertIn("Do not probe capability by starting a subagent", normalized)
         self.assertIn("If a subagent-creation mechanism is exposed", normalized)
-        self.assertIn("If no subagent-creation mechanism is exposed", normalized)
+        self.assertIn("If no such mechanism is exposed", normalized)
         self.assertIn("do not read that reference", normalized)
-        self.assertLessEqual(len(self.deep.splitlines()), 80)
+        self.assertLessEqual(len(self.entrypoint.splitlines()), 130)
         for detail in (
             "private staging root",
             "`Current-branch continuation`",
@@ -57,10 +58,10 @@ class MapDeepContractTests(unittest.TestCase):
             "Immediately dispatch ready work",
         ):
             with self.subTest(detail=detail):
-                self.assertNotIn(detail, self.deep)
+                self.assertNotIn(detail, self.entrypoint)
 
     def test_discovery_is_adaptive_and_frontier_is_run_scoped(self):
-        normalized = " ".join((self.deep + self.protocol).split()).lower()
+        normalized = " ".join((self.entrypoint + self.protocol).split()).lower()
         self.assertIn("discover evidence adaptively", normalized)
         self.assertIn("do not prescribe a universal listing command", normalized)
         self.assertIn("frontier.py", normalized)
@@ -80,15 +81,31 @@ class MapDeepContractTests(unittest.TestCase):
             with self.subTest(obsolete=obsolete):
                 self.assertNotIn(obsolete, normalized)
         self.assertFalse(
-            (ROOT / "skills/specspine-map-deep/scripts/survey_repository.py").exists()
+            (ROOT / "skills/specspine-map/scripts/survey_repository.py").exists()
         )
         self.assertTrue(
-            (ROOT / "skills/specspine-map-deep/scripts/frontier.py").is_file()
+            (ROOT / "skills/specspine-map/scripts/frontier.py").is_file()
         )
+
+    def test_resume_discards_no_state_and_restarts_untrusted_staging(self):
+        normalized = " ".join((self.entrypoint + self.protocol).split())
+        self.assertIn("sole durable branch-scheduling record", normalized)
+        self.assertIn("only published Spine files and ledgered branch state", normalized)
+        self.assertIn("never publish its candidates", normalized)
+        self.assertIn("rerun those branches from their recorded questions", normalized)
+        self.assertIn("Delete no prior staging files", normalized)
+        self.assertIn("every non-root `active` owner, including `local`", normalized)
+        self.assertIn("preserve only the active root", normalized)
+        self.assertIn("frontier.py publish", normalized)
+        self.assertIn("frontier.py reserve", normalized)
+        self.assertIn("exact published and replacement-reserved paths", normalized)
+        self.assertIn("Reservations are globally exclusive", normalized)
+        self.assertIn("--owner local", normalized)
+        self.assertIn("mark the exact branch `blocked`", normalized)
 
     def test_map_refuses_terminal_output_and_branch_owner_reaches_saturation(self):
         normalized_map = " ".join(self.mapper.split())
-        normalized = " ".join((self.deep + self.protocol).split())
+        normalized = " ".join((self.entrypoint + self.protocol).split())
         self.assertIn("Create or change no document when", normalized_map)
         self.assertIn("Report that terminal reason explicitly", normalized_map)
         self.assertIn("never manufacture output to keep the branch alive", normalized)
@@ -106,11 +123,12 @@ class MapDeepContractTests(unittest.TestCase):
         self.assertIn("Do not stop at a predetermined document count", normalized)
 
     def test_new_producers_receive_complete_map_instructions_once(self):
-        normalized = " ".join((self.deep + self.protocol).split())
+        normalized = " ".join((self.entrypoint + self.protocol).split())
         self.assertIn("bundle_skill.py", self.protocol)
-        self.assertIn("every UTF-8 file under Map `references/`", normalized)
-        self.assertIn("every UTF-8 Markdown file", normalized)
-        self.assertIn("Build the complete Map instruction bundle once", self.protocol)
+        self.assertIn("required semantics, format and mapping-method", normalized)
+        self.assertIn("every Markdown template", normalized)
+        self.assertIn("Build the complete bounded Map producer bundle once", self.protocol)
+        self.assertIn("explicitly excludes", self.protocol)
         self.assertIn("complete-generated-map-instructions", self.protocol)
         self.assertIn("Do not load or invoke any skill", self.protocol)
         self.assertIn("only in the initial command for each new producer session", normalized)
@@ -125,7 +143,7 @@ class MapDeepContractTests(unittest.TestCase):
         self.assertNotIn("$specspine-map", self.protocol)
 
     def test_each_producer_turn_is_one_map_step_until_refusal(self):
-        normalized = " ".join((self.deep + self.protocol).split())
+        normalized = " ".join((self.entrypoint + self.protocol).split())
         for statement in (
             "Perform exactly one Map step in this turn",
             "Do not execute the reported continuation in the same turn",
@@ -135,7 +153,7 @@ class MapDeepContractTests(unittest.TestCase):
                 self.assertIn(statement, normalized)
 
     def test_orchestrator_owns_forks_and_producers_keep_branch_affinity(self):
-        normalized = " ".join((self.deep + self.protocol).split())
+        normalized = " ".join((self.entrypoint + self.protocol).split())
         for statement in (
             "The orchestrator is the sole scheduling authority",
             "Give each initial assignment exactly one independent architectural branch question",
@@ -156,7 +174,7 @@ class MapDeepContractTests(unittest.TestCase):
                 self.assertIn(statement, normalized)
 
     def test_broad_surveys_cannot_vacuously_saturate(self):
-        normalized = " ".join((self.deep + self.protocol).split())
+        normalized = " ".join((self.entrypoint + self.protocol).split())
         for statement in (
             "coverage frontier",
             "producer proposals never define the completeness",
@@ -210,7 +228,7 @@ class MapDeepContractTests(unittest.TestCase):
             "Tool-level write access does not authorize live-Spine writes",
             "must begin with the private staging root",
             "Do not reread candidate prose",
-            "<map-deep-skill-root>/scripts/check_spine.py",
+            "<map-skill-root>/scripts/check_spine.py",
             "--replace-existing",
             "Move every accepted candidate unchanged",
             "Never reconstruct a file by reading and rewriting it",
@@ -223,7 +241,7 @@ class MapDeepContractTests(unittest.TestCase):
         shared = ROOT / "shared/scripts/check_spine.py"
         self.assertTrue(shared.is_file())
         for consumer in (
-            ROOT / "skills/specspine-map-deep/scripts/check_spine.py",
+            ROOT / "skills/specspine-map/scripts/check_spine.py",
             ROOT / "skills/specspine-doctor/scripts/check_spine.py",
         ):
             with self.subTest(consumer=consumer):
@@ -251,7 +269,7 @@ class MapDeepContractTests(unittest.TestCase):
                 self.assertNotIn(duplicate, normalized_protocol)
 
     def test_production_contract_has_no_eval_or_model_specific_rules(self):
-        normalized = (self.deep + self.protocol).lower()
+        normalized = (self.entrypoint + self.protocol).lower()
         for marker in (
             ".eval/",
             "benchmark",
@@ -305,14 +323,13 @@ class MapDeepContractTests(unittest.TestCase):
         self.assertNotIn("`rm -rf <run-root>`", normalized)
 
     def test_no_capability_uses_root_only_sequential_protocol(self):
-        normalized_root = " ".join(self.deep.split())
+        normalized_root = " ".join(self.entrypoint.split())
         normalized_parallel = " ".join(self.protocol.split())
         for statement in (
-            "Read the complete `specspine-map` skill and its required resources directly",
-            "do not build an instruction bundle",
-            "Perform one shallowest useful Map step at a time directly against the live Spine",
-            "After every coherent write",
-            "<map-deep-skill-root>/scripts/check_spine.py",
+            "do not read that reference",
+            "Apply one bounded mapping operation at a time directly to the live Spine",
+            "After writing, record each changed path",
+            "<map-skill-root>/scripts/check_spine.py",
             "<run-root>/frontier.json",
             "Do not create producer staging when no producer exists",
             "Before normalization",
@@ -331,10 +348,10 @@ class MapDeepContractTests(unittest.TestCase):
         )
 
     def test_normalization_stays_internal_and_doctor_is_a_new_session_handoff(self):
-        normalized_root = " ".join(self.deep.split())
+        normalized_root = " ".join(self.entrypoint.split())
         normalized_parallel = " ".join(self.protocol.split())
         self.assertIn("SpecSpine Doctor is outside this run", normalized_parallel)
-        self.assertIn("never invoke it from Map-Deep", normalized_parallel)
+        self.assertIn("never invoke it during exhaustive Map", normalized_parallel)
         self.assertIn("After saturation, perform one sequential navigation pass", normalized_parallel)
         self.assertIn("Add every new document to curated `README.md` navigation", normalized_parallel)
         self.assertIn("Run the full deterministic checker once", normalized_parallel)
@@ -345,9 +362,11 @@ class MapDeepContractTests(unittest.TestCase):
         self.assertIn("run `$specspine-doctor` in a new session", normalized_parallel)
         self.assertIn("Do not invoke Doctor in the current session", normalized_parallel)
         self.assertIn("recommend `$specspine-doctor` in a new session", normalized_root)
-        self.assertIn("Never invoke Doctor during Map-Deep", normalized_root)
+        self.assertIn("Never invoke Doctor during exhaustive Map", normalized_root)
         self.assertNotIn("only when the operator explicitly requests", normalized_parallel)
-        self.assertLessEqual(len(self.protocol.splitlines()), 370)
+        self.assertIn("never pass the brackets, ellipsis, or the word `none`", normalized_parallel)
+        self.assertIn("stop without claiming saturation", normalized_parallel)
+        self.assertLessEqual(len(self.protocol.splitlines()), 430)
 
 
 if __name__ == "__main__":

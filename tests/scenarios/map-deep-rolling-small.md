@@ -1,4 +1,4 @@
-# Scenario: branch-affine deep-Map orchestration with three worker slots
+# Scenario: branch-affine exhaustive Map with three worker slots
 
 ## Existing SpecSpine
 
@@ -8,7 +8,8 @@ runtime-adjacent responsibilities remain unmapped.
 ## User request
 
 ```text
-Use `$specspine-map-deep` to document the architecture of this repository.
+Use `$specspine-map` in exhaustive mode to document every useful architectural
+branch of this repository until saturation.
 ```
 
 ## Expected behavior

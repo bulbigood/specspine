@@ -9,11 +9,9 @@ classified.
 | Area | Documented scenarios | Executable fixtures |
 |---|---:|---:|
 | `specspine-grow` | 9 | 7 |
-| `specspine-map` | 9 | 5 |
-| `specspine-map-deep` | 4 | 2 |
-| `specspine-connect` | 4 | 4 |
+| `specspine-map` | 13 | 7 |
 | `specspine-extract` | 5 | 5 |
-| `specspine-doctor` | 3 | 2 |
+| `specspine-doctor` | 7 | 6 |
 | package generator tooling | 1 | 0 |
 | Total | 35 | 25 |
 
@@ -39,7 +37,7 @@ reaches its unchanged terminal invocation:
   unchanged terminal invocation, enabling a paired saturation-quality/cost
   benchmark.
 
-`map-deep-rolling-small` provides one controlled executable orchestration case.
+`map-deep-rolling-small` provides one controlled executable exhaustive-mode case.
 One top-level invocation receives a production-like whole-repository request
 and must keep three available producer slots working across more ready branches
 than slots. Codex JSONL collaboration events verify spawning and same-session
@@ -49,11 +47,11 @@ All three benchmark arms copy the same 21-file
 slices, require the same terminal evidence coverage, and stop only after the
 requested repository scope is saturated. Generated artifacts verify material
 coverage through their evidence. The
-runtime trace pins the orchestrator and producers to Terra/medium. Map is
-installed only so the orchestrator can obtain,
-save, and emit in one script call a generated bundle containing the complete
-Map body, every UTF-8 reference, and every UTF-8 Markdown template; producers
-must not load those source files themselves. Collaboration assertions require
+runtime trace pins the orchestrator and producers to Terra/medium. Exhaustive
+Map obtains, saves, and emits in one script call a generated bundle containing
+the bounded producer protocol, its UTF-8 references, and every UTF-8 Markdown
+template; producers must not load those source files themselves.
+Collaboration assertions require
 three initial producers, no more than three simultaneously active producers,
 multiple total spawns and resumptions, and an encrypted-message size ratio that
 rejects repeated bundles in continuations. Discovery is adaptive and keeps no
@@ -72,7 +70,7 @@ in the explicit `expensive` category.
 agent still reaches saturation, runs early deterministic checks, and produces
 the same material evidence coverage. It is the third saturation-benchmark arm,
 so cost, wall time, mechanical results, and blind documentation quality are
-compared directly with Map and parallel Map Deep.
+compared directly with bounded Map and parallel exhaustive Map.
 
 Remaining distinct behavioral gaps are:
 
@@ -96,11 +94,11 @@ The executable set is divided by resource cost and necessity:
 |---|---:|---:|---|
 | `core` | 8 | 8 | Minimum behavioral regression set, including atomic staged Map output |
 | `extended` | 14 | 21 | Lifecycle, root-first connection, language detection, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
-| `expensive` | 3 | 4–12 per sample | Three-way Map/Map Deep saturation benchmark |
+| `expensive` | 3 | 4–12 per sample | Three-way bounded/exhaustive Map saturation benchmark |
 | `planned` | 10 | 0 | Documentation and future redesign only |
 
 The table counts top-level agent invocations. The sequential Map arm uses 2–10
-invocations, stopping at the first unchanged terminal result; each Map Deep arm
+invocations, stopping at the first unchanged terminal result; each exhaustive arm
 uses one top-level invocation, and only the parallel arm creates producer sessions.
 The separate category prevents ordinary `core` or `extended` runs from
 selecting either expensive arm.

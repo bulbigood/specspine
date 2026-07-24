@@ -10,7 +10,7 @@
   "stages": [
     {
       "id": "request-unconfigured-setup",
-      "skill": "skills/specspine-connect",
+      "skill": "skills/specspine-doctor",
       "prompt": "Set up SpecSpine for this project.",
       "assertions": [
         {"type": "max_changed_files", "max": 0},
@@ -21,7 +21,7 @@
     },
     {
       "id": "select-default-root",
-      "skill": "skills/specspine-connect",
+      "skill": "skills/specspine-doctor",
       "prompt": "Use `specspine` as the SpecSpine root.",
       "assertions": [
         {"type": "max_changed_files", "max": 0},
@@ -30,7 +30,7 @@
     },
     {
       "id": "accept-remaining-defaults",
-      "skill": "skills/specspine-connect",
+      "skill": "skills/specspine-doctor",
       "prompt": "Use `specspine` as the root and accept English, `AGENTS.md`, and `auto` as the remaining defaults. Complete setup now.",
       "assertions": [
         {"type": "changed_only", "paths": ["AGENTS.md", "specspine/README.md"]},
@@ -39,6 +39,7 @@
         {"type": "file_contains", "path": "AGENTS.md", "values": ["SpecSpine index: `specspine/README.md`", "Documentation language: `English`", "Retrieval accelerator: `auto`"]},
         {"type": "path_exists", "path": "specspine/README.md"},
         {"type": "file_contains", "path": "specspine/README.md", "values": ["# Project architecture", "## Purpose", "## Architecture map"]},
+        {"type": "command_includes", "value": "check_spine.py"},
         {"type": "no_template_placeholders", "glob": "AGENTS.md"},
         {"type": "no_template_placeholders", "glob": "specspine/**"}
       ]

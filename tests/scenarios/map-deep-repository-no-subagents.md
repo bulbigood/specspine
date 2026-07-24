@@ -9,14 +9,15 @@ not expose any subagent-creation capability.
 ## User request
 
 ```text
-Use `$specspine-map-deep` to document the architecture of this repository.
+Use `$specspine-map` in exhaustive mode to document every useful architectural
+branch of this repository until saturation.
 ```
 
 ## Expected behavior
 
 The agent should:
 
-- determine capability before reading any Map-Deep reference;
+- determine capability before reading the exhaustive orchestration reference;
 - avoid reading `orchestration.md` because no subagent creator exists;
 - read Map and its resources directly without building a producer bundle;
 - discover the requested repository scope adaptively;

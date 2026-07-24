@@ -64,7 +64,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
         case = BENCHMARK.load_case("map-deep-repository-no-subagents")
         self.assertEqual("disabled", case["subagents"])
 
-    def test_benchmark_requests_differ_only_by_selected_skill(self):
+    def test_benchmark_requests_select_bounded_or_explicit_exhaustive_mode(self):
         requests = {}
         for label, case_id in BENCHMARK.ARMS:
             case = BENCHMARK.load_case(case_id)
@@ -75,12 +75,16 @@ class MapModeBenchmarkTests(unittest.TestCase):
             request = scenario.split("## User request", 1)[1].split(
                 "## Expected behavior", 1
             )[0]
-            request = request.replace("`$specspine-map-deep`", "`$skill`")
             request = request.replace("`$specspine-map`", "`$skill`")
             requests[label] = " ".join(
                 line for line in request.splitlines() if not line.startswith("```")
             ).strip()
-        self.assertEqual(1, len(set(requests.values())))
+        self.assertEqual(requests["map-deep"], requests["map-deep-no-subagents"])
+        self.assertNotIn("exhaustive", requests["map"].lower())
+        self.assertIn("exhaustive", requests["map-deep"].lower())
+        for request in requests.values():
+            self.assertIn("architectur", request.lower())
+            self.assertIn("repository", request.lower())
         for forbidden in (
             "producer",
             "shallowest",
@@ -90,7 +94,8 @@ class MapModeBenchmarkTests(unittest.TestCase):
             "checker",
             "staging",
         ):
-            self.assertNotIn(forbidden, next(iter(requests.values())).lower())
+            for request in requests.values():
+                self.assertNotIn(forbidden, request.lower())
 
     def test_parallel_arm_limits_threads_out_of_band(self):
         case = BENCHMARK.load_case("map-deep-rolling-small")
@@ -187,7 +192,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
         self.assertIn("per-producer token counters", text)
         self.assertIn("terminal lifecycle notification", text)
         self.assertIn("do not penalize length by itself", text)
-        self.assertIn("Map Deep (no subagents)", text)
+        self.assertIn("Sequential exhaustive Map", text)
         self.assertIn("map-deep-no-subagents.json", text)
 
     def test_direct_map_does_not_report_unused_subagent_configuration(self):

@@ -142,21 +142,6 @@ continues by navigating the same Markdown links directly.
 
 ## Skills
 
-### `specspine-connect`
-
-Initializes or connects a SpecSpine through the project's persistent agent
-instructions. On first connection it asks for the documentation root, offering
-`specspine` as the default, before inspecting any candidate path. It then reads
-an existing root `README.md`, offers its clearly detected language as the
-documentation-language default, and asks for the remaining settings.
-`AGENTS.md` and `auto` remain the instruction-file and accelerator defaults; a
-new or language-ambiguous root defaults to English. Connect creates a minimal
-root index only when one is absent and installs one short, framework-neutral
-retrieval block. Architecture-relevant downstream work is routed through
-`specspine-extract` when installed, with direct Markdown navigation as fallback.
-Connect does not author project architecture, inspect or adapt SDD workflows,
-or generate bindings or other skills.
-
 ### `specspine-grow`
 
 Creates and evolves a SpecSpine for a greenfield project.
@@ -180,30 +165,15 @@ never modifies source code.
 
 ### `specspine-map`
 
-Advances a requested part of an existing brownfield project by one shallowest
-useful mapping step: an initial survey, one or more architectural questions,
-selected subsystems, deepening, refresh, or drift.
-
-It records observed repository evidence separately from intended architectural
-decisions and preserves disagreements.
-
-### `specspine-map-deep`
-
-Orchestrates an explicitly requested deep mapping run over one area, several
-areas, or a whole brownfield repository. It gives each architectural branch an
-isolated producer session with self-contained Map instructions, publishes one
-Map step per checkpoint, resumes that session for the next same-branch step,
-and centrally schedules independent forks. A coverage frontier prevents a
-terminal refusal for one detail from closing its parent survey or sibling
-boundaries. An atomically updated, run-scoped temporary JSON ledger makes that
-frontier durable and blocks finalization while any discovered branch is still
-queued, active, blocked, or only locally saturated. Mechanically valid results
-are published continuously until every discovered branch is independently
-resolved. Successful runs remove the ledger; interrupted runs preserve its
-path for continuation. Without subagents one agent follows the compact
-sequential protocol in the root skill without loading parallel orchestration.
-Its final report recommends running
-`specspine-doctor` separately in a new session.
+Maps observed brownfield architecture. Its default bounded mode advances the
+requested scope by exactly one shallowest useful step: survey, architectural
+question, selected subsystem, deepening, refresh, or drift. An explicit request
+for exhaustive, recursive, or saturation mapping activates exhaustive mode.
+That mode uses branch-affine producers when subagents are available and a
+sequential frontier otherwise, continuing until every discovered branch is
+resolved. Map records repository evidence separately from intended decisions,
+preserves disagreements, and recommends a separate Doctor audit after an
+exhaustive run.
 
 ### `specspine-extract`
 
@@ -216,11 +186,18 @@ documents under a bounded output budget.
 
 ### `specspine-doctor`
 
-Checks reproducible mechanical integrity and performs a separate advisory
-semantic review without guessing architectural intent. Mechanical findings can
-produce PASS/FAIL; semantic findings describe evidence-backed risks and never
-certify architecture validity or completeness. It includes a deterministic
-checker for links, reachability, semantic IDs, and evidence baselines.
+Sets up the persistent project-agent connection and audits or repairs an
+existing SpecSpine. Connection administration asks for the SpecSpine root
+(`specspine` by default) before inspecting exactly that path. If its
+`README.md` exists, Doctor reads it and proposes the detected language as the
+documentation default; a missing or ambiguous README defaults to English.
+After confirmation it creates only a missing root index, manages the bounded
+bootstrap in `AGENTS.md` by default, and runs a mechanical check.
+
+Health mode remains separate. It checks reproducible mechanical integrity and
+performs an advisory semantic review without guessing architectural intent.
+Mechanical findings can produce PASS/FAIL; semantic findings describe
+evidence-backed risks and never certify architecture validity or completeness.
 
 For handoff diagnosis or repair, Doctor may directly invoke
 `specspine-extract`. Grow, Map, and Doctor retain their specialized operations
@@ -229,7 +206,7 @@ not a mandatory intermediary for every internal skill operation.
 
 ### Adapter generator
 
-The six publishable packages under `skills/`, common instructions under
+The four publishable packages under `skills/`, common instructions under
 `shared/references/`, and common deterministic tools under `shared/scripts/`
 are the source of truth. Reused resources live under `shared/` and appear in
 each consumer as relative symbolic links. Shared references are registered in
@@ -253,22 +230,16 @@ installed with the skill and is never required for extraction.
 
 ## Installation
 
-The recommended minimum for downstream use is `specspine-connect` plus
+The recommended minimum for downstream use is `specspine-doctor` plus
 `specspine-extract`:
 
 ```bash
-npx skills add bulbigood/specspine --skill specspine-connect
+npx skills add bulbigood/specspine --skill specspine-doctor
 npx skills add bulbigood/specspine --skill specspine-extract
 ```
 
-Connect installs the persistent retrieval route. If Extract is absent or
+Doctor installs the persistent retrieval route. If Extract is absent or
 cannot run, that route degrades to direct navigation from the Markdown index.
-
-Install `specspine-connect` from this repository:
-
-```bash
-npx skills add bulbigood/specspine --skill specspine-connect
-```
 
 Install `specspine-grow` from this repository:
 
@@ -288,13 +259,6 @@ Install `specspine-map` from this repository:
 npx skills add bulbigood/specspine --skill specspine-map
 ```
 
-Install the explicit large-repository orchestrator together with its mapper:
-
-```bash
-npx skills add bulbigood/specspine --skill specspine-map
-npx skills add bulbigood/specspine --skill specspine-map-deep
-```
-
 Install `specspine-doctor` from this repository:
 
 ```bash
@@ -310,11 +274,9 @@ npx skills add bulbigood/specspine --list
 Install all runtime SpecSpine skills without the maintainer-only generator:
 
 ```bash
-npx skills add bulbigood/specspine --skill specspine-connect
 npx skills add bulbigood/specspine --skill specspine-extract
 npx skills add bulbigood/specspine --skill specspine-grow
 npx skills add bulbigood/specspine --skill specspine-map
-npx skills add bulbigood/specspine --skill specspine-map-deep
 npx skills add bulbigood/specspine --skill specspine-doctor
 ```
 
@@ -325,11 +287,9 @@ git clone https://github.com/bulbigood/specspine.git
 cd specspine
 
 npx skills add . --list
-npx skills add . --skill specspine-connect
 npx skills add . --skill specspine-extract
 npx skills add . --skill specspine-grow
 npx skills add . --skill specspine-map
-npx skills add . --skill specspine-map-deep
 npx skills add . --skill specspine-doctor
 ```
 
@@ -346,13 +306,13 @@ python3 -m unittest discover -s tests/mechanical -p 'test_*.py'
 The skills work through natural-language requests. Users do not need to learn a
 command workflow.
 
-### Connect SpecSpine to project agents
+### Connect SpecSpine to project agents with Doctor
 
 ```text
 Expose this project's SpecSpine to agents through persistent project instructions.
 ```
 
-`specspine-connect` installs one managed bootstrap in the applicable persistent
+`specspine-doctor` installs one managed bootstrap in the applicable persistent
 project-agent instructions. On first connection it first asks for the
 SpecSpine root (`specspine` by default), then inspects only that root. An
 existing root `README.md` supplies the proposed documentation-language default;
@@ -361,7 +321,7 @@ otherwise the default is English. It then asks for the project instruction file
 the configured root `README.md` only if absent and installs the bootstrap. The
 bootstrap prefers `specspine-extract` for
 architecture-relevant downstream retrieval and retains direct index-and-link
-navigation as fallback. Connect creates no concept specifications, discovers
+navigation as fallback. Doctor creates no concept specifications, discovers
 no SDD framework, and does not modify an existing SpecSpine index. `disabled`
 skips acceleration without disabling Extract.
 
@@ -451,17 +411,17 @@ canonical ownership is genuinely ambiguous, or a conflict must be resolved.
 
 ### Map a brownfield repository
 
-Use `specspine-map` for direct mapping:
+Use `specspine-map` without an exhaustive qualifier for one bounded step:
 
 ```text
 Survey this repository and create a high-level SpecSpine.
 ```
 
-Explicitly select `specspine-map-deep` when the requested scope should be
-mapped recursively through independent producers:
+Explicitly request exhaustive mapping when the scope should be mapped
+recursively:
 
 ```text
-Use $specspine-map-deep to map Google OAuth as deeply as repository evidence supports.
+Use $specspine-map to map Google OAuth exhaustively until repository evidence is saturated.
 ```
 
 The same skill can map the whole project when that is the requested scope. It
@@ -714,21 +674,12 @@ specspine/
 │   └── references/
 │       ├── spec-format.md
 │       ├── spec-semantics.md
-│       ├── specspine-connect/
-│       │   └── bootstrap-contract.md
 │       ├── specspine-doctor/
+│       │   ├── connection-contract.md
 │       │   └── review-method.md
 │       └── specspine-grow/
 │           └── examples.md
 ├── skills/
-│   ├── specspine-connect/
-│   │   ├── SKILL.md
-│   │   ├── references/
-│   │   │   └── bootstrap-contract.md -> ../../../shared/references/specspine-connect/bootstrap-contract.md
-│   │   └── assets/
-│   │       └── templates/
-│   │           ├── agent-bootstrap.md
-│   │           └── spine-index.md
 │   ├── specspine-extract/
 │   │   ├── SKILL.md
 │   │   └── scripts/
@@ -747,26 +698,30 @@ specspine/
 │   ├── specspine-map/
 │   │   ├── SKILL.md
 │   │   ├── references/
+│   │   │   ├── bounded-mode.md
 │   │   │   ├── mapping-method.md
+│   │   │   ├── orchestration.md
 │   │   │   ├── spec-format.md -> ../../../shared/references/spec-format.md
 │   │   │   └── spec-semantics.md -> ../../../shared/references/spec-semantics.md
+│   │   ├── scripts/
+│   │   │   ├── bundle_skill.py
+│   │   │   ├── check_spine.py -> ../../../shared/scripts/check_spine.py
+│   │   │   └── frontier.py
 │   │   └── assets/
 │   │       └── templates/
 │   │           ├── architecture-index.md
 │   │           └── specification.md
-│   ├── specspine-map-deep/
-│   │   ├── SKILL.md
-│   │   ├── references/
-│   │   │   └── orchestration.md
-│   │   └── scripts/
-│   │       ├── bundle_skill.py
-│   │       └── check_spine.py -> ../../../shared/scripts/check_spine.py
 │   └── specspine-doctor/
 │   │   ├── SKILL.md
 │   │   ├── references/
+│   │   │   ├── connection-contract.md -> ../../../shared/references/specspine-doctor/connection-contract.md
 │   │   │   ├── spec-format.md -> ../../../shared/references/spec-format.md
 │   │   │   ├── spec-semantics.md -> ../../../shared/references/spec-semantics.md
 │   │   │   └── review-method.md -> ../../../shared/references/specspine-doctor/review-method.md
+│   │   ├── assets/
+│   │   │   └── templates/
+│   │   │       ├── agent-bootstrap.md
+│   │   │       └── spine-index.md
 │   │   └── scripts/
 │   │       └── check_spine.py -> ../../../shared/scripts/check_spine.py
 ├── tools/
@@ -870,12 +825,12 @@ The most important success criterion is:
 ## Roadmap
 
 * [x] Define the SpecSpine principles
-* [x] Create `specspine-connect` for the project-agent bootstrap
+* [x] Add project-agent bootstrap administration to `specspine-doctor`
 * [x] Create `specspine-extract` for context handoffs
 * [x] Create `specspine-grow`
 * [x] Add a repeatable evaluation harness
 * [x] Create `specspine-map` for brownfield projects
-* [x] Split explicit large-repository Map orchestration from atomic mapping
+* [x] Add explicit exhaustive orchestration mode to `specspine-map`
 * [x] Create `specspine-doctor` for integrity diagnosis and guarded repair
 * [x] Coordinate canonical runtime skills through explicit handoff and fallback contracts
 * [x] Add optional mechanical integrity checks

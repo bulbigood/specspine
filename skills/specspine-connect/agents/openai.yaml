@@ -1,4 +1,0 @@
-interface:
-  display_name: "SpecSpine Connect"
-  short_description: "Initialize SpecSpine project integration"
-  default_prompt: "Use $specspine-connect to initialize or connect SpecSpine for this project through persistent agent instructions."

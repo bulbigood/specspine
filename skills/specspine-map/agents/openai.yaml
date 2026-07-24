@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Map"
-  short_description: "Map a repository into architectural memory"
-  default_prompt: "Use $specspine-map to survey this repository and build the smallest useful architectural map."
+  short_description: "Map architecture in bounded or exhaustive mode"
+  default_prompt: "Use $specspine-map to map this repository’s architecture in bounded mode, or exhaustive mode when explicitly requested."

@@ -1,1 +1,0 @@
-../../../shared/references/specspine-connect/bootstrap-contract.md

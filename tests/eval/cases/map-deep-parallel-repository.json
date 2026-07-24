@@ -1,7 +1,7 @@
 {
   "id": "map-deep-parallel-repository",
   "scenario": "tests/scenarios/map-deep-parallel-repository.md",
-  "skill": "skills/specspine-map-deep",
+  "skill": "skills/specspine-map",
   "status": "planned",
   "category": "planned",
   "initial_files": {

@@ -1,4 +1,4 @@
-# Scenario: Map Deep with unknown partial producer capacity
+# Scenario: exhaustive Map with unknown partial producer capacity
 
 ## Existing SpecSpine
 
@@ -10,8 +10,8 @@ producer remains active.
 ## User request
 
 ```text
-Use `$specspine-map-deep` to map the whole repository as deeply as useful
-architectural evidence supports.
+Use `$specspine-map` in exhaustive mode to map the whole repository until every
+useful evidence-backed branch is saturated.
 ```
 
 ## Expected behavior

@@ -10,11 +10,9 @@ from pathlib import Path
 
 
 PACKAGES = (
-    "specspine-connect",
     "specspine-extract",
     "specspine-grow",
     "specspine-map",
-    "specspine-map-deep",
     "specspine-doctor",
 )
 IGNORED_NAMES = {
@@ -23,9 +21,6 @@ IGNORED_NAMES = {
     ".generated-by-specspine-adapter-generator.json",
 }
 SKILL_REFERENCES = {
-    "specspine-connect": {
-        "bootstrap-contract.md": "specspine-connect/bootstrap-contract.md",
-    },
     "specspine-grow": {
         "examples.md": "specspine-grow/examples.md",
         "spec-format.md": "spec-format.md",
@@ -36,15 +31,24 @@ SKILL_REFERENCES = {
         "spec-semantics.md": "spec-semantics.md",
     },
     "specspine-doctor": {
+        "connection-contract.md": "specspine-doctor/connection-contract.md",
         "review-method.md": "specspine-doctor/review-method.md",
         "spec-format.md": "spec-format.md",
         "spec-semantics.md": "spec-semantics.md",
     },
 }
+SKILL_SCRIPTS = {
+    "specspine-map": {
+        "check_spine.py": "check_spine.py",
+    },
+    "specspine-doctor": {
+        "check_spine.py": "check_spine.py",
+    },
+}
 WORD_BUDGETS = {
-    ("specspine-connect", "SKILL.md"): 850,
-    ("specspine-connect", "assets/templates/agent-bootstrap.md"): 60,
-    ("specspine-doctor", "SKILL.md"): 700,
+    ("specspine-doctor", "SKILL.md"): 850,
+    ("specspine-doctor", "assets/templates/agent-bootstrap.md"): 60,
+    ("specspine-map", "SKILL.md"): 850,
 }
 
 
@@ -74,11 +78,16 @@ def check_word_budgets(name: str, files: dict[str, Path]) -> list[str]:
 
 
 def shared_files(repo_root: Path, name: str) -> dict[str, Path]:
-    shared_references = repo_root / "shared" / "references"
-    return {
-        f"references/{filename}": shared_references / shared_relative
+    shared_root = repo_root / "shared"
+    references = {
+        f"references/{filename}": shared_root / "references" / shared_relative
         for filename, shared_relative in SKILL_REFERENCES.get(name, {}).items()
     }
+    scripts = {
+        f"scripts/{filename}": shared_root / "scripts" / shared_relative
+        for filename, shared_relative in SKILL_SCRIPTS.get(name, {}).items()
+    }
+    return references | scripts
 
 
 def expected_link(source: Path, destination: Path) -> str:
@@ -124,7 +133,9 @@ def main() -> int:
     repo_root = args.repo_root.resolve() if args.repo_root else tool_root.parents[1]
     skills_root = repo_root / "skills"
     selected = tuple(args.skill or PACKAGES)
-    selected_reference_skills = tuple(name for name in selected if name in SKILL_REFERENCES)
+    selected_resource_skills = tuple(
+        name for name in selected if name in SKILL_REFERENCES or name in SKILL_SCRIPTS
+    )
 
     errors: list[str] = []
     for name in selected:
@@ -135,9 +146,9 @@ def main() -> int:
         errors.extend(check_word_budgets(name, package_files(skills_root, name)))
 
     sources_by_skill = {
-        name: shared_files(repo_root, name) for name in selected_reference_skills
+        name: shared_files(repo_root, name) for name in selected_resource_skills
     }
-    if selected_reference_skills:
+    if selected_resource_skills:
         unique_sources = {
             source
             for sources in sources_by_skill.values()
@@ -155,7 +166,7 @@ def main() -> int:
             print(error, file=sys.stderr)
         return 1
 
-    for name in selected_reference_skills:
+    for name in selected_resource_skills:
         target = skills_root / name
         sources = sources_by_skill[name]
         if args.check:

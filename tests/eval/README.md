@@ -158,7 +158,7 @@ python3 tests/eval/run.py \
 
 `run.py` does not select a model itself; it executes the command supplied by
 `--agent-command`. The standard Codex adapter defaults the top-level agent
-(the Map Deep orchestrator) to `gpt-5.6-terra` with `medium` reasoning and
+(including exhaustive Map orchestration) to `gpt-5.6-terra` with `medium` reasoning and
 creates an isolated Codex runtime whose official
 `agents.default_subagent_model` and
 `agents.default_subagent_reasoning_effort` settings resolve the selected
@@ -178,7 +178,8 @@ and `planned` has 10 documented non-executable cases.
 
 `map-deep-repository-no-subagents` sets `agents.enabled=false` through the
 isolated Codex runtime rather than merely describing tool absence in the
-prompt. It asserts that Map Deep does not read `orchestration.md`, build a
+prompt. It asserts that sequential exhaustive Map does not read
+`orchestration.md`, build a
 producer bundle, or call collaboration tools, while retaining full recursive
 coverage and early deterministic checks through the root sequential protocol.
 
@@ -201,16 +202,15 @@ benchmark arms use the same
 `tests/eval/fixtures/map-modes-six-area` tree rather than duplicated manifest
 content.
 
-The harness installs Map as a companion only for the Map Deep orchestrator.
-The orchestrator runs the generic skill bundler once. It strips Map
-frontmatter, concatenates the complete Map body, every UTF-8 reference, and
-every UTF-8 Markdown template, saves the bundle, and emits the same text in that
-one tool result. The orchestrator embeds it in each new producer's initial
-command without rereading the generated file. Producers do not load Map
-resources, and same-branch resumptions do not repeat the bundle.
+The exhaustive Map orchestrator runs the bounded-producer bundler once. It
+concatenates the bounded protocol, its UTF-8 references, and every UTF-8
+Markdown template, saves the bundle, and emits the same text in that one tool
+result. The orchestrator embeds it in each new producer's initial command
+without rereading the generated file. Producers do not load Map resources, and
+same-branch resumptions do not repeat the bundle.
 
 The benchmark defaults the top-level agent and parallel producers to
-`gpt-5.6-terra` with medium reasoning. The Map-Deep case asserts the requested
+`gpt-5.6-terra` with medium reasoning. The parallel exhaustive case asserts the requested
 role and the model metadata resolved by the adapter. This avoids depending on
 optional models that may not be exposed by the current Codex runtime.
 
@@ -220,8 +220,8 @@ python3 tests/eval/run.py \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium --subagent-role medium"
 ```
 
-To compare sequential one-step Map invocations with parallel Map Deep and
-Map Deep running with `agents.enabled=false` on the same controlled six-area
+To compare repeated bounded Map invocations with parallel exhaustive Map and
+sequential exhaustive Map running with `agents.enabled=false` on the same controlled six-area
 repository, with all three arms required to reach terminal mapping saturation:
 
 ```bash
@@ -233,9 +233,10 @@ python3 tests/eval/benchmark_map_modes.py \
 All arms use the same top-level model and reasoning effort: Terra/medium by
 default. The Map arm repeats independent one-step invocations in the same
 workspace until a terminal invocation leaves `specspine/**` unchanged. The Map
-Deep arms reach the same endpoint in one top-level invocation. Only parallel
-Map Deep creates producers; those use Terra/medium by default. The sequential
-Map Deep arm disables their tools with `agents.enabled=false`. Model overrides
+exhaustive arms reach the same endpoint in one top-level invocation. Only
+parallel exhaustive Map creates producers; those use Terra/medium by default.
+The sequential exhaustive arm disables their tools with
+`agents.enabled=false`. Model overrides
 apply symmetrically to all top-level arms.
 
 The arms use identical project files and the same final coverage assertions.

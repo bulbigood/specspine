@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bundle one skill body, references, and Markdown templates into one file."""
+"""Bundle the bounded SpecSpine Map producer contract into one file."""
 
 from __future__ import annotations
 
@@ -9,28 +9,20 @@ from pathlib import Path
 
 
 SECTION_SEPARATOR = "\n\n---\n\n"
+PRODUCER_REFERENCE_NAMES = (
+    "bounded-mode.md",
+    "spec-semantics.md",
+    "spec-format.md",
+    "mapping-method.md",
+)
 
 
-def strip_frontmatter(content: str) -> str:
-    lines = content.splitlines(keepends=True)
-    if not lines or lines[0].strip() != "---":
-        return content
-    for index, line in enumerate(lines[1:], 1):
-        if line.strip() == "---":
-            return "".join(lines[index + 1 :]).lstrip("\r\n")
-    raise ValueError("SKILL.md has an unclosed YAML frontmatter block")
-
-
-def reference_files(references: Path) -> list[Path]:
-    files: list[Path] = []
-    for path in sorted(references.rglob("*")):
-        if path.is_dir():
-            continue
+def producer_reference_files(skill_root: Path) -> list[Path]:
+    references = skill_root / "references"
+    files = [references / name for name in PRODUCER_REFERENCE_NAMES]
+    for path in files:
         if not path.is_file():
-            raise ValueError(f"reference is not a readable regular file: {path}")
-        files.append(path)
-    if not files:
-        raise ValueError(f"skill has no reference files: {references}")
+            raise ValueError(f"producer reference is not a readable regular file: {path}")
     return files
 
 
@@ -48,19 +40,11 @@ def template_files(templates: Path) -> list[Path]:
 
 
 def build_bundle(skill_root: Path) -> str:
-    skill = skill_root / "SKILL.md"
-    references = skill_root / "references"
     templates = skill_root / "assets" / "templates"
-    if not skill.is_file():
-        raise ValueError(f"SKILL.md does not exist: {skill}")
-    if not references.is_dir():
-        raise ValueError(f"references directory does not exist: {references}")
-
-    sections = [strip_frontmatter(skill.read_text(encoding="utf-8")).strip()]
-    sections.extend(
+    sections = [
         path.read_text(encoding="utf-8").strip()
-        for path in reference_files(references)
-    )
+        for path in producer_reference_files(skill_root)
+    ]
     sections.extend(
         path.read_text(encoding="utf-8").strip()
         for path in template_files(templates)

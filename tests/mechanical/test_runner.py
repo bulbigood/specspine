@@ -375,7 +375,7 @@ class RunnerTests(unittest.TestCase):
             workspace = Path(directory) / "workspace"
             workspace.mkdir()
             stage = {
-                "skill": "skills/specspine-map-deep",
+                "skill": "skills/specspine-map",
                 "eval_tools": {
                     "check_spine.py": "skills/specspine-doctor/scripts/check_spine.py"
                 },

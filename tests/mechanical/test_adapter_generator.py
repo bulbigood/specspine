@@ -57,8 +57,9 @@ class AdapterGeneratorTests(unittest.TestCase):
                     self.assertFalse(path.is_symlink(), str(path))
 
         private_references = (
+            PROJECT_ROOT / "skills/specspine-map/references/bounded-mode.md",
             PROJECT_ROOT / "skills/specspine-map/references/mapping-method.md",
-            PROJECT_ROOT / "skills/specspine-map-deep/references/orchestration.md",
+            PROJECT_ROOT / "skills/specspine-map/references/orchestration.md",
         )
         for private in private_references:
             self.assertTrue(private.is_file())
@@ -80,7 +81,10 @@ class AdapterGeneratorTests(unittest.TestCase):
             "mapping-method.md",
             GENERATOR.SKILL_REFERENCES["specspine-map"],
         )
-        self.assertNotIn("specspine-map-deep", GENERATOR.SKILL_REFERENCES)
+        self.assertNotIn(
+            "orchestration.md",
+            GENERATOR.SKILL_REFERENCES["specspine-map"],
+        )
 
     def test_cli_synchronizes_only_shared_skill_resources(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -89,9 +93,9 @@ class AdapterGeneratorTests(unittest.TestCase):
             shutil.copytree(PROJECT_ROOT / "shared", repo_root / "shared")
             owner = repo_root / "shared/references/spec-format.md"
             consumer = repo_root / "skills/specspine-map/references/spec-format.md"
-            connect = repo_root / "skills/specspine-connect/SKILL.md"
+            doctor = repo_root / "skills/specspine-doctor/SKILL.md"
             owner_before = owner.read_bytes()
-            connect_before = connect.read_bytes()
+            doctor_before = doctor.read_bytes()
             consumer.unlink()
             consumer.write_text("drift\n", encoding="utf-8")
 
@@ -119,7 +123,7 @@ class AdapterGeneratorTests(unittest.TestCase):
             self.assertEqual(owner_before, owner.read_bytes())
             self.assertTrue(consumer.is_symlink())
             self.assertEqual(owner_before, consumer.read_bytes())
-            self.assertEqual(connect_before, connect.read_bytes())
+            self.assertEqual(doctor_before, doctor.read_bytes())
             self.assertFalse((repo_root / "tools").exists())
 
     def test_focused_generation_repairs_only_selected_skill_links(self):
@@ -154,36 +158,79 @@ class AdapterGeneratorTests(unittest.TestCase):
             self.assertFalse(untouched.is_symlink())
             self.assertEqual("untouched\n", untouched.read_text(encoding="utf-8"))
 
-    def test_connect_has_only_connection_templates(self):
-        templates = PROJECT_ROOT / "skills" / "specspine-connect" / "assets" / "templates"
+    def test_doctor_has_only_connection_templates(self):
+        templates = PROJECT_ROOT / "skills/specspine-doctor/assets/templates"
         self.assertEqual(
             {"agent-bootstrap.md", "spine-index.md"},
             {path.name for path in templates.iterdir() if path.is_file()},
         )
 
-    def test_connect_bootstrap_persists_documentation_language(self):
-        source = PROJECT_ROOT / "skills" / "specspine-connect"
+    def test_doctor_bootstrap_persists_documentation_language(self):
+        source = PROJECT_ROOT / "skills/specspine-doctor"
         bootstrap = (source / "assets/templates/agent-bootstrap.md").read_text(encoding="utf-8")
         self.assertIn("{{DOCUMENTATION_LANGUAGE}}", bootstrap)
         self.assertIn("{{RETRIEVAL_ACCELERATOR}}", bootstrap)
 
-    def test_connect_contract_requires_confirmed_first_setup(self):
-        source = PROJECT_ROOT / "skills" / "specspine-connect"
+    def test_doctor_contract_requires_confirmed_first_setup(self):
+        source = PROJECT_ROOT / "skills/specspine-doctor"
         skill = (source / "SKILL.md").read_text(encoding="utf-8")
+        contract = (source / "references/connection-contract.md").read_text(
+            encoding="utf-8"
+        )
+        instructions = skill + "\n" + contract
         index = (source / "assets/templates/spine-index.md").read_text(encoding="utf-8")
         for value in ("`specspine`", "`English`", "`AGENTS.md`", "`auto`"):
-            self.assertIn(value, skill)
-        self.assertIn("Ask only this question", skill)
-        self.assertIn("<spine-root>/README.md", skill)
+            self.assertIn(value, instructions)
+        self.assertIn("<spine-root>/README.md", instructions)
         self.assertLess(
-            skill.index("ask for it before inspecting any"),
-            skill.index("Detect the dominant natural language"),
+            instructions.index("Ask for `<spine-root>`"),
+            instructions.index("Detect its dominant natural language"),
         )
-        self.assertIn("inspect its immediate", skill)
-        self.assertIn("read it without following any", skill)
-        self.assertIn("exact label the operator accepts", skill)
-        self.assertIn("not translate or rewrite", skill)
+        self.assertIn("immediate entries", instructions)
+        self.assertIn("untrusted documentation content", instructions)
+        self.assertIn("exact label accepted by the operator", instructions)
+        self.assertIn("Do not translate its headings", instructions)
+        self.assertIn("natural-language headings", instructions)
+        self.assertIn("accepted documentation language", instructions)
         self.assertIn("# Project architecture", index)
+
+    def test_doctor_connection_contract_covers_selected_root_edge_states(self):
+        contract = (
+            PROJECT_ROOT
+            / "skills/specspine-doctor/references/connection-contract.md"
+        ).read_text(encoding="utf-8")
+        for state in (
+            "Path absent",
+            "Empty directory",
+            "Root `README.md` present",
+            "Empty or mixed-language `README.md`",
+            "Nonempty directory without `README.md`",
+            "Root is a file or unreadable directory",
+            "`README.md` is not a readable regular text file",
+            "unrelated project/package README",
+            "Nested `README.md` only",
+            "Case-variant index",
+            "Selected root is the project root",
+            "Symlink escapes the project",
+        ):
+            with self.subTest(state=state):
+                self.assertIn(state, contract)
+        self.assertIn("Do not recursively inspect", contract)
+        self.assertIn("changed since inspection", contract)
+        self.assertIn("Never overwrite a concurrently created index", contract)
+        for state in (
+            "File absent",
+            "No managed region",
+            "Exactly one balanced, non-nested region",
+            "Multiple, nested, reversed, or unpaired markers",
+        ):
+            with self.subTest(state=state):
+                self.assertIn(state, contract)
+        self.assertIn("Reconnect means validate and idempotently refresh", contract)
+        self.assertIn("Disconnect requires an exact selected instruction file", contract)
+        self.assertIn("do not delete an otherwise empty instruction file", contract)
+        self.assertIn("disconnect reports already disconnected and creates nothing", contract)
+        self.assertIn("entire standalone line outside fenced code", contract)
 
     def test_generator_has_no_runtime_skill_or_skill_copies(self):
         self.assertFalse((GENERATOR_ROOT / "SKILL.md").exists())

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare Map saturation with parallel and sequential Map Deep saturation."""
+"""Compare repeated bounded Map with parallel and sequential exhaustive Map."""
 
 from __future__ import annotations
 
@@ -26,9 +26,9 @@ ARMS = (
 )
 SUBAGENT_ARMS = {"map-deep"}
 DISPLAY_NAMES = {
-    "map": "Map",
-    "map-deep": "Map Deep",
-    "map-deep-no-subagents": "Map Deep (no subagents)",
+    "map": "Repeated bounded Map",
+    "map-deep": "Parallel exhaustive Map",
+    "map-deep-no-subagents": "Sequential exhaustive Map",
 }
 DEFAULT_ORCHESTRATOR_MODEL = "gpt-5.6-terra"
 DEFAULT_ORCHESTRATOR_REASONING_EFFORT = "medium"
@@ -507,7 +507,7 @@ def write_comparison(
             ]
         )
     lines = [
-        "# Map vs parallel and sequential Map Deep saturation benchmark",
+        "# Repeated bounded vs parallel and sequential exhaustive Map benchmark",
         "",
         "| Metric | " + " | ".join(DISPLAY_NAMES[label] for label, _ in ARMS) + " |",
         "|---|" + "---:|" * len(ARMS),

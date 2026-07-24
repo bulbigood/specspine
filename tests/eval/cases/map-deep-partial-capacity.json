@@ -1,10 +1,9 @@
 {
   "id": "map-deep-partial-capacity",
   "scenario": "tests/scenarios/map-deep-partial-capacity.md",
-  "skill": "skills/specspine-map-deep",
+  "skill": "skills/specspine-map",
   "status": "planned",
   "category": "planned",
-  "companion_skills": ["skills/specspine-map"],
   "initial_tree": "tests/eval/fixtures/map-modes-six-area",
   "assertions": [
     {"type": "glob_count", "glob": "specspine/**/*.md", "min": 6, "max": 12},
