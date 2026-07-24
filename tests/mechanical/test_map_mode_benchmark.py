@@ -36,7 +36,11 @@ class MapModeBenchmarkTests(unittest.TestCase):
         fixture = BENCHMARK.fixture_files(BENCHMARK.load_case(BENCHMARK.ARMS[0][1]))
         self.assertEqual(21, len(fixture))
         self.assertIn("src/webhooks/receiver.js", fixture)
-        self.assertEqual(["map", "map-deep"], [label for label, _ in BENCHMARK.ARMS])
+        self.assertEqual(
+            ["map", "map-deep", "map-deep-no-subagents"],
+            [label for label, _ in BENCHMARK.ARMS],
+        )
+        self.assertEqual({"map-deep"}, BENCHMARK.SUBAGENT_ARMS)
 
     def test_commands_use_one_case_and_serial_execution(self):
         command, report = BENCHMARK.report_command(
@@ -52,7 +56,47 @@ class MapModeBenchmarkTests(unittest.TestCase):
         self.assertIn("--subagent-role weak", rendered)
         self.assertEqual(Path("/reports/map.json"), report)
 
-    def test_both_arms_use_the_same_top_level_model(self):
+    def test_no_subagent_arm_uses_the_disabled_case(self):
+        self.assertIn(
+            ("map-deep-no-subagents", "map-deep-repository-no-subagents"),
+            BENCHMARK.ARMS,
+        )
+        case = BENCHMARK.load_case("map-deep-repository-no-subagents")
+        self.assertEqual("disabled", case["subagents"])
+
+    def test_benchmark_requests_differ_only_by_selected_skill(self):
+        requests = {}
+        for label, case_id in BENCHMARK.ARMS:
+            case = BENCHMARK.load_case(case_id)
+            self.assertNotIn("prompt", case)
+            scenario = (
+                BENCHMARK.ROOT / case["scenario"]
+            ).read_text(encoding="utf-8")
+            request = scenario.split("## User request", 1)[1].split(
+                "## Expected behavior", 1
+            )[0]
+            request = request.replace("`$specspine-map-deep`", "`$skill`")
+            request = request.replace("`$specspine-map`", "`$skill`")
+            requests[label] = " ".join(
+                line for line in request.splitlines() if not line.startswith("```")
+            ).strip()
+        self.assertEqual(1, len(set(requests.values())))
+        for forbidden in (
+            "producer",
+            "shallowest",
+            "no useful node",
+            "orchestration",
+            "bundle",
+            "checker",
+            "staging",
+        ):
+            self.assertNotIn(forbidden, next(iter(requests.values())).lower())
+
+    def test_parallel_arm_limits_threads_out_of_band(self):
+        case = BENCHMARK.load_case("map-deep-rolling-small")
+        self.assertEqual(2, case["subagent_max_concurrent_threads"])
+
+    def test_all_arms_use_the_same_top_level_model(self):
         rendered = []
         for label, case_id in BENCHMARK.ARMS:
             command, _ = BENCHMARK.report_command(
@@ -143,6 +187,8 @@ class MapModeBenchmarkTests(unittest.TestCase):
         self.assertIn("per-producer token counters", text)
         self.assertIn("terminal lifecycle notification", text)
         self.assertIn("do not penalize length by itself", text)
+        self.assertIn("Map Deep (no subagents)", text)
+        self.assertIn("map-deep-no-subagents.json", text)
 
     def test_direct_map_does_not_report_unused_subagent_configuration(self):
         report = {
@@ -167,13 +213,18 @@ class MapModeBenchmarkTests(unittest.TestCase):
     def test_quality_rubric_uses_holistic_scores_and_does_not_reward_brevity(self):
         prompt = BENCHMARK.quality_prompt(
             {"src/a.py": "behavior"},
-            {"specspine/a.md": "long useful architecture"},
-            {"specspine/a.md": "short"},
+            {
+                "A": {"specspine/a.md": "long useful architecture"},
+                "B": {"specspine/a.md": "short"},
+                "C": {"specspine/a.md": "different"},
+            },
         )
         self.assertIn("ordinary engineering judgment", prompt)
         self.assertIn("map every useful architecture responsibility", prompt)
         self.assertIn("Do not penalize length by itself", prompt)
         self.assertIn("Do not reward brevity by itself", prompt)
+        for label in ("A", "B", "C"):
+            self.assertIn(f"Candidate {label}:", prompt)
         for dimension in BENCHMARK.QUALITY_DIMENSIONS:
             self.assertIn(dimension, prompt)
 
@@ -187,18 +238,20 @@ class MapModeBenchmarkTests(unittest.TestCase):
                 {
                     "A": scores,
                     "B": {**scores, "overall": 7},
-                    "preferred": "A",
+                    "C": {**scores, "overall": 8},
+                    "preferred": "C",
                     "rationale": "A is clearer and better grounded.",
                 }
             )
         )
-        self.assertEqual("A", parsed["preferred"])
+        self.assertEqual("C", parsed["preferred"])
         with self.assertRaises(ValueError):
             BENCHMARK.parse_quality_judgment(
                 json.dumps(
                     {
                         "A": {"overall": 9},
                         "B": scores,
+                        "C": scores,
                         "preferred": "A",
                         "rationale": "Incomplete.",
                     }

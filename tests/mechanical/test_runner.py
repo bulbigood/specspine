@@ -957,6 +957,39 @@ class RunnerTests(unittest.TestCase):
             RUNNER.validate_case(missing),
         )
 
+    def test_subagent_thread_limit_validation(self):
+        base = {
+            "id": "subagent-limit",
+            "scenario": "tests/scenarios/initialize-project.md",
+            "status": "executable",
+            "category": "core",
+            "skill": "skills/specspine-grow",
+            "initial_files": {},
+            "assertions": [],
+        }
+        self.assertFalse(any(
+            "subagent_max_concurrent_threads" in error
+            for error in RUNNER.validate_case({
+                **base,
+                "subagent_max_concurrent_threads": 2,
+            })
+        ))
+        self.assertIn(
+            "subagent_max_concurrent_threads must be a positive integer",
+            RUNNER.validate_case({
+                **base,
+                "subagent_max_concurrent_threads": 0,
+            }),
+        )
+        self.assertIn(
+            "subagent_max_concurrent_threads cannot be set when subagents are disabled",
+            RUNNER.validate_case({
+                **base,
+                "subagents": "disabled",
+                "subagent_max_concurrent_threads": 2,
+            }),
+        )
+
     def test_runs_agent_in_isolated_workspace(self):
         with tempfile.TemporaryDirectory() as directory:
             adapter = Path(directory) / "adapter.py"

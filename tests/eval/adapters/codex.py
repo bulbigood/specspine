@@ -1784,38 +1784,6 @@ def prepare_codex_home(runtime_root: Path) -> Path:
     return codex_home
 
 
-def configure_default_subagent(
-    codex_home: Path,
-    profile: str,
-    model: str,
-    reasoning_effort: str,
-) -> Path:
-    """Route argument-free default spawns through an isolated eval profile."""
-    agents = codex_home / "agents"
-    agents.mkdir()
-    target = agents / "default.toml"
-    target.write_text(
-        "\n".join(
-            (
-                'name = "default"',
-                (
-                    'description = "Default evaluation producer using the '
-                    f'{profile} cost profile."'
-                ),
-                f"model = {json.dumps(model)}",
-                f"model_reasoning_effort = {json.dumps(reasoning_effort)}",
-                (
-                    'developer_instructions = "Complete only the bounded '
-                    'assignment from the parent and return a concise result."'
-                ),
-                "",
-            )
-        ),
-        encoding="utf-8",
-    )
-    return target
-
-
 def macos_external_dependencies(executable: Path) -> list[Path]:
     """Return absolute non-system dependencies of a Mach-O file."""
     if sys.platform != "darwin" or not shutil.which("otool"):
@@ -1929,6 +1897,10 @@ def build_codex_command(
     runtime_root: Path,
     retrieval_telemetry: str | None = None,
     force_retrieval_fallback: bool = False,
+    subagents_enabled: bool = True,
+    subagent_max_concurrent_threads: int | None = None,
+    default_subagent_model: str | None = None,
+    default_subagent_reasoning_effort: str | None = None,
 ) -> list[str]:
     runtime_root = runtime_root.resolve()
     private_home = runtime_root / "home"
@@ -1974,7 +1946,7 @@ def build_codex_command(
     environment_config = "{" + ",".join(
         f"{key}={json.dumps(value)}" for key, value in environment.items()
     ) + "}"
-    return [
+    command = [
         "codex",
         "-a",
         "never",
@@ -1998,6 +1970,38 @@ def build_codex_command(
         f"shell_environment_policy.set={environment_config}",
         "--config",
         "allow_login_shell=false",
+    ]
+    if not subagents_enabled:
+        command.extend(
+            (
+                "--config",
+                "agents.enabled=false",
+            )
+        )
+    if subagent_max_concurrent_threads is not None:
+        command.extend(
+            (
+                "--config",
+                "agents.max_concurrent_threads_per_session="
+                f"{subagent_max_concurrent_threads}",
+            )
+        )
+    if subagents_enabled and default_subagent_model is not None:
+        command.extend(
+            (
+                "--config",
+                f"agents.default_subagent_model={json.dumps(default_subagent_model)}",
+            )
+        )
+    if subagents_enabled and default_subagent_reasoning_effort is not None:
+        command.extend(
+            (
+                "--config",
+                "agents.default_subagent_reasoning_effort="
+                f"{json.dumps(default_subagent_reasoning_effort)}",
+            )
+        )
+    command.extend([
         "exec",
         "--strict-config",
         "--json",
@@ -2006,17 +2010,8 @@ def build_codex_command(
         "-C",
         str(root),
         "-",
-    ]
-
-
-def routed_prompt(prompt: str, subagent_role: str) -> str:
-    return (
-        "EVALUATION RUNTIME ROUTING: The isolated runtime maps the default "
-        f"spawned agent to the {subagent_role} profile. For every spawn_agent "
-        "call, use the default agent type and omit agent_type, model, and "
-        "reasoning_effort overrides.\n\n"
-        + prompt
-    )
+    ])
+    return command
 
 
 def enable_retrieval_telemetry(root: Path, level: str) -> None:
@@ -2070,9 +2065,18 @@ def main() -> int:
     subagent_model, subagent_reasoning_effort = SUBAGENT_ROLE_CONFIG[
         args.subagent_role
     ]
+    subagents_enabled = (
+        os.environ.get("SPECSPINE_EVAL_SUBAGENTS", "enabled") != "disabled"
+    )
+    subagent_limit_raw = os.environ.get(
+        "SPECSPINE_EVAL_SUBAGENT_MAX_CONCURRENT_THREADS"
+    )
+    subagent_max_concurrent_threads = (
+        int(subagent_limit_raw) if subagent_limit_raw is not None else None
+    )
     root = Path.cwd()
     selected_retrieval_script = retrieval_script(root)
-    prompt = routed_prompt(sys.stdin.read(), args.subagent_role)
+    prompt = sys.stdin.read()
     candidates = relative_files(root)
     eval_dir = root / ".eval"
     configured_runtime = os.environ.get("SPECSPINE_EVAL_RUNTIME_DIR")
@@ -2098,12 +2102,6 @@ def main() -> int:
         workspace_mountpoints = prepare_sandbox_mountpoints(root, runtime_root)
         stage_runtime_tools(runtime_root)
         codex_home = prepare_codex_home(runtime_root)
-        configure_default_subagent(
-            codex_home,
-            args.subagent_role,
-            subagent_model,
-            subagent_reasoning_effort,
-        )
         (runtime_root / "gitconfig").touch()
         safe_path = sandbox_path(runtime_root)
         profile = f"export PATH={shlex.quote(safe_path)}\n"
@@ -2126,6 +2124,10 @@ def main() -> int:
             runtime_root,
             args.retrieval_telemetry,
             args.retrieval_profile == "fallback",
+            subagents_enabled,
+            subagent_max_concurrent_threads,
+            subagent_model,
+            subagent_reasoning_effort,
         )
         process_environment = os.environ.copy()
         process_environment["CODEX_HOME"] = str(codex_home)
@@ -2252,6 +2254,8 @@ def main() -> int:
                 "subagent_role": args.subagent_role,
                 "subagent_model": subagent_model,
                 "subagent_reasoning_effort": subagent_reasoning_effort,
+                "subagents_enabled": subagents_enabled,
+                "subagent_max_concurrent_threads": subagent_max_concurrent_threads,
                 "cache_scope": "private-per-sample",
                 "runtime": {
                     "adapter_sha256": file_sha256(Path(__file__)),

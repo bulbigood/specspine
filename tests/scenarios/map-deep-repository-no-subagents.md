@@ -1,40 +1,41 @@
-# Scenario: large-repository mapping without subagents
+# Scenario: complete repository mapping without subagents
 
 ## Existing SpecSpine
 
-The large repository has a minimal architecture index. Several runtime,
-data-flow, integration, deployment, and observability areas remain unmapped.
-The execution environment cannot launch subagents.
+The controlled repository has only its runtime composition mapped. Six
+independent responsibilities remain undocumented. The execution runtime does
+not expose any subagent-creation capability.
 
 ## User request
 
 ```text
-Use `$specspine-map-deep` to map the complete repository into SpecSpine.
+Use `$specspine-map-deep` to document the architecture of this repository.
 ```
 
 ## Expected behavior
 
 The agent should:
 
-- use the large-repository mapping protocol despite lacking subagents;
+- determine capability before reading any Map-Deep reference;
+- avoid reading `orchestration.md` because no subagent creator exists;
+- read Map and its resources directly without building a producer bundle;
 - discover the requested repository scope adaptively;
-- create a disposable run root without persistent recovery state;
-- act as one local producer, taking one architectural question at a time;
+- keep pending architectural questions in memory;
 - inspect only evidence relevant to the current question;
-- stage and publish each acceptable candidate with a filesystem
-  move tool;
-- continue from material follow-up questions in producer reports;
+- write one coherent Map step directly to the live Spine;
+- run the deterministic checker after each write and resolve errors early;
+- continue through material follow-up and adjacent questions;
 - avoid holding the whole repository map or all evidence in context;
 - cover material cross-cutting flows before declaring saturation;
 - stop each branch only when Map can add no useful architectural document;
-- normalize once after saturation and report that execution was sequential
-  because subagents were unavailable.
+- normalize once after saturation and recommend Doctor in a new session.
 
 ## Failure indicators
 
-- the agent skips the large-repository protocol;
+- the agent reads `orchestration.md` or builds producer instructions;
+- any collaboration tool is invoked;
 - the agent attempts one unbounded whole-repository source pass;
 - the agent treats a few initial overview nodes as complete mapping;
-- the agent creates a ledger, recovery manifest, or resumable run protocol;
-- the agent manually reconstructs staged files during publication;
+- the agent creates staging, a run root, producer reports, or recovery state;
+- a checker error is left unresolved while mapping continues;
 - normalization or Doctor runs before saturation.

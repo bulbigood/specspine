@@ -43,8 +43,19 @@ scenario `planned`.
 - Include only files required to make the architectural choice realistic.
 - Keep every file short while preserving the ambiguity or boundary under test.
 - Give the agent an explicit task and source boundary, not the expected answer.
-- Do not repeat generic harness, skill, rubric, or safety instructions in the
-  case prompt; the runner and installed skill already provide them.
+- Make `User request` a plausible production operator prompt. Do not copy,
+  paraphrase, summarize, or reinforce workflow, stopping, formatting,
+  orchestration, command, or validation instructions from `SKILL.md` or its
+  references. The installed production skill is the sole source of those rules.
+- Keep skill selection, operator intent, requested scope, accepted decisions,
+  and genuine business constraints in the request. Put runtime capabilities,
+  model routing, concurrency, fixtures, and telemetry in the manifest or
+  adapter configuration, never in prose intended to steer the agent.
+- Do not add fixture-specific hints to a skill or alter its production
+  instructions to satisfy an eval. Test the same skill files shipped to users.
+- Detailed stage prompts are valid only when they represent information a real
+  operator would provide, such as accepted decisions or an authorized evidence
+  boundary; they must not become a walkthrough of the skill.
 - Never expose expected behavior, assertions, failure indicators, or hidden
   scenario prose to the evaluated agent.
 - Use stable fictional data, paths, identifiers, and dates. Avoid wall-clock,
@@ -143,10 +154,11 @@ python3 tests/eval/run.py \
 `run.py` does not select a model itself; it executes the command supplied by
 `--agent-command`. The standard Codex adapter defaults the top-level agent
 (the Map Deep orchestrator) to `gpt-5.6-terra` with `medium` reasoning and
-creates an isolated Codex runtime whose default spawned-agent profile resolves
-the selected `weak` role to `gpt-5.6-luna` with `medium` reasoning. The
-orchestrator therefore spawns the default agent without passing a model or
-`agent_type` override. This example states all defaults explicitly:
+creates an isolated Codex runtime whose official
+`agents.default_subagent_model` and
+`agents.default_subagent_reasoning_effort` settings resolve the selected
+`weak` role to `gpt-5.6-luna` with `medium` reasoning. Model routing is not
+injected into the evaluated prompt. This example states all defaults explicitly:
 
 ```bash
 python3 tests/eval/run.py \
@@ -156,13 +168,20 @@ python3 tests/eval/run.py \
 
 `--case` and `--category` are repeatable and may be combined. There is no
 implicit run-all mode. Planned cases are never executed. Categories are
-disjoint: `core` has 8 executable cases, `extended` has 12, `expensive` has 2,
-and `planned` has 11 documented non-executable cases.
+disjoint: `core` has 8 executable cases, `extended` has 12, `expensive` has 3,
+and `planned` has 10 documented non-executable cases.
+
+`map-deep-repository-no-subagents` sets `agents.enabled=false` through the
+isolated Codex runtime rather than merely describing tool absence in the
+prompt. It asserts that Map Deep does not read `orchestration.md`, build a
+producer bundle, or call collaboration tools, while retaining full recursive
+coverage and early deterministic checks through the root sequential protocol.
 
 `map-deep-rolling-small` makes one top-level call with a production-like request
-to map the whole repository. The prompt exposes only the environmental limit of
-two active producers; it does not reveal the expected branch partition,
-filenames, commands, continuation count, terminal state, or assertions. The
+to map the whole repository. The adapter applies
+`agents.max_concurrent_threads_per_session=2`; the prompt does not describe
+producer management, branch partition, filenames, commands, continuation
+count, terminal state, or assertions. The
 case is isolated in `expensive`, so ordinary `core` and `extended` runs never
 select it. Use one sample during iteration and repeated samples only for release
 calibration.
@@ -197,9 +216,9 @@ python3 tests/eval/run.py \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py"
 ```
 
-To compare sequential one-step Map invocations with orchestrated Map Deep on
-the same controlled six-area repository, with both arms required to reach
-terminal mapping saturation:
+To compare sequential one-step Map invocations with parallel Map Deep and
+Map Deep running with `agents.enabled=false` on the same controlled six-area
+repository, with all three arms required to reach terminal mapping saturation:
 
 ```bash
 report_dir=$(mktemp -d -t specspine-map-modes.XXXXXX)
@@ -207,15 +226,16 @@ python3 tests/eval/benchmark_map_modes.py \
   --output-dir "$report_dir" --samples 1
 ```
 
-Both arms use the same top-level model and reasoning effort: Terra/medium by
+All arms use the same top-level model and reasoning effort: Terra/medium by
 default. The Map arm repeats independent one-step invocations in the same
 workspace until a terminal invocation leaves `specspine/**` unchanged. The Map
-Deep arm reaches the same endpoint in one orchestrated agent tree. Only Map
-Deep creates producers; those use Luna/medium by default. Model overrides apply
-symmetrically to both top-level arms.
+Deep arms reach the same endpoint in one top-level invocation. Only parallel
+Map Deep creates producers; those use Luna/medium by default. The sequential
+Map Deep arm disables their tools with `agents.enabled=false`. Model overrides
+apply symmetrically to all top-level arms.
 
 The arms use identical project files and the same final coverage assertions.
-For each paired sample, one additional blind judge compares the terminal
+For each aligned sample, one additional blind judge compares all three terminal
 generated Spines using architectural fidelity, evidence and epistemic discipline,
 responsibility and boundary clarity, material coverage, coherence/navigation,
 signal-to-noise/usefulness, and holistic overall quality. Length is reported but
@@ -234,7 +254,7 @@ evidence, and sanitized collaboration lifecycle counts
 also records every observed producer thread, model, assignment, prompt
 size/hash, terminal status, spawn-to-terminal observation interval, and every
 collaboration-call duration. Failed command diagnostics retain a bounded output
-excerpt. Judge time and tokens are reported separately and excluded from both
+excerpt. Judge time and tokens are reported separately and excluded from all
 arms. Current Codex JSONL exposes only cumulative token usage for the
 orchestrator plus nested producers; it does not expose exact orchestrator-only
 or per-producer token counters. Producer wall times are observed lifecycle

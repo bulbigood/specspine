@@ -190,7 +190,9 @@ isolated producer session with self-contained Map instructions, publishes one
 Map step per checkpoint, resumes that session for the next same-branch step,
 and centrally schedules independent forks. Mechanically valid results are
 published continuously until every branch is saturated. Without subagents one
-agent performs all roles sequentially.
+agent follows the compact sequential protocol in the root skill without loading
+parallel orchestration. Its final report recommends running `specspine-doctor`
+separately in a new session.
 
 ### `specspine-extract`
 

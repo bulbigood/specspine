@@ -8,9 +8,7 @@ runtime-adjacent responsibilities remain unmapped.
 ## User request
 
 ```text
-Use `$specspine-map-deep` to map the whole repository as deeply as useful
-architectural evidence supports. The execution environment permits at most two
-active mapping producers.
+Use `$specspine-map-deep` to document the architecture of this repository.
 ```
 
 ## Expected behavior
@@ -23,7 +21,8 @@ performs one Map step per checkpoint; the consumer validates and publishes it
 before resuming the same session without resending the Map bundle. Because the
 fixture contains no material deeper nodes, useful starting branches should then
 reach terminal `no useful node`. The orchestrator normalizes once and removes
-the successful disposable run root.
+the successful disposable run root, then recommends an independent
+`$specspine-doctor` review in a new session without invoking it.
 
 ## Failure indicators
 
@@ -35,5 +34,7 @@ the successful disposable run root.
 - producer prompts omit the inline mapping contract or tell workers to load it;
 - any checker finding is bypassed or a candidate is moved after nonzero preflight;
 - the final report omits the literal terminal phrase `no useful node`;
+- Doctor is invoked in the current session or its new-session recommendation is
+  omitted;
 - source or tests change;
 - the disposable run root remains after success.

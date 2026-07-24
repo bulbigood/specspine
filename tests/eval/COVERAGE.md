@@ -10,12 +10,12 @@ classified.
 |---|---:|---:|
 | `specspine-grow` | 9 | 7 |
 | `specspine-map` | 9 | 5 |
-| `specspine-map-deep` | 4 | 1 |
+| `specspine-map-deep` | 4 | 2 |
 | `specspine-connect` | 2 | 2 |
 | `specspine-extract` | 5 | 5 |
 | `specspine-doctor` | 3 | 2 |
 | package generator tooling | 1 | 0 |
-| Total | 33 | 22 |
+| Total | 33 | 23 |
 
 `traceable-rule` is assigned to `specspine-map` because its expected result
 includes repository-backed observations.
@@ -44,7 +44,7 @@ One top-level invocation receives a production-like whole-repository request
 and must keep two available producer slots working across more ready branches
 than slots. Codex JSONL collaboration events verify spawning and same-session
 continuation.
-Both A/B arms copy the same 21-file
+All three benchmark arms copy the same 21-file
 `map-modes-six-area` fixture tree, including six source/test/config evidence
 slices, require the same terminal evidence coverage, and stop only after the
 requested repository scope is saturated. Generated artifacts verify material
@@ -59,12 +59,20 @@ multiple total spawns and resumptions, and an encrypted-message size ratio that
 rejects repeated bundles in continuations. Discovery is adaptive and keeps no
 ledger or recovery manifest. Final assertions verify
 move-based publication, source protection, disposable run-root cleanup, and
-mechanical Spine validity. Document length is observed, not bounded. The paired
-benchmark adds one blind holistic documentation-quality judgment per sample
-pair. The judge is an independent bounded task and therefore defaults to
-Luna/medium; its cost is excluded from both arms. This case normally costs one
+mechanical Spine validity. Document length is observed, not bounded. The
+benchmark adds one blind holistic three-way documentation-quality judgment per
+aligned sample. The judge is an independent bounded task and therefore defaults
+to Luna/medium; its cost is excluded from all arms. This case normally costs one
 Terra/medium orchestrator plus several Luna/medium producer sessions and belongs
 in the explicit `expensive` category.
+
+`map-deep-repository-no-subagents` runs the same six-area fixture with
+`agents.enabled=false`. It verifies that the root capability gate neither reads
+`orchestration.md` nor builds producer instructions, while one Terra/medium
+agent still reaches saturation, runs early deterministic checks, and produces
+the same material evidence coverage. It is the third saturation-benchmark arm,
+so cost, wall time, mechanical results, and blind documentation quality are
+compared directly with Map and parallel Map Deep.
 
 Remaining distinct behavioral gaps are:
 
@@ -74,17 +82,13 @@ Remaining distinct behavioral gaps are:
 - report-driven recursive discovery followed by a terminal no-output Map
   producer;
 - large-Map candidate rejection and path-collision handling;
-- a controlled no-subagent execution mode that proves the same protocol is
-  retained sequentially;
 - unknown partial producer capacity with rejected starts retained as queued
   work;
-- focused large-Map scope that ignores unrelated repository areas;
-- post-saturation normalization without candidate rereads and optional Doctor
-  gating.
+- focused large-Map scope that ignores unrelated repository areas.
 
-Keep broader parallel and no-subagent scenarios planned until they protect one
-of these distinct gaps with observable assertions. Do not add another
-final-file-only large-Map eval.
+Keep broader parallel scenarios planned until they protect one of these
+distinct gaps with observable assertions. Do not add another final-file-only
+large-Map eval.
 
 The executable set is divided by resource cost and necessity:
 
@@ -92,12 +96,12 @@ The executable set is divided by resource cost and necessity:
 |---|---:|---:|---|
 | `core` | 8 | 8 | Minimum behavioral regression set, including atomic staged Map output |
 | `extended` | 12 | 15 | Lifecycle, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
-| `expensive` | 2 | 3–11 per sample | Paired sequential Map saturation and Map Deep saturation benchmark with constrained producer capacity |
-| `planned` | 11 | 0 | Documentation and future redesign only |
+| `expensive` | 3 | 4–12 per sample | Three-way Map/Map Deep saturation benchmark |
+| `planned` | 10 | 0 | Documentation and future redesign only |
 
 The table counts top-level agent invocations. The sequential Map arm uses 2–10
-invocations, stopping at the first unchanged terminal result; Map Deep uses one
-top-level orchestrator and additionally creates multiple producer sessions.
+invocations, stopping at the first unchanged terminal result; each Map Deep arm
+uses one top-level invocation, and only the parallel arm creates producer sessions.
 The separate category prevents ordinary `core` or `extended` runs from
 selecting either expensive arm.
 

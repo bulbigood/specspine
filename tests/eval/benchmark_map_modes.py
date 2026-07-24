@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare sequential Map saturation with orchestrated Map Deep saturation."""
+"""Compare Map saturation with parallel and sequential Map Deep saturation."""
 
 from __future__ import annotations
 
@@ -22,7 +22,14 @@ EVAL_DIR = Path(__file__).resolve().parent
 ARMS = (
     ("map", "map-sequential-saturation-small"),
     ("map-deep", "map-deep-rolling-small"),
+    ("map-deep-no-subagents", "map-deep-repository-no-subagents"),
 )
+SUBAGENT_ARMS = {"map-deep"}
+DISPLAY_NAMES = {
+    "map": "Map",
+    "map-deep": "Map Deep",
+    "map-deep-no-subagents": "Map Deep (no subagents)",
+}
 DEFAULT_ORCHESTRATOR_MODEL = "gpt-5.6-terra"
 DEFAULT_ORCHESTRATOR_REASONING_EFFORT = "medium"
 DEFAULT_SUBAGENT_ROLE = "weak"
@@ -301,15 +308,22 @@ def summarize(report: dict[str, Any], *, uses_subagents: bool = True) -> dict[st
 
 def quality_prompt(
     fixture: dict[str, str],
-    candidate_a: dict[str, str],
-    candidate_b: dict[str, str],
+    candidates: dict[str, dict[str, str]],
 ) -> str:
     rubric = "\n".join(f"- {name}: integer 1-10" for name in QUALITY_DIMENSIONS)
+    labels = tuple(candidates)
+    score_schema = ",".join(
+        f'"{label}":{{"<dimension>":1,"overall":1}}' for label in labels
+    )
+    candidate_text = "\n\n".join(
+        f"Candidate {label}:\n"
+        f"{json.dumps(candidate, ensure_ascii=False, sort_keys=True)}"
+        for label, candidate in candidates.items()
+    )
     return f"""Act as a blind senior architecture-documentation reviewer.
-Compare two terminal SpecSpine outputs produced from the same small repository.
-Both workflows were required to map every useful architecture responsibility
-supported by the repository; one used sequential one-step Map invocations and
-the other used Map Deep. Use the rubric and ordinary engineering judgment.
+Compare three terminal SpecSpine outputs produced from the same small repository.
+All workflows were required to map every useful architecture responsibility
+supported by the repository. Use the rubric and ordinary engineering judgment.
 Judge architectural documentation, not the implementation strategy.
 
 Score:
@@ -324,28 +338,27 @@ that makes the Spine less usable. Do not reward brevity by itself. Mechanical
 validity is already checked separately.
 
 Return exactly one JSON object with this schema and no Markdown:
-{{"A":{{"<dimension>":1,"overall":1}},"B":{{"<dimension>":1,"overall":1}},
-"preferred":"A|B|tie","rationale":"concise evidence-based explanation"}}
+{{{score_schema},"preferred":"{'|'.join((*labels, 'tie'))}",
+"rationale":"concise evidence-based explanation"}}
 
 Repository fixture:
 {json.dumps(fixture, ensure_ascii=False, sort_keys=True)}
 
-Candidate A:
-{json.dumps(candidate_a, ensure_ascii=False, sort_keys=True)}
-
-Candidate B:
-{json.dumps(candidate_b, ensure_ascii=False, sort_keys=True)}
+{candidate_text}
 """
 
 
-def parse_quality_judgment(text: str) -> dict[str, Any]:
+def parse_quality_judgment(
+    text: str,
+    labels: tuple[str, ...] = ("A", "B", "C"),
+) -> dict[str, Any]:
     start = text.find("{")
     end = text.rfind("}")
     if start < 0 or end < start:
         raise ValueError("quality judge returned no JSON object")
     result = json.loads(text[start : end + 1])
     expected_scores = {*QUALITY_DIMENSIONS, "overall"}
-    for label in ("A", "B"):
+    for label in labels:
         scores = result.get(label)
         if not isinstance(scores, dict) or set(scores) != expected_scores:
             raise ValueError(f"quality judge {label} scores do not match rubric")
@@ -356,8 +369,10 @@ def parse_quality_judgment(text: str) -> dict[str, Any]:
             for value in scores.values()
         ):
             raise ValueError(f"quality judge {label} scores must be integers 1..10")
-    if result.get("preferred") not in {"A", "B", "tie"}:
-        raise ValueError("quality judge preference must be A, B, or tie")
+    if result.get("preferred") not in {*labels, "tie"}:
+        raise ValueError(
+            "quality judge preference must be one candidate label or tie"
+        )
     if not isinstance(result.get("rationale"), str) or not result["rationale"].strip():
         raise ValueError("quality judge rationale is missing")
     return result
@@ -375,25 +390,37 @@ def judge_reports(
         }
         for label, report in reports.items()
     }
-    sample_numbers = sorted(set(by_arm["map"]) & set(by_arm["map-deep"]))
+    sample_numbers = sorted(
+        set.intersection(*(set(samples) for samples in by_arm.values()))
+    )
     judgments: list[dict[str, Any]] = []
     token_usage: dict[str, int] = {}
     started = time.monotonic()
     for sample_number in sample_numbers:
+        artifacts = {
+            label: by_arm[label][sample_number].get("artifacts", {})
+            for label, _ in ARMS
+        }
         order_material = json.dumps(
-            {
-                label: by_arm[label][sample_number].get("artifacts", {})
-                for label in ("map", "map-deep")
-            },
+            artifacts,
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
         )
-        order = (
-            ("map", "map-deep")
-            if hashlib.sha256(order_material.encode()).digest()[0] % 2
-            else ("map-deep", "map")
+        seed = hashlib.sha256(order_material.encode()).digest()
+        order = tuple(
+            sorted(
+                artifacts,
+                key=lambda label: hashlib.sha256(
+                    seed + label.encode()
+                ).digest(),
+            )
         )
+        blind_labels = tuple(chr(ord("A") + index) for index in range(len(order)))
+        blind_candidates = {
+            blind_label: artifacts[arm]
+            for blind_label, arm in zip(blind_labels, order, strict=True)
+        }
         with tempfile.TemporaryDirectory(prefix="specspine-map-quality-judge-") as directory:
             workspace = Path(directory)
             completed = subprocess.run(
@@ -401,8 +428,7 @@ def judge_reports(
                 cwd=workspace,
                 input=quality_prompt(
                     fixture,
-                    by_arm[order[0]][sample_number].get("artifacts", {}),
-                    by_arm[order[1]][sample_number].get("artifacts", {}),
+                    blind_candidates,
                 ),
                 text=True,
                 stdout=subprocess.PIPE,
@@ -414,7 +440,7 @@ def judge_reports(
                     f"quality judge failed for sample {sample_number}: "
                     f"{completed.stderr.strip()}"
                 )
-            raw = parse_quality_judgment(completed.stdout)
+            raw = parse_quality_judgment(completed.stdout, blind_labels)
             trace_path = workspace / ".eval" / "trace.json"
             if trace_path.is_file():
                 usage = json.loads(trace_path.read_text(encoding="utf-8")).get(
@@ -424,18 +450,18 @@ def judge_reports(
                     if isinstance(value, int) and not isinstance(value, bool):
                         token_usage[field] = token_usage.get(field, 0) + value
         scores = {
-            order[0]: raw["A"],
-            order[1]: raw["B"],
+            arm: raw[blind_label]
+            for blind_label, arm in zip(blind_labels, order, strict=True)
         }
         preferred = (
             "tie"
             if raw["preferred"] == "tie"
-            else order[0 if raw["preferred"] == "A" else 1]
+            else order[blind_labels.index(raw["preferred"])]
         )
         judgments.append(
             {
                 "sample_number": sample_number,
-                "blind_order": {"A": order[0], "B": order[1]},
+                "blind_order": dict(zip(blind_labels, order, strict=True)),
                 "scores": scores,
                 "preferred": preferred,
                 "rationale": raw["rationale"],
@@ -460,7 +486,7 @@ def write_comparison(
     judge_cost: dict[str, Any] | None = None,
 ) -> None:
     summaries = {
-        label: summarize(report, uses_subagents=label == "map-deep")
+        label: summarize(report, uses_subagents=label in SUBAGENT_ARMS)
         for label, report in reports.items()
     }
     judgments = judgments or []
@@ -481,15 +507,18 @@ def write_comparison(
             ]
         )
     lines = [
-        "# Sequential Map saturation vs Map Deep saturation benchmark",
+        "# Map vs parallel and sequential Map Deep saturation benchmark",
         "",
-        "| Metric | Map | Map Deep |",
-        "|---|---:|---:|",
+        "| Metric | " + " | ".join(DISPLAY_NAMES[label] for label, _ in ARMS) + " |",
+        "|---|" + "---:|" * len(ARMS),
     ]
     for field in next(iter(summaries.values())):
         lines.append(
-            f"| {field} | {format_value(summaries['map'][field])} | "
-            f"{format_value(summaries['map-deep'][field])} |"
+            f"| {field} | "
+            + " | ".join(
+                format_value(summaries[label][field]) for label, _ in ARMS
+            )
+            + " |"
         )
     lines.extend((
         "",
@@ -508,7 +537,8 @@ def write_comparison(
         "thread, model, assignment, prompt size/hash, status, and collaboration-call "
         "duration.",
         "",
-        "Raw reports: `map.json`, `map-deep.json`.",
+        "Raw reports: `map.json`, `map-deep.json`, and "
+        "`map-deep-no-subagents.json`.",
         "",
     ))
     if judge_cost:

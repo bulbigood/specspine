@@ -182,6 +182,7 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         "subagent_role": trace.get("subagent_role"),
         "subagent_model": trace.get("subagent_model"),
         "subagent_reasoning_effort": trace.get("subagent_reasoning_effort"),
+        "subagents_enabled": trace.get("subagents_enabled"),
         "cache_scope": trace.get("cache_scope"),
         "runtime": trace.get("runtime") if isinstance(trace.get("runtime"), dict) else {},
         "environment_errors": trace.get("environment_errors", []),
@@ -413,6 +414,19 @@ def validate_case(case: dict[str, Any]) -> list[str]:
         errors.append("planned cases must use category planned")
     if case.get("status") == "executable" and case.get("category") == "planned":
         errors.append("executable cases cannot use category planned")
+    if case.get("subagents", "enabled") not in {"enabled", "disabled"}:
+        errors.append("subagents must be enabled or disabled")
+    subagent_limit = case.get("subagent_max_concurrent_threads")
+    if subagent_limit is not None and (
+        not isinstance(subagent_limit, int)
+        or isinstance(subagent_limit, bool)
+        or subagent_limit < 1
+    ):
+        errors.append("subagent_max_concurrent_threads must be a positive integer")
+    if subagent_limit is not None and case.get("subagents") == "disabled":
+        errors.append(
+            "subagent_max_concurrent_threads cannot be set when subagents are disabled"
+        )
     if not isinstance(case.get("runs", 1), int) or case.get("runs", 1) < 1:
         errors.append("runs must be a positive integer")
     repeat = case.get("repeat_until_unchanged")
@@ -1900,6 +1914,11 @@ def run_case(
         env["SPECSPINE_EVAL_SAMPLE"] = str(sample_number)
         env["SPECSPINE_EVAL_WORKSPACE"] = str(temp)
         env["SPECSPINE_EVAL_PROFILE"] = execution_profile(case)
+        env["SPECSPINE_EVAL_SUBAGENTS"] = str(case.get("subagents", "enabled"))
+        if "subagent_max_concurrent_threads" in case:
+            env["SPECSPINE_EVAL_SUBAGENT_MAX_CONCURRENT_THREADS"] = str(
+                case["subagent_max_concurrent_threads"]
+            )
         if "stages" in case:
             stage_count = len(case["stages"])
             stage_label = "stage" if stage_count == 1 else "stages"

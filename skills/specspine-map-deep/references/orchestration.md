@@ -8,8 +8,8 @@ Map-Deep changes execution strategy, not mapping semantics.
 
 Repository evidence may establish observations and support inferences, but
 never establishes accepted decisions or constraints. Do not modify production
-code, claim complete code/spec conformance, or apply semantic Doctor repairs
-without approval.
+code, claim complete code/spec conformance, or perform semantic repair.
+SpecSpine Doctor is outside this run: never invoke it from Map-Deep.
 
 Resolve the repository root and `<spine-root>`. Read the Spine index and
 relevant specifications, then discover evidence adaptively for the requested
@@ -163,12 +163,11 @@ Reserved existing destinations: <relative-paths-or-none>
 Architectural branch: <branch-question>
 ```
 
-Use local execution only with observed evidence that no producer can start:
-the environment exposes no collaboration/subagent tool, or an actual start
-attempt returned failure or no addressable handle. Never infer unavailability
-without one of those observations. Then execute the same branch protocol
-locally; the current agent performs orchestrator, producer, and consumer roles,
-and only concurrency changes.
+This protocol is entered only after the root capability gate observes a
+subagent-creation mechanism. If actual start attempts all fail or return no
+addressable handle, execute the same branch protocol locally; the current agent
+performs orchestrator, producer, and consumer roles, and only concurrency
+changes. Never infer runtime failure without an attempted start.
 
 ## Consume checkpoints and resume
 
@@ -238,8 +237,8 @@ remains, and every requested branch tree is complete. Do not stop at a
 predetermined document count or shallow overview coverage, and do not invent
 branches solely to prove depth.
 
-Do not invoke SpecSpine Doctor, reorganize the live Spine, or perform final
-normalization while mapping branches remain.
+Do not reorganize the live Spine or perform final normalization while mapping
+branches remain.
 
 ## Normalize once
 
@@ -258,7 +257,6 @@ reports, published destinations, the Spine index, and relevant overviews:
 After success, remove the exact disposable run root with `find <run-root> -depth
 -delete`; never try `rm -rf`. Report scope, published files, relationships, exact
 `no useful node` reasons, unresolved drift, limitations, normalization, and checks.
-The final report must contain the literal phrase `no useful node`.
-
-Run SpecSpine Doctor only when the operator explicitly requests a post-map
-semantic review; apply repairs after final checks and only with approval.
+The final report must contain the literal phrase `no useful node` and recommend
+that the operator run `$specspine-doctor` in a new session for an independent
+integrity and semantic review. Do not invoke Doctor in the current session.

@@ -26,22 +26,20 @@ class CodexAdapterTests(unittest.TestCase):
             ADAPTER.SUBAGENT_ROLE_CONFIG["weak"],
         )
 
-    def test_routes_subagents_by_role_without_direct_model_override(self):
-        prompt = ADAPTER.routed_prompt("task", "weak")
-        self.assertIn("default spawned agent to the weak profile", prompt)
-        self.assertIn("omit agent_type, model, and reasoning_effort", prompt)
-        self.assertTrue(prompt.endswith("\n\ntask"))
-
-    def test_configures_isolated_default_subagent_profile(self):
-        with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
-            target = ADAPTER.configure_default_subagent(
-                home, "weak", "gpt-5.6-luna", "medium"
-            )
-            text = target.read_text(encoding="utf-8")
-            self.assertIn('name = "default"', text)
-            self.assertIn('model = "gpt-5.6-luna"', text)
-            self.assertIn('model_reasoning_effort = "medium"', text)
+    def test_codex_command_configures_subagents_without_prompt_steering(self):
+        command = ADAPTER.build_codex_command(
+            "agent-model",
+            "medium",
+            Path("/workspace"),
+            Path("/runtime"),
+            default_subagent_model="gpt-5.6-luna",
+            default_subagent_reasoning_effort="medium",
+        )
+        self.assertIn('agents.default_subagent_model="gpt-5.6-luna"', command)
+        self.assertIn(
+            'agents.default_subagent_reasoning_effort="medium"', command
+        )
+        self.assertFalse(hasattr(ADAPTER, "routed_prompt"))
 
     def test_run_codex_timestamps_each_stdout_line(self):
         command = [
@@ -1227,6 +1225,30 @@ PATCH"""
             item for item in command if item.startswith("shell_environment_policy.set=")
         )
         self.assertIn('SPECSPINE_CACHE_DIR="/dev/null"', environment_argument)
+
+    def test_codex_command_can_remove_subagent_capability(self):
+        command = ADAPTER.build_codex_command(
+            "agent-model",
+            "medium",
+            Path("/workspace"),
+            Path("/runtime"),
+            subagents_enabled=False,
+        )
+        self.assertIn("agents.enabled=false", command)
+        self.assertLess(command.index("agents.enabled=false"), command.index("exec"))
+        self.assertNotIn("--disable", command)
+
+    def test_codex_command_can_limit_subagent_threads_without_prompt_instructions(self):
+        command = ADAPTER.build_codex_command(
+            "agent-model",
+            "medium",
+            Path("/workspace"),
+            Path("/runtime"),
+            subagent_max_concurrent_threads=2,
+        )
+        setting = "agents.max_concurrent_threads_per_session=2"
+        self.assertIn(setting, command)
+        self.assertLess(command.index(setting), command.index("exec"))
 
     def test_codex_command_configures_out_of_band_retrieval_telemetry(self):
         command = ADAPTER.build_codex_command(

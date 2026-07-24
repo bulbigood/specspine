@@ -9,10 +9,7 @@ webhook ingestion are the only material unmapped responsibilities.
 ## User request
 
 ```text
-Use `$specspine-map` to advance the architecture map of this whole repository
-by exactly one shallowest useful mapping step. If the existing SpecSpine
-already captures every useful architectural responsibility supported by the
-repository, create or change nothing and report the terminal reason.
+Use `$specspine-map` to document the architecture of this repository.
 ```
 
 ## Expected behavior

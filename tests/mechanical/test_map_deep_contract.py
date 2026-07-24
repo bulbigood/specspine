@@ -42,15 +42,19 @@ class MapDeepContractTests(unittest.TestCase):
         self.assertNotIn("Do not use for a focused survey", self.deep)
         self.assertNotIn("complete large-repository Map run", self.deep)
 
-    def test_entrypoint_routes_without_repeating_orchestration(self):
-        self.assertIn("sole Map-Deep execution protocol", self.deep)
-        self.assertLessEqual(len(self.deep.splitlines()), 30)
+    def test_entrypoint_gates_parallel_reference_before_discovery(self):
+        normalized = " ".join(self.deep.split())
+        self.assertIn("Before reading any reference or starting discovery", normalized)
+        self.assertIn("Do not probe capability by starting a subagent", normalized)
+        self.assertIn("If a subagent-creation mechanism is exposed", normalized)
+        self.assertIn("If no subagent-creation mechanism is exposed", normalized)
+        self.assertIn("do not read that reference", normalized)
+        self.assertLessEqual(len(self.deep.splitlines()), 70)
         for detail in (
             "private staging root",
             "`Current-branch continuation`",
             "--candidates",
             "Immediately dispatch ready work",
-            "When subagents are unavailable",
         ):
             with self.subTest(detail=detail):
                 self.assertNotIn(detail, self.deep)
@@ -243,6 +247,9 @@ class MapDeepContractTests(unittest.TestCase):
             "no useful node",
             "identity-sessions.md",
             "webhook-ingestion.md",
+            "producer",
+            "shallowest",
+            "orchestration",
         ):
             with self.subTest(leak=leak):
                 self.assertNotIn(leak, request)
@@ -262,22 +269,44 @@ class MapDeepContractTests(unittest.TestCase):
         self.assertIn("find <run-root> -depth -delete", normalized)
         self.assertNotIn("`rm -rf <run-root>`", normalized)
 
-    def test_sequential_fallback_changes_only_concurrency(self):
-        normalized = " ".join((self.deep + self.protocol).split())
-        self.assertIn("only with observed evidence that no producer can start", normalized)
-        self.assertIn("actual start attempt returned failure", normalized)
-        self.assertIn("Never infer unavailability", normalized)
-        self.assertIn("orchestrator, producer, and consumer roles", normalized)
-        self.assertIn("only concurrency changes", normalized)
+    def test_no_capability_uses_root_only_sequential_protocol(self):
+        normalized_root = " ".join(self.deep.split())
+        normalized_parallel = " ".join(self.protocol.split())
+        for statement in (
+            "Read the complete `specspine-map` skill and its required resources directly",
+            "do not build an instruction bundle",
+            "Perform one shallowest useful Map step at a time directly against the live Spine",
+            "After every coherent write",
+            "<map-deep-skill-root>/scripts/check_spine.py",
+            "Do not create staging, a run root, producer reports, or recovery state",
+            "When no actionable question remains",
+        ):
+            with self.subTest(statement=statement):
+                self.assertIn(statement, normalized_root)
+        self.assertIn("root capability gate", normalized_parallel)
+        self.assertIn("actual start attempts all fail", normalized_parallel)
+        self.assertIn("Never infer runtime failure without an attempted start", normalized_parallel)
+        self.assertIn("orchestrator, producer, and consumer roles", normalized_parallel)
+        self.assertIn("only concurrency changes", normalized_parallel)
+        self.assertNotIn(
+            "environment exposes no collaboration/subagent tool",
+            normalized_parallel,
+        )
 
-    def test_normalization_and_doctor_happen_only_after_saturation(self):
-        normalized = " ".join(self.protocol.split())
-        self.assertIn("Do not invoke SpecSpine Doctor", normalized)
-        self.assertIn("After saturation, perform one sequential navigation pass", normalized)
-        self.assertIn("Add every new document to curated `README.md` navigation", normalized)
-        self.assertIn("Run the full deterministic checker once", normalized)
-        self.assertIn("final report must contain the literal phrase `no useful node`", normalized)
-        self.assertIn("only when the operator explicitly requests", normalized)
+    def test_normalization_stays_internal_and_doctor_is_a_new_session_handoff(self):
+        normalized_root = " ".join(self.deep.split())
+        normalized_parallel = " ".join(self.protocol.split())
+        self.assertIn("SpecSpine Doctor is outside this run", normalized_parallel)
+        self.assertIn("never invoke it from Map-Deep", normalized_parallel)
+        self.assertIn("After saturation, perform one sequential navigation pass", normalized_parallel)
+        self.assertIn("Add every new document to curated `README.md` navigation", normalized_parallel)
+        self.assertIn("Run the full deterministic checker once", normalized_parallel)
+        self.assertIn("final report must contain the literal phrase `no useful node`", normalized_parallel)
+        self.assertIn("run `$specspine-doctor` in a new session", normalized_parallel)
+        self.assertIn("Do not invoke Doctor in the current session", normalized_parallel)
+        self.assertIn("recommend `$specspine-doctor` in a new session", normalized_root)
+        self.assertIn("Never invoke Doctor during Map-Deep", normalized_root)
+        self.assertNotIn("only when the operator explicitly requests", normalized_parallel)
         self.assertLessEqual(len(self.protocol.splitlines()), 265)
 
 

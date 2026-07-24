@@ -2,21 +2,27 @@
   "id": "map-deep-repository-no-subagents",
   "scenario": "tests/scenarios/map-deep-repository-no-subagents.md",
   "skill": "skills/specspine-map-deep",
-  "status": "planned",
-  "category": "planned",
-  "initial_files": {
-    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Runtime](runtime.md)\n\n## Mapping status\n\n- High-level map: partial\n",
-    "specspine/runtime.md": "# Runtime\n\nOwns process startup and request serving.\n",
-    "src/runtime/server.js": "export function start() { return 'ready'; }\n",
-    "src/jobs/worker.js": "export function consume(job) { return job.run(); }\n",
-    "src/data/store.js": "export function save(record) { return record; }\n",
-    "deploy/service.yaml": "kind: Deployment\n",
-    "config/telemetry.yaml": "tracing: true\n"
-  },
+  "status": "executable",
+  "category": "expensive",
+  "timeout_seconds": 1200,
+  "subagents": "disabled",
+  "companion_skills": ["skills/specspine-map"],
+  "report_artifacts": ["specspine/**/*.md"],
+  "initial_tree": "tests/eval/fixtures/map-modes-six-area",
   "assertions": [
-    {"type": "glob_count", "glob": "specspine/**/*.md", "min": 3, "max": 12},
-    {"type": "unchanged", "paths": ["src/**", "deploy/**", "config/**"]},
+    {"type": "trace_equals", "field": "subagents_enabled", "value": false},
+    {"type": "collab_spawn_count", "max": 0},
+    {"type": "collab_tools_absent", "values": ["spawn_agent", "followup_task", "wait", "wait_agent"]},
+    {"type": "command_excludes", "values": ["orchestration.md", "bundle_skill.py", "--candidates", "producer-instructions.md"]},
+    {"type": "command_includes", "value": "check_spine.py"},
+    {"type": "response_contains", "value": "no useful node"},
+    {"type": "response_contains", "value": "$specspine-doctor"},
+    {"type": "path_absent", "path": ".specspine-map-run"},
+    {"type": "glob_count", "glob": "specspine/**/*.md", "min": 6, "max": 12},
+    {"type": "glob_contains", "glob": "specspine/**/*.md", "values": ["src/identity/session.js", "config/identity.json", "src/jobs/runner.js", "config/jobs.json", "src/telemetry/exporter.js", "config/telemetry.json", "src/notifications/router.js", "config/notifications.json", "src/search/index.js", "config/search.json", "src/webhooks/receiver.js", "config/webhooks.json"]},
+    {"type": "unchanged", "paths": ["src/**", "tests/**", "config/**"]},
     {"type": "changed_only", "paths": ["specspine/**"]},
-    {"type": "markdown_links_valid", "glob": "specspine/**/*.md"}
+    {"type": "markdown_links_valid", "glob": "specspine/**/*.md"},
+    {"type": "semantic_ids_valid", "glob": "specspine/**/*.md"}
   ]
 }
