@@ -23,6 +23,10 @@ the system shape and material top-level branches, then deepen each branch.
 Prefer stable responsibilities, boundaries, interfaces, runtime and data
 flows, persistence, integrations, configuration, deployment, security,
 failure behavior, and observability over directory or implementation detail.
+Repository listings, registries, manifests, route tables, and composition roots
+may be enumerated internally to discover the coverage frontier. The prohibition
+on mirroring source structure applies to published specifications, not to
+discovery or scheduling.
 
 ## Own the branch ToDo
 
@@ -61,11 +65,24 @@ already documented branches. The orchestrator alone accepts forks, resolves
 prerequisites and namespace ownership, and starts queued branches when slots
 are free.
 
+Seed and extend the branch ToDo from the orchestrator's own inspected evidence
+as well as producer proposals; producer proposals never define the completeness
+of the requested scope. For every broad survey branch, maintain a coverage
+frontier of directly observed independent responsibilities. Reconcile each
+frontier item to a queued, active, blocked, locally saturated, complete, already
+documented, or independently refused branch. Keep this control state in memory,
+not in the repository.
+
 A same-boundary continuation remains with its current producer. A materially
 independent responsibility or boundary is a fork candidate for a new producer.
-A branch becomes `locally saturated` only after its owner reaches a terminal
-Map refusal. It becomes `complete` only when it is locally saturated and every
-accepted child branch is complete.
+A terminal Map refusal closes only the exact branch question assigned to that
+producer; it never closes the parent survey or sibling boundaries. A focused
+branch becomes `locally saturated` only after its owner reaches that exact
+refusal. A broad survey branch cannot become `locally saturated` until its owner
+also reports every directly observed material child boundary and the
+orchestrator reconciles each one into the branch ToDo. A branch becomes
+`complete` only when it is locally saturated and every accepted child branch is
+complete.
 
 ## Prepare producer sessions
 
@@ -114,7 +131,9 @@ Own only the assigned architectural branch. Perform exactly one Map step in
 this turn, then return a checkpoint immediately. Do not execute the reported
 continuation in the same turn. Keep same-boundary continuations in this session.
 Propose a fork only for a material independent responsibility or boundary that
-another producer can own.
+another producer can own. Report every such boundary directly observed during
+the current step, not only the most promising one. A refusal for one proposed
+detail does not answer other children of a broader survey.
 
 Create publish-ready Markdown only under the writable output root. Keep source,
 tests, configuration, the live Spine, and every other staging root read-only.
@@ -141,6 +160,11 @@ Return a compact checkpoint report containing only:
 - mapped responsibilities, boundaries, and relationships;
 - related paths and navigation targets, marking replacement reservations;
 - `Current-branch continuation`: the next same-boundary work, or `none`;
+- `Coverage frontier`: every directly observed material independent boundary
+  outside the next same-boundary continuation, including children found inside
+  a broad survey, marking it as a fork candidate, already documented, blocked,
+  or independently refused with its evidence-based reason; use `none` only when
+  inspected evidence exposes no such boundary;
 - `Fork candidates`: each independent branch question, reason, prerequisite,
   and suggested namespace, or `none`;
 - unresolved inferences or drift;
@@ -189,6 +213,8 @@ replace an unreserved path, or add an arbitrary numeric suffix.
 Classify the report after publication:
 
 - accept conflict-free reservation requests and keep published paths reserved;
+- reconcile every `Coverage frontier` item against the branch ToDo and existing
+  documented branches; enqueue every actionable unowned boundary;
 - enqueue accepted `Fork candidates` as child branches;
 - retain blocked work with its prerequisite or authority requirement;
 - mark the branch locally saturated only after terminal `no useful node`.
@@ -197,6 +223,13 @@ Treat any checkpoint that published a candidate as `continuing`, regardless of
 its reported status or missing continuation. Resume that same producer with a
 terminal-depth assignment; only a later candidate-free `no useful node`
 checkpoint may release the session as locally saturated.
+
+Reject a broad survey's `locally saturated` status when its mapped
+responsibilities or relationships expose material independent boundaries that
+are absent from its coverage frontier. Ask the same producer for the missing
+frontier classification; do not ask it to map those sibling branches. Treat
+`no useful node` as scoped to the exact assigned question and stated refusal
+reason, never as proof that its parent or siblings lack useful nodes.
 
 Resume a continuing branch through the environment's native follow-up
 mechanism. Send only the next same-branch assignment and relevant paths
@@ -236,6 +269,11 @@ The run is saturated only when no producer is active, no actionable branch
 remains, and every requested branch tree is complete. Do not stop at a
 predetermined document count or shallow overview coverage, and do not invent
 branches solely to prove depth.
+Before normalization, audit the in-memory branch ToDo against the coverage
+frontiers and discovery evidence already inspected. A broad overview that names
+independently evolving responsibilities without reconciled child dispositions
+is remaining actionable work, even when every current producer has returned
+`no useful node`.
 
 Do not reorganize the live Spine or perform final normalization while mapping
 branches remain.

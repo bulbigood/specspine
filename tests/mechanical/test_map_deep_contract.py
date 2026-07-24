@@ -149,6 +149,27 @@ class MapDeepContractTests(unittest.TestCase):
             with self.subTest(statement=statement):
                 self.assertIn(statement, normalized)
 
+    def test_broad_surveys_cannot_vacuously_saturate(self):
+        normalized = " ".join((self.deep + self.protocol).split())
+        for statement in (
+            "coverage frontier",
+            "producer proposals never define the completeness",
+            "A terminal Map refusal closes only the exact branch question",
+            "A broad survey branch cannot become `locally saturated`",
+            "Report every such boundary directly observed",
+            "`Coverage frontier`",
+            "reconcile every `Coverage frontier` item",
+            "Treat `no useful node` as scoped to the exact assigned question",
+            "audit the in-memory branch ToDo against the coverage frontiers",
+        ):
+            with self.subTest(statement=statement):
+                self.assertIn(statement, normalized)
+        self.assertIn(
+            "The prohibition on mirroring source structure applies to published "
+            "specifications, not to discovery or scheduling",
+            normalized,
+        )
+
     def test_unknown_and_partial_capacity_are_transactional(self):
         normalized = " ".join(self.protocol.split())
         for statement in (
@@ -311,7 +332,7 @@ class MapDeepContractTests(unittest.TestCase):
         self.assertIn("recommend `$specspine-doctor` in a new session", normalized_root)
         self.assertIn("Never invoke Doctor during Map-Deep", normalized_root)
         self.assertNotIn("only when the operator explicitly requests", normalized_parallel)
-        self.assertLessEqual(len(self.protocol.splitlines()), 265)
+        self.assertLessEqual(len(self.protocol.splitlines()), 310)
 
 
 if __name__ == "__main__":

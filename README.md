@@ -188,11 +188,13 @@ Orchestrates an explicitly requested deep mapping run over one area, several
 areas, or a whole brownfield repository. It gives each architectural branch an
 isolated producer session with self-contained Map instructions, publishes one
 Map step per checkpoint, resumes that session for the next same-branch step,
-and centrally schedules independent forks. Mechanically valid results are
-published continuously until every branch is saturated. Without subagents one
-agent follows the compact sequential protocol in the root skill without loading
-parallel orchestration. Its final report recommends running `specspine-doctor`
-separately in a new session.
+and centrally schedules independent forks. A coverage frontier prevents a
+terminal refusal for one detail from closing its parent survey or sibling
+boundaries. Mechanically valid results are published continuously until every
+discovered branch is independently resolved. Without subagents one agent
+follows the compact sequential protocol in the root skill without loading
+parallel orchestration. Its final report recommends running
+`specspine-doctor` separately in a new session.
 
 ### `specspine-extract`
 

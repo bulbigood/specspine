@@ -33,11 +33,16 @@ Map the requested scope iteratively rather than stopping after one Map step:
 
 1. Resolve the repository and Spine roots, existing intent, and evidence
    baseline. Discover material architectural branches adaptively within the
-   operator's scope and keep the remaining questions in memory.
+   operator's scope and keep an in-memory coverage frontier of every directly
+   observed independent responsibility and its disposition.
 2. Perform one shallowest useful Map step at a time directly against the live
    Spine. Continue the same boundary and enqueue material adjacent boundaries
    until each reaches Map's terminal refusal. Do not stop at a document count,
    shallow overview, or initial branch list.
+   A terminal refusal closes only its exact architectural question; it never
+   closes its parent survey or sibling boundaries. Do not saturate a broad
+   survey until every frontier item is mapped, already documented, blocked, or
+   refused independently with evidence.
 3. After every coherent write, run
    `python3 <map-deep-skill-root>/scripts/check_spine.py <spine-root> --json`.
    Resolve every error before continuing; retain warnings and notes for final
