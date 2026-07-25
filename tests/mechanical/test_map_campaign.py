@@ -77,7 +77,23 @@ class MapCampaignTests(unittest.TestCase):
             ),
             "mapped_responsibilities": ["Identity boundary"],
             "relationships": [],
-            "source_coverage": [],
+            "source_coverage": [
+                {
+                    "area": "src/identity.py",
+                    "classification": "summarized",
+                    "reason": "Owned by the identity specification",
+                }
+            ],
+            "quality_gate": {
+                name: {"status": "pass", "reason": f"{name} is sufficient"}
+                for name in (
+                    "ownership_coverage",
+                    "orientation",
+                    "information_gain",
+                    "change_utility",
+                    "non_duplication",
+                )
+            },
             "continuation": "Inspect tokens" if candidates else None,
             "coverage_frontier": (
                 [
@@ -237,11 +253,153 @@ class MapCampaignTests(unittest.TestCase):
             json.loads(self.ledger.read_text())["branches"]["identity"]["state"],
         )
 
+    def test_candidate_can_publish_and_locally_saturate_atomically(self):
+        self.write_candidate()
+        checker = self.checker("import json\nprint(json.dumps([]))\n")
+        payload = self.payload(frontier=False)
+        payload["status"] = "publish_and_locally_saturate"
+        payload["continuation"] = None
+        payload["terminal_reason"] = (
+            "no useful node: candidate passes the complete local quality gate"
+        )
+
+        receipt = self.accept(checker, payload)
+
+        self.assertEqual("locally_saturated", receipt["branch_state"])
+        self.assertTrue((self.spine / "domains/identity.md").is_file())
+
+    def test_terminal_quality_gap_is_rejected(self):
+        checker = self.checker("import json\nprint(json.dumps([]))\n")
+        payload = self.payload(candidates=False, frontier=False)
+        payload["quality_gate"]["change_utility"] = {
+            "status": "gap",
+            "reason": "Failure behavior remains unknown",
+        }
+
+        error = self.accept(checker, payload, expected=2)
+
+        self.assertIn("quality gaps", error["error"])
+
+    def test_child_cannot_require_its_parent(self):
+        self.write_candidate()
+        checker = self.checker("import json\nprint(json.dumps([]))\n")
+        payload = self.payload()
+        payload["coverage_frontier"][0]["prerequisite"] = "identity"
+
+        error = self.accept(checker, payload, expected=2)
+
+        self.assertIn("dependency cycle", error["error"])
+        self.assertNotIn(
+            "identity-tokens",
+            json.loads(self.ledger.read_text())["branches"],
+        )
+
+    def test_repair_prerequisite_removes_legacy_cycle(self):
+        ledger = json.loads(self.ledger.read_text())
+        ledger["branches"]["identity-tokens"] = {
+            "id": "identity-tokens",
+            "parent": "identity",
+            "question": "Map identity tokens",
+            "state": "queued",
+            "owner": None,
+            "terminal_reason": None,
+            "published": [],
+            "origin": "src/tokens.py",
+            "namespace": None,
+            "prerequisite": "identity",
+        }
+        self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
+
+        audit = self.cli("audit", str(self.ledger), expected=1)
+        self.assertEqual("dependency_cycle", audit[0]["code"])
+        receipt = self.cli(
+            "repair-prerequisite",
+            str(self.ledger),
+            "identity-tokens",
+            "--clear",
+            "--reason",
+            "producer created a parent prerequisite cycle",
+        )
+
+        self.assertEqual([], receipt["cycles_after"])
+        self.assertEqual(
+            None,
+            json.loads(self.ledger.read_text())["branches"]["identity-tokens"][
+                "prerequisite"
+            ],
+        )
+
+    def test_recover_preserves_frontier_and_campaign_identity(self):
+        destination = self.root / "recovered/campaign.json"
+        source = json.loads(self.ledger.read_text())
+
+        receipt = self.cli(
+            "recover",
+            str(self.ledger),
+            str(destination),
+            "--reason",
+            "move durable state after a tool defect",
+        )
+        recovered = json.loads(destination.read_text())
+
+        self.assertEqual(source["campaign_id"], receipt["campaign_id"])
+        self.assertEqual(set(source["branches"]), set(recovered["branches"]))
+        self.assertEqual("queued", recovered["branches"]["identity"]["state"])
+        self.assertTrue(recovered["recovery_history"])
+
+    def test_documented_seeding_stops_after_assignment(self):
+        error = self.cli(
+            "documented",
+            str(self.ledger),
+            "runtime",
+            "--parent",
+            "root",
+            "--question",
+            "Runtime",
+            "--origin",
+            "specspine/runtime.md",
+            "--document",
+            "runtime.md",
+            expected=2,
+        )
+        self.assertIn("before assignment", error["error"])
+
+    def test_coverage_report_exposes_unresolved_frontier(self):
+        report = self.cli("coverage-report", str(self.ledger))
+
+        self.assertEqual("partially_mapped", report["coverage_claim"])
+        self.assertEqual([], report["ready"])
+        self.assertEqual("identity", report["unresolved"][0]["id"])
+
     def test_resume_releases_stale_owners(self):
         receipt = self.cli("resume", str(self.ledger))
         self.assertEqual(["identity"], receipt["released"])
         summary = self.cli("summary", str(self.ledger))
         self.assertEqual(["identity"], summary["ready"])
+
+    def test_producer_cannot_switch_top_level_domains(self):
+        self.cli(
+            "add",
+            str(self.ledger),
+            "runtime",
+            "--parent",
+            "root",
+            "--question",
+            "Map runtime",
+            "--origin",
+            "runtime composition",
+        )
+
+        error = self.cli(
+            "assign",
+            str(self.ledger),
+            "runtime",
+            "--owner",
+            "/root/identity",
+            expected=2,
+        )
+
+        self.assertIn("affinity violation", error["error"])
 
     def test_path_traversal_and_live_staging_are_rejected(self):
         checker = self.checker("import json\nprint(json.dumps([]))\n")
@@ -306,6 +464,140 @@ class MapFinalizeTests(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(2, result.returncode)
+
+    def test_finalize_receipt_is_bound_to_campaign_identity_and_digest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ledger = root / "campaign.json"
+            spine = root / "specspine"
+            staging = root / "staging"
+            checkpoint = root / "root.json"
+            checker = root / "checker.py"
+            spine.mkdir()
+            staging.mkdir()
+            (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+            checker.write_text("import json\nprint(json.dumps([]))\n", encoding="utf-8")
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(CAMPAIGN),
+                    "init",
+                    str(ledger),
+                    "--scope",
+                    "repository",
+                    "--root-question",
+                    "Map repository",
+                ],
+                check=True,
+                capture_output=True,
+            )
+            checkpoint.write_text(
+                json.dumps(
+                    {
+                        "status": "locally_saturated",
+                        "evidence_inspected": ["README.md"],
+                        "candidates": [],
+                        "mapped_responsibilities": ["Repository architecture"],
+                        "relationships": [],
+                        "source_coverage": [
+                            {
+                                "area": "repository",
+                                "classification": "summarized",
+                                "reason": "No independent production branch remains",
+                            }
+                        ],
+                        "quality_gate": {
+                            name: {
+                                "status": "pass",
+                                "reason": f"{name} passes",
+                            }
+                            for name in (
+                                "ownership_coverage",
+                                "orientation",
+                                "information_gain",
+                                "change_utility",
+                                "non_duplication",
+                            )
+                        },
+                        "continuation": None,
+                        "coverage_frontier": [],
+                        "unresolved": [],
+                        "terminal_reason": (
+                            "no useful node: repeat scope discovery found no branch"
+                        ),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(CAMPAIGN),
+                    "accept",
+                    str(ledger),
+                    "root",
+                    str(checkpoint),
+                    str(staging),
+                    str(spine),
+                    "--checker",
+                    str(checker),
+                ],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(CAMPAIGN),
+                    "discovery-pass",
+                    str(ledger),
+                    "--evidence",
+                    "composition roots and public interfaces checked",
+                ],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(CAMPAIGN),
+                    "close",
+                    str(ledger),
+                    "root",
+                ],
+                check=True,
+                capture_output=True,
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(FINALIZE),
+                    str(ledger),
+                    str(spine),
+                    "--staging-root",
+                    str(staging),
+                    "--checker",
+                    str(checker),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            receipt = json.loads(result.stdout)
+            self.assertEqual("finalized", receipt["status"])
+            self.assertTrue(receipt["campaign_id"])
+            self.assertEqual(64, len(receipt["ledger_digest"]))
+            self.assertEqual(
+                {
+                    "created": 0,
+                    "replaced": 0,
+                    "published_paths": 0,
+                    "markdown_total": 1,
+                },
+                receipt["changes"],
+            )
 
 
 if __name__ == "__main__":

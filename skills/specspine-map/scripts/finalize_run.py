@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
@@ -18,6 +19,11 @@ class FinalizeError(ValueError):
 
 def finalize(args: argparse.Namespace) -> dict[str, object]:
     ledger = campaign.load(args.ledger)
+    campaign_id = ledger.get("campaign_id")
+    if not isinstance(campaign_id, str) or not campaign_id:
+        raise FinalizeError(
+            "campaign identity is missing; resume the original ledger before finalizing"
+        )
     findings = campaign.audit_findings(ledger, final=True)
     if findings:
         raise FinalizeError(
@@ -61,10 +67,42 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
             "final Spine checker is not clean: "
             + json.dumps(checker_findings, ensure_ascii=False)
         )
+    ledger_digest = hashlib.sha256(
+        json.dumps(
+            ledger,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    published = sorted(
+        {
+            path
+            for branch in ledger["branches"].values()
+            for path in branch.get("published", [])
+        }
+    )
+    publication_history = ledger.get("publication_history", [])
+    created = sum(
+        1 for value in publication_history if value.get("operation") == "create"
+    )
+    replaced = sum(
+        1 for value in publication_history if value.get("operation") == "replace"
+    )
     return {
         "status": "finalized",
+        "campaign_id": campaign_id,
+        "ledger_digest": ledger_digest,
         "revision": ledger.get("revision"),
         "frontier_epoch": ledger.get("frontier_epoch"),
+        "published": published,
+        "changes": {
+            "created": created,
+            "replaced": replaced,
+            "published_paths": len(published),
+            "markdown_total": len(list(args.spine_root.rglob("*.md"))),
+        },
+        "recovery_history": ledger.get("recovery_history", []),
         "spine_root": str(args.spine_root.resolve()),
     }
 

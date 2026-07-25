@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterator
 
@@ -24,6 +25,23 @@ STATES = {"queued", "active", "locally_saturated", "blocked", "complete"}
 BRANCH_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 TERMINAL_REASON = re.compile(r"^no useful node:\s+\S")
 DEFERRED_CODES = {"ID_SECTION_UNVERIFIED", "UNREACHABLE_SPEC"}
+QUALITY_GATES = {
+    "ownership_coverage",
+    "orientation",
+    "information_gain",
+    "change_utility",
+    "non_duplication",
+}
+QUALITY_STATUSES = {"pass", "gap", "not_applicable"}
+SOURCE_CLASSIFICATIONS = {
+    "summarized",
+    "queued",
+    "neighbor_owned",
+    "generated",
+    "vendored",
+    "test_only",
+    "no_durable_architecture_value",
+}
 
 
 class CampaignError(ValueError):
@@ -143,6 +161,14 @@ def require_branch(ledger: dict[str, Any], branch_id: str) -> dict[str, Any]:
         raise CampaignError(f"unknown branch: {branch_id}") from error
 
 
+def affinity_domain(ledger: dict[str, Any], branch_id: str) -> str:
+    root = ledger["root"]
+    current = require_branch(ledger, branch_id)
+    while current.get("parent") not in {None, root}:
+        current = require_branch(ledger, current["parent"])
+    return current["id"]
+
+
 def mutate(path: Path, action) -> dict[str, Any]:
     with locked(path):
         ledger = load(path)
@@ -158,6 +184,7 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(f"campaign already exists: {args.ledger}")
         ledger = {
             "schema_version": SCHEMA_VERSION,
+            "campaign_id": str(uuid.uuid4()),
             "revision": 1,
             "frontier_epoch": 0,
             "discovery_pass": None,
@@ -179,6 +206,17 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
 
 def command_add(args: argparse.Namespace, *, documented: bool = False) -> dict[str, Any]:
     def action(ledger: dict[str, Any]) -> bool:
+        if documented and any(
+            branch.get("published")
+            or (
+                branch["id"] != ledger["root"]
+                and branch.get("state") in {"active", "locally_saturated", "blocked"}
+            )
+            for branch in ledger["branches"].values()
+        ):
+            raise CampaignError(
+                "documented seeding is allowed only before assignment or publication"
+            )
         branch_id = validate_id(args.id)
         parent = require_branch(ledger, args.parent)
         if parent["state"] not in {"queued", "active"}:
@@ -202,6 +240,7 @@ def command_add(args: argparse.Namespace, *, documented: bool = False) -> dict[s
                 raise CampaignError(f"conflicting branch id: {branch_id}")
             return False
         ledger["branches"][branch_id] = candidate
+        validate_dependency_graph(ledger)
         ledger["frontier_epoch"] += 1
         ledger["discovery_pass"] = None
         return True
@@ -216,6 +255,15 @@ def command_assign(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(f"assign requires queued state: {args.id}")
         if not args.owner.strip():
             raise CampaignError("owner must not be empty")
+        domain = affinity_domain(ledger, args.id)
+        affinity = ledger.setdefault("producer_affinity", {})
+        previous = affinity.get(args.owner)
+        if previous is not None and previous != domain:
+            raise CampaignError(
+                f"producer affinity violation: {args.owner} owns {previous}, "
+                f"cannot assign {domain}"
+            )
+        affinity[args.owner] = domain
         item["state"] = "active"
         item["owner"] = args.owner
         return True
@@ -261,12 +309,83 @@ def candidate_files(root: Path) -> dict[str, Path]:
     return result
 
 
+def validate_quality_gate(raw: dict[str, Any], *, terminal: bool) -> None:
+    quality = raw.get("quality_gate")
+    if not isinstance(quality, dict) or set(quality) != QUALITY_GATES:
+        raise CampaignError(
+            "checkpoint quality_gate requires exactly: "
+            + ", ".join(sorted(QUALITY_GATES))
+        )
+    gaps: list[str] = []
+    for name in sorted(QUALITY_GATES):
+        value = quality[name]
+        if not isinstance(value, dict) or set(value) != {"status", "reason"}:
+            raise CampaignError(
+                f"quality gate {name} requires only status and reason"
+            )
+        if value["status"] not in QUALITY_STATUSES:
+            raise CampaignError(
+                f"invalid quality gate status for {name}: {value['status']!r}"
+            )
+        if not isinstance(value["reason"], str) or not value["reason"].strip():
+            raise CampaignError(f"quality gate reason is missing: {name}")
+        if value["status"] == "gap":
+            gaps.append(name)
+    if terminal and gaps:
+        raise CampaignError(
+            "terminal checkpoint has unresolved quality gaps: "
+            + ", ".join(gaps)
+        )
+
+
+def validate_source_coverage(raw: dict[str, Any]) -> None:
+    coverage = raw.get("source_coverage")
+    if not isinstance(coverage, list) or not coverage:
+        raise CampaignError("checkpoint source_coverage must be a nonempty list")
+    for index, value in enumerate(coverage):
+        if not isinstance(value, dict):
+            raise CampaignError(f"source_coverage[{index}] must be an object")
+        area = value.get("area", value.get("path"))
+        classification = value.get("classification")
+        reason = value.get("reason", value.get("coverage"))
+        if not isinstance(area, str) or not area.strip():
+            raise CampaignError(f"source_coverage[{index}] area/path is missing")
+        if classification not in SOURCE_CLASSIFICATIONS:
+            raise CampaignError(
+                f"invalid source classification at {area}: {classification!r}"
+            )
+        if not isinstance(reason, str) or not reason.strip():
+            raise CampaignError(f"source_coverage reason is missing: {area}")
+
+
 def validate_checkpoint(
     raw: dict[str, Any], staging: dict[str, Path]
 ) -> tuple[str, list[dict[str, str]], list[dict[str, Any]], str | None]:
     status = raw.get("status")
-    if status not in {"continuing", "locally_saturated", "blocked"}:
+    if status not in {
+        "continuing",
+        "publish_and_locally_saturate",
+        "locally_saturated",
+        "blocked",
+    }:
         raise CampaignError(f"invalid checkpoint status: {status!r}")
+    evidence = raw.get("evidence_inspected")
+    if not isinstance(evidence, list) or not evidence or not all(
+        isinstance(value, str) and value.strip() for value in evidence
+    ):
+        raise CampaignError("checkpoint evidence_inspected must be nonempty")
+    responsibilities = raw.get("mapped_responsibilities")
+    if not isinstance(responsibilities, list) or not responsibilities or not all(
+        isinstance(value, str) and value.strip() for value in responsibilities
+    ):
+        raise CampaignError("checkpoint mapped_responsibilities must be nonempty")
+    relationships = raw.get("relationships")
+    if not isinstance(relationships, list):
+        raise CampaignError("checkpoint relationships must be a list")
+    unresolved = raw.get("unresolved")
+    if not isinstance(unresolved, list):
+        raise CampaignError("checkpoint unresolved must be a list")
+    validate_source_coverage(raw)
     raw_candidates = raw.get("candidates")
     if not isinstance(raw_candidates, list):
         raise CampaignError("checkpoint candidates must be a list")
@@ -291,22 +410,101 @@ def validate_checkpoint(
     if not isinstance(frontier, list):
         raise CampaignError("coverage_frontier must be a list")
     terminal_reason = raw.get("terminal_reason")
-    if candidates and status != "continuing":
-        raise CampaignError("candidate-bearing checkpoint must be continuing")
+    if candidates and status not in {
+        "continuing",
+        "publish_and_locally_saturate",
+    }:
+        raise CampaignError(
+            "candidate-bearing checkpoint must continue or publish-and-saturate"
+        )
     if not candidates and status == "continuing":
         raise CampaignError("continuing checkpoint requires a candidate")
-    if status == "locally_saturated" and (
+    if status == "publish_and_locally_saturate" and not candidates:
+        raise CampaignError("publish-and-saturate checkpoint requires a candidate")
+    if status in {"locally_saturated", "publish_and_locally_saturate"} and (
         not isinstance(terminal_reason, str)
         or not TERMINAL_REASON.match(terminal_reason.strip())
     ):
         raise CampaignError(
-            "locally_saturated requires 'no useful node: <reason>'"
+            "terminal saturation requires 'no useful node: <reason>'"
         )
     if status == "blocked" and (
         not isinstance(terminal_reason, str) or not terminal_reason.strip()
     ):
         raise CampaignError("blocked checkpoint requires terminal_reason")
+    continuation = raw.get("continuation")
+    if status == "continuing" and (
+        not isinstance(continuation, str) or not continuation.strip()
+    ):
+        raise CampaignError("continuing checkpoint requires continuation")
+    if status != "continuing" and continuation is not None:
+        raise CampaignError("terminal checkpoint continuation must be null")
+    validate_quality_gate(
+        raw,
+        terminal=status in {
+            "locally_saturated",
+            "publish_and_locally_saturate",
+        },
+    )
     return status, candidates, frontier, terminal_reason
+
+
+def dependency_edges(ledger: dict[str, Any]) -> dict[str, set[str]]:
+    edges = {branch_id: set() for branch_id in ledger["branches"]}
+    for branch_id, item in ledger["branches"].items():
+        parent = item.get("parent")
+        if parent is not None:
+            if parent not in edges:
+                raise CampaignError(f"unknown parent for {branch_id}: {parent}")
+            edges[parent].add(branch_id)
+        prerequisite = item.get("prerequisite")
+        if prerequisite:
+            if prerequisite not in edges:
+                raise CampaignError(
+                    f"unknown prerequisite for {branch_id}: {prerequisite}"
+                )
+            edges[branch_id].add(prerequisite)
+    return edges
+
+
+def dependency_cycles(ledger: dict[str, Any]) -> list[list[str]]:
+    edges = dependency_edges(ledger)
+    state: dict[str, int] = {}
+    stack: list[str] = []
+    positions: dict[str, int] = {}
+    cycles: set[tuple[str, ...]] = set()
+
+    def canonical_cycle(values: list[str]) -> tuple[str, ...]:
+        body = values[:-1]
+        rotations = [tuple(body[index:] + body[:index]) for index in range(len(body))]
+        return min(rotations)
+
+    def visit(branch_id: str) -> None:
+        state[branch_id] = 1
+        positions[branch_id] = len(stack)
+        stack.append(branch_id)
+        for target in sorted(edges[branch_id]):
+            target_state = state.get(target, 0)
+            if target_state == 0:
+                visit(target)
+            elif target_state == 1:
+                cycle = stack[positions[target] :] + [target]
+                cycles.add(canonical_cycle(cycle))
+        stack.pop()
+        positions.pop(branch_id, None)
+        state[branch_id] = 2
+
+    for branch_id in sorted(edges):
+        if state.get(branch_id, 0) == 0:
+            visit(branch_id)
+    return [list(value) + [value[0]] for value in sorted(cycles)]
+
+
+def validate_dependency_graph(ledger: dict[str, Any]) -> None:
+    cycles = dependency_cycles(ledger)
+    if cycles:
+        rendered = [" -> ".join(value) for value in cycles]
+        raise CampaignError("campaign dependency cycle: " + "; ".join(rendered))
 
 
 def run_checker(
@@ -406,6 +604,7 @@ def add_frontier(ledger: dict[str, Any], parent: str, values: list[Any]) -> list
             continue
         ledger["branches"][branch_id] = candidate
         added.append(branch_id)
+    validate_dependency_graph(ledger)
     if added:
         ledger["frontier_epoch"] += len(added)
         ledger["discovery_pass"] = None
@@ -498,7 +697,20 @@ def command_accept(args: argparse.Namespace) -> dict[str, Any]:
                 working_item["published"] = sorted(
                     set(working_item.get("published", [])) | set(requested)
                 )
-            else:
+                history = working.setdefault("publication_history", [])
+                for value in candidates:
+                    history.append(
+                        {
+                            "branch": args.branch,
+                            "path": value["path"],
+                            "operation": value["operation"],
+                        }
+                    )
+            if status == "publish_and_locally_saturate":
+                working_item["owner"] = None
+                working_item["terminal_reason"] = terminal_reason
+                working_item["state"] = "locally_saturated"
+            elif not candidates:
                 working_item["owner"] = None
                 working_item["terminal_reason"] = terminal_reason
                 working_item["state"] = (
@@ -571,19 +783,133 @@ def command_resume(args: argparse.Namespace) -> dict[str, Any]:
     released: list[str] = []
 
     def action(ledger: dict[str, Any]) -> bool:
+        changed = False
+        if not ledger.get("campaign_id"):
+            ledger["campaign_id"] = str(uuid.uuid4())
+            changed = True
         for item in ledger["branches"].values():
             if item["id"] != ledger["root"] and item["state"] == "active":
                 item["state"] = "queued"
                 item["owner"] = None
                 released.append(item["id"])
-        return bool(released)
+                changed = True
+        validate_dependency_graph(ledger)
+        return changed
 
     ledger = mutate(args.ledger, action)
-    return {"status": "ok", "released": sorted(released), "revision": ledger["revision"]}
+    return {
+        "status": "ok",
+        "campaign_id": ledger["campaign_id"],
+        "released": sorted(released),
+        "revision": ledger["revision"],
+    }
+
+
+def command_repair_prerequisite(args: argparse.Namespace) -> dict[str, Any]:
+    before_cycles: list[list[str]] = []
+
+    def action(ledger: dict[str, Any]) -> bool:
+        nonlocal before_cycles
+        item = require_branch(ledger, args.id)
+        if args.clear:
+            prerequisite = None
+        else:
+            prerequisite = validate_id(args.set)
+            require_branch(ledger, prerequisite)
+        if item.get("prerequisite") == prerequisite:
+            return False
+        before_cycles = dependency_cycles(ledger)
+        previous = item.get("prerequisite")
+        item["prerequisite"] = prerequisite
+        after_cycles = dependency_cycles(ledger)
+        if len(after_cycles) > len(before_cycles) or any(
+            args.id in cycle for cycle in after_cycles
+        ):
+            raise CampaignError("prerequisite repair does not resolve target cycles")
+        ledger.setdefault("recovery_history", []).append(
+            {
+                "operation": "repair_prerequisite",
+                "branch": args.id,
+                "from": previous,
+                "to": prerequisite,
+                "reason": args.reason.strip(),
+            }
+        )
+        ledger["discovery_pass"] = None
+        return True
+
+    ledger = mutate(args.ledger, action)
+    return {
+        "status": "repaired",
+        "branch": args.id,
+        "cycles_before": before_cycles,
+        "cycles_after": dependency_cycles(ledger),
+        "revision": ledger["revision"],
+    }
+
+
+def command_recover(args: argparse.Namespace) -> dict[str, Any]:
+    source = load(args.source)
+    with locked(args.destination):
+        if args.destination.exists():
+            raise CampaignError(
+                f"recovery destination already exists: {args.destination}"
+            )
+        recovered = copy.deepcopy(source)
+        recovered.setdefault("campaign_id", str(uuid.uuid4()))
+        recovered.setdefault("recovery_history", []).append(
+            {
+                "operation": "recover",
+                "source": str(args.source.resolve()),
+                "source_revision": source.get("revision"),
+                "reason": args.reason.strip(),
+            }
+        )
+        for item in recovered["branches"].values():
+            if item["id"] != recovered["root"] and item["state"] == "active":
+                item["state"] = "queued"
+                item["owner"] = None
+        recovered["discovery_pass"] = None
+        recovered["revision"] = int(recovered.get("revision", 0)) + 1
+        atomic_write(args.destination, recovered)
+    return {
+        "status": "recovered",
+        "campaign_id": recovered["campaign_id"],
+        "source_revision": source.get("revision"),
+        "revision": recovered["revision"],
+        "branches": len(recovered["branches"]),
+    }
 
 
 def audit_findings(ledger: dict[str, Any], final: bool) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
+    if not ledger.get("campaign_id"):
+        findings.append(
+            {
+                "code": "missing_campaign_id",
+                "branch": ledger.get("root", "root"),
+                "message": "resume the legacy campaign before continuing",
+            }
+        )
+    try:
+        cycles = dependency_cycles(ledger)
+    except CampaignError as error:
+        findings.append(
+            {
+                "code": "invalid_dependency",
+                "branch": ledger.get("root", "root"),
+                "message": str(error),
+            }
+        )
+        cycles = []
+    for cycle in cycles:
+        findings.append(
+            {
+                "code": "dependency_cycle",
+                "branch": cycle[0],
+                "message": " -> ".join(cycle),
+            }
+        )
     for branch_id, item in ledger["branches"].items():
         if item.get("state") not in STATES:
             findings.append({"code": "invalid_state", "branch": branch_id, "message": str(item.get("state"))})
@@ -605,10 +931,52 @@ def command_summary(args: argparse.Namespace) -> dict[str, Any]:
     final_clean = not audit_findings(ledger, True)
     only_blocked = bool(states["blocked"]) and not states["queued"] and not states["active"] and not states["locally_saturated"]
     return {
+        "campaign_id": ledger.get("campaign_id"),
         "revision": ledger["revision"],
         "ready": [item["id"] for item in ready(ledger)],
         **states,
         "terminal": "saturated" if final_clean else "blocked" if only_blocked else None,
+    }
+
+
+def command_coverage_report(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    states = {
+        state: sorted(
+            item["id"]
+            for item in ledger["branches"].values()
+            if item["state"] == state
+        )
+        for state in STATES
+    }
+    unresolved = [
+        {
+            "id": item["id"],
+            "state": item["state"],
+            "question": item["question"],
+            "parent": item.get("parent"),
+            "prerequisite": item.get("prerequisite"),
+            "reason": item.get("terminal_reason"),
+        }
+        for item in sorted(
+            ledger["branches"].values(), key=lambda value: value["id"]
+        )
+        if item["state"] != "complete"
+    ]
+    return {
+        "campaign_id": ledger.get("campaign_id"),
+        "scope": ledger.get("scope"),
+        "terminal": command_summary(args)["terminal"],
+        "counts": {state: len(values) for state, values in states.items()},
+        "ready": [item["id"] for item in ready(ledger)],
+        "unresolved": unresolved,
+        "coverage_claim": (
+            "mapped"
+            if not unresolved
+            else "partially_mapped"
+            if any(item["state"] != "blocked" for item in unresolved)
+            else "blocked"
+        ),
     }
 
 
@@ -654,6 +1022,17 @@ def parser() -> argparse.ArgumentParser:
     block.add_argument("ledger", type=Path)
     block.add_argument("id")
     block.add_argument("--reason", required=True)
+    repair = sub.add_parser("repair-prerequisite")
+    repair.add_argument("ledger", type=Path)
+    repair.add_argument("id")
+    repair_mode = repair.add_mutually_exclusive_group(required=True)
+    repair_mode.add_argument("--clear", action="store_true")
+    repair_mode.add_argument("--set")
+    repair.add_argument("--reason", required=True)
+    recover = sub.add_parser("recover")
+    recover.add_argument("source", type=Path)
+    recover.add_argument("destination", type=Path)
+    recover.add_argument("--reason", required=True)
     accept = sub.add_parser("accept")
     accept.add_argument("ledger", type=Path)
     accept.add_argument("branch")
@@ -664,7 +1043,7 @@ def parser() -> argparse.ArgumentParser:
     discovery = sub.add_parser("discovery-pass")
     discovery.add_argument("ledger", type=Path)
     discovery.add_argument("--evidence", required=True)
-    for name in ("ready", "summary", "resume", "audit"):
+    for name in ("ready", "summary", "coverage-report", "resume", "audit"):
         command = sub.add_parser(name)
         command.add_argument("ledger", type=Path)
         if name == "audit":
@@ -682,11 +1061,14 @@ def main() -> int:
             "assign": command_assign,
             "release": command_release,
             "block": command_block,
+            "repair-prerequisite": command_repair_prerequisite,
+            "recover": command_recover,
             "accept": command_accept,
             "close": command_close,
             "discovery-pass": command_discovery,
             "ready": lambda value: ready(load(value.ledger)),
             "summary": command_summary,
+            "coverage-report": command_coverage_report,
             "resume": command_resume,
             "audit": lambda value: audit_findings(load(value.ledger), value.final),
         }

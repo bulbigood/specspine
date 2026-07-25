@@ -71,6 +71,17 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn(
             "Never stop merely to report progress", normalized
         )
+        self.assertIn("Never replace an unfinished campaign", normalized)
+        self.assertIn("repair-prerequisite", normalized)
+        self.assertIn("coverage-report", normalized)
+
+    def test_model_routing_and_branch_affinity_are_explicit(self):
+        normalized = " ".join(self.protocol.split())
+        self.assertIn(
+            "strong root with `medium` or `high` reasoning", normalized
+        )
+        self.assertIn("Keep producers branch-affine", normalized)
+        self.assertIn("independent strong semantic audit", normalized)
 
     def test_campaign_has_lock_atomic_write_and_rollback(self):
         self.assertIn("fcntl.flock", self.campaign)
@@ -78,6 +89,10 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("def rollback(", self.campaign)
         self.assertIn("checkpoint_digest", self.campaign)
         self.assertIn("DEFERRED_CODES", self.campaign)
+        self.assertIn("validate_dependency_graph", self.campaign)
+        self.assertIn("quality_gate", self.campaign)
+        self.assertIn("publish_and_locally_saturate", self.campaign)
+        self.assertIn("producer_affinity", self.campaign)
 
     def test_producers_cannot_write_shared_navigation(self):
         normalized = " ".join(self.protocol.split())
@@ -90,7 +105,7 @@ class MapExhaustiveContractTests(unittest.TestCase):
 
     def test_prompt_size_is_bounded(self):
         self.assertLessEqual(len(self.entrypoint.splitlines()), 105)
-        self.assertLessEqual(len(self.protocol.splitlines()), 230)
+        self.assertLessEqual(len(self.protocol.splitlines()), 245)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,15 @@ operation until every useful branch in the requested scope is complete.
 
 - The root agent is the only scheduler and the only process that runs
   `campaign.py`.
+- Use a strong root with `medium` or `high` reasoning for exhaustive control.
+  If the active root has low reasoning, do not claim final saturation without
+  an independent strong semantic audit.
 - Each producer owns one branch and writes only to its private staging root.
+- Keep producers branch-affine. Reuse a producer only for the same domain or a
+  directly adjacent child; start a fresh producer before changing domains.
+- Medium producers may draft ordinary branches. Use a strong producer or
+  reviewer for security, authorization, ownership, migration, compatibility,
+  and the final semantic breadth/depth audit.
 - Producers never edit the live Spine, `README.md`, or campaign state.
 - The root accepts a producer result only through `campaign.py accept`.
 - Continue independent ready work after a branch failure. Stop only when
@@ -36,6 +44,15 @@ python3 <map-skill-root>/scripts/campaign.py resume <campaign>
 `resume` releases stale non-root owners. Discard old staging because a staged
 file is trusted only together with a checkpoint returned in the current
 invocation.
+
+Never replace an unfinished campaign by initializing a new ledger and seeding
+its live documents. Repair the original ledger, or preserve its complete
+frontier and identity with:
+
+```text
+python3 <map-skill-root>/scripts/campaign.py recover \
+  <old-campaign> <new-campaign> --reason <tool-defect>
+```
 
 Inspect architecture signals and seed every observed independent branch before
 dispatch:
@@ -83,7 +100,20 @@ The producer performs one bounded Map step and returns exactly one JSON object:
   "candidates": [{"path": "domains/example.md", "operation": "create"}],
   "mapped_responsibilities": ["Example boundary"],
   "relationships": [],
-  "source_coverage": [],
+  "source_coverage": [
+    {
+      "area": "src/example",
+      "classification": "summarized",
+      "reason": "Owned by the example specification"
+    }
+  ],
+  "quality_gate": {
+    "ownership_coverage": {"status": "pass", "reason": "All production areas classified"},
+    "orientation": {"status": "pass", "reason": "Purpose and boundaries are clear"},
+    "information_gain": {"status": "pass", "reason": "Non-local behavior is captured"},
+    "change_utility": {"status": "pass", "reason": "Owner and risks are navigable"},
+    "non_duplication": {"status": "pass", "reason": "Local code is not reproduced"}
+  },
   "continuation": "Check the same boundary for another useful node",
   "coverage_frontier": [
     {
@@ -105,6 +135,11 @@ The producer performs one bounded Map step and returns exactly one JSON object:
 Candidate paths are final paths relative to the Spine. `create` requires a
 missing destination; `replace` requires an existing destination. A
 candidate-bearing checkpoint uses `continuing`.
+
+When the candidate already passes every local quality gate and needs no second
+parent-level step, use `publish_and_locally_saturate`, set `continuation` to
+null, and give the normal `no useful node` terminal reason. Acceptance then
+publishes and locally saturates atomically while retaining every child branch.
 
 A terminal checkpoint has no candidates and uses either:
 
@@ -137,14 +172,17 @@ On any failure, live files and campaign state remain unchanged and staged files
 remain available for correction. Ask the same producer for a corrected complete
 checkpoint. Never manually move a staged file or partially import a report.
 
-After a successful candidate-bearing checkpoint, resume the same producer with
-its reported continuation. After a terminal checkpoint, immediately dispatch a
+After a continuing candidate checkpoint, resume the same producer with its
+reported continuation. After any terminal checkpoint, immediately dispatch a
 ready queued branch before waiting.
 
 If a producer terminates without an acceptable checkpoint, run `release` and
 restart that branch with fresh staging. Use `block --reason <exact reason>` only
 for missing authority, evidence, permission, or an unresolved ownership
 decision—not for recoverable validation or tool errors.
+
+If audit reports a prerequisite cycle, repair the original ledger with
+`repair-prerequisite --clear|--set ... --reason ...`; do not reconstruct it.
 
 ## Reach saturation
 
@@ -165,6 +203,11 @@ complete repeat pass adds none, record:
 python3 <map-skill-root>/scripts/campaign.py discovery-pass \
   <campaign> --evidence <signals-checked>
 ```
+
+Before claiming coverage, inspect `campaign.py coverage-report <campaign>`.
+An overview may be locally sufficient while useful children remain queued, but
+the exhaustive campaign is not saturated until those children are inspected
+and closed or given evidence-based terminal classifications.
 
 The root producer must then return its own candidate-free `no useful node`
 checkpoint. Accept it and close root after all descendants are complete.
@@ -192,6 +235,7 @@ python3 <map-skill-root>/scripts/finalize_run.py \
 Only `status: finalized` permits deleting the exact run root with
 `find <run-root> -depth -delete`. Otherwise preserve it.
 
-Report scope, published documents, relationships, unresolved drift, exact
-`no useful node` reasons, normalization and checks. Recommend
+Report scope, created/replaced/total document counts from the final receipt,
+relationships, unresolved drift, exact `no useful node` reasons, normalization
+and checks. Recommend
 `$specspine-doctor` in a new session; never invoke it during exhaustive Map.

@@ -66,7 +66,12 @@ Do not:
 8. Report evidence inspected, files created or changed, mapped
    responsibilities and relationships, material adjacent architectural
    questions, unconfirmed inferences, unresolved drift, source areas classified
-   during this step, and qualitative remaining coverage. Create or change no
+   during this step, and qualitative remaining coverage. For an orchestrated
+   checkpoint, explicitly assess ownership coverage, orientation, information
+   gain, change utility, and non-duplication; do not report local saturation
+   while any of those gates has a material gap. Classify every reported source
+   area as summarized, queued, neighbor-owned, generated, vendored, test-only,
+   or without durable architectural value with a reason. Create or change no
    document when the live Spine already answers the question at the quality
    gate, evidence cannot support a useful architectural node, or further detail
    would reproduce implementation. Report that terminal reason explicitly
