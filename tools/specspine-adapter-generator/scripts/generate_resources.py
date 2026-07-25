@@ -38,6 +38,9 @@ SKILL_REFERENCES = {
     },
 }
 SKILL_SCRIPTS = {
+    "specspine-extract": {
+        "check_spine.py": "check_spine.py",
+    },
     "specspine-map": {
         "check_spine.py": "check_spine.py",
     },

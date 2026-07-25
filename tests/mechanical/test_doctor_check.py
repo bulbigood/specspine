@@ -86,6 +86,33 @@ class DoctorCheckerV2Tests(unittest.TestCase):
     def test_accepts_complete_v2_spine(self):
         self.assertEqual([], [item for item in CHECKER.check(self.spine()) if item.severity == "error"])
 
+    def test_doctor_index_template_is_valid_v2(self):
+        template = (
+            Path(__file__).parents[2]
+            / "skills/specspine-doctor/assets/templates/spine-index.md"
+        ).read_text(encoding="utf-8")
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
+        (root / "README.md").write_text(template, encoding="utf-8")
+        self.assertEqual(
+            [],
+            [item for item in CHECKER.check(root) if item.severity == "error"],
+        )
+
+    def test_ignores_links_and_semantic_ids_in_fenced_examples(self):
+        fenced = """
+
+```markdown
+[Missing](missing.md)
+- **CON-example-only** — This is not a canonical statement.
+```
+"""
+        root = self.spine(index=INDEX + fenced)
+        codes = self.codes(root)
+        self.assertNotIn("BROKEN_LINK", codes)
+        self.assertNotIn("ID_OUTSIDE_REGION", codes)
+
     def test_legacy_identity_is_rejected(self):
         root = self.spine(payment="# Payments\n\n## Responsibility\n\n- owns payments.\n")
         self.assertTrue({"MISSING_DOCUMENT_ID", "MISSING_SUMMARY"} <= self.codes(root))

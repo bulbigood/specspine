@@ -592,6 +592,7 @@ def _parse_v2_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
         return _Node(path, [])
     node = _Node(path, lines, sections={}, statements={}, links=[])
     headings: list[tuple[int, int, str]] = []
+    active_lines: set[int] = set()
     in_fence = False
     fence_char = ""
     fence_length = 0
@@ -605,6 +606,7 @@ def _parse_v2_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
             in_fence = True
             fence_char, fence_length = fence.group(1)[0], len(fence.group(1))
             continue
+        active_lines.add(number)
         heading = ATX_HEADING_RE.match(line)
         if heading:
             title = re.sub(r"[ \t]+#+[ \t]*$", "", heading.group(2) or "").strip()
@@ -665,6 +667,8 @@ def _parse_v2_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
     section = ""
     reference_definitions: dict[str, str] = {}
     for number, line in enumerate(lines, 1):
+        if number not in active_lines:
+            continue
         stripped = line.strip()
         if stripped == ID_REGION_BEGIN:
             regions += 1
@@ -700,7 +704,13 @@ def _parse_v2_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
         add(findings, "error", "ID_REGION_UNCLOSED", path, root, "semantic-ID region is not closed")
     if regions > 1:
         add(findings, "error", "MULTIPLE_ID_REGIONS", path, root, "use at most one semantic-ID region")
-    for number, line in enumerate(lines, 1):
+    in_comment = False
+    code_delimiter = 0
+    for number, raw_line in enumerate(lines, 1):
+        if number not in active_lines:
+            continue
+        masked, code_delimiter = mask_code_spans(raw_line, code_delimiter)
+        line, in_comment = strip_comments(masked, in_comment)
         for link in markdown_links(line):
             target = link.target
             if target is None and link.reference:

@@ -26,7 +26,11 @@ Do not:
 
 ## Workflow
 
-1. Resolve `<spine-root>` using `spec-format.md`. Read its index, relevant
+1. Resolve `<spine-root>` using `spec-format.md`. If its `README.md` is absent
+   and live writes are authorized, create a minimal v2 index from
+   `assets/templates/architecture-index.md` before discovery, with the whole
+   project `Unmapped`. If a separate output root was supplied, keep the live
+   root read-only and stop for setup. Then read the index, relevant
    specifications, and only repository documentation or architecture records
    needed to understand existing intent.
 2. Perform one shallowest useful mapping step for the requested scope. A step

@@ -34,6 +34,10 @@ Select one execution mode before project discovery:
   substantial survey, refresh, or restructuring.
 - Start new files from `assets/templates/` and omit empty sections.
 
+If the live root lacks `README.md` and no separate output root exists, create a
+minimal v2 index from the architecture-index template before discovery.
+Otherwise keep the live root read-only and stop for setup.
+
 ## Bounded mode
 
 Perform exactly one bounded mapping operation and stop at its reported

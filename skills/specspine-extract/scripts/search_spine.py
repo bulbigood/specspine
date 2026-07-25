@@ -72,8 +72,22 @@ def load_ranking_module():
     return module
 
 
+def load_checker_module():
+    """Load the shared mechanical checker bundled beside this script."""
+    path = Path(__file__).with_name("check_spine.py")
+    name = f"{__name__}_checker"
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load checker module: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 try:
     RANKING = load_ranking_module()
+    CHECKER = load_checker_module()
 except (ImportError, OSError) as error:
     print(json.dumps({"schema_version": 2, "mode": "fallback"}))
     raise SystemExit(2) from error
@@ -354,6 +368,31 @@ def visible_lines(text: str) -> list[str]:
             continue
         masked, code_delimiter = mask_code_spans(raw_line, code_delimiter)
         line, in_comment = strip_comments(masked, in_comment)
+        visible.append(line)
+    return visible
+
+
+def structural_lines(text: str) -> list[str]:
+    """Preserve inline Markdown while removing fenced and HTML-comment content."""
+    visible: list[str] = []
+    in_fence = False
+    fence_char = ""
+    fence_length = 0
+    in_comment = False
+    for raw_line in text.splitlines():
+        fence = FENCE_RE.match(raw_line)
+        if in_fence:
+            visible.append("")
+            if fence and fence.group(1)[0] == fence_char and len(fence.group(1)) >= fence_length:
+                in_fence = False
+            continue
+        if fence and not in_comment:
+            in_fence = True
+            fence_char = fence.group(1)[0]
+            fence_length = len(fence.group(1))
+            visible.append("")
+            continue
+        line, in_comment = strip_comments(raw_line, in_comment)
         visible.append(line)
     return visible
 
@@ -1585,7 +1624,7 @@ def _canonical_documents(root: Path) -> tuple[dict[str, dict[str, object]], list
             continue
         relative = path.relative_to(root).as_posix()
         text = path.read_text(encoding="utf-8")
-        lines = text.splitlines()
+        lines = structural_lines(text)
         title = next((match.group(2).strip() for line in lines if (match := HEADING_RE.match(line)) and len(match.group(1)) == 1), "")
         identities = [IDENTITY_RE.fullmatch(line.strip()) for line in lines]
         identities = [item for item in identities if item]
@@ -1694,15 +1733,29 @@ def _coverage(index: dict[str, object], primary: dict[str, object]) -> tuple[str
     body = str(index["sections"].get("Coverage", ""))
     current = ""
     primary_id, primary_path = str(primary["id"]), str(primary["path"])
+    primary_target = (Path(str(index["root"])) / primary_path).resolve()
     for line in body.splitlines():
         if line.startswith("### "):
             current = line[4:].strip().casefold()
         elif line.lstrip().startswith(("-", "*")):
             links = markdown_links(line)
-            if any(
-                link.target and Path(link.target).name == Path(primary_path).name
-                for link in links
-            ) or primary_id in line:
+            linked = False
+            for link in links:
+                if not link.target:
+                    continue
+                target = local_target(
+                    Path(str(index["root"])) / str(index["path"]),
+                    link.target,
+                    Path(str(index["root"])),
+                )
+                if target is not None and target.resolve() == primary_target:
+                    linked = True
+                    break
+            id_mentioned = bool(re.search(
+                rf"(?<![a-z0-9-]){re.escape(primary_id)}(?![a-z0-9-])",
+                line,
+            ))
+            if linked or id_mentioned:
                 mapping = {
                     "mapped": "mapped",
                     "partially mapped": "partially-mapped",
@@ -1738,6 +1791,99 @@ def _validate_query(payload: object) -> tuple[dict[str, object] | None, str | No
     return query, None
 
 
+def _estimated_tokens(value: object) -> int:
+    encoded = json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return max(1, (len(encoded) + 3) // 4)
+
+
+def _apply_token_budget(
+    result: dict[str, object], token_budget: int
+) -> dict[str, object]:
+    original_tokens = _estimated_tokens(result)
+    if original_tokens <= token_budget:
+        return result
+
+    result["closure_status"] = "truncated"
+    result["reason"] = "token_budget_exceeded"
+    result["potentially_affected"] = []
+    result.pop("coverage_detail", None)
+    primary = result.get("primary")
+    if isinstance(primary, dict):
+        primary.pop("summary", None)
+        primary.pop("title", None)
+        primary.pop("kind", None)
+    result["omitted"] = [{
+        "reason": "token_budget",
+        "estimated_tokens": original_tokens,
+        "token_budget": token_budget,
+        "omitted_sections": ["potentially_affected", "primary_summary"],
+    }]
+    if _estimated_tokens(result) <= token_budget:
+        return result
+
+    compact = {
+        "closure_status": "truncated",
+        "reason": "token_budget_exceeded",
+        "coverage": result.get("coverage", "unknown"),
+        "primary": {
+            key: value
+            for key, value in (primary or {}).items()
+            if key in {"id", "path"}
+        } if isinstance(primary, dict) else None,
+        "required": [
+            {
+                key: value
+                for key, value in item.items()
+                if key in {"id", "path"}
+            }
+            for item in result.get("required", [])
+            if isinstance(item, dict)
+        ],
+        "potentially_affected": [],
+        "decisions": [],
+        "constraints": [],
+        "known_divergences": [],
+        "blocking_questions": [],
+        "omitted": [{
+            "reason": "token_budget",
+            "estimated_tokens": original_tokens,
+            "token_budget": token_budget,
+            "omitted_sections": [
+                "details", "claims", "divergences", "questions", "impact",
+            ],
+        }],
+        "sources": list(result.get("sources", [])),
+    }
+    if _estimated_tokens(compact) <= token_budget:
+        return compact
+
+    required_count = len(compact["required"])
+    minimal = {
+        "closure_status": "truncated",
+        "reason": "token_budget_exceeded",
+        "coverage": compact["coverage"],
+        "primary": (
+            {"id": compact["primary"].get("id")}
+            if isinstance(compact["primary"], dict)
+            else None
+        ),
+        "required": [],
+        "potentially_affected": [],
+        "decisions": [],
+        "constraints": [],
+        "known_divergences": [],
+        "blocking_questions": [],
+        "omitted": [{
+            "reason": "token_budget",
+            "required_count": required_count,
+        }],
+        "sources": [],
+    }
+    return minimal
+
+
 def build_closure(root: Path, payload: object) -> dict[str, object]:
     query, query_error = _validate_query(payload)
     base: dict[str, object] = {
@@ -1754,7 +1900,26 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
     if not root.is_dir():
         base["reason"] = "spine_root_missing"
         return base
+    mechanical_errors = [
+        finding
+        for finding in CHECKER.check(root)
+        if finding.severity == "error"
+    ]
+    if mechanical_errors:
+        base["reason"] = "invalid_spine"
+        base["omitted"] = [
+            {
+                "reason": "mechanical_error",
+                "code": finding.code,
+                "path": finding.path,
+                **({"line": finding.line} if finding.line is not None else {}),
+            }
+            for finding in mechanical_errors
+        ]
+        return base
     documents, errors = _canonical_documents(root)
+    for document in documents.values():
+        document["root"] = str(root)
     index = next((item for item in documents.values() if item["kind"] == "index" and item["path"] == "README.md"), None)
     if errors or index is None:
         base["reason"] = "invalid_spine"
@@ -1802,7 +1967,7 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
     primary_id = sorted(candidates, key=lambda item: (-candidates[item], item))[0]
     primary = documents[primary_id]
     coverage, coverage_detail = _coverage(index, primary)
-    required: set[str] = set()
+    required: dict[str, set[str]] = {}
     potential: set[str] = set()
     strong_by_facet = {
         "external-contract": {"exposes"},
@@ -1812,15 +1977,29 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
         "lifecycle": {"constrained-by", "owns-data", "performs"},
     }
     mandatory = {"superseded-by", "constrained-by"}
-    for relation in primary["relationships"]:
-        relation_type = relation["relation"]
-        if relation_type in mandatory or any(relation_type in strong_by_facet.get(facet, set()) for facet in query["facets"]):
-            required.add(relation["target"])
-        elif relation_type == "related-to":
-            potential.add(relation["target"])
+    facet_relations = set().union(*(
+        strong_by_facet.get(facet, set()) for facet in query["facets"]
+    ))
+    queue: list[tuple[str, int]] = [(primary_id, 0)]
+    traversed: set[str] = set()
+    while queue:
+        current_id, depth = queue.pop(0)
+        if current_id in traversed or depth >= 2:
+            continue
+        traversed.add(current_id)
+        for relation in documents[current_id]["relationships"]:
+            relation_type = relation["relation"]
+            target_id = relation["target"]
+            if relation_type in mandatory or relation_type in facet_relations:
+                if target_id != primary_id:
+                    required.setdefault(target_id, set()).add(relation_type)
+                queue.append((target_id, depth + 1))
+            elif relation_type == "related-to":
+                potential.add(target_id)
+    impact_targets = {primary_id, *required}
     for document in documents.values():
         for relation in document["relationships"]:
-            if relation["target"] == primary_id and relation["relation"] in {
+            if relation["target"] in impact_targets and relation["relation"] in {
                 "exposes", "consumes", "publishes", "reads-from", "writes-to",
                 "owns-data", "constrained-by", "depends-on",
             }:
@@ -1835,7 +2014,8 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
     constraints = []
     questions = []
     divergences = []
-    for selected_id in sorted(selected_ids):
+    claim_owner_ids = {str(index["id"]), *selected_ids}
+    for selected_id in sorted(claim_owner_ids):
         document = documents[selected_id]
         for identifier, statement in document["statements"].items():
             item = {"id": identifier, "owner": selected_id, "statement": statement["statement"]}
@@ -1845,9 +2025,18 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
                 constraints.append(item)
             elif identifier.startswith("OQ-"):
                 questions.append(item)
+    for document in documents.values():
         for divergence in document["divergences"]:
-            if divergence["intended"] in statements and divergence["observed"] in statements:
-                divergences.append({"owner": selected_id, **divergence})
+            intended = statements.get(divergence["intended"])
+            observed = statements.get(divergence["observed"])
+            if intended is None or observed is None:
+                continue
+            if (
+                document["id"] == index["id"]
+                or intended[0] in selected_ids
+                or observed[0] in selected_ids
+            ):
+                divergences.append({"owner": document["id"], **divergence})
     result = {
         "closure_status": "complete",
         "reason": "mapped_task_closure_satisfied",
@@ -1859,12 +2048,17 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
             "responsibility": primary["responsibility"],
         },
         "required": [
-            {"id": item, "path": documents[item]["path"], "reason": "typed_graph_closure"}
+            {
+                "id": item,
+                "path": documents[item]["path"],
+                "reason": "typed_graph_closure",
+                "relations": sorted(required[item]),
+            }
             for item in sorted(required)
         ],
         "potentially_affected": [
             {"id": item, "path": documents[item]["path"], "reason": "incoming_or_weak_relationship"}
-            for item in sorted(potential - required - {primary_id})
+            for item in sorted(potential - set(required) - {primary_id})
         ],
         "decisions": decisions, "constraints": constraints,
         "known_divergences": divergences, "blocking_questions": questions,
@@ -1876,17 +2070,7 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
         result["closure_status"] = "partial"
         result["reason"] = "coverage_incomplete"
         result["omitted"].append({"reason": coverage_detail})
-    estimated_tokens = len(json.dumps(result, ensure_ascii=False)) // 4
-    if estimated_tokens > query["token_budget"]:
-        result["closure_status"] = "truncated"
-        result["reason"] = "token_budget_exceeded"
-        result["omitted"].append({
-            "reason": "token_budget", "estimated_tokens": estimated_tokens,
-            "token_budget": query["token_budget"],
-        })
-        result["potentially_affected"] = []
-        result["primary"].pop("summary", None)
-    return result
+    return _apply_token_budget(result, query["token_budget"])
 
 
 def main() -> int:

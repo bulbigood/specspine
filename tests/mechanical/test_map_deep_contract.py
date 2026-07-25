@@ -49,6 +49,15 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("Map exactly the scope requested by the operator", normalized)
         self.assertNotIn("Do not use for a focused survey", self.entrypoint)
 
+    def test_missing_spine_initialization_respects_output_boundary(self):
+        normalized = " ".join(
+            (self.entrypoint + self.mapper + self.protocol).split()
+        )
+        self.assertIn("create a minimal v2 index", normalized)
+        self.assertIn("before discovery or producer dispatch", normalized)
+        self.assertIn("With a separate output root", normalized)
+        self.assertIn("keep the live root read-only and stop for setup", normalized)
+
     def test_entrypoint_gates_parallel_reference_before_discovery(self):
         normalized = " ".join(self.entrypoint.split())
         self.assertIn("Before discovery, inspect callable capabilities", normalized)
@@ -298,10 +307,11 @@ class MapExhaustiveContractTests(unittest.TestCase):
             with self.subTest(statement=statement):
                 self.assertIn(statement, normalized)
 
-    def test_checker_has_one_shared_source_and_two_skill_symlinks(self):
+    def test_checker_has_one_shared_source_and_three_skill_symlinks(self):
         shared = ROOT / "shared/scripts/check_spine.py"
         self.assertTrue(shared.is_file())
         for consumer in (
+            ROOT / "skills/specspine-extract/scripts/check_spine.py",
             ROOT / "skills/specspine-map/scripts/check_spine.py",
             ROOT / "skills/specspine-doctor/scripts/check_spine.py",
         ):

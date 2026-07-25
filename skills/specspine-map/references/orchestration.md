@@ -17,6 +17,11 @@ scope. Resolve one current evidence baseline once and include its exact marker
 in shared producer context. Do not prescribe a universal listing command,
 fixed traversal depth, document count, or initial backlog size.
 
+If the live root lacks `README.md` and no separate output root was supplied,
+create its minimal v2 index from `assets/templates/architecture-index.md`
+before discovery or producer dispatch, with the whole project `Unmapped`.
+With a separate output root, keep the live root read-only and stop for setup.
+
 For a focused request, follow the connected architectural boundary as far as
 repository evidence remains relevant. For a whole-repository request, identify
 the system shape and material top-level branches, then deepen each branch.
