@@ -1,6 +1,6 @@
 ---
 name: specspine-map
-description: Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use bounded mode by default for surveys, architectural questions, selected subsystems, local refresh, and drift. Use exhaustive mode only when the operator explicitly asks to recurse until the requested scope is saturated; it coordinates branch-affine producers when available or runs sequentially. Do not invent intended architecture, perform general integrity audits, implement changes, or claim code/spec conformance.
+description: Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use bounded mode for surveys, overviews, selected subsystems, local refresh, and drift. Use exhaustive mode when the operator asks to fully document or cover the whole project, recurse through every useful branch, or continue until saturation; it coordinates branch-affine producers when available or runs sequentially. Do not invent intended architecture, perform general integrity audits, implement changes, or claim code/spec conformance.
 ---
 
 # SpecSpine Map
@@ -15,12 +15,15 @@ resolve accepted intent. Use arc42 and ICOM only as diagnostic lenses.
 
 Select one execution mode before project discovery:
 
-- Use **bounded mode** unless the operator explicitly requests exhaustive,
-  recursive mapping through terminal depth or saturation. Repository size,
-  whole-project scope, or the word “deep” alone does not authorize exhaustive
-  orchestration.
-- Use **exhaustive mode** only for explicit intent such as “continue until
-  saturated”, “fully map every useful branch”, or an unambiguous equivalent.
+- Use **bounded mode** for an explicitly limited operation such as a survey,
+  overview, high-level map, first pass, selected concern, refresh, or drift
+  recording. Repository size or the word “deep” alone does not authorize
+  exhaustive orchestration.
+- Use **exhaustive mode** for completion intent such as “continue until
+  saturated”, “fully map every useful branch”, “cover/document this whole
+  project”, or an unambiguous equivalent. A completion verb applied to the
+  entire repository is explicit exhaustive intent even without words such as
+  “exhaustive”, “recursive”, or “saturated”.
 
 ## Resources
 

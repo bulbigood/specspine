@@ -194,15 +194,15 @@ never modifies source code.
 
 ### `specspine-map`
 
-Maps observed brownfield architecture. Its default bounded mode advances the
-requested scope by exactly one shallowest useful step: survey, architectural
-question, selected subsystem, deepening, refresh, or drift. An explicit request
-for exhaustive, recursive, or saturation mapping activates exhaustive mode.
-That mode uses branch-affine producers when subagents are available and a
-sequential frontier otherwise, continuing until every discovered branch is
-resolved. Map records repository evidence separately from intended decisions,
-preserves disagreements, and recommends a separate Doctor audit after an
-exhaustive run.
+Maps observed brownfield architecture. Bounded mode advances an explicitly
+limited request by exactly one shallowest useful step: survey, overview,
+architectural question, selected subsystem, deepening, refresh, or drift. A
+request to fully document or cover the whole project activates exhaustive mode,
+as does an explicit request for recursive or saturation mapping. That mode uses
+branch-affine producers when subagents are available and a sequential frontier
+otherwise, continuing until every discovered branch is resolved. Map records
+repository evidence separately from intended decisions, preserves
+disagreements, and recommends a separate Doctor audit after an exhaustive run.
 
 ### `specspine-extract`
 
@@ -440,7 +440,7 @@ canonical ownership is genuinely ambiguous, or a conflict must be resolved.
 
 ### Map a brownfield repository
 
-Use `specspine-map` without an exhaustive qualifier for one bounded step:
+Request an explicitly limited survey for one bounded step:
 
 ```text
 Survey this repository and create a high-level SpecSpine.
@@ -453,9 +453,15 @@ recursively:
 Use $specspine-map to map Google OAuth exhaustively until repository evidence is saturated.
 ```
 
-The same skill can map the whole project when that is the requested scope. It
-uses branch-affine parallel producers when available and one local producer
-otherwise.
+A completion request covering the whole project is also exhaustive without a
+mode keyword:
+
+```text
+Use $specspine-map to cover this whole project with documentation.
+```
+
+Exhaustive mode uses branch-affine parallel producers when available and one
+local producer otherwise.
 
 ### Prepare an architecture context handoff
 

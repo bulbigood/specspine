@@ -40,8 +40,22 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("one shallowest useful mapping step", self.mapper)
         self.assertIn("instead of pursuing them recursively", self.mapper)
         self.assertIn("references/orchestration.md", self.entrypoint)
-        self.assertIn("Use **bounded mode** unless", self.entrypoint)
-        self.assertIn("Use **exhaustive mode** only", self.entrypoint)
+        self.assertIn("Use **bounded mode** for an explicitly limited", self.entrypoint)
+        self.assertIn("Use **exhaustive mode** for completion intent", self.entrypoint)
+
+    def test_whole_project_completion_request_is_exhaustive(self):
+        normalized = " ".join(self.entrypoint.split())
+        self.assertIn("cover/document this whole project", normalized)
+        self.assertIn(
+            "A completion verb applied to the entire repository is explicit "
+            "exhaustive intent",
+            normalized,
+        )
+        self.assertNotIn(
+            "whole-project scope, or the word “deep” alone does not authorize "
+            "exhaustive",
+            normalized,
+        )
 
     def test_exhaustive_accepts_the_same_scope_as_bounded(self):
         normalized = " ".join((self.entrypoint + self.protocol).split())
