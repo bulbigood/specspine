@@ -1,0 +1,704 @@
+#!/usr/bin/env python3
+"""Run a durable exhaustive Map campaign with transactional checkpoint acceptance."""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import copy
+import fcntl
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path, PurePosixPath
+from typing import Any, Iterator
+
+
+SCHEMA_VERSION = 1
+STATES = {"queued", "active", "locally_saturated", "blocked", "complete"}
+BRANCH_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+TERMINAL_REASON = re.compile(r"^no useful node:\s+\S")
+DEFERRED_CODES = {"ID_SECTION_UNVERIFIED", "UNREACHABLE_SPEC"}
+
+
+class CampaignError(ValueError):
+    pass
+
+
+def emit(value: Any, *, error: bool = False) -> None:
+    print(
+        json.dumps(value, ensure_ascii=False, sort_keys=True),
+        file=sys.stderr if error else sys.stdout,
+    )
+
+
+def validate_id(value: str) -> str:
+    if not BRANCH_ID.fullmatch(value):
+        raise CampaignError(f"invalid branch id: {value!r}")
+    return value
+
+
+def validate_path(value: str) -> str:
+    path = PurePosixPath(value)
+    if (
+        not value
+        or "\\" in value
+        or path.is_absolute()
+        or any(part in {"", ".", ".."} for part in path.parts)
+    ):
+        raise CampaignError(f"invalid relative path: {value!r}")
+    return path.as_posix()
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise CampaignError(f"cannot read JSON {path}: {error}") from error
+    if not isinstance(value, dict):
+        raise CampaignError(f"JSON root must be an object: {path}")
+    return value
+
+
+def load(path: Path) -> dict[str, Any]:
+    ledger = read_json(path)
+    if ledger.get("schema_version") != SCHEMA_VERSION:
+        raise CampaignError("unsupported campaign schema")
+    if not isinstance(ledger.get("branches"), dict):
+        raise CampaignError("campaign branches must be an object")
+    return ledger
+
+
+def atomic_write(path: Path, value: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
+    temporary_path = Path(temporary)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(value, stream, indent=2, sort_keys=True, ensure_ascii=False)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary_path, path)
+        directory = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    except BaseException:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+@contextlib.contextmanager
+def locked(path: Path) -> Iterator[None]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_name(path.name + ".lock")
+    descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
+def save(path: Path, ledger: dict[str, Any]) -> None:
+    ledger["revision"] = int(ledger.get("revision", 0)) + 1
+    atomic_write(path, ledger)
+
+
+def new_branch(
+    branch_id: str,
+    parent: str | None,
+    question: str,
+    *,
+    state: str = "queued",
+    **extra: Any,
+) -> dict[str, Any]:
+    return {
+        "id": branch_id,
+        "parent": parent,
+        "question": question,
+        "state": state,
+        "owner": None,
+        "terminal_reason": None,
+        "published": [],
+        **extra,
+    }
+
+
+def require_branch(ledger: dict[str, Any], branch_id: str) -> dict[str, Any]:
+    try:
+        return ledger["branches"][branch_id]
+    except KeyError as error:
+        raise CampaignError(f"unknown branch: {branch_id}") from error
+
+
+def mutate(path: Path, action) -> dict[str, Any]:
+    with locked(path):
+        ledger = load(path)
+        changed = action(ledger)
+        if changed:
+            save(path, ledger)
+        return ledger
+
+
+def command_init(args: argparse.Namespace) -> dict[str, Any]:
+    with locked(args.ledger):
+        if args.ledger.exists():
+            raise CampaignError(f"campaign already exists: {args.ledger}")
+        ledger = {
+            "schema_version": SCHEMA_VERSION,
+            "revision": 1,
+            "frontier_epoch": 0,
+            "discovery_pass": None,
+            "scope": args.scope,
+            "root": "root",
+            "branches": {
+                "root": new_branch(
+                    "root",
+                    None,
+                    args.root_question,
+                    state="active",
+                    origin="operator",
+                )
+            },
+        }
+        atomic_write(args.ledger, ledger)
+        return ledger
+
+
+def command_add(args: argparse.Namespace, *, documented: bool = False) -> dict[str, Any]:
+    def action(ledger: dict[str, Any]) -> bool:
+        branch_id = validate_id(args.id)
+        parent = require_branch(ledger, args.parent)
+        if parent["state"] not in {"queued", "active"}:
+            raise CampaignError(f"parent is not open: {args.parent}")
+        if args.prerequisite:
+            require_branch(ledger, args.prerequisite)
+        candidate = new_branch(
+            branch_id,
+            args.parent,
+            args.question,
+            state="complete" if documented else "queued",
+            origin=args.origin,
+            namespace=args.namespace,
+            prerequisite=args.prerequisite,
+            resolution="already_documented" if documented else None,
+            document=args.document if documented else None,
+        )
+        existing = ledger["branches"].get(branch_id)
+        if existing is not None:
+            if existing != candidate:
+                raise CampaignError(f"conflicting branch id: {branch_id}")
+            return False
+        ledger["branches"][branch_id] = candidate
+        ledger["frontier_epoch"] += 1
+        ledger["discovery_pass"] = None
+        return True
+
+    return mutate(args.ledger, action)
+
+
+def command_assign(args: argparse.Namespace) -> dict[str, Any]:
+    def action(ledger: dict[str, Any]) -> bool:
+        item = require_branch(ledger, args.id)
+        if item["state"] != "queued":
+            raise CampaignError(f"assign requires queued state: {args.id}")
+        if not args.owner.strip():
+            raise CampaignError("owner must not be empty")
+        item["state"] = "active"
+        item["owner"] = args.owner
+        return True
+
+    return mutate(args.ledger, action)
+
+
+def command_release(args: argparse.Namespace) -> dict[str, Any]:
+    def action(ledger: dict[str, Any]) -> bool:
+        item = require_branch(ledger, args.id)
+        if item["state"] not in {"active", "blocked"}:
+            raise CampaignError(f"release requires active or blocked state: {args.id}")
+        item["state"] = "queued"
+        item["owner"] = None
+        item["terminal_reason"] = None
+        return True
+
+    return mutate(args.ledger, action)
+
+
+def command_block(args: argparse.Namespace) -> dict[str, Any]:
+    def action(ledger: dict[str, Any]) -> bool:
+        item = require_branch(ledger, args.id)
+        if item["state"] not in {"queued", "active"}:
+            raise CampaignError(f"block requires queued or active state: {args.id}")
+        item["state"] = "blocked"
+        item["owner"] = None
+        item["terminal_reason"] = args.reason
+        return True
+
+    return mutate(args.ledger, action)
+
+
+def candidate_files(root: Path) -> dict[str, Path]:
+    if not root.is_dir():
+        raise CampaignError(f"staging root is not a directory: {root}")
+    result: dict[str, Path] = {}
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise CampaignError(f"staging contains a symbolic link: {path}")
+        if path.is_file():
+            result[path.relative_to(root).as_posix()] = path
+    return result
+
+
+def validate_checkpoint(
+    raw: dict[str, Any], staging: dict[str, Path]
+) -> tuple[str, list[dict[str, str]], list[dict[str, Any]], str | None]:
+    status = raw.get("status")
+    if status not in {"continuing", "locally_saturated", "blocked"}:
+        raise CampaignError(f"invalid checkpoint status: {status!r}")
+    raw_candidates = raw.get("candidates")
+    if not isinstance(raw_candidates, list):
+        raise CampaignError("checkpoint candidates must be a list")
+    candidates: list[dict[str, str]] = []
+    for value in raw_candidates:
+        if not isinstance(value, dict) or set(value) != {"path", "operation"}:
+            raise CampaignError("each candidate requires only path and operation")
+        path = validate_path(value["path"])
+        operation = value["operation"]
+        if operation not in {"create", "replace"}:
+            raise CampaignError(f"invalid candidate operation: {operation!r}")
+        if path == "README.md":
+            raise CampaignError("producer must not publish README.md")
+        candidates.append({"path": path, "operation": operation})
+    paths = [item["path"] for item in candidates]
+    if len(paths) != len(set(paths)) or set(paths) != set(staging):
+        raise CampaignError(
+            f"checkpoint/staging paths differ: checkpoint={sorted(paths)}, "
+            f"staging={sorted(staging)}"
+        )
+    frontier = raw.get("coverage_frontier", [])
+    if not isinstance(frontier, list):
+        raise CampaignError("coverage_frontier must be a list")
+    terminal_reason = raw.get("terminal_reason")
+    if candidates and status != "continuing":
+        raise CampaignError("candidate-bearing checkpoint must be continuing")
+    if not candidates and status == "continuing":
+        raise CampaignError("continuing checkpoint requires a candidate")
+    if status == "locally_saturated" and (
+        not isinstance(terminal_reason, str)
+        or not TERMINAL_REASON.match(terminal_reason.strip())
+    ):
+        raise CampaignError(
+            "locally_saturated requires 'no useful node: <reason>'"
+        )
+    if status == "blocked" and (
+        not isinstance(terminal_reason, str) or not terminal_reason.strip()
+    ):
+        raise CampaignError("blocked checkpoint requires terminal_reason")
+    return status, candidates, frontier, terminal_reason
+
+
+def run_checker(
+    checker: Path,
+    spine: Path,
+    *,
+    staging: Path | None = None,
+    replacements: list[str] | None = None,
+    ignored: set[str] | None = None,
+) -> None:
+    command = [sys.executable, str(checker), str(spine)]
+    if staging is not None:
+        command.extend(["--candidates", str(staging)])
+    for path in replacements or []:
+        command.extend(["--replace-existing", path])
+    command.append("--json")
+    result = subprocess.run(command, text=True, capture_output=True, check=False)
+    try:
+        findings = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        detail = result.stderr.strip() or result.stdout.strip() or "no output"
+        raise CampaignError(f"checker returned invalid JSON: {detail}") from error
+    blocking = [
+        finding
+        for finding in findings
+        if finding.get("code") not in (ignored or set())
+    ]
+    if blocking or (result.returncode != 0 and not findings):
+        raise CampaignError(
+            "checker blocked acceptance: "
+            + json.dumps(blocking or findings, ensure_ascii=False)
+        )
+
+
+def checkpoint_digest(raw: dict[str, Any], files: dict[str, Path]) -> str:
+    digest = hashlib.sha256()
+    digest.update(
+        json.dumps(raw, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        .encode("utf-8")
+    )
+    for relative, path in sorted(files.items()):
+        digest.update(relative.encode("utf-8"))
+        digest.update(hashlib.sha256(path.read_bytes()).digest())
+    return digest.hexdigest()
+
+
+def add_frontier(ledger: dict[str, Any], parent: str, values: list[Any]) -> list[str]:
+    added: list[str] = []
+    for value in values:
+        if not isinstance(value, dict):
+            raise CampaignError("coverage_frontier entries must be objects")
+        classification = value.get("classification")
+        if classification not in {"fork_candidate", "documented", "blocked"}:
+            raise CampaignError(f"invalid frontier classification: {classification!r}")
+        branch_id = validate_id(value.get("id", ""))
+        question = value.get("question")
+        evidence = value.get("evidence")
+        if not isinstance(question, str) or not question.strip():
+            raise CampaignError(f"frontier question is missing: {branch_id}")
+        if not isinstance(evidence, list) or not evidence:
+            raise CampaignError(f"frontier evidence is missing: {branch_id}")
+        state = "complete" if classification == "documented" else (
+            "blocked" if classification == "blocked" else "queued"
+        )
+        if classification == "documented" and not value.get("document"):
+            raise CampaignError(
+                f"documented frontier requires document: {branch_id}"
+            )
+        prerequisite = value.get("prerequisite")
+        if prerequisite:
+            require_branch(ledger, prerequisite)
+        candidate = new_branch(
+            branch_id,
+            parent,
+            question.strip(),
+            state=state,
+            origin=", ".join(str(item) for item in evidence),
+            namespace=value.get("namespace"),
+            prerequisite=prerequisite,
+            resolution="already_documented" if state == "complete" else None,
+            document=value.get("document"),
+        )
+        if state == "blocked":
+            reason = value.get("reason")
+            if not isinstance(reason, str) or not reason.strip():
+                raise CampaignError(f"blocked frontier requires reason: {branch_id}")
+            candidate["terminal_reason"] = reason.strip()
+        existing = ledger["branches"].get(branch_id)
+        if existing is not None:
+            if existing["parent"] != parent or existing["question"] != question.strip():
+                raise CampaignError(f"conflicting frontier branch: {branch_id}")
+            if classification == "documented" and (
+                existing.get("resolution") != "already_documented"
+                or existing.get("document") != value.get("document")
+            ):
+                raise CampaignError(f"conflicting documented branch: {branch_id}")
+            continue
+        ledger["branches"][branch_id] = candidate
+        added.append(branch_id)
+    if added:
+        ledger["frontier_epoch"] += len(added)
+        ledger["discovery_pass"] = None
+    return added
+
+
+def rollback(changes: list[tuple[Path, Path, Path | None]]) -> None:
+    for source, destination, backup in reversed(changes):
+        if destination.exists():
+            source.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(destination, source)
+        if backup is not None and backup.exists():
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(backup, destination)
+
+
+def command_accept(args: argparse.Namespace) -> dict[str, Any]:
+    spine = args.spine_root.resolve()
+    staging_root = args.staging_root.resolve()
+    if (
+        spine == staging_root
+        or spine.is_relative_to(staging_root)
+        or staging_root.is_relative_to(spine)
+    ):
+        raise CampaignError("staging and live Spine must be disjoint")
+    raw = read_json(args.checkpoint)
+    files = candidate_files(staging_root)
+    status, candidates, frontier, terminal_reason = validate_checkpoint(raw, files)
+    digest = checkpoint_digest(raw, files)
+
+    with locked(args.ledger):
+        ledger = load(args.ledger)
+        item = require_branch(ledger, args.branch)
+        if item["state"] != "active":
+            raise CampaignError(f"accept requires active branch: {args.branch}")
+        working = copy.deepcopy(ledger)
+        working_item = require_branch(working, args.branch)
+        added = add_frontier(working, args.branch, frontier)
+        requested = [value["path"] for value in candidates]
+        replacements = [
+            value["path"] for value in candidates if value["operation"] == "replace"
+        ]
+        occupied = {
+            path
+            for branch_id, branch in ledger["branches"].items()
+            if branch_id != args.branch
+            for path in branch.get("published", [])
+        }
+        conflict = sorted(set(requested) & occupied)
+        if conflict:
+            raise CampaignError("destination owned by another branch: " + ", ".join(conflict))
+        for value in candidates:
+            destination = args.spine_root / value["path"]
+            if value["operation"] == "create" and destination.exists():
+                raise CampaignError(f"create destination exists: {value['path']}")
+            if value["operation"] == "replace" and not destination.is_file():
+                raise CampaignError(f"replace destination is missing: {value['path']}")
+            if destination.is_file() and destination.read_bytes() == files[value["path"]].read_bytes():
+                raise CampaignError(f"candidate has no content change: {value['path']}")
+        if candidates:
+            run_checker(
+                args.checker,
+                args.spine_root,
+                staging=staging_root,
+                replacements=replacements,
+            )
+            stable_digest = checkpoint_digest(raw, candidate_files(staging_root))
+            if stable_digest != digest:
+                raise CampaignError("staging changed during checkpoint acceptance")
+
+        backup_root = Path(tempfile.mkdtemp(prefix=".accept-", dir=args.ledger.parent))
+        changes: list[tuple[Path, Path, Path | None]] = []
+        try:
+            for value in candidates:
+                source = files[value["path"]]
+                destination = args.spine_root / value["path"]
+                backup = backup_root / value["path"] if destination.exists() else None
+                changes.append((source, destination, backup))
+                if backup is not None:
+                    backup.parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(destination, backup)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(source, destination)
+            if candidates:
+                run_checker(
+                    args.checker,
+                    args.spine_root,
+                    ignored=DEFERRED_CODES,
+                )
+                working_item["published"] = sorted(
+                    set(working_item.get("published", [])) | set(requested)
+                )
+            else:
+                working_item["owner"] = None
+                working_item["terminal_reason"] = terminal_reason
+                working_item["state"] = (
+                    "locally_saturated" if status == "locally_saturated" else "blocked"
+                )
+            working_item["last_checkpoint_digest"] = digest
+            save(args.ledger, working)
+        except BaseException:
+            rollback(changes)
+            raise
+        finally:
+            shutil.rmtree(backup_root, ignore_errors=True)
+    return {
+        "status": "accepted",
+        "branch": args.branch,
+        "digest": digest,
+        "published": requested,
+        "added_branches": added,
+        "branch_state": working_item["state"],
+        "revision": working["revision"],
+    }
+
+
+def command_close(args: argparse.Namespace) -> dict[str, Any]:
+    def action(ledger: dict[str, Any]) -> bool:
+        item = require_branch(ledger, args.id)
+        if item["state"] != "locally_saturated":
+            raise CampaignError(f"close requires locally_saturated state: {args.id}")
+        unfinished = [
+            child["id"]
+            for child in ledger["branches"].values()
+            if child.get("parent") == args.id and child["state"] != "complete"
+        ]
+        if unfinished:
+            raise CampaignError("unfinished children: " + ", ".join(sorted(unfinished)))
+        if args.id == ledger["root"]:
+            discovery = ledger.get("discovery_pass")
+            if not isinstance(discovery, dict) or discovery.get("frontier_epoch") != ledger["frontier_epoch"]:
+                raise CampaignError("root close requires a current discovery pass")
+        item["state"] = "complete"
+        return True
+
+    return mutate(args.ledger, action)
+
+
+def command_discovery(args: argparse.Namespace) -> dict[str, Any]:
+    def action(ledger: dict[str, Any]) -> bool:
+        ledger["discovery_pass"] = {
+            "frontier_epoch": ledger["frontier_epoch"],
+            "evidence": args.evidence,
+        }
+        return True
+
+    return mutate(args.ledger, action)
+
+
+def ready(ledger: dict[str, Any]) -> list[dict[str, Any]]:
+    result = []
+    for item in ledger["branches"].values():
+        prerequisite = item.get("prerequisite")
+        if item["state"] == "queued" and (
+            not prerequisite
+            or require_branch(ledger, prerequisite)["state"] == "complete"
+        ):
+            result.append(item)
+    return sorted(result, key=lambda item: item["id"])
+
+
+def command_resume(args: argparse.Namespace) -> dict[str, Any]:
+    released: list[str] = []
+
+    def action(ledger: dict[str, Any]) -> bool:
+        for item in ledger["branches"].values():
+            if item["id"] != ledger["root"] and item["state"] == "active":
+                item["state"] = "queued"
+                item["owner"] = None
+                released.append(item["id"])
+        return bool(released)
+
+    ledger = mutate(args.ledger, action)
+    return {"status": "ok", "released": sorted(released), "revision": ledger["revision"]}
+
+
+def audit_findings(ledger: dict[str, Any], final: bool) -> list[dict[str, str]]:
+    findings: list[dict[str, str]] = []
+    for branch_id, item in ledger["branches"].items():
+        if item.get("state") not in STATES:
+            findings.append({"code": "invalid_state", "branch": branch_id, "message": str(item.get("state"))})
+        if final and item.get("state") != "complete":
+            findings.append({"code": "unfinished", "branch": branch_id, "message": f"state is {item.get('state')}"})
+    if final:
+        discovery = ledger.get("discovery_pass")
+        if not isinstance(discovery, dict) or discovery.get("frontier_epoch") != ledger.get("frontier_epoch"):
+            findings.append({"code": "stale_discovery", "branch": ledger["root"], "message": "current discovery pass is missing"})
+    return findings
+
+
+def command_summary(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    states = {
+        state: sorted(item["id"] for item in ledger["branches"].values() if item["state"] == state)
+        for state in STATES
+    }
+    final_clean = not audit_findings(ledger, True)
+    only_blocked = bool(states["blocked"]) and not states["queued"] and not states["active"] and not states["locally_saturated"]
+    return {
+        "revision": ledger["revision"],
+        "ready": [item["id"] for item in ready(ledger)],
+        **states,
+        "terminal": "saturated" if final_clean else "blocked" if only_blocked else None,
+    }
+
+
+def compact(command: str, args: argparse.Namespace, result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "command": command,
+        "branch": getattr(args, "id", None),
+        "revision": result.get("revision"),
+    }
+
+
+def add_identity_arguments(parser: argparse.ArgumentParser, *, document: bool = False) -> None:
+    parser.add_argument("ledger", type=Path)
+    parser.add_argument("id")
+    parser.add_argument("--parent", required=True)
+    parser.add_argument("--question", required=True)
+    parser.add_argument("--origin", required=True)
+    parser.add_argument("--namespace")
+    parser.add_argument("--prerequisite")
+    if document:
+        parser.add_argument("--document", required=True)
+
+
+def parser() -> argparse.ArgumentParser:
+    result = argparse.ArgumentParser(description=__doc__)
+    sub = result.add_subparsers(dest="command", required=True)
+    init = sub.add_parser("init")
+    init.add_argument("ledger", type=Path)
+    init.add_argument("--scope", required=True)
+    init.add_argument("--root-question", required=True)
+    add_identity_arguments(sub.add_parser("add"))
+    add_identity_arguments(sub.add_parser("documented"), document=True)
+    assign = sub.add_parser("assign")
+    assign.add_argument("ledger", type=Path)
+    assign.add_argument("id")
+    assign.add_argument("--owner", required=True)
+    for name in ("release", "close"):
+        command = sub.add_parser(name)
+        command.add_argument("ledger", type=Path)
+        command.add_argument("id")
+    block = sub.add_parser("block")
+    block.add_argument("ledger", type=Path)
+    block.add_argument("id")
+    block.add_argument("--reason", required=True)
+    accept = sub.add_parser("accept")
+    accept.add_argument("ledger", type=Path)
+    accept.add_argument("branch")
+    accept.add_argument("checkpoint", type=Path)
+    accept.add_argument("staging_root", type=Path)
+    accept.add_argument("spine_root", type=Path)
+    accept.add_argument("--checker", type=Path, default=Path(__file__).with_name("check_spine.py"))
+    discovery = sub.add_parser("discovery-pass")
+    discovery.add_argument("ledger", type=Path)
+    discovery.add_argument("--evidence", required=True)
+    for name in ("ready", "summary", "resume", "audit"):
+        command = sub.add_parser(name)
+        command.add_argument("ledger", type=Path)
+        if name == "audit":
+            command.add_argument("--final", action="store_true")
+    return result
+
+
+def main() -> int:
+    args = parser().parse_args()
+    try:
+        handlers = {
+            "init": command_init,
+            "add": command_add,
+            "documented": lambda value: command_add(value, documented=True),
+            "assign": command_assign,
+            "release": command_release,
+            "block": command_block,
+            "accept": command_accept,
+            "close": command_close,
+            "discovery-pass": command_discovery,
+            "ready": lambda value: ready(load(value.ledger)),
+            "summary": command_summary,
+            "resume": command_resume,
+            "audit": lambda value: audit_findings(load(value.ledger), value.final),
+        }
+        result = handlers[args.command](args)
+        emit(result)
+        if args.command == "audit" and result:
+            return 1
+        return 0
+    except (CampaignError, OSError, subprocess.SubprocessError) as error:
+        emit({"error": str(error)}, error=True)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

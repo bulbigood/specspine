@@ -38,6 +38,15 @@ class NpxStandaloneInstallTests(unittest.TestCase):
                     target = raw_target.split("#", 1)[0]
                     if target and "://" not in target:
                         self.assertTrue((installed / target).is_file(), f"{name}: missing {target}")
+                if name == "specspine-map":
+                    self.assertTrue((installed / "scripts/campaign.py").is_file())
+                    self.assertTrue((installed / "scripts/finalize_run.py").is_file())
+                    for removed in (
+                        "frontier.py",
+                        "checkpoint.py",
+                        "publish_candidates.py",
+                    ):
+                        self.assertFalse((installed / "scripts" / removed).exists())
 
 
 if __name__ == "__main__":

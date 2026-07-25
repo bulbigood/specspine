@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-import frontier
+import campaign
 
 
 class FinalizeError(ValueError):
@@ -17,8 +17,8 @@ class FinalizeError(ValueError):
 
 
 def finalize(args: argparse.Namespace) -> dict[str, object]:
-    ledger = frontier.load(args.ledger)
-    findings = frontier.audit_findings(ledger, final=True)
+    ledger = campaign.load(args.ledger)
+    findings = campaign.audit_findings(ledger, final=True)
     if findings:
         raise FinalizeError(
             "final frontier audit failed: "
@@ -86,7 +86,7 @@ def main() -> int:
     args = parser().parse_args()
     try:
         receipt = finalize(args)
-    except (FinalizeError, frontier.LedgerError, OSError) as error:
+    except (FinalizeError, campaign.CampaignError, OSError) as error:
         print(json.dumps({"error": str(error)}, ensure_ascii=False), file=sys.stderr)
         return 2
     print(json.dumps(receipt, ensure_ascii=False))

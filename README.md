@@ -199,8 +199,9 @@ limited request by exactly one shallowest useful step: survey, overview,
 architectural question, selected subsystem, deepening, refresh, or drift. A
 request to fully document or cover the whole project activates exhaustive mode,
 as does an explicit request for recursive or saturation mapping. That mode uses
-branch-affine producers when subagents are available and a sequential frontier
-otherwise, continuing until every discovered branch is resolved. Map records
+branch-affine producers when subagents are available and the same durable
+campaign sequentially otherwise, continuing until every discovered branch is
+resolved. Map records
 repository evidence separately from intended decisions, preserves
 disagreements, and recommends a separate Doctor audit after an exhaustive run.
 
@@ -740,8 +741,9 @@ specspine/
 │   │   │   └── spec-semantics.md -> ../../../shared/references/spec-semantics.md
 │   │   ├── scripts/
 │   │   │   ├── bundle_skill.py
+│   │   │   ├── campaign.py
 │   │   │   ├── check_spine.py -> ../../../shared/scripts/check_spine.py
-│   │   │   └── frontier.py
+│   │   │   └── finalize_run.py
 │   │   └── assets/
 │   │       └── templates/
 │   │           ├── architecture-index.md
