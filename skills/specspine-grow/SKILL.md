@@ -5,6 +5,13 @@ description: Create or evolve intended architecture in a linked Markdown SpecSpi
 
 # SpecSpine Grow
 
+Preserve document and externally referenced semantic IDs across rename, move,
+split, merge, and accepted SDD promotion. Store each typed edge once, update
+incoming links, use `superseded-by` for replacement, and preserve canonical
+ownership. Accepted SDD deltas may update durable intent; current code and
+unaccepted drafts may not. Keep `Known divergences` until repository evidence
+is explicitly rechecked.
+
 Maintain a lightweight network of architectural specifications. Record stable
 responsibilities, boundaries, relationships, decisions, constraints, and
 relevant uncertainty without turning the Spine into a feature or implementation

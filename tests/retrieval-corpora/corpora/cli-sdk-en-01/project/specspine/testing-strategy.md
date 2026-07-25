@@ -1,5 +1,9 @@
 # Testing strategy
 
+**ID:** `testing-strategy` · **Kind:** `concept`
+
+Owns the durable architectural concept `testing-strategy`.
+
 ## Responsibility
 
 This guide defines confidence layers for AtlasForge changes.
@@ -18,7 +22,9 @@ Tests describe many policies but do not own their production semantics.
 
 ## Relationships
 
-- [Configuration resolution](configuration-resolution.md)
-- [Migration locking](migration-locking.md)
-- [Plugin API](plugin-api.md)
-- [Output rendering](output-rendering.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Configuration resolution](configuration-resolution.md) | Provides neighboring architectural context |
+| `related-to` | [Migration locking](migration-locking.md) | Provides neighboring architectural context |
+| `related-to` | [Plugin API](plugin-api.md) | Provides neighboring architectural context |
+| `related-to` | [Output rendering](output-rendering.md) | Provides neighboring architectural context |

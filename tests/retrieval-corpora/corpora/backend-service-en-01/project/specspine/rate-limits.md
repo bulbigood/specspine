@@ -1,5 +1,9 @@
 # Rate limits
 
+**ID:** `rate-limits` · **Kind:** `concept`
+
+Owns the durable architectural concept `rate-limits`.
+
 ## Responsibility
 
 Rate limits protect public API capacity and apply fair tenant budgets to
@@ -17,5 +21,7 @@ configuration can lower a tenant budget without restarting the API.
 
 ## Relationships
 
-- [HTTP request pipeline](http-request-pipeline.md)
-- [Configuration](configuration.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [HTTP request pipeline](http-request-pipeline.md) | Provides neighboring architectural context |
+| `related-to` | [Configuration](configuration.md) | Provides neighboring architectural context |

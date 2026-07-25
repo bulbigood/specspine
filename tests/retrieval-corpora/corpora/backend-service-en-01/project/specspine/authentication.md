@@ -1,5 +1,9 @@
 # Authentication
 
+**ID:** `authentication` · **Kind:** `concept`
+
+Owns the durable architectural concept `authentication`.
+
 ## Responsibility
 
 Authentication proves merchant users through signed sessions and service

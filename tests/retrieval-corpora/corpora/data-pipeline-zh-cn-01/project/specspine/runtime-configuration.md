@@ -1,5 +1,9 @@
 # 运行配置
 
+**ID:** `runtime-configuration` · **Kind:** `concept`
+
+Owns the durable architectural concept `runtime-configuration`.
+
 ## 职责
 
 配置服务发布任务并行度、批量大小、连接端点和功能开关。动态配置通过带版本的
@@ -13,3 +17,7 @@ snapshot 生效；任务只在 checkpoint 边界切换版本，避免同一批�
 - [检查点恢复](checkpoint-recovery.md)
 - [容量管理](capacity-planning.md)
 - [故障处置](incident-response.md)
+
+## Responsibility
+
+- owns the architectural responsibility summarized as: runtime-configuration.

@@ -1,5 +1,9 @@
 # Carrier integration
 
+**ID:** `carrier-integration` · **Kind:** `concept`
+
+Owns the durable architectural concept `carrier-integration`.
+
 ## Responsibility
 
 Carrier integration maps internal parcels to provider label requests, stores
@@ -32,7 +36,9 @@ carriers.
 
 ## Relationships
 
-- [Retry policy](retry-policy.md)
-- [Background jobs](background-jobs.md)
-- [Order lifecycle](order-lifecycle.md)
-- [Observability](observability.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Retry policy](retry-policy.md) | Provides neighboring architectural context |
+| `related-to` | [Background jobs](background-jobs.md) | Provides neighboring architectural context |
+| `related-to` | [Order lifecycle](order-lifecycle.md) | Provides neighboring architectural context |
+| `related-to` | [Observability](observability.md) | Provides neighboring architectural context |

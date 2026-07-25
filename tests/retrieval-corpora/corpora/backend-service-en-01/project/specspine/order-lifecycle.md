@@ -1,5 +1,9 @@
 # Order lifecycle
 
+**ID:** `order-lifecycle` · **Kind:** `concept`
+
+Owns the durable architectural concept `order-lifecycle`.
+
 ## Responsibility
 
 This capability owns the delivery order state machine: draft, accepted,
@@ -25,6 +29,8 @@ separate follow-up owned by [Payment processing](payment-processing.md).
 
 ## Relationships
 
-- [Persistence](persistence.md)
-- [Carrier integration](carrier-integration.md)
-- [Payment processing](payment-processing.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Persistence](persistence.md) | Provides neighboring architectural context |
+| `related-to` | [Carrier integration](carrier-integration.md) | Provides neighboring architectural context |
+| `related-to` | [Payment processing](payment-processing.md) | Provides neighboring architectural context |

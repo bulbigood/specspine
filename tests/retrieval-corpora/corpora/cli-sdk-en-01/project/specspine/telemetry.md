@@ -1,5 +1,9 @@
 # Telemetry
 
+**ID:** `telemetry` · **Kind:** `concept`
+
+Owns the durable architectural concept `telemetry`.
+
 ## Responsibility
 
 This document owns anonymous operational events emitted by the CLI.
@@ -16,6 +20,8 @@ profile and is never uploaded automatically.
 
 ## Relationships
 
-- [Credential store](credential-store.md)
-- [Profile inheritance](profile-inheritance.md)
-- [Command dispatch](command-dispatch.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Credential store](credential-store.md) | Provides neighboring architectural context |
+| `related-to` | [Profile inheritance](profile-inheritance.md) | Provides neighboring architectural context |
+| `related-to` | [Command dispatch](command-dispatch.md) | Provides neighboring architectural context |

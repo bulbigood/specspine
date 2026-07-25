@@ -1,5 +1,7 @@
 # Operations
 
+**ID:** `operations` · **Kind:** `concept`
+
 Defines the runtime environment required to configure, deploy, and observe the
 application.
 
@@ -16,11 +18,11 @@ Operations defines runtime mechanisms but does not own product behavior.
 
 ## Relationships
 
-### Used by
-
-- [Application](application.md)
-- [Identity](identity.md)
-- [Billing](billing.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Application](application.md) | Provides neighboring architectural context |
+| `related-to` | [Identity](identity.md) | Provides neighboring architectural context |
+| `related-to` | [Billing](billing.md) | Provides neighboring architectural context |
 
 ## Decisions
 

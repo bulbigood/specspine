@@ -1,5 +1,9 @@
 # 隐私脱敏
 
+**ID:** `privacy-masking` · **Kind:** `concept`
+
+Owns the durable architectural concept `privacy-masking`.
+
 ## 职责
 
 本文拥有 PII 识别、字段脱敏和令牌化规则。邮箱、手机号和政府证件号在进入分析层前
@@ -14,3 +18,7 @@ masking policy。脱敏失败时事件进入受限隔离区，不能降级为明
 - [事件接入](event-ingestion.md)
 - [可观测性](observability.md)
 - [数据保留](data-retention.md)
+
+## Responsibility
+
+- owns the architectural responsibility summarized as: privacy-masking.

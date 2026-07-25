@@ -4,10 +4,10 @@ This document defines the self-contained Markdown artifacts produced by a
 SpecSpine workflow. It is the canonical instruction for what belongs in those
 artifacts; workflow skills should only route here.
 
-It is a flexible Markdown profile, not a schema language. It uses no required
-frontmatter or DSL. Optional mechanical lint checks a small interoperable
-subset; it does not formally validate architecture. Include only useful
-sections and do not create empty ones merely to satisfy the format.
+It is a strict Markdown graph profile, not a schema language. It uses no
+frontmatter, but identity, typed relationships, selectively addressable
+statements, coverage, and evidence provenance form the mandatory interoperable
+subset. Include only useful optional sections.
 
 Keep each durable architectural concept in its own document. Do not embed
 feature specifications, acceptance criteria, plans, tasks, implementation
@@ -81,14 +81,18 @@ does not define ownership or architectural hierarchy.
 
 ## Architecture index
 
-Every SpecSpine has a `<spine-root>/README.md` entry point.
+Every SpecSpine has a `<spine-root>/README.md` entry point with one H1,
+`**ID:** \`project-architecture\` · **Kind:** \`index\``, a summary,
+`Architecture map`, and qualitative `Coverage`.
 
 It is a curated architecture map, not the semantic parent of every
 specification.
 
 Use the architecture-index template routed from `SKILL.md` when creating it.
-The index should contain project purpose, a curated architecture map, accepted
-system-wide decisions and constraints, and project-level open questions.
+Coverage has exactly the reader-facing groups `Mapped`, `Partially mapped`,
+and `Unmapped`. It measures sufficiency of architecture memory, never delivery
+or implementation completion. A linked bullet starts with the canonical owner;
+an unmapped area may have no owner yet.
 
 Keep the architecture map small enough to be useful. It may link directly to
 top-level concepts and let those specifications link to more detailed concepts.
@@ -96,9 +100,20 @@ top-level concepts and let those specifications link to more detailed concepts.
 ## Specification node
 
 Use the specification template routed from `SKILL.md` when creating a node.
-Every specification node has an H1 title, a short summary immediately below it,
-and a nonempty `Responsibility` section. Select other sections only when useful;
-the rest of the template is a menu, not a required schema.
+Every specification node has exactly one H1, then:
+
+```markdown
+**ID:** `stable-kebab-case-id` · **Kind:** `subsystem`
+
+One-to-three sentence summary.
+```
+
+An optional `**Aliases:** Name, code term` line may follow identity. Non-index
+nodes require a nonempty `Responsibility`. IDs are globally unique, stable
+across rename/move, never encode paths, and are never reused. Core kinds are
+`index`, `system`, `subsystem`, `component`, `capability`, `behavior`,
+`interface`, `data`, `policy`, `invariant`, `decision`, `deployment`, and
+`concept`; project extensions use `x-*`.
 
 The document must remain understandable outside the producing skill. Use
 ordinary Markdown and relative links. Do not require custom frontmatter,
@@ -152,16 +167,22 @@ Do not document every branch of local control flow.
 
 ### Relationships
 
-Add only useful navigation links.
-
-Do not turn this section into a list of everything remotely associated with the
-concept.
-
-Use ordinary relative Markdown links:
+Typed relationships use the canonical table:
 
 ```markdown
-[Session management](session-management.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `constrained-by` | [CON-session-boundary](sessions.md) | Prevents provider tokens from becoming application sessions |
 ```
+
+Each row contains one relative link and nonempty meaning. Its identity is
+source document ID + relation + target document ID + optional target statement
+ID. Store a directed edge once; backlinks are derived. Core relations are
+`contains`, `decomposes-into`, `performs`, `depends-on`, `exposes`, `consumes`,
+`publishes`, `reads-from`, `writes-to`, `owns-data`, `constrained-by`,
+`implemented-by`, `has-evidence`, `superseded-by`, and `related-to`. Extensions
+use `x-*`. Markdown links outside this table are navigation or references and
+never become typed edges implicitly.
 
 ### Decisions
 

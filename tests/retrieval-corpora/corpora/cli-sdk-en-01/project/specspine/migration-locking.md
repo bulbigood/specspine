@@ -1,5 +1,9 @@
 # Migration locking
 
+**ID:** `migration-locking` · **Kind:** `concept`
+
+Owns the durable architectural concept `migration-locking`.
+
 ## Responsibility
 
 This short policy owns exclusive migration leases.
@@ -14,5 +18,7 @@ is best effort after the transaction finishes.
 
 ## Relationships
 
-- [Migration planning](migration-planning.md)
-- [Rollback policy](rollback-policy.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Migration planning](migration-planning.md) | Provides neighboring architectural context |
+| `related-to` | [Rollback policy](rollback-policy.md) | Provides neighboring architectural context |

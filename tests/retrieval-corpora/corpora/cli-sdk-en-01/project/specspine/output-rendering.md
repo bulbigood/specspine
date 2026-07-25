@@ -1,5 +1,9 @@
 # Output rendering
 
+**ID:** `output-rendering` · **Kind:** `concept`
+
+Owns the durable architectural concept `output-rendering`.
+
 ## Responsibility
 
 This document owns human and machine output.
@@ -17,6 +21,8 @@ meaning of fields; this document owns framing and streams.
 
 ## Relationships
 
-- [Error contract](error-contract.md)
-- [Command dispatch](command-dispatch.md)
-- [Migration planning](migration-planning.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Error contract](error-contract.md) | Provides neighboring architectural context |
+| `related-to` | [Command dispatch](command-dispatch.md) | Provides neighboring architectural context |
+| `related-to` | [Migration planning](migration-planning.md) | Provides neighboring architectural context |

@@ -1,5 +1,7 @@
 # Identity
 
+**ID:** `identity` · **Kind:** `concept`
+
 Authenticates users and establishes the organization context used by the
 application.
 
@@ -18,13 +20,10 @@ Identity does not decide subscription access. That policy belongs to
 
 ## Relationships
 
-### Used by
-
-- [Application](application.md)
-
-### Related
-
-- [Operations](operations.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Application](application.md) | Provides neighboring architectural context |
+| `related-to` | [Operations](operations.md) | Provides neighboring architectural context |
 
 ## Decisions
 

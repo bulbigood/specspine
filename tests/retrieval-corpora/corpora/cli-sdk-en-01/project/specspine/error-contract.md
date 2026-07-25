@@ -1,5 +1,9 @@
 # Error contract
 
+**ID:** `error-contract` · **Kind:** `concept`
+
+Owns the durable architectural concept `error-contract`.
+
 ## Responsibility
 
 This document owns stable exit statuses and structured diagnostics.
@@ -17,6 +21,8 @@ Commands may describe errors, but they do not allocate exit statuses.
 
 ## Relationships
 
-- [Output rendering](output-rendering.md)
-- [Command dispatch](command-dispatch.md)
-- [Plugin API](plugin-api.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Output rendering](output-rendering.md) | Provides neighboring architectural context |
+| `related-to` | [Command dispatch](command-dispatch.md) | Provides neighboring architectural context |
+| `related-to` | [Plugin API](plugin-api.md) | Provides neighboring architectural context |

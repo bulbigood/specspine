@@ -1,5 +1,7 @@
 # Billing
 
+**ID:** `billing` · **Kind:** `concept`
+
 Owns subscription state and synchronizes it with an external payment provider.
 
 ## Responsibility
@@ -20,13 +22,10 @@ state transition twice.
 
 ## Relationships
 
-### Used by
-
-- [Application](application.md)
-
-### Depends on
-
-- [Operations](operations.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Application](application.md) | Provides neighboring architectural context |
+| `related-to` | [Operations](operations.md) | Provides neighboring architectural context |
 
 <!-- specspine:semantic-ids:begin -->
 ## Decisions

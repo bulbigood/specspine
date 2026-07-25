@@ -1,5 +1,7 @@
 # Application
 
+**ID:** `application` · **Kind:** `concept`
+
 Provides the user-facing workflows for managing an organization, its members,
 and its subscription.
 
@@ -18,14 +20,11 @@ Subscription state and payment-provider communication belong to
 
 ## Relationships
 
-### Depends on
-
-- [Identity](identity.md)
-- [Billing](billing.md)
-
-### Related
-
-- [Operations](operations.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Identity](identity.md) | Provides neighboring architectural context |
+| `related-to` | [Billing](billing.md) | Provides neighboring architectural context |
+| `related-to` | [Operations](operations.md) | Provides neighboring architectural context |
 
 ## Constraints
 

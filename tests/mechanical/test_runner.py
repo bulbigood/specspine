@@ -294,12 +294,18 @@ class RunnerTests(unittest.TestCase):
             workspace = Path(directory)
             spine = workspace / "specspine"
             spine.mkdir()
-            (spine / "README.md").write_text("No level-one heading.\n", encoding="utf-8")
+            (spine / "README.md").write_text(
+                "# Architecture\n\n**ID:** `project-architecture` · **Kind:** `index`\n\n"
+                "Architecture.\n\n## Coverage\n\n### Mapped\n\n- None.\n\n"
+                "### Partially mapped\n\n- Repository.\n\n### Unmapped\n\n- Unknown.\n\n"
+                "## Empty\n",
+                encoding="utf-8",
+            )
             default = RUNNER.evaluate_assertion(
                 {"type": "spine_mechanical_valid"}, workspace, {}, {}, "", None
             )
             strict = RUNNER.evaluate_assertion(
-                {"type": "spine_mechanical_valid", "forbidden_codes": ["MISSING_H1"]},
+                {"type": "spine_mechanical_valid", "forbidden_codes": ["EMPTY_SECTION"]},
                 workspace,
                 {},
                 {},

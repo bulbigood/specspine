@@ -1,5 +1,9 @@
 # Authorization
 
+**ID:** `authorization` · **Kind:** `concept`
+
+Owns the durable architectural concept `authorization`.
+
 ## Responsibility
 
 Authorization maps authenticated principals to tenant roles and machine
@@ -19,5 +23,7 @@ audit retention.
 
 ## Relationships
 
-- [Authentication](authentication.md)
-- [HTTP request pipeline](http-request-pipeline.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Authentication](authentication.md) | Provides neighboring architectural context |
+| `related-to` | [HTTP request pipeline](http-request-pipeline.md) | Provides neighboring architectural context |

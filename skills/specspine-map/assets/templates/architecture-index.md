@@ -1,6 +1,6 @@
 # Project architecture
 
-## Purpose
+**ID:** `project-architecture` · **Kind:** `index`
 
 Describe what the existing project appears to do, who uses it, and the problem
 it solves.
@@ -12,13 +12,22 @@ it solves.
 Add only useful entry points into the mapped architecture. More detailed
 concepts may be reachable through other specifications.
 
-## Mapping status
+## Coverage
 
-- High-level map:
-- Deepened areas:
-- Partially mapped areas:
-- Not yet mapped:
+### Mapped
 
-Keep this qualitative. Add `System-wide decisions`, `System-wide constraints`,
-and `Open questions` only when they contain real claims; never infer accepted
-intent from repository evidence.
+- [Concept](concept.md) — responsibility, boundaries, and significant behavior
+  are sufficiently mapped for architectural retrieval.
+
+### Partially mapped
+
+- [Area](area.md) — state exactly which architectural knowledge is missing.
+
+### Unmapped
+
+- Area — no canonical owner or sufficient architecture memory is known yet.
+
+Keep coverage qualitative; it measures documentation sufficiency, not
+implementation completion. Add `System-wide decisions`, `System-wide
+constraints`, `Known divergences`, and `Open questions` only with real content.
+Never infer accepted intent from repository evidence.

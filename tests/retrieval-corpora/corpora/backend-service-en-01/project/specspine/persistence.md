@@ -1,5 +1,9 @@
 # Persistence
 
+**ID:** `persistence` · **Kind:** `concept`
+
+Owns the durable architectural concept `persistence`.
+
 ## Responsibility
 
 Persistence owns tenant-scoped relational storage, transaction boundaries,
@@ -25,5 +29,7 @@ idempotency rather than the database layer.
 
 ## Relationships
 
-- [Order lifecycle](order-lifecycle.md)
-- [Background jobs](background-jobs.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Order lifecycle](order-lifecycle.md) | Provides neighboring architectural context |
+| `related-to` | [Background jobs](background-jobs.md) | Provides neighboring architectural context |

@@ -1,5 +1,9 @@
 # 数据质量
 
+**ID:** `data-quality` · **Kind:** `concept`
+
+Owns the durable architectural concept `data-quality`.
+
 ## 职责
 
 质量服务运行完整性、唯一性、取值范围和跨字段一致性规则。硬规则失败进入 quarantine，
@@ -13,3 +17,7 @@
 - [模式注册中心](schema-registry.md)
 - [批量回填](backfill.md)
 - [可观测性](observability.md)
+
+## Responsibility
+
+- owns the architectural responsibility summarized as: data-quality.

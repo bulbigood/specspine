@@ -264,7 +264,11 @@ class MapFinalizeTests(unittest.TestCase):
         self.spine.mkdir(parents=True)
         self.staging.mkdir(parents=True)
         (self.spine / "README.md").write_text(
-            "# Architecture\n\nProject architecture.\n", encoding="utf-8"
+            "# Architecture\n\n**ID:** `project-architecture` · **Kind:** `index`\n\n"
+            "Project architecture.\n\n## Architecture map\n\nNo mapped nodes yet.\n\n"
+            "## Coverage\n\n### Mapped\n\n- None.\n\n"
+            "### Partially mapped\n\n- Repository.\n\n### Unmapped\n\n- Unknown areas.\n",
+            encoding="utf-8"
         )
         self.cli(
             FRONTIER,

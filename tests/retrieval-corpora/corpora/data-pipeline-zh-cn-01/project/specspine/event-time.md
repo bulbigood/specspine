@@ -1,5 +1,9 @@
 # 事件时间与水位线
 
+**ID:** `event-time` · **Kind:** `concept`
+
+Owns the durable architectural concept `event-time`.
+
 ## 职责
 
 本文拥有 event time、watermark（水位线）和迟到事件策略。事件时间来自经过校验的
@@ -15,3 +19,7 @@
 - [事件接入](event-ingestion.md)
 - [窗口聚合](window-aggregation.md)
 - [数据质量](data-quality.md)
+
+## Responsibility
+
+- owns the architectural responsibility summarized as: event-time.

@@ -1,5 +1,9 @@
 # 故障处置
 
+**ID:** `incident-response` · **Kind:** `concept`
+
+Owns the durable architectural concept `incident-response`.
+
 ## 职责
 
 值班人员可以暂停 sink 提交、停止新的回填并固定任务并行度。暂停输入仅用于数据损坏
@@ -13,3 +17,7 @@
 - [检查点恢复](checkpoint-recovery.md)
 - [可观测性](observability.md)
 - [运行配置](runtime-configuration.md)
+
+## Responsibility
+
+- owns the architectural responsibility summarized as: incident-response.

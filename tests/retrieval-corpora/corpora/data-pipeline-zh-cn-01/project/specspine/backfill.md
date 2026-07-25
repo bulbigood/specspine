@@ -1,5 +1,9 @@
 # 批量回填
 
+**ID:** `backfill` · **Kind:** `concept`
+
+Owns the durable architectural concept `backfill`.
+
 ## 职责
 
 本文拥有历史 backfill（回填）和 replay（重放）的执行边界。每次回填创建独立
@@ -13,3 +17,7 @@ run id、独立 consumer group 和独立临时状态目录，禁止复用线上�
 - [精确一次写入](exactly-once-sinks.md)
 - [数据质量](data-quality.md)
 - [容量管理](capacity-planning.md)
+
+## Responsibility
+
+- owns the architectural responsibility summarized as: backfill.

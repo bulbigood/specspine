@@ -1,5 +1,9 @@
 # Payment processing
 
+**ID:** `payment-processing` · **Kind:** `concept`
+
+Owns the durable architectural concept `payment-processing`.
+
 ## Responsibility
 
 Payment processing owns authorization before label purchase, capture after
@@ -27,6 +31,8 @@ financial command and its replay semantics.
 
 ## Relationships
 
-- [Order lifecycle](order-lifecycle.md)
-- [Retry policy](retry-policy.md)
-- [Persistence](persistence.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Order lifecycle](order-lifecycle.md) | Provides neighboring architectural context |
+| `related-to` | [Retry policy](retry-policy.md) | Provides neighboring architectural context |
+| `related-to` | [Persistence](persistence.md) | Provides neighboring architectural context |

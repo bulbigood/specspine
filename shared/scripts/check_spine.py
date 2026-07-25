@@ -17,6 +17,10 @@ from urllib.parse import unquote, urlsplit
 
 
 ID_RE = re.compile(r"^(DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$")
+DOCUMENT_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+IDENTITY_RE = re.compile(
+    r"^\*\*ID:\*\*\s+`([^`]+)`\s+·\s+\*\*Kind:\*\*\s+`([^`]+)`\s*$"
+)
 ID_CANDIDATE_RE = re.compile(r"^(?:DEC|CON|OBS|INF|OQ)-.+$")
 DEFINITION_RE = re.compile(r"^ {0,3}[-+*]\s+\*\*([^*\n]+)\*\*\s+—\s+")
 FILENAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
@@ -49,6 +53,20 @@ WORKFLOW_STATE_PHRASES = (
     "candidate parent (to add during publication)",
     "fork candidate",
 )
+CORE_KINDS = {
+    "index", "system", "subsystem", "component", "capability", "behavior",
+    "interface", "data", "policy", "invariant", "decision", "deployment",
+    "concept",
+}
+CORE_RELATIONS = {
+    "contains", "decomposes-into", "performs", "depends-on", "exposes",
+    "consumes", "publishes", "reads-from", "writes-to", "owns-data",
+    "constrained-by", "implemented-by", "has-evidence", "superseded-by",
+    "related-to",
+}
+RELATION_HEADER = ("Relation", "Target", "Meaning")
+DIVERGENCE_HEADER = ("Intended", "Observed", "Consequence")
+COVERAGE_STATUSES = ("Mapped", "Partially mapped", "Unmapped")
 
 
 @dataclass(frozen=True)
@@ -266,7 +284,7 @@ def local_target(source: Path, raw_target: str, root: Path) -> tuple[str, Path |
     return "inside", resolved
 
 
-def check(root: Path) -> list[Finding]:
+def _legacy_check(root: Path) -> list[Finding]:
     root = root.resolve()
     findings: list[Finding] = []
     if not root.is_dir():
@@ -524,6 +542,347 @@ def check(root: Path) -> list[Finding]:
             if path.resolve() not in reachable:
                 add(findings, "warning", "UNREACHABLE_SPEC", path, root, "specification is not reachable from README.md")
 
+    order = {"error": 0, "warning": 1, "note": 2}
+    return sorted(findings, key=lambda item: (order[item.severity], item.path, item.line or 0, item.code))
+
+
+@dataclass
+class _Node:
+    path: Path
+    lines: list[str]
+    title: str = ""
+    document_id: str = ""
+    kind: str = ""
+    identity_line: int | None = None
+    summary: str = ""
+    sections: dict[str, tuple[int, list[str]]] | None = None
+    statements: dict[str, tuple[str, int]] | None = None
+    links: list[tuple[int, MarkdownLink]] | None = None
+
+
+def _table_rows(lines: list[str], start: int) -> tuple[tuple[str, ...], list[tuple[int, tuple[str, ...]]]]:
+    """Return a simple GFM table beginning after a level-two heading."""
+    visible: list[tuple[int, str]] = []
+    for index in range(start, len(lines)):
+        value = lines[index].strip()
+        if value.startswith("## "):
+            break
+        if value.startswith("|") and value.endswith("|"):
+            visible.append((index + 1, value))
+        elif visible and value:
+            break
+    if len(visible) < 2:
+        return (), []
+
+    def cells(value: str) -> tuple[str, ...]:
+        return tuple(part.strip() for part in value.strip("|").split("|"))
+
+    header = cells(visible[0][1])
+    separator = cells(visible[1][1])
+    if len(header) != len(separator) or not all(re.fullmatch(r":?-{3,}:?", part) for part in separator):
+        return header, []
+    return header, [(number, cells(value)) for number, value in visible[2:]]
+
+
+def _parse_v2_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError) as error:
+        add(findings, "error", "READ_ERROR", path, root, str(error))
+        return _Node(path, [])
+    node = _Node(path, lines, sections={}, statements={}, links=[])
+    headings: list[tuple[int, int, str]] = []
+    in_fence = False
+    fence_char = ""
+    fence_length = 0
+    for number, line in enumerate(lines, 1):
+        fence = FENCE_RE.match(line)
+        if in_fence:
+            if fence and fence.group(1)[0] == fence_char and len(fence.group(1)) >= fence_length:
+                in_fence = False
+            continue
+        if fence:
+            in_fence = True
+            fence_char, fence_length = fence.group(1)[0], len(fence.group(1))
+            continue
+        heading = ATX_HEADING_RE.match(line)
+        if heading:
+            title = re.sub(r"[ \t]+#+[ \t]*$", "", heading.group(2) or "").strip()
+            headings.append((number, len(heading.group(1)), title))
+        identity = IDENTITY_RE.fullmatch(line.strip())
+        if identity:
+            if node.identity_line is not None:
+                add(findings, "error", "MULTIPLE_IDENTITY", path, root, "document has multiple identity lines", number)
+            else:
+                node.document_id, node.kind, node.identity_line = identity.group(1), identity.group(2), number
+
+    h1 = [(number, title) for number, level, title in headings if level == 1]
+    if not h1:
+        add(findings, "error", "MISSING_H1", path, root, "document has no level-one heading", 1)
+    elif len(h1) > 1:
+        add(findings, "error", "MULTIPLE_H1", path, root, "document must have exactly one level-one heading", h1[1][0])
+    else:
+        node.title = h1[0][1]
+    if node.identity_line is None:
+        add(findings, "error", "MISSING_DOCUMENT_ID", path, root, "missing canonical ID/Kind identity line")
+    else:
+        if not DOCUMENT_ID_RE.fullmatch(node.document_id):
+            add(findings, "error", "MALFORMED_DOCUMENT_ID", path, root, f"invalid document ID: {node.document_id}", node.identity_line)
+        if node.kind not in CORE_KINDS and not re.fullmatch(r"x-[a-z0-9]+(?:-[a-z0-9]+)*", node.kind):
+            add(findings, "warning", "UNKNOWN_KIND", path, root, f"unknown non-extension kind: {node.kind}", node.identity_line)
+
+    for index, (number, level, title) in enumerate(headings):
+        if level != 2:
+            continue
+        end = next((candidate - 1 for candidate, candidate_level, _ in headings[index + 1:] if candidate_level <= 2), len(lines))
+        body = lines[number:end]
+        node.sections[title] = (number, body)
+
+    if node.identity_line is not None:
+        cursor = node.identity_line
+        while cursor < len(lines) and (
+            not lines[cursor].strip()
+            or lines[cursor].startswith("**Aliases:**")
+            or lines[cursor].strip().startswith("<!--")
+        ):
+            cursor += 1
+        paragraph: list[str] = []
+        while cursor < len(lines) and lines[cursor].strip() and not lines[cursor].lstrip().startswith("#"):
+            paragraph.append(lines[cursor].strip())
+            cursor += 1
+        node.summary = " ".join(paragraph)
+    if not node.summary:
+        add(findings, "error", "MISSING_SUMMARY", path, root, "missing summary immediately after identity and aliases")
+    if node.kind != "index":
+        responsibility = node.sections.get("Responsibility")
+        if responsibility is None:
+            add(findings, "error", "MISSING_RESPONSIBILITY", path, root, "non-index node has no Responsibility section")
+        elif not any(line.strip() for line in responsibility[1]):
+            add(findings, "error", "EMPTY_RESPONSIBILITY", path, root, "Responsibility section is empty", responsibility[0])
+
+    region_depth = 0
+    regions = 0
+    section = ""
+    reference_definitions: dict[str, str] = {}
+    for number, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if stripped == ID_REGION_BEGIN:
+            regions += 1
+            region_depth += 1
+            continue
+        if stripped == ID_REGION_END:
+            if not region_depth:
+                add(findings, "error", "ID_REGION_END", path, root, "semantic-ID region ends without begin", number)
+            else:
+                region_depth -= 1
+            continue
+        heading = ATX_HEADING_RE.match(line)
+        if heading and len(heading.group(1)) == 2:
+            section = re.sub(r"[ \t]+#+[ \t]*$", "", heading.group(2) or "").strip()
+        definition = DEFINITION_RE.match(line)
+        if definition:
+            identifier = definition.group(1).strip()
+            if not ID_RE.fullmatch(identifier):
+                add(findings, "error", "INVALID_ID", path, root, f"invalid semantic ID: {identifier}", number)
+            elif identifier in node.statements:
+                add(findings, "error", "DUPLICATE_ID", path, root, f"duplicate semantic ID: {identifier}", number)
+            else:
+                expected = SECTION_PREFIXES.get(section)
+                if expected and not identifier.startswith(expected + "-"):
+                    add(findings, "error", "ID_SECTION", path, root, f"{identifier} does not belong under {section}", number)
+                node.statements[identifier] = (section, number)
+            if not region_depth:
+                add(findings, "warning", "ID_OUTSIDE_REGION", path, root, f"semantic ID is outside marker region: {identifier}", number)
+        reference = REFERENCE_DEFINITION_RE.match(line)
+        if reference:
+            reference_definitions[normalize_reference(reference.group(1))] = unescape_markdown(reference.group(2) or reference.group(3))
+    if region_depth:
+        add(findings, "error", "ID_REGION_UNCLOSED", path, root, "semantic-ID region is not closed")
+    if regions > 1:
+        add(findings, "error", "MULTIPLE_ID_REGIONS", path, root, "use at most one semantic-ID region")
+    for number, line in enumerate(lines, 1):
+        for link in markdown_links(line):
+            target = link.target
+            if target is None and link.reference:
+                target = reference_definitions.get(link.reference)
+            node.links.append((number, MarkdownLink(link.label, target, link.reference)))
+    return node
+
+
+def check(root: Path) -> list[Finding]:
+    """Validate the v2 canonical Markdown graph. Legacy documents are invalid."""
+    root = root.resolve()
+    findings: list[Finding] = []
+    if not root.is_dir():
+        return [Finding("error", "ROOT_MISSING", ".", None, f"SpecSpine root does not exist: {root}")]
+    files = sorted(path for path in root.rglob("*.md") if path.is_file() and not path.is_symlink())
+    index = root / "README.md"
+    if not index.is_file():
+        add(findings, "error", "INDEX_MISSING", index, root, "root README.md is required")
+    nodes = [_parse_v2_node(path, root, findings) for path in files]
+    by_path = {node.path.resolve(): node for node in nodes}
+    by_id: dict[str, _Node] = {}
+    global_statements: dict[str, tuple[_Node, str, int]] = {}
+    for node in nodes:
+        if node.document_id:
+            if node.document_id in by_id:
+                add(findings, "error", "DUPLICATE_DOCUMENT_ID", node.path, root, f"document ID already owned by {by_id[node.document_id].path.relative_to(root)}", node.identity_line)
+            else:
+                by_id[node.document_id] = node
+        for identifier, (section, number) in (node.statements or {}).items():
+            if identifier in global_statements:
+                add(findings, "error", "DUPLICATE_GLOBAL_ID", node.path, root, f"semantic ID already defined in {global_statements[identifier][0].path.relative_to(root)}", number)
+            else:
+                global_statements[identifier] = (node, section, number)
+
+    edges: list[tuple[_Node, str, _Node, str, int]] = []
+    edge_keys: set[tuple[str, str, str, str]] = set()
+    graph: dict[Path, set[Path]] = {node.path.resolve(): set() for node in nodes}
+    for node in nodes:
+        for number, link in node.links or []:
+            if not link.target:
+                continue
+            scope, target = local_target(node.path, link.target, root)
+            if scope == "outside":
+                add(findings, "note", "OUT_OF_SCOPE_LINK", node.path, root, f"local link points outside the Spine: {link.target}", number)
+            elif scope == "inside" and target is not None:
+                if not target.exists():
+                    add(findings, "error", "BROKEN_LINK", node.path, root, f"link target does not exist: {link.target}", number)
+                elif target.resolve() in by_path:
+                    graph[node.path.resolve()].add(target.resolve())
+                    if ID_RE.fullmatch(link.label) and link.label not in (by_path[target.resolve()].statements or {}):
+                        add(findings, "error", "UNRESOLVED_ID", node.path, root, f"target does not define {link.label}", number)
+            if ID_RE.fullmatch(link.label) and "#" in link.target:
+                add(findings, "error", "ID_FRAGMENT", node.path, root, "semantic-ID reference must not use a fragment", number)
+
+        relationships = (node.sections or {}).get("Relationships")
+        if relationships:
+            header, rows = _table_rows(node.lines, relationships[0])
+            if header != RELATION_HEADER:
+                add(findings, "error", "RELATIONSHIP_HEADER", node.path, root, "Relationships columns must be Relation | Target | Meaning", relationships[0])
+            for number, cells in rows:
+                if len(cells) != 3:
+                    add(findings, "error", "MALFORMED_RELATIONSHIP", node.path, root, "relationship row must have three cells", number)
+                    continue
+                relation_cell, target_cell, meaning = cells
+                relation_match = re.fullmatch(r"`([^`]+)`", relation_cell)
+                links = markdown_links(target_cell)
+                if not relation_match or len(links) != 1 or not links[0].target or not meaning:
+                    add(findings, "error", "MALFORMED_RELATIONSHIP", node.path, root, "relationship needs canonical token, one relative link, and Meaning", number)
+                    continue
+                relation = relation_match.group(1)
+                if relation not in CORE_RELATIONS and not re.fullmatch(r"x-[a-z0-9]+(?:-[a-z0-9]+)*", relation):
+                    add(findings, "warning", "UNKNOWN_RELATION", node.path, root, f"unknown non-extension relation: {relation}", number)
+                scope, target_path = local_target(node.path, links[0].target, root)
+                target_node = by_path.get(target_path.resolve()) if scope == "inside" and target_path else None
+                if target_node is None:
+                    add(findings, "error", "UNKNOWN_RELATION_TARGET", node.path, root, f"unknown relationship target: {links[0].target}", number)
+                    continue
+                statement = links[0].label if ID_RE.fullmatch(links[0].label) else ""
+                if statement and statement not in (target_node.statements or {}):
+                    add(findings, "error", "UNKNOWN_RELATION_STATEMENT", node.path, root, f"target does not define {statement}", number)
+                key = (node.document_id, relation, target_node.document_id, statement)
+                if key in edge_keys:
+                    add(findings, "error", "DUPLICATE_RELATIONSHIP", node.path, root, f"duplicate relationship key: {key}", number)
+                edge_keys.add(key)
+                edges.append((node, relation, target_node, statement, number))
+
+    if index in [node.path for node in nodes]:
+        index_node = by_path[index.resolve()]
+        if index_node.kind != "index":
+            add(findings, "error", "INDEX_KIND", index, root, "root README.md must use Kind `index`", index_node.identity_line)
+        coverage = (index_node.sections or {}).get("Coverage")
+        if coverage is None:
+            add(findings, "error", "MISSING_COVERAGE", index, root, "root README.md must contain Coverage")
+        else:
+            subsection_titles: set[str] = set()
+            for number, line in enumerate(index_node.lines, 1):
+                match = ATX_HEADING_RE.match(line)
+                if match and len(match.group(1)) == 3 and number > coverage[0]:
+                    subsection_titles.add(
+                        re.sub(r"[ \t]+#+[ \t]*$", "", match.group(2) or "").strip()
+                    )
+            for status in COVERAGE_STATUSES:
+                if status not in subsection_titles:
+                    add(findings, "error", "MISSING_COVERAGE_STATUS", index, root, f"Coverage lacks '{status}'", coverage[0])
+
+    for node in nodes:
+        divergence = (node.sections or {}).get("Known divergences")
+        if not divergence:
+            continue
+        header, rows = _table_rows(node.lines, divergence[0])
+        if header != DIVERGENCE_HEADER:
+            add(findings, "error", "DIVERGENCE_HEADER", node.path, root, "Known divergences columns must be Intended | Observed | Consequence", divergence[0])
+        seen: set[tuple[str, str]] = set()
+        for number, cells in rows:
+            if len(cells) != 3 or not cells[2]:
+                add(findings, "error", "MALFORMED_DIVERGENCE", node.path, root, "divergence row must have three nonempty cells", number)
+                continue
+            intended, observed = markdown_links(cells[0]), markdown_links(cells[1])
+            if len(intended) != 1 or len(observed) != 1:
+                add(findings, "error", "MALFORMED_DIVERGENCE", node.path, root, "Intended and Observed must each contain one semantic link", number)
+                continue
+            intended_id, observed_id = intended[0].label, observed[0].label
+            if not intended_id.startswith(("DEC-", "CON-")):
+                add(findings, "error", "DIVERGENCE_INTENDED_KIND", node.path, root, "Intended must reference DEC or CON", number)
+            if not observed_id.startswith("OBS-"):
+                add(findings, "error", "DIVERGENCE_OBSERVED_KIND", node.path, root, "Observed must reference OBS", number)
+            if intended_id not in global_statements or observed_id not in global_statements:
+                add(findings, "error", "DIVERGENCE_UNKNOWN_STATEMENT", node.path, root, "divergence references an unknown semantic statement", number)
+            if (intended_id, observed_id) in seen:
+                add(findings, "error", "DUPLICATE_DIVERGENCE", node.path, root, "duplicate Known divergence", number)
+            seen.add((intended_id, observed_id))
+
+    for relation in ("contains", "decomposes-into"):
+        adjacency: dict[str, set[str]] = {}
+        edge_lines: dict[tuple[str, str], tuple[_Node, int]] = {}
+        for source, edge_relation, target, _, number in edges:
+            if edge_relation == relation:
+                adjacency.setdefault(source.document_id, set()).add(target.document_id)
+                edge_lines[(source.document_id, target.document_id)] = (source, number)
+        visiting: set[str] = set()
+        visited: set[str] = set()
+        def visit(current: str) -> None:
+            if current in visited:
+                return
+            visiting.add(current)
+            for target in adjacency.get(current, set()):
+                if target in visiting:
+                    source, number = edge_lines[(current, target)]
+                    add(findings, "error", "RELATIONSHIP_CYCLE", source.path, root, f"cycle in {relation}", number)
+                else:
+                    visit(target)
+            visiting.discard(current)
+            visited.add(current)
+        for current in sorted(adjacency):
+            visit(current)
+
+    if index.is_file():
+        reachable: set[Path] = set()
+        pending = [index.resolve()]
+        while pending:
+            current = pending.pop()
+            if current in reachable:
+                continue
+            reachable.add(current)
+            pending.extend(graph.get(current, set()) - reachable)
+        for node in nodes:
+            if node.path.resolve() not in reachable:
+                add(findings, "error", "UNREACHABLE_SPEC", node.path, root, "specification is not reachable from README.md")
+    supplemental_codes = {
+        "INVALID_FILENAME", "INVALID_DIRECTORY", "WORKFLOW_STATE_LEAK",
+        "ID_REGION_NESTED", "EMPTY_ID_REGION", "INVALID_BASELINE",
+        "INVALID_BASELINE_DATE", "MULTIPLE_BASELINES", "MISSING_BASELINE",
+        "EMPTY_SECTION", "OUT_OF_SCOPE_ENTRY", "INVALID_ID_REFERENCE",
+    }
+    existing = {
+        (item.code, item.path, item.line, item.message) for item in findings
+    }
+    for item in _legacy_check(root):
+        key = (item.code, item.path, item.line, item.message)
+        if item.code in supplemental_codes and key not in existing:
+            findings.append(item)
+            existing.add(key)
     order = {"error": 0, "warning": 1, "note": 2}
     return sorted(findings, key=lambda item: (order[item.severity], item.path, item.line or 0, item.code))
 

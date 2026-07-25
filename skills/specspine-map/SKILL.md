@@ -5,6 +5,14 @@ description: Map observed brownfield repository architecture into a linked Markd
 
 # SpecSpine Map
 
+All published nodes use stable document IDs and core or `x-*` kinds. Publish
+architectural edges only through canonical `Relation | Target | Meaning`
+tables; ordinary links remain navigation. Maintain qualitative
+`Mapped / Partially mapped / Unmapped` coverage. Repository facts are `OBS`,
+not accepted intent. Record a confirmed intent/code conflict as an evidence-
+backed observation plus one `Known divergences` row; never infer or silently
+resolve accepted intent. Use arc42 and ICOM only as diagnostic lenses.
+
 Select one execution mode before project discovery:
 
 - Use **bounded mode** unless the operator explicitly requests exhaustive,

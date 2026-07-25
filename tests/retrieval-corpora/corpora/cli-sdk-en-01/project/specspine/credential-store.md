@@ -1,5 +1,9 @@
 # Credential store
 
+**ID:** `credential-store` · **Kind:** `concept`
+
+Owns the durable architectural concept `credential-store`.
+
 ## Responsibility
 
 This document owns lookup and handling of database credentials.
@@ -17,6 +21,8 @@ local cache.
 
 ## Relationships
 
-- [Configuration resolution](configuration-resolution.md)
-- [Local cache](local-cache.md)
-- [Telemetry](telemetry.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Configuration resolution](configuration-resolution.md) | Provides neighboring architectural context |
+| `related-to` | [Local cache](local-cache.md) | Provides neighboring architectural context |
+| `related-to` | [Telemetry](telemetry.md) | Provides neighboring architectural context |

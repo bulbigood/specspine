@@ -1,5 +1,9 @@
 # Background jobs
 
+**ID:** `background-jobs` · **Kind:** `concept`
+
+Owns the durable architectural concept `background-jobs`.
+
 ## Responsibility
 
 Background jobs provide durable execution, leases, checkpoints, concurrency
@@ -17,6 +21,8 @@ but not the business meaning of a retryable error.
 
 ## Relationships
 
-- [Persistence](persistence.md)
-- [Observability](observability.md)
-- [Carrier integration](carrier-integration.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Persistence](persistence.md) | Provides neighboring architectural context |
+| `related-to` | [Observability](observability.md) | Provides neighboring architectural context |
+| `related-to` | [Carrier integration](carrier-integration.md) | Provides neighboring architectural context |

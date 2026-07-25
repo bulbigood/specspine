@@ -110,16 +110,27 @@ class LifecycleRunnerTests(unittest.TestCase):
             nested = workspace / "specspine/domains/payments"
             nested.mkdir(parents=True)
             (workspace / "specspine/README.md").write_text(
-                "# Architecture\n\n[Payments](domains/payments/payment-processing.md)\n",
+                "# Architecture\n\n**ID:** `project-architecture` · **Kind:** `index`\n\n"
+                "Architecture.\n\n## Architecture map\n\n"
+                "- [Payments](domains/payments/payment-processing.md) — owns payments.\n\n"
+                "## Coverage\n\n### Mapped\n\n"
+                "- [Payments](domains/payments/payment-processing.md) — mapped.\n\n"
+                "### Partially mapped\n\n- Reporting.\n\n### Unmapped\n\n- Forecasting.\n",
                 encoding="utf-8",
             )
-            (nested / "payment-processing.md").write_text("# Payment processing\n", encoding="utf-8")
+            (nested / "payment-processing.md").write_text(
+                "# Payment processing\n\n**ID:** `payment-processing` · **Kind:** `subsystem`\n\n"
+                "Owns payments.\n\n## Responsibility\n\n- owns payment processing.\n",
+                encoding="utf-8",
+            )
             clean = RUNNER.evaluate_assertion(
                 {"type": "spine_mechanical_valid"}, workspace, {}, {}, "", None
             )
             self.assertTrue(clean.passed, clean.message)
             (nested / "payment-processing.md").write_text(
-                "# Payment processing\n\n[Missing](missing.md)\n", encoding="utf-8"
+                "# Payment processing\n\n**ID:** `payment-processing` · **Kind:** `subsystem`\n\n"
+                "Owns payments.\n\n## Responsibility\n\n- owns payment processing.\n\n"
+                "[Missing](missing.md)\n", encoding="utf-8"
             )
             broken = RUNNER.evaluate_assertion(
                 {"type": "spine_mechanical_valid"}, workspace, {}, {}, "", None

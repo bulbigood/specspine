@@ -1,5 +1,9 @@
 # 精确一次写入
 
+**ID:** `exactly-once-sinks` · **Kind:** `concept`
+
+Owns the durable architectural concept `exactly-once-sinks`.
+
 ## 职责
 
 本文拥有外部 sink 的 exactly-once 提交协议。支持事务的仓库使用两阶段提交：
@@ -15,3 +19,7 @@ transaction id，再提交或回滚悬挂事务。
 - [检查点恢复](checkpoint-recovery.md)
 - [批量回填](backfill.md)
 - [数据质量](data-quality.md)
+
+## Responsibility
+
+- owns the architectural responsibility summarized as: exactly-once-sinks.

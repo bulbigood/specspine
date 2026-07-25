@@ -14,26 +14,29 @@
     }
   },
   "documents": {
-    "README.md": "sha256:1d686c7fa7800c8bbede66ea660ebae7bae979c6275e28cfb021dd1ffc4f6400",
-    "backfill.md": "sha256:b341d9125fbe3baaaf8c51eabb81617249451c75b0191c79de1c5c4592d905d1",
-    "capacity-planning.md": "sha256:fe4d65372e3bfd2b9cfd2b5b2ee5e049f8ec3418737644dafe0bead9204ac70c",
-    "checkpoint-recovery.md": "sha256:16fe2a9f2d60f24b8bc27b22663a187a01267df3b7746b8d7ef24b100e78652f",
-    "data-quality.md": "sha256:0bf5b12eb4900da7bf2c707286935efe0d922db0b74771a8399aead6c31a5b16",
-    "data-retention.md": "sha256:42f0b335b99c256da194640dda34de1af54fcac8294054dcfa58725204464d18",
-    "event-ingestion.md": "sha256:a57a526891a64a594d9d385b63365bbf9d7e03c87a03652dc213e07c23392a94",
-    "event-time.md": "sha256:8dd7d6cf412caf1feb6077d00171bb47f8c57ae4d3c79a3a472a49f481fa1130",
-    "exactly-once-sinks.md": "sha256:65c116096b57558204c4a1ea5bdb69602674e8e67e8fb3b4489d7e2fec0cb7ac",
-    "incident-response.md": "sha256:127cc6a7570f32cbc5f4e47ccd450361fc07c8fb0d0ba99e35b7e9ca504213b0",
-    "observability.md": "sha256:55aa18c0b57981569a239914667fd2f89c7b1d9fa1f1d0e6ba528e6a0a450745",
-    "privacy-masking.md": "sha256:55de8289e601fbc64ae819df719612dd543756b674fc893aa60a81c9d9108ef0",
-    "runtime-configuration.md": "sha256:cddfbd61530663a3f4c57fcaedcc2d56c27102bc117b1c0c8fa04d18eb72a28e",
-    "schema-registry.md": "sha256:7be140fca5b57b09b5f1b06c2312948cd07ebda7efe2fb439b8be67a546185e3",
-    "window-aggregation.md": "sha256:d6e235eef046530037015bf433cb878f1c235e62969f3f81048bd98405edeb20"
+    "README.md": "sha256:39615410de750b3e8bc8b74c213b261857dabbea6cc8272b9c57976e4dcec3d8",
+    "backfill.md": "sha256:d6967aa41fafa9f9789fe2756d70784bcdb7eedd0930d3b50be3a62219f197ce",
+    "capacity-planning.md": "sha256:11d482e338bcc103f0d0b98dbe7dfeebc42ee92b75daa9d1f6d12255a83ef288",
+    "checkpoint-recovery.md": "sha256:d020cf62b668309b289fece4daa5265330efa05695f0afca162a2598ae4ea534",
+    "data-quality.md": "sha256:cedd603a9b3024f13338590cc37f67087555dabc0fa8ed57af04cccc9c3efcd3",
+    "data-retention.md": "sha256:b225460b65dcadc5b71630babca12cec187d675d7e942cac107ffbbadb7ddf04",
+    "event-ingestion.md": "sha256:5515c532b6dd023d246e17f474ee89895474fd63e58f8c281cf634e42b2ab541",
+    "event-time.md": "sha256:be7c637e563635a2cbcb9e975708779bf242e848d07acdac9bad253a6b651640",
+    "exactly-once-sinks.md": "sha256:0e07d3b365d790492ddd14d3a3262d6f621ca9742a121cda7df6aa023e91be21",
+    "incident-response.md": "sha256:9a693531ec645458d0ec3806260e7bc9a8e14b8ffddd484122ee8c072dd427ec",
+    "observability.md": "sha256:f0b6a11fa2534bb0f3de0f9f9c83c5fe0e465f847bf6099682ba1ba4ebc9a02e",
+    "privacy-masking.md": "sha256:53ee6b3ca8fa8085b1abb03da52da0ac82d91984d1b5ce6417bca84428f877c9",
+    "runtime-configuration.md": "sha256:ff40f9f34369eb044f20dee045824fe07c843bc2079c1f340bd822b6de1297f2",
+    "schema-registry.md": "sha256:6dc999b340b853924c4f9ad0289584462143ae6375881dbcf99e62806b150ce3",
+    "window-aggregation.md": "sha256:8e98436f2e2e5ba37f6f0f27190c5227d31141615d16d9b3bfb149bdc79bbb19"
   },
   "scenarios": [
     {
       "id": "late-event-watermark-policy",
-      "tags": ["cross-language", "partial-match-decoys"],
+      "tags": [
+        "cross-language",
+        "partial-match-decoys"
+      ],
       "request": {
         "language": "zh-CN",
         "text": "请找出事件时间水位线和迟到数据的权威规则：允许迟到多久、什么时候修正窗口、超迟事件最终去哪里。不要把监控指标当成语义定义。"
@@ -42,28 +45,64 @@
         {
           "id": "watermark-late-events",
           "must": [
-            ["水位线", "watermark"],
-            ["迟到事件", "迟到数据"],
-            ["隔离流", "late-event"]
+            [
+              "水位线",
+              "watermark"
+            ],
+            [
+              "迟到事件",
+              "迟到数据"
+            ],
+            [
+              "隔离流",
+              "late-event"
+            ]
           ],
           "should": [
-            ["允许迟到"],
-            ["修正结果", "修正窗口"]
+            [
+              "允许迟到"
+            ],
+            [
+              "修正结果",
+              "修正窗口"
+            ]
           ],
           "evaluation": "ranking",
           "expected_status": "matched",
           "judgments": [
-            {"path": "event-time.md", "grade": 3, "origin": "direct"},
-            {"path": "window-aggregation.md", "grade": 2, "origin": "either"},
-            {"path": "observability.md", "grade": 0, "origin": "either", "hard_negative": true},
-            {"path": "data-quality.md", "grade": 0, "origin": "either", "hard_negative": true}
+            {
+              "path": "event-time.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "window-aggregation.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "observability.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            },
+            {
+              "path": "data-quality.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
           ]
         }
       ]
     },
     {
       "id": "schema-evolution-compatibility",
-      "tags": ["synonym", "cross-language", "short-owner-long-consumer"],
+      "tags": [
+        "synonym",
+        "cross-language",
+        "short-owner-long-consumer"
+      ],
       "request": {
         "language": "zh-CN",
         "text": "我们准备给事件 Schema 新增字段。请确认默认兼容模式、默认值要求和字段改名的处理方式，并指出接入层在这里负责什么。"
@@ -72,28 +111,63 @@
         {
           "id": "schema-backward-default",
           "must": [
-            ["Schema", "模式"],
-            ["backward compatibility", "兼容性"],
-            ["默认值"]
+            [
+              "Schema",
+              "模式"
+            ],
+            [
+              "backward compatibility",
+              "兼容性"
+            ],
+            [
+              "默认值"
+            ]
           ],
           "should": [
-            ["字段改名", "版本演进"],
-            ["deprecated"]
+            [
+              "字段改名",
+              "版本演进"
+            ],
+            [
+              "deprecated"
+            ]
           ],
           "evaluation": "ranking",
           "expected_status": "matched",
           "judgments": [
-            {"path": "schema-registry.md", "grade": 3, "origin": "direct"},
-            {"path": "event-ingestion.md", "grade": 2, "origin": "either"},
-            {"path": "runtime-configuration.md", "grade": 0, "origin": "either", "hard_negative": true},
-            {"path": "data-quality.md", "grade": 1, "origin": "either"}
+            {
+              "path": "schema-registry.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "event-ingestion.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "runtime-configuration.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            },
+            {
+              "path": "data-quality.md",
+              "grade": 1,
+              "origin": "either"
+            }
           ]
         }
       ]
     },
     {
       "id": "isolated-backfill-and-idempotent-output",
-      "tags": ["multi-slice", "shared-document", "partial-match-decoys", "cross-language"],
+      "tags": [
+        "multi-slice",
+        "shared-document",
+        "partial-match-decoys",
+        "cross-language"
+      ],
       "request": {
         "language": "zh-CN",
         "text": "我要重放一个月的历史数据。需要同时确认回填如何与线上任务隔离，以及重试写入时怎样避免产生重复可见结果；请覆盖 run、consumer group、checkpoint、幂等键和 staging 发布。"
@@ -102,48 +176,112 @@
         {
           "id": "backfill-isolation",
           "must": [
-            ["回填", "backfill"],
-            ["consumer group"],
-            ["checkpoint", "检查点"]
+            [
+              "回填",
+              "backfill"
+            ],
+            [
+              "consumer group"
+            ],
+            [
+              "checkpoint",
+              "检查点"
+            ]
           ],
           "should": [
-            ["run id"],
-            ["staging", "临时状态"]
+            [
+              "run id"
+            ],
+            [
+              "staging",
+              "临时状态"
+            ]
           ],
           "evaluation": "ranking",
           "expected_status": "matched",
           "judgments": [
-            {"path": "backfill.md", "grade": 3, "origin": "direct"},
-            {"path": "capacity-planning.md", "grade": 2, "origin": "either"},
-            {"path": "checkpoint-recovery.md", "grade": 0, "origin": "either", "hard_negative": true},
-            {"path": "data-quality.md", "grade": 2, "origin": "either"}
+            {
+              "path": "backfill.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "capacity-planning.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "checkpoint-recovery.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            },
+            {
+              "path": "data-quality.md",
+              "grade": 2,
+              "origin": "either"
+            }
           ]
         },
         {
           "id": "replay-idempotent-sink",
           "must": [
-            ["重放", "replay"],
-            ["幂等键"],
-            ["重复可见结果", "exactly-once"]
+            [
+              "重放",
+              "replay"
+            ],
+            [
+              "幂等键"
+            ],
+            [
+              "重复可见结果",
+              "exactly-once"
+            ]
           ],
           "should": [
-            ["upsert"],
-            ["transaction id", "提交协议"]
+            [
+              "upsert"
+            ],
+            [
+              "transaction id",
+              "提交协议"
+            ]
           ],
           "evaluation": "ranking",
           "expected_status": "matched",
           "judgments": [
-            {"path": "exactly-once-sinks.md", "grade": 3, "origin": "direct"},
-            {"path": "backfill.md", "grade": 2, "origin": "either"},
-            {"path": "checkpoint-recovery.md", "grade": 1, "origin": "either"},
-            {"path": "event-ingestion.md", "grade": 0, "origin": "either", "hard_negative": true}
+            {
+              "path": "exactly-once-sinks.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "backfill.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "checkpoint-recovery.md",
+              "grade": 1,
+              "origin": "either"
+            },
+            {
+              "path": "event-ingestion.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            }
           ]
         }
       ]
     },
     {
       "id": "pii-tokenization-observability",
-      "tags": ["synonym", "partial-match-decoys", "cross-language"],
+      "tags": [
+        "synonym",
+        "partial-match-decoys",
+        "cross-language"
+      ],
       "request": {
         "language": "zh-CN",
         "text": "分析数据仍要支持同一用户的关联，但不能泄露 PII。请找到令牌化规则，并说明日志、指标标签和 trace 属性有什么限制。"
@@ -152,28 +290,62 @@
         {
           "id": "pii-masking-telemetry",
           "must": [
-            ["PII", "个人信息"],
-            ["tokenization", "令牌化"],
-            ["日志", "metric label", "trace attribute"]
+            [
+              "PII",
+              "个人信息"
+            ],
+            [
+              "tokenization",
+              "令牌化"
+            ],
+            [
+              "日志",
+              "metric label",
+              "trace attribute"
+            ]
           ],
           "should": [
-            ["deterministic"],
-            ["masking", "脱敏"]
+            [
+              "deterministic"
+            ],
+            [
+              "masking",
+              "脱敏"
+            ]
           ],
           "evaluation": "ranking",
           "expected_status": "matched",
           "judgments": [
-            {"path": "privacy-masking.md", "grade": 3, "origin": "direct"},
-            {"path": "observability.md", "grade": 2, "origin": "either"},
-            {"path": "data-retention.md", "grade": 0, "origin": "either", "hard_negative": true},
-            {"path": "incident-response.md", "grade": 1, "origin": "either"}
+            {
+              "path": "privacy-masking.md",
+              "grade": 3,
+              "origin": "direct"
+            },
+            {
+              "path": "observability.md",
+              "grade": 2,
+              "origin": "either"
+            },
+            {
+              "path": "data-retention.md",
+              "grade": 0,
+              "origin": "either",
+              "hard_negative": true
+            },
+            {
+              "path": "incident-response.md",
+              "grade": 1,
+              "origin": "either"
+            }
           ]
         }
       ]
     },
     {
       "id": "aligned-checkpoint-semantic-decision",
-      "tags": ["exact-id"],
+      "tags": [
+        "exact-id"
+      ],
       "request": {
         "language": "zh-CN",
         "text": "在修改恢复流程前，请定位语义决策 DEC-checkpoint-aligned-restore 的所有者并解释约束。"
@@ -182,19 +354,28 @@
         {
           "id": "checkpoint-decision-id",
           "must": [
-            ["DEC-checkpoint-aligned-restore"]
+            [
+              "DEC-checkpoint-aligned-restore"
+            ]
           ],
           "evaluation": "ranking",
           "expected_status": "matched",
           "judgments": [
-            {"path": "checkpoint-recovery.md", "grade": 3, "origin": "direct"}
+            {
+              "path": "checkpoint-recovery.md",
+              "grade": 3,
+              "origin": "direct"
+            }
           ]
         }
       ]
     },
     {
       "id": "unsupported-gpu-model-serving",
-      "tags": ["no-match", "wrong-must"],
+      "tags": [
+        "no-match",
+        "wrong-must"
+      ],
       "request": {
         "language": "zh-CN",
         "text": "查找 GPU 模型在线推理的动态批处理、显存配额和模型热更新规则。"
@@ -203,13 +384,23 @@
         {
           "id": "gpu-serving-rules",
           "must": [
-            ["GPU"],
-            ["模型推理"],
-            ["显存配额"]
+            [
+              "GPU"
+            ],
+            [
+              "模型推理"
+            ],
+            [
+              "显存配额"
+            ]
           ],
           "should": [
-            ["动态批处理"],
-            ["模型热更新"]
+            [
+              "动态批处理"
+            ],
+            [
+              "模型热更新"
+            ]
           ],
           "evaluation": "protocol",
           "expected_status": "no_match",

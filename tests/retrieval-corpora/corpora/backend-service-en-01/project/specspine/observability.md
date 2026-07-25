@@ -1,5 +1,9 @@
 # Observability
 
+**ID:** `observability` · **Kind:** `concept`
+
+Owns the durable architectural concept `observability`.
+
 ## Responsibility
 
 Observability defines structured logs, metrics, traces, correlation fields,
@@ -18,6 +22,8 @@ and financial conflicts.
 
 ## Relationships
 
-- [HTTP request pipeline](http-request-pipeline.md)
-- [Background jobs](background-jobs.md)
-- [Incident response](incident-response.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [HTTP request pipeline](http-request-pipeline.md) | Provides neighboring architectural context |
+| `related-to` | [Background jobs](background-jobs.md) | Provides neighboring architectural context |
+| `related-to` | [Incident response](incident-response.md) | Provides neighboring architectural context |

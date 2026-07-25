@@ -1,5 +1,9 @@
 # Minimal SaaS architecture
 
+**ID:** `project-architecture` · **Kind:** `index`
+
+Describes the canonical architecture of this bundled fixture.
+
 ## Purpose
 
 A small multi-tenant SaaS application where organizations manage members and
@@ -22,3 +26,20 @@ paid subscriptions.
 
 - Can a user belong to more than one organization?
 - Is a free plan represented as a subscription?
+
+## Coverage
+
+### Mapped
+
+- [Application](application.md) — bundled fixture is mapped.
+- [Identity](identity.md) — bundled fixture is mapped.
+- [Billing](billing.md) — bundled fixture is mapped.
+- [Operations](operations.md) — bundled fixture is mapped.
+
+### Partially mapped
+
+- No partially mapped bundled areas.
+
+### Unmapped
+
+- No known unmapped bundled areas.

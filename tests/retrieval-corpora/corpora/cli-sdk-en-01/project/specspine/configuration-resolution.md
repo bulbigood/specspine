@@ -1,5 +1,9 @@
 # Configuration resolution
 
+**ID:** `configuration-resolution` · **Kind:** `concept`
+
+Owns the durable architectural concept `configuration-resolution`.
+
 ## Responsibility
 
 This specification owns how effective configuration is selected.
@@ -25,6 +29,8 @@ secret value.
 
 ## Relationships
 
-- [Profile inheritance](profile-inheritance.md)
-- [Credential store](credential-store.md)
-- [Command dispatch](command-dispatch.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Profile inheritance](profile-inheritance.md) | Provides neighboring architectural context |
+| `related-to` | [Credential store](credential-store.md) | Provides neighboring architectural context |
+| `related-to` | [Command dispatch](command-dispatch.md) | Provides neighboring architectural context |

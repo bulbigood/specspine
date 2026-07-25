@@ -1,5 +1,9 @@
 # Local cache
 
+**ID:** `local-cache` · **Kind:** `concept`
+
+Owns the durable architectural concept `local-cache`.
+
 ## Responsibility
 
 The cache stores non-secret registry metadata and migration checksums for
@@ -17,6 +21,8 @@ cannot alter the applied migration ledger.
 
 ## Relationships
 
-- [Migration planning](migration-planning.md)
-- [Credential store](credential-store.md)
-- [Plugin API](plugin-api.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Migration planning](migration-planning.md) | Provides neighboring architectural context |
+| `related-to` | [Credential store](credential-store.md) | Provides neighboring architectural context |
+| `related-to` | [Plugin API](plugin-api.md) | Provides neighboring architectural context |

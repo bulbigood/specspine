@@ -1,5 +1,9 @@
 # Webhook delivery
 
+**ID:** `webhook-delivery` · **Kind:** `concept`
+
+Owns the durable architectural concept `webhook-delivery`.
+
 ## Responsibility
 
 Webhook delivery owns merchant callback subscriptions, payload signing,
@@ -30,6 +34,8 @@ callback attempt history and endpoint suspension threshold.
 
 ## Relationships
 
-- [Retry policy](retry-policy.md)
-- [Background jobs](background-jobs.md)
-- [Authentication](authentication.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Retry policy](retry-policy.md) | Provides neighboring architectural context |
+| `related-to` | [Background jobs](background-jobs.md) | Provides neighboring architectural context |
+| `related-to` | [Authentication](authentication.md) | Provides neighboring architectural context |

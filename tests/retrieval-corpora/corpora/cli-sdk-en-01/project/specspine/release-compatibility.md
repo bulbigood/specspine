@@ -1,5 +1,9 @@
 # Release compatibility
 
+**ID:** `release-compatibility` · **Kind:** `concept`
+
+Owns the durable architectural concept `release-compatibility`.
+
 ## Responsibility
 
 This document owns support windows across CLI, SDK, manifests, and plugins.
@@ -16,6 +20,8 @@ are never rewritten merely by inspecting a plan.
 
 ## Relationships
 
-- [Plugin API](plugin-api.md)
-- [Migration planning](migration-planning.md)
-- [Command dispatch](command-dispatch.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Plugin API](plugin-api.md) | Provides neighboring architectural context |
+| `related-to` | [Migration planning](migration-planning.md) | Provides neighboring architectural context |
+| `related-to` | [Command dispatch](command-dispatch.md) | Provides neighboring architectural context |

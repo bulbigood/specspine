@@ -1,5 +1,9 @@
 # Retry policy
 
+**ID:** `retry-policy` · **Kind:** `concept`
+
+Owns the durable architectural concept `retry-policy`.
+
 ## Responsibility
 
 This policy owns retry classification and scheduling for external operations.
@@ -20,5 +24,7 @@ operation deadline.
 
 ## Relationships
 
-- [Carrier integration](carrier-integration.md)
-- [Background jobs](background-jobs.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Carrier integration](carrier-integration.md) | Provides neighboring architectural context |
+| `related-to` | [Background jobs](background-jobs.md) | Provides neighboring architectural context |

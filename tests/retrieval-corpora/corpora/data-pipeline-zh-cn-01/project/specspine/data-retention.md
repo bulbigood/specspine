@@ -1,5 +1,9 @@
 # 数据保留
 
+**ID:** `data-retention` · **Kind:** `concept`
+
+Owns the durable architectural concept `data-retention`.
+
 ## 职责
 
 raw zone 保留 30 天，清洗后的事件保留 180 天，聚合结果按产品合同保留。删除任务以
@@ -12,3 +16,7 @@ dataset policy 为准，并生成不可变审计记录。法律保全标记可�
 
 - [隐私脱敏](privacy-masking.md)
 - [批量回填](backfill.md)
+
+## Responsibility
+
+- owns the architectural responsibility summarized as: data-retention.

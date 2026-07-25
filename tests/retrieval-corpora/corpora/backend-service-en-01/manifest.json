@@ -14,21 +14,21 @@
     }
   },
   "documents": {
-    "README.md": "sha256:0e92e6ae88371adc95c662247e8c63597c9faf5bb0865ea4505d13bc3fdf2aa4",
-    "authentication.md": "sha256:968e7761baa7c5f85ca1fafe7b1ab5a9a221e3c06f7201250caa6c883dfcc502",
-    "authorization.md": "sha256:50d32cc95d7b54581d884797da30bd255ed549f808f910d31b01b74e065f2cb8",
-    "background-jobs.md": "sha256:d83120ef14e21c245ba6eb320a1c48dcbd58b218cbce3c11b943a28dc31ba97e",
-    "carrier-integration.md": "sha256:8d90806daffb40a65a3ef480430f85927cd69b74c3bf7a35add9c10ed6845d80",
-    "configuration.md": "sha256:27ad4befc7c7841b6808a6a9671d2be63830bec92c94675d0d4e96bcfa4a0b07",
-    "http-request-pipeline.md": "sha256:e3b5a106aa9fcadfc07e31a118e7030c8217cfc0d8ad5fdd983591996a10881c",
-    "incident-response.md": "sha256:cd4b764d7d7d6007b7a7780ee7747c75815d2a92fe12134aba9b41e120c87cca",
-    "observability.md": "sha256:fcfeebde304c56ef55e43512e1a36c6d0f28e453bd3f7109f0907d96749a1742",
-    "order-lifecycle.md": "sha256:020cf9cda902b2507e49cd4175d1a1ab8f6cee6e6ec9411fa7315137f5093c20",
-    "payment-processing.md": "sha256:469734a2ce1768c762c1eac0394ffcd6b222f7b58d3036538b09b8b9615ee147",
-    "persistence.md": "sha256:6d3612a7340c700b20694c597f229a69f0555ade5dbfd6cc74e3977db9fa1e9e",
-    "rate-limits.md": "sha256:62ed386b93ff7100824f4431d2dd56a40c1221601e0bca6f00933fab85eef7cc",
-    "retry-policy.md": "sha256:a4c204d17fdb79dce962486157239bbfdc472fc1a3444f11cf3d40c9025e3a85",
-    "webhook-delivery.md": "sha256:eaf80d92731e86c33bf92a6f3d9953b48ec29e777f5ee393aa786f5544abf56b"
+    "README.md": "sha256:80878996de037f829ab67539a8267c5bceb4ec494103af2b1d9b260a0aba50fa",
+    "authentication.md": "sha256:5ff47ad8600cdaa0b3560c529b7ba917c48af0605f8df23bd22917da72e03af9",
+    "authorization.md": "sha256:4ad3cce8302d27cb39d4ea613cb9e1a3c4cd55cd9b4e1e07045dfd4a94955244",
+    "background-jobs.md": "sha256:bc49ed70d0ef4cb3045d55f0258c22055c776fc9997ee8346240a69d62dafcdb",
+    "carrier-integration.md": "sha256:8bf96ce626abf86afa776315fe9fa6b73798bbd8a6c726e40a190c76d0505284",
+    "configuration.md": "sha256:1edc506b5f1d59474878a09efa392a9f13bce1c36baea84a5a2e22f436b437ac",
+    "http-request-pipeline.md": "sha256:1bc64940399cd508ce9de54b74e7a7460fd82a3a408e610f96d2d7780b7ec962",
+    "incident-response.md": "sha256:94e192bf0fd0bff8b47e369f2190d9c13658ee061615ded4e0b69bd527f9fd35",
+    "observability.md": "sha256:b57ab43b0de14ff1361dbdb1e147c92f827962d038e914aa7f7493af9a1db021",
+    "order-lifecycle.md": "sha256:69fee59dcdad3e61193a0c4638d3a858120a3fdab34173cfcf019bd72a14ac7a",
+    "payment-processing.md": "sha256:8638e0e460a976c664b88cb7699badbf92e35e03287ab46a1ea9315f871ced30",
+    "persistence.md": "sha256:d6c8a42736f5d6e477937c2e4df5309238849c15c8fbaf6089145dd2bb313db2",
+    "rate-limits.md": "sha256:2f8e0481db433c2fb4a1b7ae3ed2a2bd29303efb8306573968a71a7c7b841ff2",
+    "retry-policy.md": "sha256:664aa4e5dfa5959a789abf4423c80923d1c072510f4c1f6411bcdfd81c2c7248",
+    "webhook-delivery.md": "sha256:89404171df1409a3d8b7227373f5102f35beb7ad75e0e389042f44748fb538f7"
   },
   "scenarios": [
     {
@@ -380,9 +380,15 @@
         {
           "id": "identity-proof",
           "must": [
-            ["signed sessions"],
-            ["credential hashing"],
-            ["principal construction"]
+            [
+              "signed sessions"
+            ],
+            [
+              "credential hashing"
+            ],
+            [
+              "principal construction"
+            ]
           ],
           "evaluation": "ranking",
           "expected_status": "matched",
@@ -407,9 +413,15 @@
         {
           "id": "tenant-policy",
           "must": [
-            ["tenant roles"],
-            ["machine scopes"],
-            ["resource-level policy"]
+            [
+              "tenant roles"
+            ],
+            [
+              "machine scopes"
+            ],
+            [
+              "resource-level policy"
+            ]
           ],
           "evaluation": "ranking",
           "expected_status": "matched",
@@ -434,9 +446,15 @@
         {
           "id": "request-envelope",
           "must": [
-            ["request ID"],
-            ["tenant"],
-            ["public error envelope"]
+            [
+              "request ID"
+            ],
+            [
+              "tenant"
+            ],
+            [
+              "public error envelope"
+            ]
           ],
           "evaluation": "ranking",
           "expected_status": "matched",
@@ -461,9 +479,15 @@
         {
           "id": "durable-workers",
           "must": [
-            ["leases"],
-            ["checkpoints"],
-            ["dead-letter"]
+            [
+              "leases"
+            ],
+            [
+              "checkpoints"
+            ],
+            [
+              "dead-letter"
+            ]
           ],
           "evaluation": "ranking",
           "expected_status": "matched",
@@ -488,9 +512,15 @@
         {
           "id": "transactional-storage",
           "must": [
-            ["transaction boundaries"],
-            ["outbox record"],
-            ["after commit"]
+            [
+              "transaction boundaries"
+            ],
+            [
+              "outbox record"
+            ],
+            [
+              "after commit"
+            ]
           ],
           "evaluation": "ranking",
           "expected_status": "matched",
@@ -515,9 +545,15 @@
         {
           "id": "telemetry-redaction",
           "must": [
-            ["structured logs"],
-            ["traces"],
-            ["redaction"]
+            [
+              "structured logs"
+            ],
+            [
+              "traces"
+            ],
+            [
+              "redaction"
+            ]
           ],
           "evaluation": "ranking",
           "expected_status": "matched",
@@ -542,9 +578,15 @@
         {
           "id": "tenant-capacity",
           "must": [
-            ["tenant budgets"],
-            ["retry-after"],
-            ["public API capacity"]
+            [
+              "tenant budgets"
+            ],
+            [
+              "retry-after"
+            ],
+            [
+              "public API capacity"
+            ]
           ],
           "evaluation": "ranking",
           "expected_status": "matched",
@@ -569,9 +611,15 @@
         {
           "id": "warehouse-cycle-count",
           "must": [
-            ["warehouse"],
-            ["barcode"],
-            ["cycle count"]
+            [
+              "warehouse"
+            ],
+            [
+              "barcode"
+            ],
+            [
+              "cycle count"
+            ]
           ],
           "evaluation": "protocol",
           "expected_status": "no_match",

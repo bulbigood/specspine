@@ -1,5 +1,9 @@
 # 窗口聚合
 
+**ID:** `window-aggregation` · **Kind:** `concept`
+
+Owns the durable architectural concept `window-aggregation`.
+
 ## 职责
 
 聚合器拥有 tumbling window、sliding window 和 session window 的计算方式。
@@ -14,3 +18,7 @@ aggregate key 和递增 revision 的 upsert 修正，而不是追加第二条最
 - [事件时间](event-time.md)
 - [检查点恢复](checkpoint-recovery.md)
 - [精确一次写入](exactly-once-sinks.md)
+
+## Responsibility
+
+- owns the architectural responsibility summarized as: window-aggregation.

@@ -1,5 +1,9 @@
 # Configuration
 
+**ID:** `configuration` · **Kind:** `concept`
+
+Owns the durable architectural concept `configuration`.
+
 ## Responsibility
 
 Configuration defines validated startup settings, secret references, dynamic
@@ -18,5 +22,7 @@ one carrier or callback endpoint.
 
 ## Relationships
 
-- [Observability](observability.md)
-- [Incident response](incident-response.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Observability](observability.md) | Provides neighboring architectural context |
+| `related-to` | [Incident response](incident-response.md) | Provides neighboring architectural context |

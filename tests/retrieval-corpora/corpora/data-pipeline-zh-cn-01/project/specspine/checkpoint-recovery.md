@@ -1,5 +1,9 @@
 # 检查点与恢复
 
+**ID:** `checkpoint-recovery` · **Kind:** `concept`
+
+Owns the durable architectural concept `checkpoint-recovery`.
+
 ## 职责
 
 本文拥有 checkpoint 协调、状态快照和恢复顺序。协调器先注入 barrier，所有输入
@@ -21,3 +25,7 @@
 - [窗口聚合](window-aggregation.md)
 - [精确一次写入](exactly-once-sinks.md)
 - [故障处置](incident-response.md)
+
+## Responsibility
+
+- owns the architectural responsibility summarized as: checkpoint-recovery.

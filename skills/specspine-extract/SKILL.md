@@ -16,21 +16,19 @@ change. Do not modify the project or SpecSpine.
    `<spine-root>/README.md` exists. If either condition fails, stop without
    invoking the script because this skill is not applicable. A repository name
    or work on SpecSpine skills and tooling does not establish applicability.
-3. Split the request into independently owned architecture targets. Form all
-   query slices before using tools.
+3. Form one structured task query with exact document/semantic IDs and paths
+   when known, synonym groups, task facets, and a token budget.
 4. After applicability is established, invoke the bundled script exactly once:
 
 ```text
-python3 <skill-root>/scripts/search_spine.py <spine-root> --queries-json '<compact-json>'
+python3 <skill-root>/scripts/search_spine.py <spine-root> --query-json '<compact-json>'
 ```
 
-5. Produce the handoff directly from returned `DOCUMENT` blocks. Do not reread
-   returned files. Read a file only when it is necessary and marked
-   `DOCUMENT_OMITTED`.
-6. If execution is unavailable, output is malformed, or a necessary slice is
-   `no_match`, do not retry. Use the returned root `DOCUMENT`; read
-   `<spine-root>/README.md` only if it was not returned, then follow only the
-   links needed to fill the gap.
+5. Treat the returned JSON object as the mandatory machine result and build the
+   human handoff from its selected sources.
+6. Preserve `partial`, `no-match`, `truncated`, or `invalid`, their reason, and
+   omissions. Direct Markdown navigation may fill a documented gap but must not
+   turn incomplete coverage into `complete`.
 
 Read `<spine-root>/README.md` before searching only when the root,
 documentation language, or system vocabulary cannot be resolved otherwise.
@@ -39,33 +37,24 @@ copy. Ranking, graph expansion, and output budget are fixed internal policy.
 
 ## Query
 
-Use one slice per required owner, normally with 2–3 independent literal
-features. Put synonyms for one feature in the same group. Use `should` only for
-useful tie-breakers. Preserve exact paths, semantic IDs, API names, and
-identifiers; write descriptive terms in the documentation language. Pass the
-slices as the top-level JSON array shown below; never wrap it in an object.
+Preserve exact paths, semantic IDs, API names, and identifiers. Put synonyms
+for one independently matched concept in the same group.
 
 ```json
-[
-  {
-    "id": "retry-owner",
-    "must": [
-      ["retry", "retries"],
-      ["provider", "external provider"],
-      ["timeout", "timed-out"]
-    ],
-    "should": [["backoff"]]
-  }
-]
+{
+  "id": "retry-change",
+  "targets": ["payment-processing"],
+  "semantic_ids": [],
+  "paths": [],
+  "terms": [["retry", "retries"], ["provider", "external provider"]],
+  "facets": ["failure", "data-mutation"],
+  "token_budget": 8000
+}
 ```
 
-`SLICE status=no_match` means no direct owner; its
-`HIT origin=root_fallback` points to the included root index. Other slices and
-their hits remain intact. `HIT origin=graph` is supporting context, not
-automatically required. `DOCUMENT` is complete current Markdown.
-`truncated=true` means at least one selected document was omitted. Protocol
-paths are relative to `<spine-root>`; prepend the repository-relative
-`<spine-root>/` when citing them in the handoff.
+The only statuses are `complete`, `partial`, `no-match`, `truncated`, and
+`invalid`. `complete` means a documented closure in a `Mapped` area, never
+code/spec conformance.
 
 ## Handoff
 
@@ -78,7 +67,9 @@ Use this order and omit empty sections:
 ## Required specifications
 ## Potentially affected specifications
 ## Architectural decisions and constraints
-## Decision sources
+## Known divergences
+## Coverage and confidence
+## Relevant behavior and failure boundaries
 ## Relevant observations
 ## Unconfirmed inferences
 ## Blocking questions

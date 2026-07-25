@@ -1,5 +1,9 @@
 # 容量管理
 
+**ID:** `capacity-planning` · **Kind:** `concept`
+
+Owns the durable architectural concept `capacity-planning`.
+
 ## 职责
 
 容量控制器根据 consumer lag、处理速率和 checkpoint 开销调整并行度。扩容优先于
@@ -14,3 +18,7 @@ backfill 只能使用剩余配额。
 - [批量回填](backfill.md)
 - [运行配置](runtime-configuration.md)
 - [可观测性](observability.md)
+
+## Responsibility
+
+- owns the architectural responsibility summarized as: capacity-planning.

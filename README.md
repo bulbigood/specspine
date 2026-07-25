@@ -140,6 +140,35 @@ stored outside the Spine and never becomes an architecture source. If Python,
 SQLite FTS5, command execution, or a usable cache is unavailable, extraction
 continues by navigating the same Markdown links directly.
 
+Every v2 node has stable identity and explicit graph semantics:
+
+```markdown
+# Session management
+
+**ID:** `session-management` · **Kind:** `subsystem`
+**Aliases:** Application sessions
+
+Owns provider-independent authenticated application sessions.
+
+## Responsibility
+
+- creates and revokes application sessions;
+- owns refresh-token lifecycle.
+
+## Relationships
+
+| Relation | Target | Meaning |
+|---|---|---|
+| `constrained-by` | [CON-session-isolation](session-policy.md) | Provider credentials cannot act as application sessions |
+```
+
+The root index uses `Kind: index` and reports qualitative `Mapped`,
+`Partially mapped`, and `Unmapped` coverage. Accepted `DEC`/`CON` claims,
+repository-backed `OBS`, unconfirmed `INF`, and blocking `OQ` remain distinct.
+Confirmed intent/code conflicts are linked once in `Known divergences`.
+Ordinary Markdown links are navigation; only relationship-table rows are typed
+edges.
+
 ## Skills
 
 ### `specspine-grow`

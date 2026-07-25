@@ -1,5 +1,9 @@
 # Profile inheritance
 
+**ID:** `profile-inheritance` · **Kind:** `concept`
+
+Owns the durable architectural concept `profile-inheritance`.
+
 ## Responsibility
 
 Named profiles compose reusable groups of non-secret settings.
@@ -16,5 +20,7 @@ discussions, but those usages do not define named configuration profiles.
 
 ## Relationships
 
-- [Configuration resolution](configuration-resolution.md)
-- [Telemetry](telemetry.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Configuration resolution](configuration-resolution.md) | Provides neighboring architectural context |
+| `related-to` | [Telemetry](telemetry.md) | Provides neighboring architectural context |

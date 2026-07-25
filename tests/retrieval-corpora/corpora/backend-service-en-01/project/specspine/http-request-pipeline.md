@@ -1,5 +1,9 @@
 # HTTP request pipeline
 
+**ID:** `http-request-pipeline` · **Kind:** `concept`
+
+Owns the durable architectural concept `http-request-pipeline`.
+
 ## Responsibility
 
 The pipeline assigns a request ID, authenticates the caller, resolves the
@@ -21,6 +25,8 @@ identifiers but redact credentials and webhook secrets.
 
 ## Relationships
 
-- [Authentication](authentication.md)
-- [Authorization](authorization.md)
-- [Rate limits](rate-limits.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Authentication](authentication.md) | Provides neighboring architectural context |
+| `related-to` | [Authorization](authorization.md) | Provides neighboring architectural context |
+| `related-to` | [Rate limits](rate-limits.md) | Provides neighboring architectural context |

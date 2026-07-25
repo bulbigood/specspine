@@ -1,5 +1,9 @@
 # Rollback policy
 
+**ID:** `rollback-policy` · **Kind:** `concept`
+
+Owns the durable architectural concept `rollback-policy`.
+
 ## Responsibility
 
 This document owns whether and how applied migrations can be reversed.
@@ -16,6 +20,8 @@ lease ownership, checksum validation, or irreversibility.
 
 ## Relationships
 
-- [Migration locking](migration-locking.md)
-- [Migration planning](migration-planning.md)
-- [Error contract](error-contract.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Migration locking](migration-locking.md) | Provides neighboring architectural context |
+| `related-to` | [Migration planning](migration-planning.md) | Provides neighboring architectural context |
+| `related-to` | [Error contract](error-contract.md) | Provides neighboring architectural context |

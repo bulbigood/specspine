@@ -1,5 +1,9 @@
 # Incident response
 
+**ID:** `incident-response` · **Kind:** `concept`
+
+Owns the durable architectural concept `incident-response`.
+
 ## Responsibility
 
 Incident response owns severity declaration, command roles, mitigation
@@ -20,6 +24,8 @@ configuration changes and record when normal limits are restored.
 
 ## Relationships
 
-- [Observability](observability.md)
-- [Configuration](configuration.md)
-- [Retry policy](retry-policy.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Observability](observability.md) | Provides neighboring architectural context |
+| `related-to` | [Configuration](configuration.md) | Provides neighboring architectural context |
+| `related-to` | [Retry policy](retry-policy.md) | Provides neighboring architectural context |

@@ -1,5 +1,9 @@
 # Plugin API
 
+**ID:** `plugin-api` · **Kind:** `concept`
+
+Owns the durable architectural concept `plugin-api`.
+
 ## Responsibility
 
 This specification owns plugin discovery, activation, and extension contracts.
@@ -28,6 +32,8 @@ but cannot intercept credentials or lease operations.
 
 ## Relationships
 
-- [Command dispatch](command-dispatch.md)
-- [Release compatibility](release-compatibility.md)
-- [Error contract](error-contract.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Command dispatch](command-dispatch.md) | Provides neighboring architectural context |
+| `related-to` | [Release compatibility](release-compatibility.md) | Provides neighboring architectural context |
+| `related-to` | [Error contract](error-contract.md) | Provides neighboring architectural context |

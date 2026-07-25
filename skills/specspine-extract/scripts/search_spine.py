@@ -23,7 +23,7 @@ except ImportError as error:
     raise SystemExit(2) from error
 
 
-SCHEMA_VERSION = "6"
+SCHEMA_VERSION = "7"
 FALLBACK_EXIT = 2
 BUILD_LOCK_TIMEOUT_MS = 10_000
 SQLITE_BUSY_TIMEOUT_MS = 10_000
@@ -38,6 +38,16 @@ REFERENCE_DEFINITION_RE = re.compile(
     r'^ {0,3}\[([^\]]+)\]:\s*(?:<([^>]+)>|(\S+?))(?:\s+(?:"[^"]*"|\'[^\']*\'|\([^)]*\)))?\s*$'
 )
 ID_RE = re.compile(r"^(?:DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$")
+DOCUMENT_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+IDENTITY_RE = re.compile(
+    r"^\*\*ID:\*\*\s+`([^`]+)`\s+·\s+\*\*Kind:\*\*\s+`([^`]+)`\s*$"
+)
+CORE_RELATIONS = {
+    "contains", "decomposes-into", "performs", "depends-on", "exposes",
+    "consumes", "publishes", "reads-from", "writes-to", "owns-data",
+    "constrained-by", "implemented-by", "has-evidence", "superseded-by",
+    "related-to",
+}
 SECTION_KINDS = {
     "decisions": "DEC",
     "system-wide decisions": "DEC",
@@ -1562,43 +1572,348 @@ def render_batch_output(
     ))
 
 
+def _cells(line: str) -> tuple[str, ...]:
+    return tuple(part.strip() for part in line.strip().strip("|").split("|"))
+
+
+def _canonical_documents(root: Path) -> tuple[dict[str, dict[str, object]], list[str]]:
+    documents: dict[str, dict[str, object]] = {}
+    errors: list[str] = []
+    paths: dict[Path, str] = {}
+    for path in sorted(root.rglob("*.md")):
+        if not path.is_file() or path.is_symlink():
+            continue
+        relative = path.relative_to(root).as_posix()
+        text = path.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        title = next((match.group(2).strip() for line in lines if (match := HEADING_RE.match(line)) and len(match.group(1)) == 1), "")
+        identities = [IDENTITY_RE.fullmatch(line.strip()) for line in lines]
+        identities = [item for item in identities if item]
+        if len(identities) != 1:
+            errors.append(f"{relative}: missing or duplicate identity line")
+            continue
+        document_id, kind = identities[0].groups()
+        if not DOCUMENT_ID_RE.fullmatch(document_id) or document_id in documents:
+            errors.append(f"{relative}: invalid or duplicate document ID")
+            continue
+        identity_index = next(index for index, line in enumerate(lines) if IDENTITY_RE.fullmatch(line.strip()))
+        aliases: list[str] = []
+        cursor = identity_index + 1
+        while cursor < len(lines) and not lines[cursor].strip():
+            cursor += 1
+        if cursor < len(lines) and lines[cursor].startswith("**Aliases:**"):
+            aliases = [item.strip() for item in lines[cursor].split(":", 1)[1].split(",") if item.strip()]
+            cursor += 1
+            while cursor < len(lines) and not lines[cursor].strip():
+                cursor += 1
+        summary_lines: list[str] = []
+        while cursor < len(lines) and lines[cursor].strip() and not lines[cursor].startswith("#"):
+            summary_lines.append(lines[cursor].strip())
+            cursor += 1
+        sections: dict[str, str] = {}
+        section_order: list[str] = []
+        current: str | None = None
+        body: list[str] = []
+        for line in lines:
+            heading = HEADING_RE.match(line)
+            if heading and len(heading.group(1)) == 2:
+                if current is not None:
+                    sections[current] = "\n".join(body).strip()
+                current = heading.group(2).strip()
+                section_order.append(current)
+                body = []
+            elif current is not None:
+                body.append(line)
+        if current is not None:
+            sections[current] = "\n".join(body).strip()
+        statements: dict[str, dict[str, str]] = {}
+        for heading, section_body in sections.items():
+            for statement_line in section_body.splitlines():
+                match = DEFINITION_RE.match(statement_line)
+                if match is None:
+                    continue
+                identifier = match.group(1)
+                statements[identifier] = {
+                    "kind": identifier.split("-", 1)[0],
+                    "statement": match.group(2).strip(),
+                    "section": heading,
+                }
+        documents[document_id] = {
+            "id": document_id, "kind": kind, "path": relative, "title": title,
+            "aliases": aliases, "summary": " ".join(summary_lines),
+            "responsibility": sections.get("Responsibility", ""),
+            "sections": sections, "section_order": section_order,
+            "statements": statements, "relationships": [], "divergences": [],
+            "text": text,
+        }
+        paths[path.resolve()] = document_id
+    for document in documents.values():
+        source_path = (root / str(document["path"])).resolve()
+        relationship_body = document["sections"].get("Relationships", "")
+        relationship_lines = relationship_body.splitlines()
+        if len(relationship_lines) >= 2 and _cells(relationship_lines[0]) == ("Relation", "Target", "Meaning"):
+            for line in relationship_lines[2:]:
+                cells = _cells(line)
+                if len(cells) != 3:
+                    continue
+                relation = cells[0].strip("`")
+                links = markdown_links(cells[1])
+                if relation not in CORE_RELATIONS and not relation.startswith("x-"):
+                    errors.append(f"{document['path']}: unknown relation {relation}")
+                    continue
+                if len(links) != 1 or not links[0].target:
+                    errors.append(f"{document['path']}: malformed relationship target")
+                    continue
+                target_path = local_target(source_path, links[0].target, root)
+                target_id = paths.get(target_path.resolve()) if target_path else None
+                if not target_id:
+                    errors.append(f"{document['path']}: unknown relationship target")
+                    continue
+                document["relationships"].append({
+                    "relation": relation, "target": target_id,
+                    "statement": links[0].label if ID_RE.fullmatch(links[0].label) else "",
+                    "meaning": cells[2],
+                })
+        divergence_body = document["sections"].get("Known divergences", "")
+        divergence_lines = divergence_body.splitlines()
+        if len(divergence_lines) >= 2 and _cells(divergence_lines[0]) == ("Intended", "Observed", "Consequence"):
+            for line in divergence_lines[2:]:
+                cells = _cells(line)
+                if len(cells) == 3:
+                    intended, observed = markdown_links(cells[0]), markdown_links(cells[1])
+                    if len(intended) == len(observed) == 1:
+                        document["divergences"].append({
+                            "intended": intended[0].label,
+                            "observed": observed[0].label,
+                            "consequence": cells[2],
+                        })
+    return documents, errors
+
+
+def _coverage(index: dict[str, object], primary: dict[str, object]) -> tuple[str, str]:
+    body = str(index["sections"].get("Coverage", ""))
+    current = ""
+    primary_id, primary_path = str(primary["id"]), str(primary["path"])
+    for line in body.splitlines():
+        if line.startswith("### "):
+            current = line[4:].strip().casefold()
+        elif line.lstrip().startswith(("-", "*")):
+            links = markdown_links(line)
+            if any(
+                link.target and Path(link.target).name == Path(primary_path).name
+                for link in links
+            ) or primary_id in line:
+                mapping = {
+                    "mapped": "mapped",
+                    "partially mapped": "partially-mapped",
+                    "unmapped": "unmapped",
+                }
+                return mapping.get(current, "unknown"), line.lstrip("-* ").strip()
+    return "unknown", "primary area is not classified in Coverage"
+
+
+def _validate_query(payload: object) -> tuple[dict[str, object] | None, str | None]:
+    if not isinstance(payload, dict):
+        return None, "query must be an object"
+    allowed = {"id", "targets", "semantic_ids", "paths", "terms", "facets", "token_budget"}
+    unknown = set(payload) - allowed
+    if unknown:
+        return None, f"unsupported fields: {', '.join(sorted(unknown))}"
+    query = dict(payload)
+    for field in ("targets", "semantic_ids", "paths", "facets"):
+        value = query.get(field, [])
+        if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
+            return None, f"{field} must be a list of non-empty strings"
+        query[field] = value
+    terms = query.get("terms", [])
+    if not isinstance(terms, list) or any(
+        not isinstance(group, list) or not group or any(not isinstance(term, str) or not term.strip() for term in group)
+        for group in terms
+    ):
+        return None, "terms must be synonym groups"
+    budget = query.get("token_budget", 8000)
+    if not isinstance(budget, int) or budget < 128:
+        return None, "token_budget must be an integer >= 128"
+    query["token_budget"] = budget
+    return query, None
+
+
+def build_closure(root: Path, payload: object) -> dict[str, object]:
+    query, query_error = _validate_query(payload)
+    base: dict[str, object] = {
+        "closure_status": "invalid", "reason": "invalid_query",
+        "coverage": "unknown", "primary": None, "required": [],
+        "potentially_affected": [], "decisions": [], "constraints": [],
+        "known_divergences": [], "blocking_questions": [], "omitted": [],
+        "sources": [],
+    }
+    if query_error:
+        base["omitted"] = [{"reason": query_error}]
+        return base
+    root = root.resolve()
+    if not root.is_dir():
+        base["reason"] = "spine_root_missing"
+        return base
+    documents, errors = _canonical_documents(root)
+    index = next((item for item in documents.values() if item["kind"] == "index" and item["path"] == "README.md"), None)
+    if errors or index is None:
+        base["reason"] = "invalid_spine"
+        base["omitted"] = [{"reason": error} for error in errors] or [{"reason": "root index missing"}]
+        return base
+    candidates: dict[str, float] = {}
+    targets = set(query["targets"])
+    semantic_ids = set(query["semantic_ids"])
+    paths = set(query["paths"])
+    for document_id, document in documents.items():
+        score = 0.0
+        if document_id in targets:
+            score += 130
+        if str(document["path"]) in paths:
+            score += 125
+        if semantic_ids & set(document["statements"]):
+            score += 140
+        searchable = {
+            "title": str(document["title"]).casefold(),
+            "alias": " ".join(document["aliases"]).casefold(),
+            "summary": str(document["summary"]).casefold(),
+            "responsibility": str(document["responsibility"]).casefold(),
+            "body": str(document["text"]).casefold(),
+        }
+        for group in query["terms"]:
+            matched = [term.casefold() for term in group if any(term.casefold() in value for value in searchable.values())]
+            if matched:
+                term = matched[0]
+                if term in searchable["title"]:
+                    score += 120
+                elif term in searchable["alias"]:
+                    score += 110
+                elif term in searchable["summary"]:
+                    score += 6
+                elif term in searchable["responsibility"]:
+                    score += 5
+                else:
+                    score += 1
+        if score:
+            candidates[document_id] = score
+    candidates.pop(str(index["id"]), None)
+    if not candidates:
+        base.update({"closure_status": "no-match", "reason": "primary_owner_not_found", "sources": ["README.md"]})
+        return base
+    primary_id = sorted(candidates, key=lambda item: (-candidates[item], item))[0]
+    primary = documents[primary_id]
+    coverage, coverage_detail = _coverage(index, primary)
+    required: set[str] = set()
+    potential: set[str] = set()
+    strong_by_facet = {
+        "external-contract": {"exposes"},
+        "event": {"consumes", "publishes"},
+        "data-mutation": {"owns-data", "reads-from", "writes-to"},
+        "failure": {"constrained-by", "depends-on"},
+        "lifecycle": {"constrained-by", "owns-data", "performs"},
+    }
+    mandatory = {"superseded-by", "constrained-by"}
+    for relation in primary["relationships"]:
+        relation_type = relation["relation"]
+        if relation_type in mandatory or any(relation_type in strong_by_facet.get(facet, set()) for facet in query["facets"]):
+            required.add(relation["target"])
+        elif relation_type == "related-to":
+            potential.add(relation["target"])
+    for document in documents.values():
+        for relation in document["relationships"]:
+            if relation["target"] == primary_id and relation["relation"] in {
+                "exposes", "consumes", "publishes", "reads-from", "writes-to",
+                "owns-data", "constrained-by", "depends-on",
+            }:
+                potential.add(str(document["id"]))
+    selected_ids = {primary_id, *required}
+    statements = {
+        identifier: (str(document["id"]), statement)
+        for document in documents.values()
+        for identifier, statement in document["statements"].items()
+    }
+    decisions = []
+    constraints = []
+    questions = []
+    divergences = []
+    for selected_id in sorted(selected_ids):
+        document = documents[selected_id]
+        for identifier, statement in document["statements"].items():
+            item = {"id": identifier, "owner": selected_id, "statement": statement["statement"]}
+            if identifier.startswith("DEC-"):
+                decisions.append(item)
+            elif identifier.startswith("CON-"):
+                constraints.append(item)
+            elif identifier.startswith("OQ-"):
+                questions.append(item)
+        for divergence in document["divergences"]:
+            if divergence["intended"] in statements and divergence["observed"] in statements:
+                divergences.append({"owner": selected_id, **divergence})
+    result = {
+        "closure_status": "complete",
+        "reason": "mapped_task_closure_satisfied",
+        "coverage": coverage,
+        "coverage_detail": coverage_detail,
+        "primary": {
+            "id": primary_id, "path": primary["path"], "kind": primary["kind"],
+            "title": primary["title"], "summary": primary["summary"],
+            "responsibility": primary["responsibility"],
+        },
+        "required": [
+            {"id": item, "path": documents[item]["path"], "reason": "typed_graph_closure"}
+            for item in sorted(required)
+        ],
+        "potentially_affected": [
+            {"id": item, "path": documents[item]["path"], "reason": "incoming_or_weak_relationship"}
+            for item in sorted(potential - required - {primary_id})
+        ],
+        "decisions": decisions, "constraints": constraints,
+        "known_divergences": divergences, "blocking_questions": questions,
+        "omitted": [], "sources": [str(index["path"]), str(primary["path"])] + [
+            str(documents[item]["path"]) for item in sorted(required)
+        ],
+    }
+    if coverage != "mapped":
+        result["closure_status"] = "partial"
+        result["reason"] = "coverage_incomplete"
+        result["omitted"].append({"reason": coverage_detail})
+    estimated_tokens = len(json.dumps(result, ensure_ascii=False)) // 4
+    if estimated_tokens > query["token_budget"]:
+        result["closure_status"] = "truncated"
+        result["reason"] = "token_budget_exceeded"
+        result["omitted"].append({
+            "reason": "token_budget", "estimated_tokens": estimated_tokens,
+            "token_budget": query["token_budget"],
+        })
+        result["potentially_affected"] = []
+        result["primary"].pop("summary", None)
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("spine_root", type=Path)
-    parser.add_argument("--queries-json", required=True)
-    parser.add_argument("--rebuild", action="store_true")
+    parser.add_argument("--query-json", help="structured v2 task query")
+    parser.add_argument("--query-file", type=Path, help="path to a structured v2 task query")
+    parser.add_argument("--rebuild", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if bool(args.query_json) == bool(args.query_file):
+        parser.error("provide exactly one of --query-json or --query-file")
     try:
-        query_slices = RANKING.parse_query_slices(args.queries_json)
-    except RANKING.InvalidRankingQuery:
-        batch = BatchSearchOutcome(
-            FALLBACK_EXIT,
-            "fallback",
-            RANKING.RANKING_SYSTEM,
-            reason_code="invalid_query",
-        )
-        print(
-            render_batch_output(args.spine_root, batch),
-            end="",
-        )
-        return FALLBACK_EXIT
-    batch = execute_searches(
-        args.spine_root,
-        query_slices,
-        rebuild=args.rebuild,
-    )
-    try:
-        output = render_batch_output(args.spine_root, batch)
-    except AcceleratorUnavailable:
-        batch = BatchSearchOutcome(
-            FALLBACK_EXIT,
-            "fallback",
-            RANKING.RANKING_SYSTEM,
-            reason_code="selected_document_unavailable",
-        )
-        output = render_batch_output(args.spine_root, batch)
-    print(output, end="")
-    return batch.exit_code
+        raw = args.query_json if args.query_json is not None else args.query_file.read_text(encoding="utf-8")
+        payload = json.loads(raw)
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        result = {
+            "closure_status": "invalid", "reason": "malformed_query",
+            "coverage": "unknown", "primary": None, "required": [],
+            "potentially_affected": [], "decisions": [], "constraints": [],
+            "known_divergences": [], "blocking_questions": [],
+            "omitted": [{"reason": str(error)}], "sources": [],
+        }
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+        return 1
+    result = build_closure(args.spine_root, payload)
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    return 1 if result["closure_status"] == "invalid" else 0
 
 
 if __name__ == "__main__":

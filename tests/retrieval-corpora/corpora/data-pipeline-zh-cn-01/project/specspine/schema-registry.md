@@ -1,5 +1,9 @@
 # 模式注册中心
 
+**ID:** `schema-registry` · **Kind:** `concept`
+
+Owns the durable architectural concept `schema-registry`.
+
 ## 职责
 
 注册中心拥有 Schema 版本演进和兼容性判定。默认采用 backward compatibility：
@@ -20,3 +24,7 @@
 
 - [事件接入](event-ingestion.md)
 - [数据质量](data-quality.md)
+
+## Responsibility
+
+- owns the architectural responsibility summarized as: schema-registry.

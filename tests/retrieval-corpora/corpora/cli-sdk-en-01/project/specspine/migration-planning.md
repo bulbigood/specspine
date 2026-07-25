@@ -1,5 +1,9 @@
 # Migration planning
 
+**ID:** `migration-planning` · **Kind:** `concept`
+
+Owns the durable architectural concept `migration-planning`.
+
 ## Responsibility
 
 This specification owns migration discovery, dependency ordering, and plan
@@ -18,7 +22,9 @@ a promise that later application will succeed.
 
 ## Relationships
 
-- [Migration locking](migration-locking.md)
-- [Rollback policy](rollback-policy.md)
-- [Output rendering](output-rendering.md)
-- [Local cache](local-cache.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Migration locking](migration-locking.md) | Provides neighboring architectural context |
+| `related-to` | [Rollback policy](rollback-policy.md) | Provides neighboring architectural context |
+| `related-to` | [Output rendering](output-rendering.md) | Provides neighboring architectural context |
+| `related-to` | [Local cache](local-cache.md) | Provides neighboring architectural context |

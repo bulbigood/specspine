@@ -1,5 +1,9 @@
 # Command dispatch
 
+**ID:** `command-dispatch` · **Kind:** `concept`
+
+Owns the durable architectural concept `command-dispatch`.
+
 ## Responsibility
 
 This document owns argument parsing, command selection, and the boundary
@@ -17,7 +21,9 @@ boundary as typed SDK errors, which the error contract maps to exit statuses.
 
 ## Relationships
 
-- [Configuration resolution](configuration-resolution.md)
-- [Plugin API](plugin-api.md)
-- [Output rendering](output-rendering.md)
-- [Error contract](error-contract.md)
+| Relation | Target | Meaning |
+|---|---|---|
+| `related-to` | [Configuration resolution](configuration-resolution.md) | Provides neighboring architectural context |
+| `related-to` | [Plugin API](plugin-api.md) | Provides neighboring architectural context |
+| `related-to` | [Output rendering](output-rendering.md) | Provides neighboring architectural context |
+| `related-to` | [Error contract](error-contract.md) | Provides neighboring architectural context |

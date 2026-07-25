@@ -1,5 +1,9 @@
 # 可观测性
 
+**ID:** `observability` · **Kind:** `concept`
+
+Owns the durable architectural concept `observability`.
+
 ## 职责
 
 平台指标包括输入速率、consumer lag、watermark delay、checkpoint duration、
@@ -14,3 +18,7 @@
 - [隐私脱敏](privacy-masking.md)
 - [容量管理](capacity-planning.md)
 - [故障处置](incident-response.md)
+
+## Responsibility
+
+- owns the architectural responsibility summarized as: observability.

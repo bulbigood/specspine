@@ -1,5 +1,9 @@
 # 事件接入
 
+**ID:** `event-ingestion` · **Kind:** `concept`
+
+Owns the durable architectural concept `event-ingestion`.
+
 ## 职责
 
 本文拥有事件 envelope、分区路由和接入确认规则。生产者必须提供 `event_id`、
@@ -14,3 +18,7 @@
 - [模式注册中心](schema-registry.md)
 - [事件时间](event-time.md)
 - [数据质量](data-quality.md)
+
+## Responsibility
+
+- owns the architectural responsibility summarized as: event-ingestion.
