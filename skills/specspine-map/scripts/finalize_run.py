@@ -36,6 +36,29 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
         or discovery.get("frontier_epoch") != ledger.get("frontier_epoch", 0)
     ):
         raise FinalizeError("current scope-level discovery pass is missing")
+    documentation = ledger.get("documentation_pass")
+    if not isinstance(documentation, dict):
+        raise FinalizeError("current final Spine review is missing")
+    expected_documents = documentation.get("documents")
+    actual_documents = {
+        path.relative_to(args.spine_root).as_posix(): hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
+        for path in args.spine_root.rglob("*.md")
+        if path.is_file()
+    }
+    if expected_documents != actual_documents:
+        raise FinalizeError(
+            "Spine changed after the final documentation pass; review it again"
+        )
+    integration = ledger.get("integration_pass")
+    if (
+        not isinstance(integration, dict)
+        or integration.get("documents") != actual_documents
+    ):
+        raise FinalizeError(
+            "Spine changed after graph integration; integrate it again"
+        )
 
     dirty_staging: list[str] = []
     for root in args.staging_root:
@@ -95,6 +118,7 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
         "ledger_digest": ledger_digest,
         "revision": ledger.get("revision"),
         "frontier_epoch": ledger.get("frontier_epoch"),
+        "terminal_gates": campaign.terminal_gates(ledger),
         "published": published,
         "changes": {
             "created": created,

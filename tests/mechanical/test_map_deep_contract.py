@@ -17,6 +17,13 @@ class MapExhaustiveContractTests(unittest.TestCase):
         cls.protocol = (
             ROOT / "skills/specspine-map/references/orchestration.md"
         ).read_text(encoding="utf-8")
+        cls.documentation_first = (
+            ROOT
+            / "skills/specspine-map/references/documentation-first-seeding.md"
+        ).read_text(encoding="utf-8")
+        cls.integration = (
+            ROOT / "skills/specspine-map/references/integration-pass.md"
+        ).read_text(encoding="utf-8")
         cls.campaign = (
             ROOT / "skills/specspine-map/scripts/campaign.py"
         ).read_text(encoding="utf-8")
@@ -80,8 +87,11 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn(
             "strong root with `medium` or `high` reasoning", normalized
         )
-        self.assertIn("Keep producers branch-affine", normalized)
+        self.assertIn("Keep producers evidence-affine", normalized)
         self.assertIn("independent strong semantic audit", normalized)
+        self.assertIn("never send an unrelated branch through `followup_task`", normalized)
+        self.assertIn("wait for a slot", normalized)
+        self.assertIn("accepted `coverage_frontier`", normalized)
 
     def test_campaign_has_lock_atomic_write_and_rollback(self):
         self.assertIn("fcntl.flock", self.campaign)
@@ -93,6 +103,44 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("quality_gate", self.campaign)
         self.assertIn("publish_and_locally_saturate", self.campaign)
         self.assertIn("producer_affinity", self.campaign)
+        self.assertIn("producer_assignments", self.campaign)
+        self.assertIn("discovered_by_owner", self.campaign)
+        self.assertIn("fresh producer required", self.campaign)
+
+    def test_existing_spine_seeds_frontier_from_documentation_first(self):
+        entrypoint = " ".join(self.entrypoint.split())
+        protocol = " ".join(self.protocol.split())
+        documentation_first = " ".join(self.documentation_first.split())
+        self.assertIn("documentation-first-seeding.md", entrypoint)
+        self.assertIn("before source discovery or producer assignment", protocol)
+        self.assertIn("seed-from-spine", documentation_first)
+        self.assertIn("documentation-pass", documentation_first)
+        self.assertIn("records document digests", documentation_first)
+        self.assertIn("first broad code pass", protocol)
+        self.assertIn("missing_documentation_plan", self.campaign)
+        self.assertIn("stale_documentation_pass", self.campaign)
+        self.assertIn("stale_integration_pass", self.campaign)
+
+    def test_saturation_requires_empty_frontier_and_finished_producers(self):
+        normalized = " ".join(self.protocol.split())
+        self.assertIn(
+            "every assigned producer must have returned its terminal result",
+            normalized,
+        )
+        self.assertIn("no producer may still be running", normalized)
+        self.assertIn("current pass returns `no_gaps`", normalized)
+        self.assertIn("make no further documentation edits", normalized)
+        self.assertIn("typed relationships", normalized)
+        self.assertIn("file organization", normalized)
+
+    def test_graph_integration_owns_links_ids_and_directory_review(self):
+        normalized = " ".join(self.integration.split())
+        self.assertIn("canonical `Relationships` tables", normalized)
+        self.assertIn("semantic ID as the complete link label", normalized)
+        self.assertIn("do not manufacture reciprocal rows", normalized)
+        self.assertIn("update every incoming and outgoing relative link", normalized)
+        self.assertIn("flat layout while it remains easy to navigate", normalized)
+        self.assertIn("integration-pass", normalized)
 
     def test_producers_cannot_write_shared_navigation(self):
         normalized = " ".join(self.protocol.split())
@@ -101,11 +149,13 @@ class MapExhaustiveContractTests(unittest.TestCase):
             normalized,
         )
         self.assertIn("producer must not publish README.md", self.campaign)
-        self.assertIn("Normalize and finalize", self.protocol)
+        self.assertIn("## Finalize", self.protocol)
 
     def test_prompt_size_is_bounded(self):
         self.assertLessEqual(len(self.entrypoint.splitlines()), 105)
-        self.assertLessEqual(len(self.protocol.splitlines()), 245)
+        self.assertLessEqual(len(self.protocol.splitlines()), 290)
+        self.assertLessEqual(len(self.documentation_first.splitlines()), 105)
+        self.assertLessEqual(len(self.integration.splitlines()), 100)
 
 
 if __name__ == "__main__":

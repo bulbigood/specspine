@@ -12,8 +12,10 @@ operation until every useful branch in the requested scope is complete.
   If the active root has low reasoning, do not claim final saturation without
   an independent strong semantic audit.
 - Each producer owns one branch and writes only to its private staging root.
-- Keep producers branch-affine. Reuse a producer only for the same domain or a
-  directly adjacent child; start a fresh producer before changing domains.
+- Keep producers evidence-affine. Reuse a producer for the same branch, or for
+  a child that the same producer emitted in its accepted `coverage_frontier`
+  with evidence and a semantic relation reason. Similar naming, a shared
+  top-level domain, or a root-discovered adjacent document is not sufficient.
 - Medium producers may draft ordinary branches. Use a strong producer or
   reviewer for security, authorization, ownership, migration, compatibility,
   and the final semantic breadth/depth audit.
@@ -35,6 +37,11 @@ python3 <map-skill-root>/scripts/campaign.py init \
   --root-question <scope-question>
 ```
 
+If the live Spine already has specification nodes, follow
+`documentation-first-seeding.md`: initialize with `--spine-state existing`,
+read the whole Spine, and record its gap-derived frontier with
+`seed-from-spine` before source discovery or producer assignment.
+
 If the operator supplies an existing campaign, inspect it and run:
 
 ```text
@@ -54,8 +61,8 @@ python3 <map-skill-root>/scripts/campaign.py recover \
   <old-campaign> <new-campaign> --reason <tool-defect>
 ```
 
-Inspect architecture signals and seed every observed independent branch before
-dispatch:
+For an empty Spine, inspect architecture signals and seed every observed
+independent branch before dispatch:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py add <campaign> <branch-id> \
@@ -63,8 +70,10 @@ python3 <map-skill-root>/scripts/campaign.py add <campaign> <branch-id> \
   [--namespace <name>] [--prerequisite <branch-id>]
 ```
 
-Use `documented` instead of `add`, with `--document <path>`, when an existing
-Spine document already owns the branch.
+Use `documented` instead of `add`, with `--document <path>`, only for an empty-
+Spine campaign that encounters an already complete external owner. Existing-
+Spine campaigns use documentation-first planned branches so owners can be
+semantically tested rather than pre-closed.
 
 Build the producer instructions once:
 
@@ -82,6 +91,12 @@ available slot. For each confirmed producer handle run:
 python3 <map-skill-root>/scripts/campaign.py assign \
   <campaign> <branch-id> --owner <agent-path>
 ```
+
+Start a fresh producer handle for every branch not proven to originate in that
+producer's accepted checkpoint. If all slots are occupied, continue root work
+or wait for a slot; never send an unrelated branch through `followup_task` to
+an existing producer merely to avoid waiting. `campaign.py assign` enforces
+this provenance and also rejects assigning two active branches to one owner.
 
 Give the producer:
 
@@ -124,7 +139,7 @@ The producer performs one bounded Map step and returns exactly one JSON object:
       "prerequisite": null,
       "classification": "fork_candidate",
       "document": null,
-      "reason": null
+      "reason": "The inspected adapter document exposes an independent child boundary"
     }
   ],
   "unresolved": [],
@@ -147,6 +162,11 @@ A terminal checkpoint has no candidates and uses either:
   `terminal_reason: "no useful node: <evidence-based reason>"`; or
 - `blocked` with the exact external input or authority required.
 
+Before acceptance, confirm every fork candidate cites only paths present in
+that producer's `evidence_inspected` and explains the semantic connection in
+`reason`. Reject a checkpoint whose child is merely adjacent by name or was
+introduced by the root; such work belongs to a fresh producer.
+
 ## Accept atomically
 
 Save the exact producer JSON outside staging, then run one command:
@@ -168,13 +188,19 @@ python3 <map-skill-root>/scripts/campaign.py accept \
 7. commits publications, children and terminal state in one atomic ledger
    write.
 
+It also retains the producer's reported relationships for the root integration
+pass. Acceptance validates edges already present in a candidate, but the root
+must follow `integration-pass.md` to connect independently produced documents.
+
 On any failure, live files and campaign state remain unchanged and staged files
 remain available for correction. Ask the same producer for a corrected complete
 checkpoint. Never manually move a staged file or partially import a report.
 
 After a continuing candidate checkpoint, resume the same producer with its
-reported continuation. After any terminal checkpoint, immediately dispatch a
-ready queued branch before waiting.
+reported continuation; this is still the same branch. A reported child may
+reuse that producer only after its current branch reaches a terminal
+checkpoint. After any terminal checkpoint, dispatch a ready queued branch to a
+fresh producer unless the stored discovery provenance explicitly permits reuse.
 
 If a producer terminates without an acceptable checkpoint, run `release` and
 restart that branch with fresh staging. Use `block --reason <exact reason>` only
@@ -193,16 +219,33 @@ is ready. Close a locally saturated branch after all children are complete:
 python3 <map-skill-root>/scripts/campaign.py close <campaign> <branch-id>
 ```
 
-When the queue first drains, repeat scope-level discovery. For a whole
-repository revisit composition roots, registries, public interfaces,
-persistence, integrations, configuration, deployment, security, failure
-behavior and observability. Add newly exposed branches and drain them. When a
-complete repeat pass adds none, record:
+When the queue drains, follow `integration-pass.md`: integrate shared
+navigation, typed relationships, semantic-ID references and file organization,
+then record `integration-pass`. Next reread every live Spine document and run
+`documentation-pass` using the plan shape from
+`documentation-first-seeding.md`. If it returns `gaps_found`, dispatch its new
+branches and repeat from the queue-drain step. An initial problem is empty only
+when its branch is `complete`; a final documentation list is empty only when
+the current pass returns `no_gaps`.
+
+Next repeat scope-level source discovery. In an existing-Spine campaign this
+is the first broad code pass and only seeks blind spots without a credible
+documented owner. For a whole repository revisit composition roots,
+registries, public interfaces, persistence, integrations, configuration,
+deployment, security, failure behavior and observability. Add newly exposed
+branches and return to the queue-drain step. When a complete pass adds none,
+record:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py discovery-pass \
   <campaign> --evidence <signals-checked>
 ```
+
+Run final `integration-pass` and `documentation-pass`. Continue if the latter
+finds any direction. Before accepting the root checkpoint, inspect the
+collaboration agent list: every assigned producer must have returned its
+terminal result and no producer may still be running. Ledger completion is
+necessary but does not replace this runtime check.
 
 Before claiming coverage, inspect `campaign.py coverage-report <campaign>`.
 An overview may be locally sufficient while useful children remain queued, but
@@ -222,10 +265,10 @@ A final response is permitted only when `terminal` is `saturated` or `blocked`.
 If it is null, continue. Never stop merely to report progress, elapsed time, a
 document count, or one failed branch.
 
-## Normalize and finalize
+## Finalize
 
-After `terminal: saturated`, update `README.md` navigation and evidence-backed
-reciprocal overview links once. Run the checker, then:
+After `terminal: saturated`, make no further documentation edits. Run the
+checker, then:
 
 ```text
 python3 <map-skill-root>/scripts/finalize_run.py \

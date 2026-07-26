@@ -42,6 +42,17 @@ SOURCE_CLASSIFICATIONS = {
     "test_only",
     "no_durable_architecture_value",
 }
+SPINE_STATES = {"empty", "existing"}
+DOCUMENTATION_SIGNALS = {
+    "coverage_gap",
+    "open_question",
+    "broad_owner",
+    "weak_relationship",
+    "missing_depth",
+    "stale_evidence",
+    "navigation_gap",
+    "semantic_inconsistency",
+}
 
 
 class CampaignError(ValueError):
@@ -188,6 +199,10 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
             "revision": 1,
             "frontier_epoch": 0,
             "discovery_pass": None,
+            "documentation_pass": None,
+            "integration_pass": None,
+            "spine_state": args.spine_state,
+            "documentation_plan": None,
             "scope": args.scope,
             "root": "root",
             "branches": {
@@ -204,8 +219,252 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         return ledger
 
 
+def validate_documentation_plan(
+    spine_root_value: Path, plan_value: Path
+) -> tuple[
+    dict[str, Any], dict[str, Path], list[dict[str, Any]], str | None
+]:
+    plan = read_json(plan_value)
+    spine_root = spine_root_value.resolve()
+    if not spine_root.is_dir():
+        raise CampaignError(f"Spine root is not a directory: {spine_root_value}")
+    markdown = {
+        path.relative_to(spine_root).as_posix(): path
+        for path in spine_root.rglob("*.md")
+        if path.is_file()
+    }
+    inspected = plan.get("evidence_inspected")
+    if (
+        not isinstance(inspected, list)
+        or not inspected
+        or any(not isinstance(value, str) for value in inspected)
+    ):
+        raise CampaignError("documentation plan needs nonempty evidence_inspected")
+    inspected_paths = {validate_path(value) for value in inspected}
+    if inspected_paths != set(markdown):
+        missing = sorted(set(markdown) - inspected_paths)
+        unknown = sorted(inspected_paths - set(markdown))
+        raise CampaignError(
+            "documentation plan does not cover the live Spine; "
+            f"missing={missing}, unknown={unknown}"
+        )
+    directions = plan.get("directions")
+    if not isinstance(directions, list):
+        raise CampaignError("documentation plan directions must be a list")
+    terminal_reason = plan.get("terminal_reason")
+    if not directions and (
+        not isinstance(terminal_reason, str)
+        or not terminal_reason.startswith("no documentation-derived direction: ")
+    ):
+        raise CampaignError(
+            "an empty documentation plan needs "
+            "'no documentation-derived direction: <reason>'"
+        )
+
+    normalized: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw in directions:
+        if not isinstance(raw, dict):
+            raise CampaignError("documentation direction must be an object")
+        branch_id = validate_id(raw.get("id", ""))
+        if branch_id in seen:
+            raise CampaignError(f"duplicate documentation direction: {branch_id}")
+        seen.add(branch_id)
+        question = raw.get("question")
+        documents = raw.get("documents")
+        signals = raw.get("signals")
+        if not isinstance(question, str) or not question.strip():
+            raise CampaignError(f"direction {branch_id} needs a question")
+        if (
+            not isinstance(documents, list)
+            or not documents
+            or any(not isinstance(value, str) for value in documents)
+        ):
+            raise CampaignError(f"direction {branch_id} needs owner documents")
+        owner_documents = [validate_path(value) for value in documents]
+        unknown_documents = sorted(set(owner_documents) - set(markdown))
+        if unknown_documents:
+            raise CampaignError(
+                f"direction {branch_id} has unknown documents: {unknown_documents}"
+            )
+        if not isinstance(signals, list) or not signals:
+            raise CampaignError(f"direction {branch_id} needs gap signals")
+        normalized_signals: list[dict[str, str]] = []
+        for signal in signals:
+            if not isinstance(signal, dict):
+                raise CampaignError(f"direction {branch_id} signal must be an object")
+            kind = signal.get("type")
+            detail = signal.get("detail")
+            if kind not in DOCUMENTATION_SIGNALS:
+                raise CampaignError(
+                    f"direction {branch_id} has invalid signal type: {kind!r}"
+                )
+            if not isinstance(detail, str) or not detail.strip():
+                raise CampaignError(
+                    f"direction {branch_id} signal needs nonempty detail"
+                )
+            normalized_signals.append({"type": kind, "detail": detail})
+        normalized.append(
+            {
+                "id": branch_id,
+                "question": question,
+                "documents": owner_documents,
+                "signals": normalized_signals,
+            }
+        )
+    return plan, markdown, normalized, terminal_reason
+
+
+def documentation_snapshot(
+    plan: dict[str, Any],
+    markdown: dict[str, Path],
+    directions: list[dict[str, Any]],
+    terminal_reason: str | None,
+) -> dict[str, Any]:
+    return {
+        "digest": hashlib.sha256(
+            json.dumps(plan, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        ).hexdigest(),
+        "documents": {
+            relative: hashlib.sha256(path.read_bytes()).hexdigest()
+            for relative, path in sorted(markdown.items())
+        },
+        "directions": directions,
+        "terminal_reason": terminal_reason,
+    }
+
+
+def command_seed_from_spine(args: argparse.Namespace) -> dict[str, Any]:
+    plan, markdown, normalized, terminal_reason = validate_documentation_plan(
+        args.spine_root, args.plan
+    )
+
+    def action(ledger: dict[str, Any]) -> bool:
+        if ledger.get("spine_state") != "existing":
+            raise CampaignError("seed-from-spine requires --spine-state existing")
+        if ledger.get("documentation_plan") is not None:
+            raise CampaignError("documentation plan is already recorded")
+        if set(ledger["branches"]) != {ledger["root"]}:
+            raise CampaignError(
+                "documentation plan must be recorded before other branches"
+            )
+        root = require_branch(ledger, ledger["root"])
+        if root["state"] != "active":
+            raise CampaignError("root branch is not active")
+        for direction in normalized:
+            ledger["branches"][direction["id"]] = new_branch(
+                direction["id"],
+                ledger["root"],
+                direction["question"],
+                origin="existing Spine: " + ", ".join(direction["documents"]),
+                namespace=None,
+                prerequisite=None,
+                resolution=None,
+                document=None,
+                plan_origin="existing_spine",
+                plan_documents=direction["documents"],
+                plan_signals=direction["signals"],
+            )
+        ledger["documentation_plan"] = documentation_snapshot(
+            plan, markdown, normalized, terminal_reason
+        )
+        ledger["frontier_epoch"] = int(ledger.get("frontier_epoch", 0)) + len(
+            normalized
+        )
+        return True
+
+    ledger = mutate(args.ledger, action)
+    return {
+        "status": "seeded",
+        "campaign_id": ledger.get("campaign_id"),
+        "documents": len(markdown),
+        "directions": [value["id"] for value in normalized],
+        "revision": ledger["revision"],
+    }
+
+
+def command_documentation_pass(args: argparse.Namespace) -> dict[str, Any]:
+    plan, markdown, normalized, terminal_reason = validate_documentation_plan(
+        args.spine_root, args.plan
+    )
+
+    def action(ledger: dict[str, Any]) -> bool:
+        unfinished = sorted(
+            item["id"]
+            for item in ledger["branches"].values()
+            if item["id"] != ledger["root"] and item["state"] != "complete"
+        )
+        if unfinished:
+            raise CampaignError(
+                "documentation pass requires all producer branches complete: "
+                + ", ".join(unfinished)
+            )
+        if (
+            ledger.get("spine_state") == "existing"
+            and ledger.get("documentation_plan") is None
+        ):
+            raise CampaignError("initial seed-from-spine plan is missing")
+        snapshot = documentation_snapshot(
+            plan, markdown, normalized, terminal_reason
+        )
+        ledger.setdefault("documentation_review_history", []).append(
+            {
+                "frontier_epoch": ledger["frontier_epoch"],
+                **snapshot,
+            }
+        )
+        if normalized:
+            for direction in normalized:
+                if direction["id"] in ledger["branches"]:
+                    raise CampaignError(
+                        "documentation review direction must use a new branch id: "
+                        + direction["id"]
+                    )
+                ledger["branches"][direction["id"]] = new_branch(
+                    direction["id"],
+                    ledger["root"],
+                    direction["question"],
+                    origin="final Spine review: "
+                    + ", ".join(direction["documents"]),
+                    namespace=None,
+                    prerequisite=None,
+                    resolution=None,
+                    document=None,
+                    plan_origin="documentation_review",
+                    plan_documents=direction["documents"],
+                    plan_signals=direction["signals"],
+                )
+            ledger["frontier_epoch"] += len(normalized)
+            ledger["discovery_pass"] = None
+            ledger["documentation_pass"] = None
+            ledger["integration_pass"] = None
+        else:
+            ledger["documentation_pass"] = {
+                "frontier_epoch": ledger["frontier_epoch"],
+                **snapshot,
+            }
+        return True
+
+    ledger = mutate(args.ledger, action)
+    return {
+        "status": "gaps_found" if normalized else "no_gaps",
+        "campaign_id": ledger.get("campaign_id"),
+        "documents": len(markdown),
+        "directions": [value["id"] for value in normalized],
+        "revision": ledger["revision"],
+    }
+
+
 def command_add(args: argparse.Namespace, *, documented: bool = False) -> dict[str, Any]:
     def action(ledger: dict[str, Any]) -> bool:
+        if (
+            ledger.get("spine_state") == "existing"
+            and ledger.get("documentation_plan") is None
+        ):
+            raise CampaignError(
+                "record the documentation-first frontier with seed-from-spine "
+                "before adding source-derived branches"
+            )
         if documented and any(
             branch.get("published")
             or (
@@ -243,6 +502,8 @@ def command_add(args: argparse.Namespace, *, documented: bool = False) -> dict[s
         validate_dependency_graph(ledger)
         ledger["frontier_epoch"] += 1
         ledger["discovery_pass"] = None
+        ledger["documentation_pass"] = None
+        ledger["integration_pass"] = None
         return True
 
     return mutate(args.ledger, action)
@@ -250,11 +511,46 @@ def command_add(args: argparse.Namespace, *, documented: bool = False) -> dict[s
 
 def command_assign(args: argparse.Namespace) -> dict[str, Any]:
     def action(ledger: dict[str, Any]) -> bool:
+        if (
+            ledger.get("spine_state") == "existing"
+            and ledger.get("documentation_plan") is None
+            and args.id != ledger["root"]
+        ):
+            raise CampaignError(
+                "record the documentation-first frontier with seed-from-spine "
+                "before assigning producers"
+            )
         item = require_branch(ledger, args.id)
         if item["state"] != "queued":
             raise CampaignError(f"assign requires queued state: {args.id}")
         if not args.owner.strip():
             raise CampaignError("owner must not be empty")
+        active_for_owner = sorted(
+            branch["id"]
+            for branch in ledger["branches"].values()
+            if branch.get("owner") == args.owner
+            and branch["state"] == "active"
+            and branch["id"] != args.id
+        )
+        if active_for_owner:
+            raise CampaignError(
+                f"producer is still active on {active_for_owner}; "
+                "wait for its terminal checkpoint"
+            )
+        assignments = ledger.setdefault("producer_assignments", {})
+        previous_assignments = assignments.get(args.owner, [])
+        producer_seen = bool(previous_assignments) or args.owner in ledger.get(
+            "producer_affinity", {}
+        )
+        if (
+            producer_seen
+            and args.id not in previous_assignments
+            and item.get("discovered_by_owner") != args.owner
+        ):
+            raise CampaignError(
+                f"fresh producer required for {args.id}: {args.owner} did not "
+                "discover this branch in its own checkpoint"
+            )
         domain = affinity_domain(ledger, args.id)
         affinity = ledger.setdefault("producer_affinity", {})
         previous = affinity.get(args.owner)
@@ -264,6 +560,8 @@ def command_assign(args: argparse.Namespace) -> dict[str, Any]:
                 f"cannot assign {domain}"
             )
         affinity[args.owner] = domain
+        if args.id not in previous_assignments:
+            assignments[args.owner] = [*previous_assignments, args.id]
         item["state"] = "active"
         item["owner"] = args.owner
         return True
@@ -409,6 +707,21 @@ def validate_checkpoint(
     frontier = raw.get("coverage_frontier", [])
     if not isinstance(frontier, list):
         raise CampaignError("coverage_frontier must be a list")
+    inspected_evidence = set(evidence)
+    for value in frontier:
+        if not isinstance(value, dict):
+            raise CampaignError("coverage_frontier entries must be objects")
+        child_evidence = value.get("evidence")
+        if (
+            not isinstance(child_evidence, list)
+            or not child_evidence
+            or any(not isinstance(item, str) for item in child_evidence)
+        ):
+            raise CampaignError("coverage_frontier evidence must be nonempty")
+        if not set(child_evidence).issubset(inspected_evidence):
+            raise CampaignError(
+                "coverage_frontier may cite only evidence inspected by this producer"
+            )
     terminal_reason = raw.get("terminal_reason")
     if candidates and status not in {
         "continuing",
@@ -566,6 +879,13 @@ def add_frontier(ledger: dict[str, Any], parent: str, values: list[Any]) -> list
             raise CampaignError(f"frontier question is missing: {branch_id}")
         if not isinstance(evidence, list) or not evidence:
             raise CampaignError(f"frontier evidence is missing: {branch_id}")
+        reason = value.get("reason")
+        if classification == "fork_candidate" and (
+            not isinstance(reason, str) or not reason.strip()
+        ):
+            raise CampaignError(
+                f"fork frontier requires a semantic relation reason: {branch_id}"
+            )
         state = "complete" if classification == "documented" else (
             "blocked" if classification == "blocked" else "queued"
         )
@@ -586,9 +906,11 @@ def add_frontier(ledger: dict[str, Any], parent: str, values: list[Any]) -> list
             prerequisite=prerequisite,
             resolution="already_documented" if state == "complete" else None,
             document=value.get("document"),
+            discovered_from_branch=parent,
+            discovered_by_owner=require_branch(ledger, parent).get("owner"),
+            discovery_reason=reason.strip() if isinstance(reason, str) else None,
         )
         if state == "blocked":
-            reason = value.get("reason")
             if not isinstance(reason, str) or not reason.strip():
                 raise CampaignError(f"blocked frontier requires reason: {branch_id}")
             candidate["terminal_reason"] = reason.strip()
@@ -608,6 +930,8 @@ def add_frontier(ledger: dict[str, Any], parent: str, values: list[Any]) -> list
     if added:
         ledger["frontier_epoch"] += len(added)
         ledger["discovery_pass"] = None
+        ledger["documentation_pass"] = None
+        ledger["integration_pass"] = None
     return added
 
 
@@ -717,6 +1041,10 @@ def command_accept(args: argparse.Namespace) -> dict[str, Any]:
                     "locally_saturated" if status == "locally_saturated" else "blocked"
                 )
             working_item["last_checkpoint_digest"] = digest
+            working_item["reported_relationships"] = raw["relationships"]
+            if args.branch != working["root"] or candidates or added:
+                working["documentation_pass"] = None
+                working["integration_pass"] = None
             save(args.ledger, working)
         except BaseException:
             rollback(changes)
@@ -750,6 +1078,23 @@ def command_close(args: argparse.Namespace) -> dict[str, Any]:
             discovery = ledger.get("discovery_pass")
             if not isinstance(discovery, dict) or discovery.get("frontier_epoch") != ledger["frontier_epoch"]:
                 raise CampaignError("root close requires a current discovery pass")
+            documentation = ledger.get("documentation_pass")
+            if (
+                not isinstance(documentation, dict)
+                or documentation.get("frontier_epoch") != ledger["frontier_epoch"]
+                or documentation.get("directions")
+            ):
+                raise CampaignError(
+                    "root close requires a current empty documentation pass"
+                )
+            integration = ledger.get("integration_pass")
+            if (
+                not isinstance(integration, dict)
+                or integration.get("frontier_epoch") != ledger["frontier_epoch"]
+            ):
+                raise CampaignError(
+                    "root close requires a current graph integration pass"
+                )
         item["state"] = "complete"
         return True
 
@@ -758,6 +1103,13 @@ def command_close(args: argparse.Namespace) -> dict[str, Any]:
 
 def command_discovery(args: argparse.Namespace) -> dict[str, Any]:
     def action(ledger: dict[str, Any]) -> bool:
+        if (
+            ledger.get("spine_state") == "existing"
+            and ledger.get("documentation_plan") is None
+        ):
+            raise CampaignError(
+                "seed-from-spine is required before source discovery"
+            )
         ledger["discovery_pass"] = {
             "frontier_epoch": ledger["frontier_epoch"],
             "evidence": args.evidence,
@@ -765,6 +1117,112 @@ def command_discovery(args: argparse.Namespace) -> dict[str, Any]:
         return True
 
     return mutate(args.ledger, action)
+
+
+def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
+    report = read_json(args.report)
+    spine_root = args.spine_root.resolve()
+    markdown = {
+        path.relative_to(spine_root).as_posix(): path
+        for path in spine_root.rglob("*.md")
+        if path.is_file()
+    }
+    inspected = report.get("evidence_inspected")
+    if (
+        not isinstance(inspected, list)
+        or any(not isinstance(value, str) for value in inspected)
+        or {validate_path(value) for value in inspected} != set(markdown)
+    ):
+        raise CampaignError(
+            "integration report must inspect every live Markdown document"
+        )
+    organization = report.get("organization")
+    if (
+        not isinstance(organization, dict)
+        or organization.get("status")
+        not in {"flat_sufficient", "directories_sufficient", "reorganized"}
+        or not isinstance(organization.get("reason"), str)
+        or not organization["reason"].strip()
+    ):
+        raise CampaignError(
+            "integration report needs a reasoned organization assessment"
+        )
+    reviews = report.get("relationship_review")
+    if not isinstance(reviews, list):
+        raise CampaignError("integration report relationship_review must be a list")
+    normalized_reviews: dict[str, dict[str, str]] = {}
+    for review in reviews:
+        if not isinstance(review, dict):
+            raise CampaignError("relationship review must be an object")
+        branch = validate_id(review.get("branch", ""))
+        disposition = review.get("disposition")
+        reason = review.get("reason")
+        if disposition not in {
+            "integrated",
+            "already_canonical",
+            "navigation_only",
+            "not_architectural",
+        }:
+            raise CampaignError(
+                f"invalid relationship disposition for {branch}: {disposition!r}"
+            )
+        if not isinstance(reason, str) or not reason.strip():
+            raise CampaignError(f"relationship review needs a reason: {branch}")
+        if branch in normalized_reviews:
+            raise CampaignError(f"duplicate relationship review: {branch}")
+        normalized_reviews[branch] = {
+            "disposition": disposition,
+            "reason": reason,
+        }
+    run_checker(args.checker, spine_root)
+
+    def action(ledger: dict[str, Any]) -> bool:
+        unfinished = sorted(
+            item["id"]
+            for item in ledger["branches"].values()
+            if item["id"] != ledger["root"] and item["state"] != "complete"
+        )
+        if unfinished:
+            raise CampaignError(
+                "integration pass requires all producer branches complete: "
+                + ", ".join(unfinished)
+            )
+        required = {
+            item["id"]
+            for item in ledger["branches"].values()
+            if item["id"] != ledger["root"]
+            and (item.get("published") or item.get("reported_relationships"))
+        }
+        if set(normalized_reviews) != required:
+            raise CampaignError(
+                "integration report must disposition every publishing or "
+                f"relationship-reporting branch; missing="
+                f"{sorted(required - set(normalized_reviews))}, "
+                f"unknown={sorted(set(normalized_reviews) - required)}"
+            )
+        ledger["integration_pass"] = {
+            "frontier_epoch": ledger["frontier_epoch"],
+            "digest": hashlib.sha256(
+                json.dumps(report, sort_keys=True, ensure_ascii=False).encode("utf-8")
+            ).hexdigest(),
+            "documents": {
+                relative: hashlib.sha256(path.read_bytes()).hexdigest()
+                for relative, path in sorted(markdown.items())
+            },
+            "relationship_review": normalized_reviews,
+            "organization": organization,
+        }
+        return True
+
+    ledger = mutate(args.ledger, action)
+    return {
+        "status": "integrated",
+        "campaign_id": ledger.get("campaign_id"),
+        "documents": len(markdown),
+        "reviewed_branches": sorted(normalized_reviews),
+        "organization": organization["status"],
+        "revision": ledger["revision"],
+    }
 
 
 def ready(ledger: dict[str, Any]) -> list[dict[str, Any]]:
@@ -836,6 +1294,8 @@ def command_repair_prerequisite(args: argparse.Namespace) -> dict[str, Any]:
             }
         )
         ledger["discovery_pass"] = None
+        ledger["documentation_pass"] = None
+        ledger["integration_pass"] = None
         return True
 
     ledger = mutate(args.ledger, action)
@@ -870,6 +1330,8 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
                 item["state"] = "queued"
                 item["owner"] = None
         recovered["discovery_pass"] = None
+        recovered["documentation_pass"] = None
+        recovered["integration_pass"] = None
         recovered["revision"] = int(recovered.get("revision", 0)) + 1
         atomic_write(args.destination, recovered)
     return {
@@ -889,6 +1351,19 @@ def audit_findings(ledger: dict[str, Any], final: bool) -> list[dict[str, str]]:
                 "code": "missing_campaign_id",
                 "branch": ledger.get("root", "root"),
                 "message": "resume the legacy campaign before continuing",
+            }
+        )
+    if (
+        ledger.get("spine_state") == "existing"
+        and ledger.get("documentation_plan") is None
+    ):
+        findings.append(
+            {
+                "code": "missing_documentation_plan",
+                "branch": ledger.get("root", "root"),
+                "message": (
+                    "seed the frontier from the existing Spine before source discovery"
+                ),
             }
         )
     try:
@@ -919,7 +1394,65 @@ def audit_findings(ledger: dict[str, Any], final: bool) -> list[dict[str, str]]:
         discovery = ledger.get("discovery_pass")
         if not isinstance(discovery, dict) or discovery.get("frontier_epoch") != ledger.get("frontier_epoch"):
             findings.append({"code": "stale_discovery", "branch": ledger["root"], "message": "current discovery pass is missing"})
+        documentation = ledger.get("documentation_pass")
+        if (
+            not isinstance(documentation, dict)
+            or documentation.get("frontier_epoch") != ledger.get("frontier_epoch")
+            or documentation.get("directions")
+        ):
+            findings.append(
+                {
+                    "code": "stale_documentation_pass",
+                    "branch": ledger["root"],
+                    "message": "current final Spine review is missing or found directions",
+                }
+            )
+        integration = ledger.get("integration_pass")
+        if (
+            not isinstance(integration, dict)
+            or integration.get("frontier_epoch") != ledger.get("frontier_epoch")
+        ):
+            findings.append(
+                {
+                    "code": "stale_integration_pass",
+                    "branch": ledger["root"],
+                    "message": "current graph and organization integration is missing",
+                }
+            )
     return findings
+
+
+def terminal_gates(ledger: dict[str, Any]) -> dict[str, bool]:
+    epoch = ledger.get("frontier_epoch")
+    documentation = ledger.get("documentation_pass")
+    discovery = ledger.get("discovery_pass")
+    integration = ledger.get("integration_pass")
+    non_root = [
+        item
+        for item in ledger["branches"].values()
+        if item["id"] != ledger["root"]
+    ]
+    return {
+        "problem_list_empty": all(item["state"] == "complete" for item in non_root),
+        "producer_branches_finished": not any(
+            item["state"] == "active" for item in non_root
+        ),
+        "documentation_questions_empty": (
+            isinstance(documentation, dict)
+            and documentation.get("frontier_epoch") == epoch
+            and not documentation.get("directions")
+        ),
+        "source_discovery_current": (
+            isinstance(discovery, dict)
+            and discovery.get("frontier_epoch") == epoch
+        ),
+        "graph_integrated": (
+            isinstance(integration, dict)
+            and integration.get("frontier_epoch") == epoch
+        ),
+        "root_complete": require_branch(ledger, ledger["root"])["state"]
+        == "complete",
+    }
 
 
 def command_summary(args: argparse.Namespace) -> dict[str, Any]:
@@ -933,6 +1466,7 @@ def command_summary(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "campaign_id": ledger.get("campaign_id"),
         "revision": ledger["revision"],
+        "terminal_gates": terminal_gates(ledger),
         "ready": [item["id"] for item in ready(ledger)],
         **states,
         "terminal": "saturated" if final_clean else "blocked" if only_blocked else None,
@@ -967,6 +1501,7 @@ def command_coverage_report(args: argparse.Namespace) -> dict[str, Any]:
         "campaign_id": ledger.get("campaign_id"),
         "scope": ledger.get("scope"),
         "terminal": command_summary(args)["terminal"],
+        "terminal_gates": terminal_gates(ledger),
         "counts": {state: len(values) for state, values in states.items()},
         "ready": [item["id"] for item in ready(ledger)],
         "unresolved": unresolved,
@@ -1008,6 +1543,22 @@ def parser() -> argparse.ArgumentParser:
     init.add_argument("ledger", type=Path)
     init.add_argument("--scope", required=True)
     init.add_argument("--root-question", required=True)
+    init.add_argument("--spine-state", choices=sorted(SPINE_STATES), default="empty")
+    seed = sub.add_parser("seed-from-spine")
+    seed.add_argument("ledger", type=Path)
+    seed.add_argument("spine_root", type=Path)
+    seed.add_argument("plan", type=Path)
+    documentation = sub.add_parser("documentation-pass")
+    documentation.add_argument("ledger", type=Path)
+    documentation.add_argument("spine_root", type=Path)
+    documentation.add_argument("plan", type=Path)
+    integration = sub.add_parser("integration-pass")
+    integration.add_argument("ledger", type=Path)
+    integration.add_argument("spine_root", type=Path)
+    integration.add_argument("report", type=Path)
+    integration.add_argument(
+        "--checker", type=Path, default=Path(__file__).with_name("check_spine.py")
+    )
     add_identity_arguments(sub.add_parser("add"))
     add_identity_arguments(sub.add_parser("documented"), document=True)
     assign = sub.add_parser("assign")
@@ -1056,6 +1607,9 @@ def main() -> int:
     try:
         handlers = {
             "init": command_init,
+            "seed-from-spine": command_seed_from_spine,
+            "documentation-pass": command_documentation_pass,
+            "integration-pass": command_integration_pass,
             "add": command_add,
             "documented": lambda value: command_add(value, documented=True),
             "assign": command_assign,

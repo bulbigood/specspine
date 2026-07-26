@@ -59,6 +59,14 @@ environment; do not probe by starting a subagent. Use its parallel dispatch
 mechanics when subagent creation is exposed and its sequential adaptation
 below otherwise.
 
+If the Spine already contains specification nodes, also read
+[references/documentation-first-seeding.md](references/documentation-first-seeding.md)
+completely and build the initial frontier from documentation gaps before
+inspecting production source.
+
+Read [references/integration-pass.md](references/integration-pass.md)
+completely before merging producer publications into the final graph.
+
 ### Sequential exhaustive protocol
 
 Use the same durable campaign state and terminal rules as parallel mode, but

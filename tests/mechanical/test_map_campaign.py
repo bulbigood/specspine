@@ -69,7 +69,7 @@ class MapCampaignTests(unittest.TestCase):
     def payload(self, *, candidates=True, frontier=True):
         return {
             "status": "continuing" if candidates else "locally_saturated",
-            "evidence_inspected": ["src/identity.py"],
+            "evidence_inspected": ["src/identity.py", "src/tokens.py"],
             "candidates": (
                 [{"path": "domains/identity.md", "operation": "create"}]
                 if candidates
@@ -105,7 +105,10 @@ class MapCampaignTests(unittest.TestCase):
                         "prerequisite": None,
                         "classification": "fork_candidate",
                         "document": None,
-                        "reason": None,
+                        "reason": (
+                            "Token evidence inspected by this producer exposes "
+                            "an independently useful child boundary"
+                        ),
                     }
                 ]
                 if frontier
@@ -294,6 +297,20 @@ class MapCampaignTests(unittest.TestCase):
             json.loads(self.ledger.read_text())["branches"],
         )
 
+    def test_frontier_child_must_come_from_producer_inspected_evidence(self):
+        self.write_candidate()
+        checker = self.checker("import json\nprint(json.dumps([]))\n")
+        payload = self.payload()
+        payload["evidence_inspected"] = ["src/identity.py"]
+
+        error = self.accept(checker, payload, expected=2)
+
+        self.assertIn("only evidence inspected by this producer", error["error"])
+        self.assertNotIn(
+            "identity-tokens",
+            json.loads(self.ledger.read_text())["branches"],
+        )
+
     def test_repair_prerequisite_removes_legacy_cycle(self):
         ledger = json.loads(self.ledger.read_text())
         ledger["branches"]["identity-tokens"] = {
@@ -364,6 +381,297 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertIn("before assignment", error["error"])
 
+    def test_existing_spine_requires_documentation_plan_before_assignment(self):
+        ledger = self.root / "existing/campaign.json"
+        self.cli(
+            "init",
+            str(ledger),
+            "--scope",
+            "whole repository",
+            "--root-question",
+            "Complete the existing Spine",
+            "--spine-state",
+            "existing",
+        )
+        error = self.cli(
+            "add",
+            str(ledger),
+            "runtime",
+            "--parent",
+            "root",
+            "--question",
+            "Map runtime",
+            "--origin",
+            "runtime composition",
+            expected=2,
+        )
+
+        self.assertIn("seed-from-spine", error["error"])
+
+    def test_seed_from_spine_records_complete_inventory_and_gap_frontier(self):
+        ledger = self.root / "existing/campaign.json"
+        spine = self.root / "existing/specspine"
+        plan = self.root / "existing/plan.json"
+        spine.mkdir(parents=True)
+        (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+        (spine / "runtime.md").write_text("# Runtime\n", encoding="utf-8")
+        plan.write_text(
+            json.dumps(
+                {
+                    "evidence_inspected": ["README.md", "runtime.md"],
+                    "directions": [
+                        {
+                            "id": "runtime-failures",
+                            "question": "Are runtime failure boundaries sufficient?",
+                            "documents": ["runtime.md"],
+                            "signals": [
+                                {
+                                    "type": "missing_depth",
+                                    "detail": "Recovery behavior is absent",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.cli(
+            "init",
+            str(ledger),
+            "--scope",
+            "whole repository",
+            "--root-question",
+            "Complete the existing Spine",
+            "--spine-state",
+            "existing",
+        )
+
+        receipt = self.cli(
+            "seed-from-spine",
+            str(ledger),
+            str(spine),
+            str(plan),
+        )
+        stored = json.loads(ledger.read_text())
+
+        self.assertEqual(["runtime-failures"], receipt["directions"])
+        self.assertEqual(2, receipt["documents"])
+        self.assertEqual(
+            "existing_spine",
+            stored["branches"]["runtime-failures"]["plan_origin"],
+        )
+        self.assertEqual(
+            {"README.md", "runtime.md"},
+            set(stored["documentation_plan"]["documents"]),
+        )
+        self.assertEqual(64, len(stored["documentation_plan"]["digest"]))
+        self.cli(
+            "assign",
+            str(ledger),
+            "runtime-failures",
+            "--owner",
+            "/root/runtime",
+        )
+
+    def test_seed_from_spine_rejects_partial_document_inventory(self):
+        ledger = self.root / "partial/campaign.json"
+        spine = self.root / "partial/specspine"
+        plan = self.root / "partial/plan.json"
+        spine.mkdir(parents=True)
+        (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+        (spine / "runtime.md").write_text("# Runtime\n", encoding="utf-8")
+        plan.write_text(
+            json.dumps(
+                {
+                    "evidence_inspected": ["README.md"],
+                    "directions": [
+                        {
+                            "id": "runtime",
+                            "question": "Check runtime",
+                            "documents": ["README.md"],
+                            "signals": [
+                                {
+                                    "type": "coverage_gap",
+                                    "detail": "Runtime is partial",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.cli(
+            "init",
+            str(ledger),
+            "--scope",
+            "whole repository",
+            "--root-question",
+            "Complete the existing Spine",
+            "--spine-state",
+            "existing",
+        )
+
+        error = self.cli(
+            "seed-from-spine",
+            str(ledger),
+            str(spine),
+            str(plan),
+            expected=2,
+        )
+
+        self.assertIn("does not cover the live Spine", error["error"])
+
+    def test_seed_from_spine_allows_evidence_based_empty_plan(self):
+        ledger = self.root / "complete/campaign.json"
+        spine = self.root / "complete/specspine"
+        plan = self.root / "complete/plan.json"
+        spine.mkdir(parents=True)
+        (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+        plan.write_text(
+            json.dumps(
+                {
+                    "evidence_inspected": ["README.md"],
+                    "directions": [],
+                    "terminal_reason": (
+                        "no documentation-derived direction: all owners pass "
+                        "the documentation quality gate"
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.cli(
+            "init",
+            str(ledger),
+            "--scope",
+            "whole repository",
+            "--root-question",
+            "Complete the existing Spine",
+            "--spine-state",
+            "existing",
+        )
+
+        receipt = self.cli(
+            "seed-from-spine", str(ledger), str(spine), str(plan)
+        )
+
+        self.assertEqual([], receipt["directions"])
+        self.cli(
+            "discovery-pass",
+            str(ledger),
+            "--evidence",
+            "composition roots checked for undocumented owners",
+        )
+
+    def test_documentation_pass_reopens_frontier_when_questions_remain(self):
+        ledger = self.root / "review/campaign.json"
+        spine = self.root / "review/specspine"
+        plan = self.root / "review/plan.json"
+        spine.mkdir(parents=True)
+        (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+        plan.write_text(
+            json.dumps(
+                {
+                    "evidence_inspected": ["README.md"],
+                    "directions": [
+                        {
+                            "id": "runtime-depth",
+                            "question": "Does runtime need deeper coverage?",
+                            "documents": ["README.md"],
+                            "signals": [
+                                {
+                                    "type": "coverage_gap",
+                                    "detail": "Runtime is still partially mapped",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.cli(
+            "init",
+            str(ledger),
+            "--scope",
+            "whole repository",
+            "--root-question",
+            "Map repository",
+        )
+
+        receipt = self.cli(
+            "documentation-pass", str(ledger), str(spine), str(plan)
+        )
+        summary = self.cli("summary", str(ledger))
+
+        self.assertEqual("gaps_found", receipt["status"])
+        self.assertEqual(["runtime-depth"], summary["ready"])
+        self.assertFalse(
+            summary["terminal_gates"]["documentation_questions_empty"]
+        )
+        self.assertFalse(summary["terminal_gates"]["problem_list_empty"])
+        self.assertIsNone(summary["terminal"])
+
+    def test_integration_pass_reviews_published_relationships_and_organization(self):
+        self.write_candidate()
+        checker = self.checker("import json\nprint(json.dumps([]))\n")
+        payload = self.payload(candidates=True, frontier=False)
+        payload["status"] = "publish_and_locally_saturate"
+        payload["continuation"] = None
+        payload["terminal_reason"] = (
+            "no useful node: candidate passes the complete local quality gate"
+        )
+        payload["relationships"] = ["Identity depends on session storage"]
+        self.accept(checker, payload)
+        self.cli("close", str(self.ledger), "identity")
+        report = self.root / "integration.json"
+        report.write_text(
+            json.dumps(
+                {
+                    "evidence_inspected": ["domains/identity.md"],
+                    "relationship_review": [],
+                    "organization": {
+                        "status": "flat_sufficient",
+                        "reason": "One document remains navigable",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        error = self.cli(
+            "integration-pass",
+            str(self.ledger),
+            str(self.spine),
+            str(report),
+            "--checker",
+            str(checker),
+            expected=2,
+        )
+        self.assertIn("disposition every", error["error"])
+        value = json.loads(report.read_text())
+        value["relationship_review"] = [
+            {
+                "branch": "identity",
+                "disposition": "integrated",
+                "reason": "Canonical edge and navigation were checked",
+            }
+        ]
+        report.write_text(json.dumps(value), encoding="utf-8")
+
+        receipt = self.cli(
+            "integration-pass",
+            str(self.ledger),
+            str(self.spine),
+            str(report),
+            "--checker",
+            str(checker),
+        )
+
+        self.assertEqual("integrated", receipt["status"])
+        self.assertEqual(["identity"], receipt["reviewed_branches"])
+
     def test_coverage_report_exposes_unresolved_frontier(self):
         report = self.cli("coverage-report", str(self.ledger))
 
@@ -377,7 +685,7 @@ class MapCampaignTests(unittest.TestCase):
         summary = self.cli("summary", str(self.ledger))
         self.assertEqual(["identity"], summary["ready"])
 
-    def test_producer_cannot_switch_top_level_domains(self):
+    def test_used_producer_requires_fresh_handle_for_top_level_domain(self):
         self.cli(
             "add",
             str(self.ledger),
@@ -389,6 +697,7 @@ class MapCampaignTests(unittest.TestCase):
             "--origin",
             "runtime composition",
         )
+        self.cli("release", str(self.ledger), "identity")
 
         error = self.cli(
             "assign",
@@ -399,7 +708,62 @@ class MapCampaignTests(unittest.TestCase):
             expected=2,
         )
 
-        self.assertIn("affinity violation", error["error"])
+        self.assertIn("fresh producer required", error["error"])
+
+    def test_root_added_child_requires_fresh_producer(self):
+        self.cli(
+            "add",
+            str(self.ledger),
+            "identity-manual-child",
+            "--parent",
+            "identity",
+            "--question",
+            "Map a child found later by the root",
+            "--origin",
+            "root integration review",
+        )
+        self.cli("release", str(self.ledger), "identity")
+
+        error = self.cli(
+            "assign",
+            str(self.ledger),
+            "identity-manual-child",
+            "--owner",
+            "/root/identity",
+            expected=2,
+        )
+        self.assertIn("fresh producer required", error["error"])
+        self.cli(
+            "assign",
+            str(self.ledger),
+            "identity-manual-child",
+            "--owner",
+            "/root/identity_child_fresh",
+        )
+
+    def test_producer_can_reuse_only_child_it_reported_in_checkpoint(self):
+        self.write_candidate()
+        checker = self.checker("import json\nprint(json.dumps([]))\n")
+        payload = self.payload(candidates=True, frontier=True)
+        payload["status"] = "publish_and_locally_saturate"
+        payload["continuation"] = None
+        payload["terminal_reason"] = (
+            "no useful node: parent is complete and exposed a related child"
+        )
+        self.accept(checker, payload)
+
+        self.cli(
+            "assign",
+            str(self.ledger),
+            "identity-tokens",
+            "--owner",
+            "/root/identity",
+        )
+
+        stored = json.loads(self.ledger.read_text())
+        child = stored["branches"]["identity-tokens"]
+        self.assertEqual("/root/identity", child["discovered_by_owner"])
+        self.assertEqual("identity", child["discovered_from_branch"])
 
     def test_path_traversal_and_live_staging_are_rejected(self):
         checker = self.checker("import json\nprint(json.dumps([]))\n")
@@ -472,11 +836,39 @@ class MapFinalizeTests(unittest.TestCase):
             spine = root / "specspine"
             staging = root / "staging"
             checkpoint = root / "root.json"
+            documentation_plan = root / "documentation-plan.json"
+            integration_report = root / "integration-report.json"
             checker = root / "checker.py"
             spine.mkdir()
             staging.mkdir()
             (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
             checker.write_text("import json\nprint(json.dumps([]))\n", encoding="utf-8")
+            documentation_plan.write_text(
+                json.dumps(
+                    {
+                        "evidence_inspected": ["README.md"],
+                        "directions": [],
+                        "terminal_reason": (
+                            "no documentation-derived direction: final Spine "
+                            "has no remaining coverage question"
+                        ),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            integration_report.write_text(
+                json.dumps(
+                    {
+                        "evidence_inspected": ["README.md"],
+                        "relationship_review": [],
+                        "organization": {
+                            "status": "flat_sufficient",
+                            "reason": "The single index needs no directory",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
             subprocess.run(
                 [
                     sys.executable,
@@ -561,6 +953,32 @@ class MapFinalizeTests(unittest.TestCase):
                 [
                     sys.executable,
                     str(CAMPAIGN),
+                    "integration-pass",
+                    str(ledger),
+                    str(spine),
+                    str(integration_report),
+                    "--checker",
+                    str(checker),
+                ],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(CAMPAIGN),
+                    "documentation-pass",
+                    str(ledger),
+                    str(spine),
+                    str(documentation_plan),
+                ],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(CAMPAIGN),
                     "close",
                     str(ledger),
                     "root",
@@ -589,6 +1007,7 @@ class MapFinalizeTests(unittest.TestCase):
             self.assertEqual("finalized", receipt["status"])
             self.assertTrue(receipt["campaign_id"])
             self.assertEqual(64, len(receipt["ledger_digest"]))
+            self.assertTrue(all(receipt["terminal_gates"].values()))
             self.assertEqual(
                 {
                     "created": 0,
@@ -598,6 +1017,26 @@ class MapFinalizeTests(unittest.TestCase):
                 },
                 receipt["changes"],
             )
+            (spine / "README.md").write_text(
+                "# Architecture changed after review\n", encoding="utf-8"
+            )
+            stale = subprocess.run(
+                [
+                    sys.executable,
+                    str(FINALIZE),
+                    str(ledger),
+                    str(spine),
+                    "--staging-root",
+                    str(staging),
+                    "--checker",
+                    str(checker),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(2, stale.returncode)
+            self.assertIn("changed after", stale.stderr)
 
 
 if __name__ == "__main__":
