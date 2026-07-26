@@ -41,6 +41,9 @@ If the live Spine already has specification nodes, follow
 `documentation-first-seeding.md`: initialize with `--spine-state existing`,
 read the whole Spine, and record its gap-derived frontier with
 `seed-from-spine` before source discovery or producer assignment.
+Reject a documentation-derived direction unless its depth witness makes it
+strictly narrower than the cited in-document anchor. The script validates the
+witness shape and provenance; the root validates its semantics.
 
 If the operator supplies an existing campaign, inspect it and run:
 
@@ -224,7 +227,10 @@ navigation, typed relationships, semantic-ID references and file organization,
 then record `integration-pass`. Next reread every live Spine document and run
 `documentation-pass` using the plan shape from
 `documentation-first-seeding.md`. If it returns `gaps_found`, dispatch its new
-branches and repeat from the queue-drain step. An initial problem is empty only
+branches and repeat from the queue-drain step. Each new direction must descend
+from a precise claim or section in the now richer documents, not restate an
+owner or a previous question. This produces recursive depth across passes. An
+initial problem is empty only
 when its branch is `complete`; a final documentation list is empty only when
 the current pass returns `no_gaps`.
 

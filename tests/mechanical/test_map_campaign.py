@@ -120,6 +120,20 @@ class MapCampaignTests(unittest.TestCase):
             ),
         }
 
+    @staticmethod
+    def documentation_depth(
+        document="runtime.md",
+        unknown="Recovery ownership after a failed transition",
+    ):
+        return {
+            "anchor_document": document,
+            "anchor": "Runtime lifecycle / failure transition",
+            "known": "The document establishes normal lifecycle ownership",
+            "unknown": unknown,
+            "completion_evidence": "Failure call paths and recovery state transitions",
+            "excludes": ["deployment", "unrelated protocols"],
+        }
+
     def write_candidate(self, content="# Identity\n"):
         path = self.staging / "domains/identity.md"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -430,6 +444,9 @@ class MapCampaignTests(unittest.TestCase):
                                     "detail": "Recovery behavior is absent",
                                 }
                             ],
+                            "depth": self.documentation_depth(
+                                unknown="Are runtime failure boundaries sufficient?"
+                            ),
                         }
                     ],
                 }
@@ -496,6 +513,9 @@ class MapCampaignTests(unittest.TestCase):
                                     "detail": "Runtime is partial",
                                 }
                             ],
+                            "depth": self.documentation_depth(
+                                "README.md", "Check runtime"
+                            ),
                         }
                     ],
                 }
@@ -522,6 +542,131 @@ class MapCampaignTests(unittest.TestCase):
         )
 
         self.assertIn("does not cover the live Spine", error["error"])
+
+    def test_seed_from_spine_rejects_direction_without_depth_witness(self):
+        ledger = self.root / "shallow/campaign.json"
+        spine = self.root / "shallow/specspine"
+        plan = self.root / "shallow/plan.json"
+        spine.mkdir(parents=True)
+        (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+        plan.write_text(
+            json.dumps(
+                {
+                    "evidence_inspected": ["README.md"],
+                    "directions": [
+                        {
+                            "id": "runtime",
+                            "question": "Map runtime more deeply",
+                            "documents": ["README.md"],
+                            "signals": [
+                                {"type": "missing_depth", "detail": "Too broad"}
+                            ],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.cli(
+            "init",
+            str(ledger),
+            "--scope",
+            "whole repository",
+            "--root-question",
+            "Complete the Spine",
+            "--spine-state",
+            "existing",
+        )
+
+        error = self.cli(
+            "seed-from-spine", str(ledger), str(spine), str(plan), expected=2
+        )
+
+        self.assertIn("documentation depth witness", error["error"])
+
+    def test_seed_from_spine_rejects_depth_anchor_outside_owner_set(self):
+        ledger = self.root / "anchor/campaign.json"
+        spine = self.root / "anchor/specspine"
+        plan = self.root / "anchor/plan.json"
+        spine.mkdir(parents=True)
+        (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+        (spine / "runtime.md").write_text("# Runtime\n", encoding="utf-8")
+        direction = {
+            "id": "runtime-failure",
+            "question": "Who owns recovery?",
+            "documents": ["runtime.md"],
+            "signals": [{"type": "missing_depth", "detail": "Recovery is absent"}],
+            "depth": self.documentation_depth("README.md"),
+        }
+        plan.write_text(
+            json.dumps(
+                {
+                    "evidence_inspected": ["README.md", "runtime.md"],
+                    "directions": [direction],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.cli(
+            "init",
+            str(ledger),
+            "--scope",
+            "whole repository",
+            "--root-question",
+            "Complete the Spine",
+            "--spine-state",
+            "existing",
+        )
+
+        error = self.cli(
+            "seed-from-spine", str(ledger), str(spine), str(plan), expected=2
+        )
+
+        self.assertIn("anchor must be one of its owner documents", error["error"])
+
+    def test_seed_from_spine_rejects_question_wider_than_depth_unknown(self):
+        ledger = self.root / "wide-question/campaign.json"
+        spine = self.root / "wide-question/specspine"
+        plan = self.root / "wide-question/plan.json"
+        spine.mkdir(parents=True)
+        (spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+        plan.write_text(
+            json.dumps(
+                {
+                    "evidence_inspected": ["README.md"],
+                    "directions": [
+                        {
+                            "id": "runtime",
+                            "question": "Map all runtime behavior",
+                            "documents": ["README.md"],
+                            "signals": [
+                                {"type": "missing_depth", "detail": "Recovery is absent"}
+                            ],
+                            "depth": self.documentation_depth(
+                                "README.md", "Who owns failed-start recovery?"
+                            ),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.cli(
+            "init",
+            str(ledger),
+            "--scope",
+            "whole repository",
+            "--root-question",
+            "Complete the Spine",
+            "--spine-state",
+            "existing",
+        )
+
+        error = self.cli(
+            "seed-from-spine", str(ledger), str(spine), str(plan), expected=2
+        )
+
+        self.assertIn("question must equal its narrower depth unknown", error["error"])
 
     def test_seed_from_spine_allows_evidence_based_empty_plan(self):
         ledger = self.root / "complete/campaign.json"
@@ -586,6 +731,9 @@ class MapCampaignTests(unittest.TestCase):
                                     "detail": "Runtime is still partially mapped",
                                 }
                             ],
+                            "depth": self.documentation_depth(
+                                "README.md", "Does runtime need deeper coverage?"
+                            ),
                         }
                     ],
                 }

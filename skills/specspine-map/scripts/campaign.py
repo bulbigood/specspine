@@ -273,6 +273,7 @@ def validate_documentation_plan(
         question = raw.get("question")
         documents = raw.get("documents")
         signals = raw.get("signals")
+        depth = raw.get("depth")
         if not isinstance(question, str) or not question.strip():
             raise CampaignError(f"direction {branch_id} needs a question")
         if (
@@ -304,12 +305,65 @@ def validate_documentation_plan(
                     f"direction {branch_id} signal needs nonempty detail"
                 )
             normalized_signals.append({"type": kind, "detail": detail})
+        if not isinstance(depth, dict):
+            raise CampaignError(
+                f"direction {branch_id} needs a documentation depth witness"
+            )
+        anchor_document = depth.get("anchor_document")
+        anchor = depth.get("anchor")
+        known = depth.get("known")
+        unknown = depth.get("unknown")
+        completion_evidence = depth.get("completion_evidence")
+        excludes = depth.get("excludes")
+        if not isinstance(anchor_document, str):
+            raise CampaignError(
+                f"direction {branch_id} depth needs anchor_document"
+            )
+        anchor_document = validate_path(anchor_document)
+        if anchor_document not in owner_documents:
+            raise CampaignError(
+                f"direction {branch_id} depth anchor must be one of its owner documents"
+            )
+        for field_name, value in (
+            ("anchor", anchor),
+            ("known", known),
+            ("unknown", unknown),
+            ("completion_evidence", completion_evidence),
+        ):
+            if not isinstance(value, str) or not value.strip():
+                raise CampaignError(
+                    f"direction {branch_id} depth needs nonempty {field_name}"
+                )
+        if known.strip() == unknown.strip():
+            raise CampaignError(
+                f"direction {branch_id} depth known and unknown must differ"
+            )
+        if question.strip() != unknown.strip():
+            raise CampaignError(
+                f"direction {branch_id} question must equal its narrower depth unknown"
+            )
+        if (
+            not isinstance(excludes, list)
+            or not excludes
+            or any(not isinstance(value, str) or not value.strip() for value in excludes)
+        ):
+            raise CampaignError(
+                f"direction {branch_id} depth needs nonempty excludes"
+            )
         normalized.append(
             {
                 "id": branch_id,
                 "question": question,
                 "documents": owner_documents,
                 "signals": normalized_signals,
+                "depth": {
+                    "anchor_document": anchor_document,
+                    "anchor": anchor.strip(),
+                    "known": known.strip(),
+                    "unknown": unknown.strip(),
+                    "completion_evidence": completion_evidence.strip(),
+                    "excludes": [value.strip() for value in excludes],
+                },
             }
         )
     return plan, markdown, normalized, terminal_reason
@@ -364,6 +418,7 @@ def command_seed_from_spine(args: argparse.Namespace) -> dict[str, Any]:
                 plan_origin="existing_spine",
                 plan_documents=direction["documents"],
                 plan_signals=direction["signals"],
+                plan_depth=direction["depth"],
             )
         ledger["documentation_plan"] = documentation_snapshot(
             plan, markdown, normalized, terminal_reason
@@ -433,6 +488,7 @@ def command_documentation_pass(args: argparse.Namespace) -> dict[str, Any]:
                     plan_origin="documentation_review",
                     plan_documents=direction["documents"],
                     plan_signals=direction["signals"],
+                    plan_depth=direction["depth"],
                 )
             ledger["frontier_epoch"] += len(normalized)
             ledger["discovery_pass"] = None
