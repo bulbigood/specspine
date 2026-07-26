@@ -18,6 +18,7 @@ import contextlib
 import fcntl
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -29,12 +30,15 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCHEMA_VERSION = 4
-MAX_UNIT_FILES = 200
+SCHEMA_VERSION = 5
+MAX_UNIT_FILES = 80
+MAX_EVIDENCE_STRATA = 4
+MAX_CANDIDATE_DOCUMENTS = 12
 TASK_STATES = {"todo", "assigned", "review", "published", "complete", "blocked"}
 CHECKPOINT_STATUSES = {
     "draft",
     "covered",
+    "supporting",
     "retry",
     "blocked",
 }
@@ -54,6 +58,8 @@ TERMINAL_CLASSIFICATIONS = {
 REVIEW_DISPOSITIONS = {
     "integrated",
     "already_canonical",
+    "confirmed_supporting",
+    "retry",
 }
 SUGGESTION_DISPOSITIONS = {"queued", "covered", "rejected"}
 DEFERRED_CHECKER_CODES = {"UNREACHABLE_SPEC"}
@@ -80,6 +86,9 @@ GENERATED_DIRECTORIES = {
     "target",
     "venv",
     ".specspine-map",
+    "__generated__",
+    "generated",
+    "gen",
 }
 TEST_ROOTS = {
     "__tests__",
@@ -88,6 +97,24 @@ TEST_ROOTS = {
     "integration-tests",
     "test",
     "tests",
+}
+TEST_COMPONENTS = TEST_ROOTS | {
+    "__fixtures__",
+    "__mocks__",
+    "__snapshots__",
+    "fixture",
+    "fixtures",
+    "mock",
+    "mocks",
+    "snapshot",
+    "snapshots",
+    "testdata",
+}
+DOCUMENTATION_ROOTS = {
+    ".changelog-archive",
+    "devenv",
+    "docs",
+    "local",
 }
 ROOT_MANIFESTS = {
     "Cargo.toml",
@@ -274,6 +301,21 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         validate_relative_path(value)
         for value in string_list(raw.get("units", []), f"ToDo {task_id} units")
     ]
+    evidence_strata = raw.get("evidence_strata", [])
+    if not isinstance(evidence_strata, list):
+        raise CampaignError(f"ToDo {task_id} evidence_strata must be a list")
+    normalized_strata: list[dict[str, str]] = []
+    for value in evidence_strata:
+        if not isinstance(value, dict) or set(value) != {"id", "sample"}:
+            raise CampaignError(
+                f"ToDo {task_id} evidence stratum needs id and sample"
+            )
+        normalized_strata.append(
+            {
+                "id": validate_id(value["id"]),
+                "sample": validate_relative_path(value["sample"]),
+            }
+        )
     anchor = raw.get("anchor")
     if anchor is not None:
         if not isinstance(anchor, dict):
@@ -304,6 +346,7 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         "documents": documents,
         "excludes": excludes,
         "units": units,
+        "evidence_strata": normalized_strata,
         "anchor": anchor,
         "state": "todo",
         "owner": None,
@@ -329,6 +372,7 @@ def task_definition(task: dict[str, Any]) -> dict[str, Any]:
             "documents",
             "excludes",
             "units",
+            "evidence_strata",
             "anchor",
         )
     }
@@ -428,60 +472,139 @@ def repository_unit(relative_path: Path) -> str:
     return first
 
 
-def unit_classification(area: str, record: dict[str, Any]) -> tuple[str, str]:
-    first = Path(area).parts[0]
-    if first in VENDORED_DIRECTORIES:
-        return "vendored", "Mechanically identified vendored dependency tree"
-    if first in GENERATED_DIRECTORIES:
-        return "generated", "Mechanically identified generated/build output"
-    if first in TEST_ROOTS or first.startswith(("e2e-", "test-")):
-        return "test-only", "Mechanically identified repository-level test tree"
-    if area == "repository-root/governance":
-        return "repository-support", "Governance and contributor documentation"
-    if first in REPOSITORY_SUPPORT_UNITS:
-        return "repository-support", "Mechanically identified local editor or contributor support"
-    if record["files"] == 0 and record["samples"]:
-        collapsed_names = {
-            Path(value.rstrip("/")).name for value in record["samples"]
-        }
-        if collapsed_names <= VENDORED_DIRECTORIES:
-            return "vendored", "Unit contains only a collapsed vendored dependency tree"
-        if collapsed_names <= GENERATED_DIRECTORIES:
-            return "generated", "Unit contains only collapsed generated/build output"
-    return "queued", "Production-capable unit requires producer verification"
+def file_classification(path: Path) -> tuple[str, str]:
+    """Classify a concrete repository file before it enters a work unit."""
+    parts = tuple(value.lower() for value in path.parts)
+    first = parts[0]
+    name = parts[-1]
+    if any(value in VENDORED_DIRECTORIES for value in parts):
+        return "vendored", "Mechanically identified vendored dependency file"
+    if any(value in GENERATED_DIRECTORIES for value in parts) or (
+        name.startswith("zz_generated")
+        or name.endswith(("_generated.go", ".generated.ts", ".generated.js"))
+        or any(marker in name for marker in (".gen.", "_gen.", ".generated."))
+    ):
+        return "generated", "Mechanically identified generated file"
+    if (
+        any(value in TEST_COMPONENTS for value in parts[:-1])
+        or first.startswith(("e2e-", "test-"))
+        or name.endswith("_test.go")
+        or any(marker in name for marker in (".test.", ".spec."))
+    ):
+        return "test-only", "Mechanically identified test or fixture file"
+    area = repository_unit(path)
+    if (
+        area == "repository-root/governance"
+        or first in REPOSITORY_SUPPORT_UNITS
+        or first in DOCUMENTATION_ROOTS
+        or path.suffix.lower() in {".md", ".txt"}
+    ):
+        return "repository-support", "Mechanically identified documentation or repository support"
+    return "queued", "Production-capable file requires producer verification"
 
 
-def split_unit(
-    area: str,
-    members: list[str],
-    collapsed_samples: list[str],
-) -> list[dict[str, Any]]:
-    """Split an oversized stable source unit into deterministic bounded chunks."""
-    members = sorted(members)
-    if len(members) <= MAX_UNIT_FILES:
-        samples = [*members[:5], *collapsed_samples[: max(0, 5 - len(members))]]
-        return [
+def classification_reason(classification: str) -> str:
+    return {
+        "queued": "Production-capable unit requires producer verification",
+        "generated": "Mechanically identified generated/build output",
+        "vendored": "Mechanically identified vendored dependency tree",
+        "test-only": "Mechanically identified tests or fixtures",
+        "repository-support": "Mechanically identified documentation or repository support",
+    }[classification]
+
+
+def evidence_strata(members: list[str]) -> list[dict[str, Any]]:
+    """Create a small deterministic evidence obligation spanning the whole unit."""
+    if not members:
+        return []
+    count = min(MAX_EVIDENCE_STRATA, max(1, math.ceil(len(members) / 20)))
+    strata: list[dict[str, Any]] = []
+    for index in range(count):
+        start = index * len(members) // count
+        end = (index + 1) * len(members) // count
+        partition = members[start:end]
+        strata.append(
             {
-                "area": area,
-                "files": len(members),
-                "members": members,
-                "samples": samples,
+                "id": f"stratum-{index + 1:02d}",
+                "members": partition,
+                "sample": partition[0],
             }
-        ]
+        )
+    return strata
 
-    chunks = [
-        members[index : index + MAX_UNIT_FILES]
-        for index in range(0, len(members), MAX_UNIT_FILES)
+
+def common_directory_depth(members: list[str]) -> int:
+    directories = [Path(value).parts[:-1] for value in members]
+    if not directories:
+        return 0
+    depth = 0
+    for values in zip(*directories):
+        if len(set(values)) != 1:
+            break
+        depth += 1
+    return depth
+
+
+def split_production_unit(area: str, members: list[str]) -> list[dict[str, Any]]:
+    """Split by whole directory subtrees, then pack bounded sibling groups."""
+    members = sorted(members)
+    partitions = partition_members(members)
+    groups = [
+        (
+            area if len(partitions) == 1 else f"{area}/@unit-{index:03d}",
+            values,
+        )
+        for index, values in enumerate(partitions, start=1)
     ]
     return [
         {
-            "area": f"{area}/@chunk-{number:03d}",
-            "files": len(chunk),
-            "members": chunk,
-            "samples": chunk[:5],
+            "area": unit_area,
+            "classification": "queued",
+            "files": len(values),
+            "members": values,
+            "strata": evidence_strata(values),
+            "samples": [value["sample"] for value in evidence_strata(values)],
         }
-        for number, chunk in enumerate(chunks, start=1)
+        for unit_area, values in groups
     ]
+
+
+def partition_members(members: list[str]) -> list[list[str]]:
+    if len(members) <= MAX_UNIT_FILES:
+        return [members]
+    depth = common_directory_depth(members)
+    grouped: dict[str, list[str]] = {}
+    direct: list[str] = []
+    for value in members:
+        parts = Path(value).parts
+        if len(parts) - 1 <= depth:
+            direct.append(value)
+        else:
+            grouped.setdefault(parts[depth], []).append(value)
+    atomic: list[list[str]] = [
+        direct[index : index + MAX_UNIT_FILES]
+        for index in range(0, len(direct), MAX_UNIT_FILES)
+    ]
+    for _, values in sorted(grouped.items()):
+        if len(values) <= MAX_UNIT_FILES:
+            atomic.append(values)
+        elif common_directory_depth(values) > depth:
+            atomic.extend(partition_members(values))
+        else:
+            atomic.extend(
+                values[index : index + MAX_UNIT_FILES]
+                for index in range(0, len(values), MAX_UNIT_FILES)
+            )
+    packed: list[list[str]] = []
+    current: list[str] = []
+    for values in atomic:
+        if current and len(current) + len(values) > MAX_UNIT_FILES:
+            packed.append(sorted(current))
+            current = []
+        current.extend(values)
+    if current:
+        packed.append(sorted(current))
+    return packed
 
 
 def verification_task_id(area: str) -> str:
@@ -493,17 +616,44 @@ def verification_task_id(area: str) -> str:
 def candidate_owner_documents(
     spine_root: Path,
     area: str,
-    samples: list[str],
+    members: list[str],
 ) -> list[str]:
-    needles = [area, *samples]
-    candidates: list[str] = []
+    base_area = area.split("/@", 1)[0]
+    parent_counts: dict[str, int] = {}
+    for member in members:
+        for parent in Path(member).parents:
+            value = parent.as_posix()
+            if value == ".":
+                continue
+            parent_counts[value] = parent_counts.get(value, 0) + 1
+    threshold = max(2, math.ceil(len(members) / 4))
+    focused_parents = sorted(
+        (
+            value
+            for value, count in parent_counts.items()
+            if count >= threshold and len(Path(value).parts) >= 3
+        ),
+        key=lambda value: (-len(Path(value).parts), value),
+    )[:6]
+    broad = [base_area] if len(Path(base_area).parts) >= 2 else []
+    candidates: list[tuple[int, str]] = []
     for path in sorted(spine_root.rglob("*.md")):
         if not path.is_file():
             continue
         body = path.read_text(encoding="utf-8")
-        if any(needle and needle in body for needle in needles):
-            candidates.append(path.relative_to(spine_root).as_posix())
-    return candidates
+        score = (
+            100 * sum(value in body for value in members)
+            + 10 * sum(value in body for value in focused_parents)
+            + sum(value in body for value in broad)
+        )
+        if score:
+            candidates.append((score, path.relative_to(spine_root).as_posix()))
+    return [
+        path
+        for _, path in sorted(candidates, key=lambda value: (-value[0], value[1]))[
+            :MAX_CANDIDATE_DOCUMENTS
+        ]
+    ]
 
 
 def repository_inventory(
@@ -524,7 +674,7 @@ def repository_inventory(
         else:
             excluded_spine = resolved_spine
 
-    units: dict[str, dict[str, Any]] = {}
+    units: dict[tuple[str, str], dict[str, Any]] = {}
     snapshot = hashlib.sha256()
     for directory, names, files in os.walk(root):
         current = Path(directory)
@@ -549,9 +699,17 @@ def repository_inventory(
                 f"D\0{area_path}\0{stat.st_size}\0{stat.st_mtime_ns}\n".encode()
             )
             area = repository_unit(Path(area_path))
+            classification = (
+                "vendored" if name in VENDORED_DIRECTORIES else "generated"
+            )
             record = units.setdefault(
-                area,
-                {"area": area, "members": [], "collapsed_samples": []},
+                (area, classification),
+                {
+                    "area": area,
+                    "classification": classification,
+                    "members": [],
+                    "collapsed_samples": [],
+                },
             )
             record["collapsed_samples"].append(area_path + "/")
             names.remove(name)
@@ -563,24 +721,56 @@ def repository_inventory(
                 while chunk := stream.read(1024 * 1024):
                     snapshot.update(chunk)
             snapshot.update(b"\n")
+            classification, _ = file_classification(path)
             area = repository_unit(path)
             record = units.setdefault(
-                area,
-                {"area": area, "members": [], "collapsed_samples": []},
+                (area, classification),
+                {
+                    "area": area,
+                    "classification": classification,
+                    "members": [],
+                    "collapsed_samples": [],
+                },
             )
             record["members"].append(path.as_posix())
     bounded: list[dict[str, Any]] = []
-    for area, record in sorted(units.items()):
-        bounded.extend(
-            split_unit(
-                area,
-                record["members"],
-                record["collapsed_samples"],
-            )
+    used_areas: set[str] = set()
+    for (_, classification), record in sorted(units.items()):
+        area = record["area"]
+        if classification == "queued":
+            production = split_production_unit(area, record["members"])
+            for value in production:
+                if value["area"] in used_areas:
+                    raise CampaignError(f"duplicate inventory area: {value['area']}")
+                used_areas.add(value["area"])
+                bounded.append(value)
+            continue
+        terminal_area = f"{area}/@{classification}"
+        suffix = 2
+        while terminal_area in used_areas:
+            terminal_area = f"{area}/@{classification}-{suffix}"
+            suffix += 1
+        used_areas.add(terminal_area)
+        members = sorted(record["members"])
+        bounded.append(
+            {
+                "area": terminal_area,
+                "classification": classification,
+                "files": len(members),
+                "members": members,
+                "strata": [],
+                "samples": [
+                    *members[:5],
+                    *record["collapsed_samples"][: max(0, 5 - len(members))],
+                ],
+            }
         )
     inventory = sorted(bounded, key=lambda value: value["area"])
     oversized = [
-        value["area"] for value in inventory if value["files"] > MAX_UNIT_FILES
+        value["area"]
+        for value in inventory
+        if value["classification"] == "queued"
+        and value["files"] > MAX_UNIT_FILES
     ]
     if oversized:
         raise CampaignError(f"inventory contains oversized units: {oversized}")
@@ -652,41 +842,28 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_seed_from_spine(args: argparse.Namespace) -> dict[str, Any]:
-    plan = read_json(args.plan)
-    documents = validate_document_inventory(
-        args.spine_root.resolve(),
-        plan.get("evidence_inspected"),
-        field="documentation seed evidence_inspected",
-    )
-    raw_todo = plan.get("todo")
-    if not isinstance(raw_todo, list):
-        raise CampaignError("documentation seed todo must be a list")
-    validate_empty_reason(
-        raw_todo,
-        plan.get("terminal_reason"),
-        prefix="no documentation-derived ToDo: ",
-    )
+    documents = document_hashes(args.spine_root.resolve())
+    if not documents:
+        raise CampaignError("seed-from-spine requires live Markdown documents")
     with locked_ledger(args.ledger) as ledger:
         if ledger["spine_state"] != "existing":
             raise CampaignError("seed-from-spine requires --spine-state existing")
         if ledger["documentation_seed"] is not None:
             raise CampaignError("documentation seed already exists")
-        added = add_tasks(
-            ledger,
-            raw_todo,
-            source="documentation-seed",
-        )
         ledger["documentation_seed"] = {
             "documents": documents,
-            "todo": added,
-            "terminal_reason": plan.get("terminal_reason"),
+            "todo": [],
+            "terminal_reason": (
+                "mechanical documentation index only; source verification and "
+                "integration derive bounded ToDo"
+            ),
         }
         save_locked(args.ledger, ledger)
         return {
             "status": "seeded",
             "campaign_id": ledger["campaign_id"],
             "documents": len(documents),
-            "added_todo": added,
+            "added_todo": [],
             "revision": ledger["revision"],
         }
 
@@ -707,7 +884,8 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
     raw_todo: list[dict[str, Any]] = []
     for record in inventory["areas"]:
         area = record["area"]
-        classification, reason = unit_classification(area, record)
+        classification = record["classification"]
+        reason = classification_reason(classification)
         task_id: str | None = None
         candidates: list[str] = []
         if classification == "queued":
@@ -715,7 +893,7 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
             candidates = candidate_owner_documents(
                 args.spine_root.resolve(),
                 area,
-                record["samples"],
+                record["members"],
             )
             raw_todo.append(
                 {
@@ -732,6 +910,10 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
                     "documents": candidates,
                     "excludes": [],
                     "units": [area],
+                    "evidence_strata": [
+                        {"id": value["id"], "sample": value["sample"]}
+                        for value in record["strata"]
+                    ],
                     "anchor": None,
                 }
             )
@@ -742,6 +924,7 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
             "candidate_documents": candidates,
             "files": record["files"],
             "members": record["members"],
+            "strata": record["strata"],
             "samples": record["samples"],
         }
     with locked_ledger(args.ledger) as ledger:
@@ -962,10 +1145,10 @@ def validate_checkpoint(
         raise CampaignError("draft requires at least one staged Markdown file")
     if status != "draft" and staging:
         raise CampaignError(f"{status} must not publish staged files")
-    elif status == "blocked":
+    elif status in {"blocked", "supporting"}:
         reason = raw.get("reason")
         if not isinstance(reason, str) or not reason.strip():
-            raise CampaignError("blocked checkpoint needs reason")
+            raise CampaignError(f"{status} checkpoint needs reason")
     elif raw.get("reason") is not None:
         raise CampaignError(f"{status} checkpoint must not include reason")
     return status, directions, coverage
@@ -1029,6 +1212,8 @@ def validate_task_evidence(
     ledger: dict[str, Any],
     task: dict[str, Any],
     inspected: Any,
+    *,
+    outcome: str,
 ) -> list[str]:
     paths = [
         validate_relative_path(value)
@@ -1047,6 +1232,7 @@ def validate_task_evidence(
     repository_root = Path(source_pass["repository_root"])
     inventory = source_pass.get("inventory", {})
     covered: set[str] = set()
+    covered_strata: dict[str, set[str]] = {unit: set() for unit in units}
     for value in paths:
         path = repository_root / value
         if not path.is_file():
@@ -1055,11 +1241,31 @@ def validate_task_evidence(
             record = inventory.get(unit)
             if isinstance(record, dict) and value in record.get("members", []):
                 covered.add(unit)
+                for stratum in record.get("strata", []):
+                    if value in stratum.get("members", []):
+                        covered_strata[unit].add(stratum["id"])
     if covered != set(units):
         raise CampaignError(
             "checkpoint must inspect at least one concrete file from every task unit; "
             f"missing={sorted(set(units) - covered)}"
         )
+    if outcome in {"draft", "covered", "supporting"}:
+        missing_strata: dict[str, list[str]] = {}
+        for unit in units:
+            record = inventory.get(unit, {})
+            expected = {
+                value["id"]
+                for value in record.get("strata", [])
+                if isinstance(value, dict) and isinstance(value.get("id"), str)
+            }
+            missing = sorted(expected - covered_strata[unit])
+            if missing:
+                missing_strata[unit] = missing
+        if missing_strata:
+            raise CampaignError(
+                "checkpoint must inspect every evidence stratum for an integrable "
+                f"result: {missing_strata}"
+            )
     return paths
 
 
@@ -1132,6 +1338,7 @@ def command_accept(args: argparse.Namespace) -> dict[str, Any]:
                 ledger,
                 task,
                 raw.get("evidence"),
+                outcome=status,
             )
             suggestions = normalize_directions(task["id"], directions)
             if status == "draft":
@@ -1180,6 +1387,7 @@ def command_accept(args: argparse.Namespace) -> dict[str, Any]:
                     )
             elif status == "covered":
                 task["state"] = "review"
+                task["checkpoint_outcome"] = status
                 task["coverage_result"] = validate_coverage_result(
                     task,
                     coverage,
@@ -1187,6 +1395,21 @@ def command_accept(args: argparse.Namespace) -> dict[str, Any]:
                     inspected,
                 )
                 task["producer_suggestions"] = suggestions
+                ledger["publication_epoch"] += 1
+                ledger["integration_pass"] = None
+            elif status == "supporting":
+                if not task.get("units"):
+                    raise CampaignError(
+                        "supporting is valid only for inventory verification tasks"
+                    )
+                task["state"] = "review"
+                task["checkpoint_outcome"] = status
+                task["support_result"] = {
+                    "boundary_summary": raw["summary"].strip(),
+                    "reason": raw["reason"].strip(),
+                    "evidence": inspected,
+                }
+                task["producer_suggestions"] = []
                 ledger["publication_epoch"] += 1
                 ledger["integration_pass"] = None
             elif status == "retry":
@@ -1206,6 +1429,8 @@ def command_accept(args: argparse.Namespace) -> dict[str, Any]:
                 task["terminal_reason"] = raw["reason"]
                 task["producer_suggestions"] = suggestions
             task["owner"] = None
+            if status == "draft":
+                task["checkpoint_outcome"] = status
             task["checkpoint_digest"] = checkpoint_digest
             save_locked(args.ledger, ledger)
             return {
@@ -1374,12 +1599,26 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
             task_id
             for task_id, task in settled.items()
             if task["state"] == "review"
+            and task.get("checkpoint_outcome") == "covered"
             and normalized_reviews[task_id]["disposition"] != "already_canonical"
         ]
         if invalid_coverage_reviews:
             raise CampaignError(
                 "covered tasks require already_canonical integration "
                 f"disposition: {invalid_coverage_reviews}"
+            )
+        invalid_support_reviews = [
+            task_id
+            for task_id, task in settled.items()
+            if task["state"] == "review"
+            and task.get("checkpoint_outcome") == "supporting"
+            and normalized_reviews[task_id]["disposition"]
+            not in {"confirmed_supporting", "retry"}
+        ]
+        if invalid_support_reviews:
+            raise CampaignError(
+                "supporting tasks require confirmed_supporting or retry "
+                f"integration disposition: {invalid_support_reviews}"
             )
         invalid_publication_reviews = [
             task_id
@@ -1421,9 +1660,17 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
                 raise CampaignError(
                     f"queued suggestion {key} has no matching integration ToDo"
                 )
+        retried: set[str] = set()
         for task_id, task in settled.items():
-            task["state"] = "complete"
-            task["terminal_reason"] = normalized_reviews[task_id]["reason"]
+            disposition = normalized_reviews[task_id]["disposition"]
+            if disposition == "retry":
+                task["state"] = "todo"
+                task["checkpoint_outcome"] = None
+                task["support_result"] = None
+                retried.add(task_id)
+            else:
+                task["state"] = "complete"
+                task["terminal_reason"] = normalized_reviews[task_id]["reason"]
             task["suggestion_reviews"] = {
                 suggestion_id: normalized_suggestions[(task_id, suggestion_id)]
                 for candidate_task, suggestion_id in expected_suggestions
@@ -1437,7 +1684,7 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
                 f"{task}:{suggestion}": value
                 for (task, suggestion), value in normalized_suggestions.items()
             },
-            "todo": sorted(added_set),
+            "todo": sorted(added_set | retried),
             "terminal_reason": report.get("terminal_reason"),
             "organization": organization,
         }
@@ -1600,7 +1847,6 @@ def parser() -> argparse.ArgumentParser:
     seed = sub.add_parser("seed-from-spine")
     seed.add_argument("ledger", type=Path)
     seed.add_argument("spine_root", type=Path)
-    seed.add_argument("plan", type=Path)
 
     inventory = sub.add_parser("inventory")
     inventory.add_argument("repository_root", type=Path)

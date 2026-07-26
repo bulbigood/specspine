@@ -121,7 +121,7 @@ class MapCampaignTests(unittest.TestCase):
             )
         elif outcome == "retry":
             payload["need"] = ["src/identity/recovery.py"]
-        elif outcome == "blocked":
+        elif outcome in {"blocked", "supporting"}:
             payload["reason"] = "External evidence is unavailable"
         return payload
 
@@ -163,7 +163,9 @@ class MapCampaignTests(unittest.TestCase):
             {
                 "task": task["id"],
                 "disposition": (
-                    "already_canonical"
+                    "confirmed_supporting"
+                    if task.get("checkpoint_outcome") == "supporting"
+                    else "already_canonical"
                     if task["state"] == "review"
                     else "integrated"
                 ),
@@ -229,13 +231,19 @@ class MapCampaignTests(unittest.TestCase):
             if value["classification"] == "queued"
         ]
         for index, (area, task_id) in enumerate(queued):
-            sample = ledger["source_pass"]["inventory"][area]["samples"][0]
-            self.covered(task_id, sample, owner=f"/root/producer-{index}")
+            samples = ledger["source_pass"]["inventory"][area]["samples"]
+            owner = f"/root/producer-{index}"
+            self.assign(task_id, owner)
+            self.accept(
+                task_id,
+                self.checkpoint_payload(outcome="covered", evidence=samples),
+                owner=owner,
+            )
         self.integrate()
 
-    def test_init_uses_schema_four_and_private_ledger(self):
+    def test_init_uses_schema_five_and_private_ledger(self):
         ledger = self.ledger_value()
-        self.assertEqual(4, ledger["schema_version"])
+        self.assertEqual(5, ledger["schema_version"])
         self.assertEqual({}, ledger["tasks"])
         self.assertEqual(0o600, self.ledger.stat().st_mode & 0o777)
 
@@ -255,7 +263,7 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual(first["digest"], second["digest"])
         areas = {value["area"] for value in first["areas"]}
         self.assertEqual(
-            {"repository-root/manifests", "src/identity", "tests"},
+            {"repository-root/manifests", "src/identity", "tests/@test-only"},
             areas,
         )
 
@@ -266,7 +274,7 @@ class MapCampaignTests(unittest.TestCase):
         ledger = self.ledger_value()
         self.assertEqual(
             "test-only",
-            ledger["source_pass"]["inventory"]["tests"]["classification"],
+            ledger["source_pass"]["inventory"]["tests/@test-only"]["classification"],
         )
         for area in ("src/identity", "repository-root/manifests"):
             row = ledger["source_pass"]["inventory"][area]
@@ -293,15 +301,99 @@ class MapCampaignTests(unittest.TestCase):
             if value["area"].startswith("packages/big")
         ]
         self.assertEqual(401, sum(value["files"] for value in units))
-        self.assertTrue(all(value["files"] <= 200 for value in units))
+        self.assertTrue(all(value["files"] <= 80 for value in units))
         self.assertEqual(401, len({path for value in units for path in value["members"]}))
+
+    def test_inventory_splits_large_units_by_directory_before_chunks(self):
+        for directory in ("alpha", "beta"):
+            root = self.repository / "packages/big" / directory
+            root.mkdir(parents=True)
+            for index in range(70):
+                (root / f"file_{index:03d}.ts").write_text(
+                    f"export const value{index} = {index};\n",
+                    encoding="utf-8",
+                )
+        inventory = self.cli(
+            "inventory",
+            str(self.repository),
+            "--spine-root",
+            str(self.spine),
+        )
+        units = [
+            value
+            for value in inventory["areas"]
+            if value["classification"] == "queued"
+            and value["area"].startswith("packages/big/")
+        ]
+        self.assertEqual(2, len(units))
+        self.assertTrue(
+            all(
+                len({Path(path).parts[2] for path in value["members"]}) == 1
+                for value in units
+            )
+        )
+
+    def test_nested_tests_fixtures_and_generated_files_are_not_queued(self):
+        root = self.repository / "src/identity"
+        (root / "testdata").mkdir()
+        (root / "generated").mkdir()
+        (root / "testdata/case.json").write_text("{}", encoding="utf-8")
+        (root / "generated/client.ts").write_text("export {}", encoding="utf-8")
+        (root / "session_test.go").write_text("package identity", encoding="utf-8")
+        self.source_pass()
+        inventory = self.ledger_value()["source_pass"]["inventory"]
+        terminal_members = {
+            path
+            for value in inventory.values()
+            if value["classification"] != "queued"
+            for path in value["members"]
+        }
+        self.assertIn("src/identity/testdata/case.json", terminal_members)
+        self.assertIn("src/identity/generated/client.ts", terminal_members)
+        self.assertIn("src/identity/session_test.go", terminal_members)
+        production = inventory["src/identity"]
+        self.assertEqual(["src/identity/session.py"], production["members"])
+
+    def test_candidate_owner_search_uses_every_member_not_only_samples(self):
+        root = self.repository / "src/identity"
+        for index in range(25):
+            (root / f"module_{index:02d}.py").write_text(
+                f"VALUE = {index}\n",
+                encoding="utf-8",
+            )
+        (self.spine / "late-owner.md").write_text(
+            "# Late owner\n\n"
+            "- **OBS-late-owner** — `src/identity/module_24.py`.\n",
+            encoding="utf-8",
+        )
+        self.source_pass()
+        _, task = self.task_for_unit("src/identity")
+        self.assertIn("late-owner.md", task["documents"])
+        self.assertTrue(task["evidence_strata"])
+        self.assertEqual(
+            task["evidence"],
+            [value["sample"] for value in task["evidence_strata"]],
+        )
+
+    def test_candidate_owner_packet_is_bounded(self):
+        for index in range(20):
+            (self.spine / f"candidate-{index:02d}.md").write_text(
+                f"# Candidate {index}\n\n"
+                "- **OBS-candidate** — `src/identity`.\n",
+                encoding="utf-8",
+            )
+        self.source_pass()
+        _, task = self.task_for_unit("src/identity")
+        self.assertEqual(12, len(task["documents"]))
 
     def test_local_editor_directories_are_repository_support(self):
         editor = self.repository / ".vscode"
         editor.mkdir()
         (editor / "settings.json").write_text("{}", encoding="utf-8")
         self.source_pass()
-        row = self.ledger_value()["source_pass"]["inventory"][".vscode"]
+        row = self.ledger_value()["source_pass"]["inventory"][
+            ".vscode/@repository-support"
+        ]
         self.assertEqual("repository-support", row["classification"])
         self.assertIsNone(row["task"])
 
@@ -332,6 +424,32 @@ class MapCampaignTests(unittest.TestCase):
             expected=2,
         )
         self.assertIn("seed-from-spine", error["error"])
+
+    def test_documentation_seed_is_mechanical_and_needs_no_ai_plan(self):
+        ledger = self.run / "existing-seeded.json"
+        self.cli(
+            "init",
+            str(ledger),
+            "--scope",
+            "whole repository",
+            "--root-question",
+            "Map repository",
+            "--spine-state",
+            "existing",
+        )
+        receipt = self.cli(
+            "seed-from-spine",
+            str(ledger),
+            str(self.spine),
+        )
+        self.assertEqual(1, receipt["documents"])
+        self.assertEqual([], receipt["added_todo"])
+        self.cli(
+            "source-pass",
+            str(ledger),
+            str(self.repository),
+            str(self.spine),
+        )
 
     def test_source_pass_is_immutable(self):
         self.source_pass()
@@ -390,6 +508,59 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual("review", receipt["task_state"])
         summary = self.cli("summary", str(self.ledger))
         self.assertFalse(summary["terminal_gates"]["publications_integrated"])
+
+    def test_covered_requires_evidence_from_every_mechanical_stratum(self):
+        root = self.repository / "src/identity"
+        for index in range(40):
+            (root / f"module_{index:02d}.py").write_text(
+                f"VALUE = {index}\n",
+                encoding="utf-8",
+            )
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+        error = self.accept(
+            task_id,
+            self.checkpoint_payload(
+                outcome="covered",
+                evidence=["src/identity/session.py"],
+            ),
+            expected=2,
+        )
+        self.assertIn("every evidence stratum", error["error"])
+
+    def test_producer_can_classify_unit_as_supporting(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+        receipt = self.accept(
+            task_id,
+            self.checkpoint_payload(
+                outcome="supporting",
+                evidence=["src/identity/session.py"],
+            ),
+        )
+        self.assertEqual("review", receipt["task_state"])
+        self.integrate()
+        task = self.ledger_value()["tasks"][task_id]
+        self.assertEqual("complete", task["state"])
+        self.assertEqual("supporting", task["checkpoint_outcome"])
+
+    def test_root_can_retry_weak_supporting_receipt(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+        self.accept(
+            task_id,
+            self.checkpoint_payload(
+                outcome="supporting",
+                evidence=["src/identity/session.py"],
+            ),
+        )
+        report = self.integration_report()
+        report["task_reviews"][0]["disposition"] = "retry"
+        self.integrate(report)
+        self.assertEqual("todo", self.ledger_value()["tasks"][task_id]["state"])
 
     def test_draft_publication_records_suggestions_but_not_todo(self):
         self.source_pass()

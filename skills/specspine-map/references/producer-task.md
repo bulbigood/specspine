@@ -1,9 +1,9 @@
 # SpecSpine Map one-shot producer contract
 
-Handle exactly one bounded ToDo, write one checkpoint, and terminate. Read the
-provided concrete source samples, candidate owner documents, and only enough
-additional evidence to establish responsibility, interfaces, lifecycle, owned
-state, dependencies, significant failures, and boundaries.
+Handle exactly one bounded ToDo, write one checkpoint, and terminate. Inspect
+at least one concrete file from every provided evidence stratum, then read only
+enough additional evidence to establish responsibility, interfaces, lifecycle,
+owned state, dependencies, significant failures, and boundaries.
 
 Write Markdown only under the assigned private staging root. Do not edit the
 live Spine, repository source, tests, README, or campaign state. Do not continue
@@ -49,6 +49,24 @@ For `draft`, stage one or more publish-ready Markdown files. Do not describe
 their paths or create/replace operations in JSON; `campaign.py` derives both
 from staging and the live Spine.
 
+Supporting implementation with no durable responsibility:
+
+```json
+{
+  "outcome": "supporting",
+  "evidence": [
+    "pkg/cache/adapters/wire.go",
+    "pkg/cache/adapters/options.go"
+  ],
+  "summary": "The unit only wires options into the existing cache lifecycle.",
+  "reason": "It introduces no owner, state, interface, lifecycle, or failure policy.",
+  "directions": []
+}
+```
+
+Use `supporting` only after checking every evidence stratum. It is not a
+shortcut for an unclear boundary; use `retry` when ownership remains uncertain.
+
 Insufficient evidence:
 
 ```json
@@ -71,7 +89,8 @@ External blocker:
 }
 ```
 
-`covered` is valid only when the owner document exists, every claim is a
-semantic ID in that document, the document references the unit or inspected
-evidence, and the summary explains the boundary. A title or broad neighboring
-owner is not proof.
+`draft`, `covered`, and `supporting` must cite at least one concrete member from
+every evidence stratum. `covered` is valid only when the owner document exists,
+every claim is a semantic ID in that document, the document references the unit
+or inspected evidence, and the summary explains the boundary. A title or broad
+neighboring owner is not proof.

@@ -74,13 +74,14 @@ Save a report covering every live Markdown document:
 
 Every task in `published` or `review` needs one `task_reviews` row. A published
 draft requires `integrated`; a `covered` receipt requires
-`already_canonical`.
+`already_canonical`; a `supporting` receipt requires `confirmed_supporting` or
+`retry`. `retry` returns that unit to ToDo for a fresh producer.
 
-There is no `not_architectural` disposition for a mechanically queued source
-unit. Root must retain and integrate its producer publication. Integration
-fails if the published owner was deleted, lacks a semantic `OBS` claim, or no
-longer references the verified unit or its source evidence. Correct a poor
-draft in place; do not terminally discard the unit.
+Root cannot independently mark a queued source unit non-architectural.
+`confirmed_supporting` is valid only for a producer `supporting` receipt.
+Integration fails if a published owner was deleted, lacks a semantic `OBS`
+claim, or no longer references the verified unit or its source evidence.
+Correct a poor draft in place; do not terminally discard it.
 
 Every suggestion emitted by those tasks needs one `suggestion_reviews` row.
 Allowed dispositions are:

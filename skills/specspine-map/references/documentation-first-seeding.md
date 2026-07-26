@@ -1,58 +1,20 @@
-# Documentation-first ToDo seeding
+# Mechanical documentation seed
 
-Use this protocol when exhaustive Map starts with existing specification nodes.
+Use this step when exhaustive Map starts with an existing Spine.
 
-Before source inventory:
-
-1. Read `README.md` and every live Markdown node.
-2. Treat the graph as architecture memory, not presumed truth.
-3. Extract bounded ToDo from partial/unmapped coverage, open questions, broad
-   owners, weak relationships, missing failure/lifecycle/interface/data/
-   operational depth, stale evidence, navigation gaps, and inconsistencies.
-4. Anchor every task in a precise document location and state what is already
-   known. A document title or “map this area deeper” is not a bounded task.
-5. Give each task evidence likely to answer it and explicit sibling exclusions.
-
-Save:
-
-```json
-{
-  "evidence_inspected": ["README.md", "identity.md", "sessions.md"],
-  "todo": [
-    {
-      "id": "identity-session-failures",
-      "question": "Who owns recovery when expiry races with refresh?",
-      "reason": "Normal expiry is covered but recovery ownership is absent",
-      "evidence": ["src/identity", "tests/session-refresh.test.ts"],
-      "documents": ["identity.md", "sessions.md"],
-      "excludes": ["token issuance", "login", "storage deployment"],
-      "anchor": {
-        "document": "sessions.md",
-        "location": "Lifecycle / active-to-expired transition",
-        "known": "Creation and normal expiry ownership are established"
-      }
-    }
-  ],
-  "terminal_reason": null
-}
-```
-
-`evidence_inspected` must equal the complete live Markdown inventory. If no
-bounded direction exists, use an empty `todo` and:
-
-```text
-no documentation-derived ToDo: <evidence-based reason>
-```
-
-Record the seed before source classification:
+Do not ask the root model to invent a documentation-gap plan or claim that it
+read every node. Record the complete Markdown inventory mechanically:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py seed-from-spine \
-  <campaign> <spine-root> <documentation-plan.json>
+  <campaign> <spine-root>
 ```
 
-The seed is only additional documentation-derived ToDo. It cannot classify or
-remove the verification tasks that `source-pass` later generates for every
-production work unit. Later recursive depth comes from root integration
-rereading accepted results and appending anchored ToDo. Producers never recurse
-or mutate this list themselves.
+The command stores every live Markdown hash. It adds no ToDo and grants no
+coverage. `source-pass` later uses literal evidence references from the whole
+Spine to suggest candidate owners for every production unit.
+
+New bounded directions come only from producer checkpoints and root
+integration. Root integration must reread each settled result, persist every
+accepted unresolved direction as ToDo, and may add an anchored ToDo exposed by
+the integrated graph.

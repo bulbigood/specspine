@@ -55,16 +55,23 @@ choosing among materially different canonical owners.
 
 Read [references/orchestration.md](references/orchestration.md) completely
 before discovery. Exhaustive mode requires fresh producer handles: one producer
-per bounded ToDo, one checkpoint, then termination. Never reuse a producer or
-continue its hidden conversation state. If fresh producers are unavailable,
-record the mechanically generated verification ToDo and report `blocked`; do
-not classify production units or simulate exhaustive coverage in the root
-context.
+per bounded ToDo, one checkpoint, then termination. Use the platform's
+medium-capability general-purpose agent tier for every producer: neither its
+weak/cheap tier nor its strongest/premium tier. In Codex this is
+`agent_type: medium`.
+
+Start each producer in a fresh isolated context with no inherited conversation,
+reasoning, or hidden memory. In Codex this is `fork_turns: none`; on another
+agent platform use its equivalent new-session/no-history option. Pass only the
+immutable bundle, task packet, and required paths. Never reuse a producer. If
+the platform cannot provide both a fresh producer and a medium-capability tier,
+preserve the generated ToDo and report `blocked`; do not substitute another
+tier, classify production units, or simulate exhaustive coverage in root.
 
 If the Spine already contains specification nodes, also read
 [references/documentation-first-seeding.md](references/documentation-first-seeding.md)
-completely and build the initial frontier from documentation gaps before
-inspecting production source.
+completely and record the mechanical documentation index before inspecting
+production source.
 
 Read [references/integration-pass.md](references/integration-pass.md)
 completely before merging producer publications into the final graph.

@@ -8,6 +8,14 @@ classify production code as already covered.
 
 - Only root runs `campaign.py`.
 - One fresh producer handles one ToDo and terminates after one checkpoint.
+- Use a medium-capability general-purpose agent for every producer. Do not use
+  the platform's weak/cheap tier or strongest/premium tier. In Codex select
+  `agent_type: medium`; elsewhere select the closest middle tier intended for
+  bounded multi-file code analysis and synthesis.
+- Give every producer a fresh isolated context with no inherited conversation,
+  reasoning, or hidden memory. `fork_turns: none` is the Codex spelling; on
+  another platform create a new independent session or use its no-history
+  equivalent. Pass only the immutable bundle, task packet, and required paths.
 - Producers write only to private staging.
 - Root cannot create, remove, group, or terminally classify production work
   units.
@@ -35,9 +43,8 @@ python3 <map-skill-root>/scripts/campaign.py init \
   --spine-state <empty-or-existing>
 ```
 
-For an existing Spine, run the complete documentation seed from
-`documentation-first-seeding.md`. This seed may add anchored ToDo but cannot
-remove later source-verification work.
+For an existing Spine, run the mechanical documentation index from
+`documentation-first-seeding.md`.
 
 Build the immutable producer bundle once:
 
@@ -64,11 +71,13 @@ python3 <map-skill-root>/scripts/campaign.py source-pass \
 
 The command:
 
-- groups files into stable repository work units;
-- deterministically splits every unit to at most 200 concrete files;
-- mechanically excludes only vendored dependency trees, generated/build
-  outputs, repository-level test trees, governance documents, and known local
-  editor/contributor support;
+- classifies concrete files before grouping;
+- separates nested tests, fixtures, generated files, vendored dependencies,
+  documentation, governance, and local support from production;
+- groups production files by stable repository boundaries and splits oversized
+  units by subdirectory before deterministic fallback chunks;
+- limits every production unit to 80 concrete files;
+- records up to four evidence strata spanning each production unit;
 - creates one immutable verification ToDo for every remaining unit;
 - finds candidate owner documents only through literal path references;
 - records the complete source-content digest.
@@ -91,7 +100,9 @@ python3 <map-skill-root>/scripts/campaign.py todo <campaign>
 
 For every available slot:
 
-1. start a fresh producer with the immutable bundle and one task packet;
+1. start a medium-capability producer in a fresh isolated session; for Codex
+   use `agent_type: medium` and `fork_turns: none`; pass the immutable bundle
+   and one task packet including all evidence-stratum samples;
 2. after the handle exists, assign it:
 
 ```text
@@ -108,14 +119,16 @@ python3 <map-skill-root>/scripts/campaign.py accept \
   --owner <fresh-agent-path>
 ```
 
-`draft` is transactionally published and waits for root integration.
-`covered` also waits for root integration; acceptance checks concrete unit
-evidence, owner existence, and semantic claim IDs. `retry` returns the task to
-ToDo for a new producer. Never continue the old producer.
+`draft` is transactionally published and waits for root integration. `covered`
+also waits for root integration; acceptance checks every evidence stratum,
+owner existence, and semantic claim IDs. `supporting` records a producer-owned
+finding that the unit has no durable architectural responsibility; root may
+confirm it or return it to ToDo. `retry` returns the task to ToDo immediately.
+Never continue the old producer.
 
-If a producer disappears, use `release`. If fresh producer creation is
-unavailable, use `block` for every actionable task and report the campaign
-blocked.
+If a producer disappears, use `release`. If a fresh isolated producer or the
+medium-capability tier is unavailable, use `block` for every actionable task
+and report the campaign blocked. Never fall back to a weak or strongest tier.
 
 ## Integrate and derive ToDo
 

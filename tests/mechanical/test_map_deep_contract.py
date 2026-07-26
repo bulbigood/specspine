@@ -46,8 +46,19 @@ class MapExhaustiveContractTests(unittest.TestCase):
         normalized = " ".join(self.entrypoint.split())
         self.assertIn("one producer per bounded ToDo", normalized)
         self.assertIn("Never reuse a producer", normalized)
+        self.assertIn("`fork_turns: none`", self.entrypoint)
+        self.assertIn("fresh isolated context", normalized)
+        self.assertIn("another agent platform", normalized)
         self.assertIn("report `blocked`", normalized)
         self.assertNotIn("Sequential exhaustive protocol", self.entrypoint)
+
+    def test_exhaustive_requires_medium_tier_producers(self):
+        entrypoint = " ".join(self.entrypoint.split())
+        protocol = " ".join(self.protocol.split())
+        self.assertIn("medium-capability general-purpose agent tier", entrypoint)
+        self.assertIn("`agent_type: medium`", self.entrypoint)
+        self.assertIn("neither its weak/cheap tier nor its strongest/premium tier", entrypoint)
+        self.assertIn("Never fall back to a weak or strongest tier", protocol)
 
     def test_producer_has_one_checkpoint_and_no_coverage_authority(self):
         normalized = " ".join(self.producer.split())
@@ -60,6 +71,8 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn('"outcome": "covered"', self.producer)
         self.assertIn('"outcome": "draft"', self.producer)
         self.assertIn('"outcome": "retry"', self.producer)
+        self.assertIn('"outcome": "supporting"', self.producer)
+        self.assertIn("every evidence stratum", normalized)
         self.assertIn("directions` are plain questions", normalized)
 
     def test_inventory_is_a_deterministic_completion_gate(self):
@@ -71,7 +84,8 @@ class MapExhaustiveContractTests(unittest.TestCase):
         )
         self.assertIn("Candidate owners do not close work", normalized)
         self.assertIn("inventory_verified", normalized)
-        self.assertIn("at most 200 concrete files", normalized)
+        self.assertIn("80 concrete files", normalized)
+        self.assertIn("classifies concrete files before grouping", normalized)
         self.assertIn("def repository_inventory", self.campaign)
         self.assertIn("verification_task_id", self.campaign)
         self.assertNotIn("OWNER_CLASSIFICATIONS", self.campaign)
@@ -88,14 +102,12 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("one producer may run only one task", self.campaign)
         self.assertNotIn('"not_architectural"', self.campaign)
 
-    def test_documentation_seed_creates_bounded_todo(self):
+    def test_documentation_seed_is_mechanical(self):
         normalized = " ".join(self.documentation_first.split())
-        self.assertIn("Read `README.md` and every live Markdown node", normalized)
-        self.assertIn("Anchor every task", normalized)
+        self.assertIn("complete Markdown inventory mechanically", normalized)
         self.assertIn("seed-from-spine", normalized)
-        self.assertIn("additional documentation-derived ToDo", normalized)
-        self.assertIn("cannot classify or remove", normalized)
-        self.assertIn("validate_document_inventory", self.campaign)
+        self.assertIn("adds no ToDo and grants no coverage", normalized)
+        self.assertIn("document_hashes", self.campaign)
 
     def test_root_integration_derives_and_persists_new_todo(self):
         normalized = " ".join(self.integration.split())
