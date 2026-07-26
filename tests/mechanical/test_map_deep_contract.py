@@ -52,15 +52,15 @@ class MapExhaustiveContractTests(unittest.TestCase):
     def test_producer_has_one_checkpoint_and_no_coverage_authority(self):
         normalized = " ".join(self.producer.split())
         self.assertIn("exactly one bounded ToDo", normalized)
-        self.assertIn("emits one checkpoint, and terminates", normalized)
+        self.assertIn("write one checkpoint, and terminate", normalized)
         self.assertIn(
-            "accept a document title or broad owner as proof of coverage",
+            "title or broad neighboring owner is not proof",
             normalized,
         )
-        self.assertIn("covered_by_owner", self.producer)
-        self.assertIn("draft_ready", self.producer)
-        self.assertIn("needs_more_evidence", self.producer)
-        self.assertIn("Discovered directions are suggestions only", normalized)
+        self.assertIn('"outcome": "covered"', self.producer)
+        self.assertIn('"outcome": "draft"', self.producer)
+        self.assertIn('"outcome": "retry"', self.producer)
+        self.assertIn("directions` are plain questions", normalized)
 
     def test_inventory_is_a_deterministic_completion_gate(self):
         normalized = " ".join(self.protocol.split())
@@ -71,6 +71,7 @@ class MapExhaustiveContractTests(unittest.TestCase):
         )
         self.assertIn("Candidate owners do not close work", normalized)
         self.assertIn("inventory_verified", normalized)
+        self.assertIn("at most 200 concrete files", normalized)
         self.assertIn("def repository_inventory", self.campaign)
         self.assertIn("verification_task_id", self.campaign)
         self.assertNotIn("OWNER_CLASSIFICATIONS", self.campaign)
@@ -85,6 +86,7 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertNotIn("locally_saturated", self.campaign)
         self.assertNotIn("producer_affinity", self.campaign)
         self.assertIn("one producer may run only one task", self.campaign)
+        self.assertNotIn('"not_architectural"', self.campaign)
 
     def test_documentation_seed_creates_bounded_todo(self):
         normalized = " ".join(self.documentation_first.split())
@@ -107,7 +109,7 @@ class MapExhaustiveContractTests(unittest.TestCase):
     def test_producers_cannot_write_shared_navigation(self):
         normalized = " ".join(self.producer.split())
         self.assertIn(
-            "edit the live Spine, `README.md`, source, tests, or campaign state",
+            "edit the live Spine, repository source, tests, README, or campaign state",
             normalized,
         )
         self.assertIn("producer must not publish README.md", self.campaign)

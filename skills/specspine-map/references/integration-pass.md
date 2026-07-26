@@ -8,7 +8,7 @@ canonical ownership or complete architectural depth.
 
 The root orchestrator must:
 
-1. Read every published document or `covered_by_owner` receipt, its claimed
+1. Read every published document or `covered` receipt, its claimed
    owner, and relevant graph neighbors.
 2. Confirm or correct ownership, boundaries, terminology, and non-duplication.
 3. Add navigation needed for reachability and comprehension.
@@ -72,10 +72,15 @@ Save a report covering every live Markdown document:
 }
 ```
 
-Every task in `published` or `review` needs one `task_reviews` row. Allowed
-dispositions are `integrated`, `already_canonical`, and `not_architectural`.
-`covered_by_owner` receipts require `already_canonical`; otherwise update the
-owner through a new explicit ToDo instead of accepting the receipt.
+Every task in `published` or `review` needs one `task_reviews` row. A published
+draft requires `integrated`; a `covered` receipt requires
+`already_canonical`.
+
+There is no `not_architectural` disposition for a mechanically queued source
+unit. Root must retain and integrate its producer publication. Integration
+fails if the published owner was deleted, lacks a semantic `OBS` claim, or no
+longer references the verified unit or its source evidence. Correct a poor
+draft in place; do not terminally discard the unit.
 
 Every suggestion emitted by those tasks needs one `suggestion_reviews` row.
 Allowed dispositions are:

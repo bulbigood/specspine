@@ -100,42 +100,30 @@ class MapCampaignTests(unittest.TestCase):
     def checkpoint_payload(
         self,
         *,
-        status,
+        outcome,
         evidence,
-        candidate=None,
-        suggestions=None,
+        directions=None,
         owner_document="README.md",
         owner_claim_ids=None,
     ):
-        return {
-            "status": status,
-            "evidence_inspected": evidence,
-            "findings": ["The bounded unit and its responsibility were inspected"],
-            "candidates": (
-                [{"path": candidate, "operation": "create"}] if candidate else []
-            ),
-            "coverage": (
-                {
-                    "owner_document": owner_document,
-                    "owner_claim_ids": owner_claim_ids
-                    or ["OBS-architecture-root"],
-                    "boundary_summary": (
-                        "The owner explicitly accounts for this bounded unit"
-                    ),
-                }
-                if status == "covered_by_owner"
-                else None
-            ),
-            "discovered_directions": suggestions or [],
-            "required_evidence": (
-                ["src/identity/recovery.py"]
-                if status == "needs_more_evidence"
-                else []
-            ),
-            "terminal_reason": (
-                "External evidence is unavailable" if status == "blocked" else None
-            ),
+        payload = {
+            "outcome": outcome,
+            "evidence": evidence,
+            "summary": "The bounded unit and its responsibility were inspected",
+            "directions": directions or [],
         }
+        if outcome == "covered":
+            payload["owner"] = (
+                {
+                    "document": owner_document,
+                    "claims": owner_claim_ids or ["OBS-architecture-root"],
+                }
+            )
+        elif outcome == "retry":
+            payload["need"] = ["src/identity/recovery.py"]
+        elif outcome == "blocked":
+            payload["reason"] = "External evidence is unavailable"
+        return payload
 
     def accept(self, task_id, payload, *, owner="/root/producer-1", expected=0):
         self.checkpoint.write_text(json.dumps(payload), encoding="utf-8")
@@ -158,7 +146,7 @@ class MapCampaignTests(unittest.TestCase):
         return self.accept(
             task_id,
             self.checkpoint_payload(
-                status="covered_by_owner",
+                outcome="covered",
                 evidence=[evidence],
             ),
             owner=owner,
@@ -245,9 +233,9 @@ class MapCampaignTests(unittest.TestCase):
             self.covered(task_id, sample, owner=f"/root/producer-{index}")
         self.integrate()
 
-    def test_init_uses_schema_three_and_private_ledger(self):
+    def test_init_uses_schema_four_and_private_ledger(self):
         ledger = self.ledger_value()
-        self.assertEqual(3, ledger["schema_version"])
+        self.assertEqual(4, ledger["schema_version"])
         self.assertEqual({}, ledger["tasks"])
         self.assertEqual(0o600, self.ledger.stat().st_mode & 0o777)
 
@@ -284,6 +272,38 @@ class MapCampaignTests(unittest.TestCase):
             row = ledger["source_pass"]["inventory"][area]
             self.assertEqual("queued", row["classification"])
             self.assertEqual("todo", ledger["tasks"][row["task"]]["state"])
+
+    def test_inventory_splits_oversized_units_mechanically(self):
+        large = self.repository / "packages/big/src"
+        large.mkdir(parents=True)
+        for index in range(401):
+            (large / f"file_{index:03d}.ts").write_text(
+                f"export const value{index} = {index};\n",
+                encoding="utf-8",
+            )
+        inventory = self.cli(
+            "inventory",
+            str(self.repository),
+            "--spine-root",
+            str(self.spine),
+        )
+        units = [
+            value
+            for value in inventory["areas"]
+            if value["area"].startswith("packages/big")
+        ]
+        self.assertEqual(401, sum(value["files"] for value in units))
+        self.assertTrue(all(value["files"] <= 200 for value in units))
+        self.assertEqual(401, len({path for value in units for path in value["members"]}))
+
+    def test_local_editor_directories_are_repository_support(self):
+        editor = self.repository / ".vscode"
+        editor.mkdir()
+        (editor / "settings.json").write_text("{}", encoding="utf-8")
+        self.source_pass()
+        row = self.ledger_value()["source_pass"]["inventory"][".vscode"]
+        self.assertEqual("repository-support", row["classification"])
+        self.assertIsNone(row["task"])
 
     def test_broad_existing_owner_cannot_eliminate_verification_todo(self):
         self.source_pass()
@@ -341,7 +361,7 @@ class MapCampaignTests(unittest.TestCase):
         error = self.accept(
             task_id,
             self.checkpoint_payload(
-                status="covered_by_owner",
+                outcome="covered",
                 evidence=["src/identity/session.py"],
                 owner_claim_ids=["OBS-does-not-exist"],
             ),
@@ -356,7 +376,7 @@ class MapCampaignTests(unittest.TestCase):
         error = self.accept(
             task_id,
             self.checkpoint_payload(
-                status="covered_by_owner",
+                outcome="covered",
                 evidence=["pyproject.toml"],
             ),
             expected=2,
@@ -379,31 +399,18 @@ class MapCampaignTests(unittest.TestCase):
             "# Identity\n\n- **OBS-identity-owner** — owner.\n",
             encoding="utf-8",
         )
-        suggestion = {
-            "id": "session-recovery",
-            "question": "Who owns failed refresh recovery?",
-            "reason": "Normal refresh does not explain recovery",
-            "evidence": ["src/identity/session.py"],
-            "documents": ["identity.md"],
-            "excludes": [],
-            "anchor": {
-                "document": "identity.md",
-                "location": "Lifecycle",
-                "known": "Normal refresh is covered",
-            },
-        }
+        direction = "Who owns failed refresh recovery?"
         receipt = self.accept(
             task_id,
             self.checkpoint_payload(
-                status="draft_ready",
+                outcome="draft",
                 evidence=["src/identity/session.py"],
-                candidate="identity.md",
-                suggestions=[suggestion],
+                directions=[direction],
             ),
         )
         self.assertEqual("published", receipt["task_state"])
-        self.assertEqual(["session-recovery"], receipt["suggestions_pending_review"])
-        self.assertNotIn("session-recovery", self.ledger_value()["tasks"])
+        self.assertEqual(1, len(receipt["suggestions_pending_review"]))
+        self.assertNotIn(receipt["suggestions_pending_review"][0], self.ledger_value()["tasks"])
 
     def test_needs_more_evidence_returns_task_for_fresh_producer(self):
         self.source_pass()
@@ -412,7 +419,7 @@ class MapCampaignTests(unittest.TestCase):
         receipt = self.accept(
             task_id,
             self.checkpoint_payload(
-                status="needs_more_evidence",
+                outcome="retry",
                 evidence=["src/identity/session.py"],
             ),
         )
@@ -439,15 +446,86 @@ class MapCampaignTests(unittest.TestCase):
         self.accept(
             task_id,
             self.checkpoint_payload(
-                status="draft_ready",
+                outcome="draft",
                 evidence=["src/identity/session.py"],
-                candidate="identity.md",
             ),
             expected=2,
         )
         self.assertTrue(source.exists())
         self.assertFalse((self.spine / "identity.md").exists())
         self.assertEqual("assigned", self.ledger_value()["tasks"][task_id]["state"])
+
+    def test_candidate_checker_receives_live_root_and_staging_path(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+        (self.staging / "identity.md").write_text(
+            "# Identity\n\n"
+            "- **OBS-identity-owner** — `src/identity/session.py`.\n",
+            encoding="utf-8",
+        )
+        self.checker.write_text(
+            "import json, pathlib, sys\n"
+            "if '--candidates' in sys.argv:\n"
+            "    index = sys.argv.index('--candidates')\n"
+            "    valid = pathlib.Path(sys.argv[1]).is_dir() and "
+            "pathlib.Path(sys.argv[index + 1]).is_dir()\n"
+            "else:\n"
+            "    valid = pathlib.Path(sys.argv[1]).is_dir()\n"
+            "print(json.dumps([] if valid else [{'code':'BAD_ARGS'}]))\n"
+            "raise SystemExit(0 if valid else 1)\n",
+            encoding="utf-8",
+        )
+        receipt = self.accept(
+            task_id,
+            self.checkpoint_payload(
+                outcome="draft",
+                evidence=["src/identity/session.py"],
+            ),
+        )
+        self.assertEqual("published", receipt["task_state"])
+
+    def test_root_cannot_discard_source_publication_as_not_architectural(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+        (self.staging / "identity.md").write_text(
+            "# Identity\n\n"
+            "- **OBS-identity-owner** — `src/identity/session.py`.\n",
+            encoding="utf-8",
+        )
+        self.accept(
+            task_id,
+            self.checkpoint_payload(
+                outcome="draft",
+                evidence=["src/identity/session.py"],
+            ),
+        )
+        report = self.integration_report()
+        report["task_reviews"][0]["disposition"] = "not_architectural"
+        error = self.integrate(report, expected=2)
+        self.assertIn("invalid integration disposition", error["error"])
+
+    def test_root_cannot_mark_deleted_source_publication_integrated(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+        (self.staging / "identity.md").write_text(
+            "# Identity\n\n"
+            "- **OBS-identity-owner** — `src/identity/session.py`.\n",
+            encoding="utf-8",
+        )
+        self.accept(
+            task_id,
+            self.checkpoint_payload(
+                outcome="draft",
+                evidence=["src/identity/session.py"],
+            ),
+        )
+        (self.spine / "identity.md").unlink()
+        report = self.integration_report()
+        error = self.integrate(report, expected=2)
+        self.assertIn("cannot discard producer publications", error["error"])
 
     def test_integration_adds_document_derived_todo(self):
         self.source_pass()

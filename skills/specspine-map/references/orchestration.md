@@ -22,10 +22,12 @@ Read [producer-task.md](producer-task.md) completely before dispatch.
 
 ## Start
 
-Create a private run root outside the repository:
+Create a durable private run root outside the repository. Do not use an
+OS-temporary directory for an exhaustive campaign: the ledger and staging must
+survive thread restarts and machine cleanup.
 
 ```text
-mktemp -d
+mkdir -p <durable-private-run-root>
 python3 <map-skill-root>/scripts/campaign.py init \
   <run-root>/campaign.json \
   --scope <requested-scope> \
@@ -63,8 +65,10 @@ python3 <map-skill-root>/scripts/campaign.py source-pass \
 The command:
 
 - groups files into stable repository work units;
+- deterministically splits every unit to at most 200 concrete files;
 - mechanically excludes only vendored dependency trees, generated/build
-  outputs, repository-level test trees, and governance documents;
+  outputs, repository-level test trees, governance documents, and known local
+  editor/contributor support;
 - creates one immutable verification ToDo for every remaining unit;
 - finds candidate owner documents only through literal path references;
 - records the complete source-content digest.
@@ -104,10 +108,10 @@ python3 <map-skill-root>/scripts/campaign.py accept \
   --owner <fresh-agent-path>
 ```
 
-`draft_ready` is transactionally published and waits for root integration.
-`covered_by_owner` also waits for root integration; acceptance checks concrete
-unit evidence, owner existence, and semantic claim IDs. `needs_more_evidence`
-returns the task to ToDo for a new producer. Never continue the old producer.
+`draft` is transactionally published and waits for root integration.
+`covered` also waits for root integration; acceptance checks concrete unit
+evidence, owner existence, and semantic claim IDs. `retry` returns the task to
+ToDo for a new producer. Never continue the old producer.
 
 If a producer disappears, use `release`. If fresh producer creation is
 unavailable, use `block` for every actionable task and report the campaign
@@ -116,7 +120,7 @@ blocked.
 ## Integrate and derive ToDo
 
 After results settle, follow `integration-pass.md`. Root reviews both published
-drafts and `covered_by_owner` receipts, dispositions every suggestion, updates
+drafts and `covered` receipts, dispositions every suggestion, updates
 navigation or relationships, and atomically appends newly exposed questions to
 ToDo.
 
