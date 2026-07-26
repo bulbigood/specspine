@@ -51,24 +51,29 @@ class MapExhaustiveContractTests(unittest.TestCase):
 
     def test_producer_has_one_checkpoint_and_no_coverage_authority(self):
         normalized = " ".join(self.producer.split())
-        self.assertIn("exactly one bounded architectural ToDo", normalized)
-        self.assertIn("returns one checkpoint, and terminates", normalized)
+        self.assertIn("exactly one bounded ToDo", normalized)
+        self.assertIn("emits one checkpoint, and terminates", normalized)
         self.assertIn(
-            "decide repository coverage, quality-gate passage, or saturation",
+            "accept a document title or broad owner as proof of coverage",
             normalized,
         )
+        self.assertIn("covered_by_owner", self.producer)
         self.assertIn("draft_ready", self.producer)
         self.assertIn("needs_more_evidence", self.producer)
         self.assertIn("Discovered directions are suggestions only", normalized)
 
     def test_inventory_is_a_deterministic_completion_gate(self):
         normalized = " ".join(self.protocol.split())
-        self.assertIn("deterministic repository inventory", normalized)
-        self.assertIn("classifies every returned area exactly once", normalized)
-        self.assertIn("An empty ToDo is necessary but not sufficient", normalized)
-        self.assertIn("inventory_closed", normalized)
+        self.assertIn("mechanically generated repository frontier", normalized)
+        self.assertIn(
+            "creates one immutable verification ToDo for every remaining unit",
+            normalized,
+        )
+        self.assertIn("Candidate owners do not close work", normalized)
+        self.assertIn("inventory_verified", normalized)
         self.assertIn("def repository_inventory", self.campaign)
-        self.assertIn("source pass must classify every deterministic inventory area", self.campaign)
+        self.assertIn("verification_task_id", self.campaign)
+        self.assertNotIn("OWNER_CLASSIFICATIONS", self.campaign)
 
     def test_campaign_has_atomic_publication_and_no_self_quality_gate(self):
         self.assertIn("fcntl.flock", self.campaign)
@@ -86,7 +91,8 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("Read `README.md` and every live Markdown node", normalized)
         self.assertIn("Anchor every task", normalized)
         self.assertIn("seed-from-spine", normalized)
-        self.assertIn("initial ToDo", normalized)
+        self.assertIn("additional documentation-derived ToDo", normalized)
+        self.assertIn("cannot classify or remove", normalized)
         self.assertIn("validate_document_inventory", self.campaign)
 
     def test_root_integration_derives_and_persists_new_todo(self):
@@ -99,9 +105,9 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("add_tasks(", self.campaign)
 
     def test_producers_cannot_write_shared_navigation(self):
-        normalized = " ".join(self.protocol.split())
+        normalized = " ".join(self.producer.split())
         self.assertIn(
-            "They never edit the live Spine, `README.md`, source, tests, or campaign state",
+            "edit the live Spine, `README.md`, source, tests, or campaign state",
             normalized,
         )
         self.assertIn("producer must not publish README.md", self.campaign)

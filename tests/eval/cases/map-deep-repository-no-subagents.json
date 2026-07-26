@@ -17,7 +17,7 @@
     {"type": "command_includes", "value": "inventory"},
     {"type": "command_includes", "value": "source-pass"},
     {"type": "response_contains", "value": "blocked"},
-    {"type": "response_not_contains", "values": ["inventory_closed", "saturated", "$specspine-doctor"]},
+    {"type": "response_not_contains", "values": ["inventory_verified", "saturated", "$specspine-doctor"]},
     {"type": "path_absent", "path": ".specspine-map-run"},
     {"type": "glob_count", "glob": "specspine/**/*.md", "min": 2, "max": 2},
     {"type": "unchanged", "paths": ["src/**", "tests/**", "config/**"]},

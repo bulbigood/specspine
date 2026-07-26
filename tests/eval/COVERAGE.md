@@ -39,14 +39,15 @@ reaches its unchanged terminal invocation:
 
 `map-deep-rolling-small` provides one controlled executable exhaustive-mode case.
 One top-level invocation receives a production-like whole-repository request,
-builds a deterministic source inventory, and keeps three producer slots working
+builds a deterministic source frontier, and keeps three producer slots working
 across more ready ToDo entries than slots. Every ToDo receives a fresh producer;
 Codex JSONL collaboration events verify spawning and reject producer
 continuation or reuse.
 Both benchmark arms copy the same 21-file
 `map-modes-six-area` fixture tree, including six source/test/config evidence
 slices, require the same terminal evidence coverage, and stop only after the
-requested inventory is classified and all derived ToDo is resolved. Generated artifacts verify material
+requested production units have integrated producer checkpoints and all derived
+ToDo is resolved. Generated artifacts verify material
 coverage through their evidence. The
 runtime trace pins the orchestrator and producers to Terra/medium. Exhaustive
 Map obtains, saves, and emits in one script call a generated bundle containing
@@ -56,7 +57,7 @@ Collaboration assertions require
 three initial producers, no more than three simultaneously active producers,
 multiple total spawns, zero resumptions, and an encrypted-message size ratio
 that rejects repeated producer instructions. A persistent campaign ledger owns
-the deterministic inventory, source classifications, ToDo, publications, and
+the deterministic inventory, verification ToDo, producer results, and
 root integration passes. Final assertions verify
 move-based publication, source protection, disposable run-root cleanup, and
 mechanical Spine validity. Document length is observed, not bounded. The
@@ -67,8 +68,8 @@ Terra/medium orchestrator plus several Terra/medium producer sessions and belong
 in the explicit `expensive` category.
 
 `map-deep-repository-no-subagents` runs the same six-area fixture with
-`agents.enabled=false`. It verifies that root still inventories and classifies
-the repository, persists unresolved work, leaves the live Spine unchanged, and
+`agents.enabled=false`. It verifies that root still generates the verification
+frontier, persists unresolved work, leaves the live Spine unchanged, and
 reports exhaustive mapping blocked because it cannot launch a fresh producer.
 It must not silently replace the missing producer role with root-side mapping.
 

@@ -1,33 +1,28 @@
 # SpecSpine Map exhaustive orchestration
 
-Exhaustive mode closes a deterministic repository inventory through independent
-bounded ToDo tasks. It optimizes for visible state and fresh context, not
-producer continuity.
+Exhaustive mode verifies a mechanically generated repository frontier through
+independent one-shot producers. Root schedules and integrates; it does not
+classify production code as already covered.
 
 ## Invariants
 
-- The root orchestrator is the only scheduler and the only process that runs
-  `campaign.py`.
-- One producer handles one ToDo, emits one checkpoint, and terminates.
-- Never reuse a producer handle or send follow-up work into its conversation.
-- Producers write only to private staging. They never edit the live Spine,
-  `README.md`, source, tests, or campaign state.
-- Producer suggestions are not ToDo items until the root integration pass
-  accepts them.
-- Producers do not score their own quality and cannot declare local or global
-  saturation.
-- Deterministic source inventory, persistent ToDo, and root integration are
-  separate completion gates.
-- Continue independent ready tasks after a producer failure. A tool failure is
-  not an architectural blocker.
-- Exhaustive mode requires fresh producer creation. Without it, preserve the
-  inventory and report `blocked`.
+- Only root runs `campaign.py`.
+- One fresh producer handles one ToDo and terminates after one checkpoint.
+- Producers write only to private staging.
+- Root cannot create, remove, group, or terminally classify production work
+  units.
+- An existing document is only a candidate owner until a producer supplies
+  concrete source evidence and existing semantic claim IDs.
+- Producer suggestions enter ToDo only through root integration.
+- Continue independent tasks after a producer failure.
+- Without fresh producer creation, preserve generated ToDo and report
+  `blocked`.
 
-Read [producer-task.md](producer-task.md) completely before dispatching work.
+Read [producer-task.md](producer-task.md) completely before dispatch.
 
 ## Start
 
-Create a private run root outside the repository and Spine:
+Create a private run root outside the repository:
 
 ```text
 mktemp -d
@@ -35,12 +30,12 @@ python3 <map-skill-root>/scripts/campaign.py init \
   <run-root>/campaign.json \
   --scope <requested-scope> \
   --root-question <scope-question> \
-  --spine-state existing
+  --spine-state <empty-or-existing>
 ```
 
-For an existing Spine, follow `documentation-first-seeding.md` before source
-inventory. An empty Spine starts after the minimal index required by
-`SKILL.md`.
+For an existing Spine, run the complete documentation seed from
+`documentation-first-seeding.md`. This seed may add anchored ToDo but cannot
+remove later source-verification work.
 
 Build the immutable producer bundle once:
 
@@ -49,65 +44,39 @@ python3 <map-skill-root>/scripts/bundle_skill.py \
   <map-skill-root> <run-root>/producer-instructions.md
 ```
 
-## Establish the source lower bound
+## Generate the source frontier
 
-Generate the deterministic area inventory:
+Inspect the deterministic inventory if useful:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py inventory \
   <repository-root> --spine-root <spine-root>
 ```
 
-The root classifies every returned area exactly once as:
-
-- `mapped` or `neighbor-owned`, with an existing owner document;
-- `queued`, with a matching ToDo;
-- `generated`, `vendored`, `test-only`, or `no-architecture-value`, with a
-  concrete reason.
-
-Save the complete classification and new tasks:
-
-```json
-{
-  "inventory": [
-    {
-      "area": "pkg/services/ssosettings",
-      "classification": "queued",
-      "task": "sso-settings",
-      "reason": "Durable CRUD, persistence and reload boundary"
-    },
-    {
-      "area": "vendor",
-      "classification": "vendored",
-      "reason": "Third-party source"
-    }
-  ],
-  "todo": [
-    {
-      "id": "sso-settings",
-      "question": "Who owns provider settings persistence and reload?",
-      "reason": "The inventory exposes an independent service",
-      "evidence": ["pkg/services/ssosettings"],
-      "documents": ["identity-access.md"],
-      "excludes": ["login orchestration"],
-      "anchor": null
-    }
-  ],
-  "terminal_reason": null
-}
-```
-
-Record it:
+Then record it without an AI-authored classification report:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py source-pass \
-  <campaign> <repository-root> <spine-root> <report.json>
+  <campaign> <repository-root> <spine-root>
 ```
 
-The command rejects missing, duplicate, or invented inventory areas. An empty
-source ToDo requires `no source-derived ToDo: <reason>`.
+The command:
 
-## Dispatch one-shot producers
+- groups files into stable repository work units;
+- mechanically excludes only vendored dependency trees, generated/build
+  outputs, repository-level test trees, and governance documents;
+- creates one immutable verification ToDo for every remaining unit;
+- finds candidate owner documents only through literal path references;
+- records the complete source-content digest.
+
+The recorded source frontier is immutable. If repository content changes before
+completion, discard the private run and start a new campaign from the new
+snapshot.
+
+Candidate owners do not close work. There is no fallback owner and no root
+classification equivalent to `mapped` or `neighbor-owned`.
+
+## Dispatch producers
 
 Inspect ready work:
 
@@ -116,19 +85,17 @@ python3 <map-skill-root>/scripts/campaign.py ready <campaign>
 python3 <map-skill-root>/scripts/campaign.py todo <campaign>
 ```
 
-For each safely available slot:
+For every available slot:
 
 1. start a fresh producer with the immutable bundle and one task packet;
-2. only after a producer handle exists, assign it:
+2. after the handle exists, assign it:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py assign \
   <campaign> <task-id> --owner <fresh-agent-path>
 ```
 
-3. let it write private staging, return one checkpoint, and terminate;
-4. root-inspect the checkpoint and staged candidates;
-5. atomically publish an acceptable result:
+3. accept its single checkpoint:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py accept \
@@ -137,34 +104,32 @@ python3 <map-skill-root>/scripts/campaign.py accept \
   --owner <fresh-agent-path>
 ```
 
-`accept` validates staged bytes and the checkpoint, runs candidate and live
-mechanical checks, publishes with rollback, records suggestions for integration,
-and clears producer ownership. It never adds suggestions directly to ToDo.
+`draft_ready` is transactionally published and waits for root integration.
+`covered_by_owner` also waits for root integration; acceptance checks concrete
+unit evidence, owner existence, and semantic claim IDs. `needs_more_evidence`
+returns the task to ToDo for a new producer. Never continue the old producer.
 
-If a producer disappears, use `release`; the same task returns to ToDo and must
-be assigned to another fresh handle. A `needs_more_evidence` checkpoint also
-returns the task to ToDo with its requested evidence. Never continue the old
-producer.
+If a producer disappears, use `release`. If fresh producer creation is
+unavailable, use `block` for every actionable task and report the campaign
+blocked.
 
 ## Integrate and derive ToDo
 
-After any publications settle, perform the root-only integration contract in
-`integration-pass.md`. The root rereads published documents and graph neighbors,
-normalizes shared navigation and relationships, dispositions every producer
-suggestion, and records every accepted or newly observed refinement as an
-explicit ToDo.
+After results settle, follow `integration-pass.md`. Root reviews both published
+drafts and `covered_by_owner` receipts, dispositions every suggestion, updates
+navigation or relationships, and atomically appends newly exposed questions to
+ToDo.
 
-The integration pass marks published tasks complete and atomically appends its
-new ToDo items. Dispatch each with a fresh producer. Repeat:
+Repeat:
 
 ```text
-ToDo → fresh producer → staging → accept → integration → new ToDo
+ToDo → fresh producer → one checkpoint → root integration → new ToDo
 ```
 
-Do not let an empty ready list skip integration: published drafts may still
-contain unresolved directions.
+An empty ready list does not skip integration: tasks may be waiting in
+`published` or `review`.
 
-## Close the inventory
+## Verify the inventory
 
 Run:
 
@@ -173,20 +138,18 @@ python3 <map-skill-root>/scripts/campaign.py summary <campaign>
 python3 <map-skill-root>/scripts/campaign.py coverage-report <campaign>
 ```
 
-`inventory_closed` requires:
+`inventory_verified` requires:
 
-- no `todo`, `assigned`, `published`, or `blocked` task;
+- every mechanically queued inventory unit has a completed producer result;
+- no `todo`, `assigned`, `review`, `published`, or `blocked` task;
 - every producer terminated;
-- every publication and suggestion integrated;
-- a current deterministic source inventory;
-- a current integration pass that produced no further ToDo.
+- every result and suggestion was integrated;
+- source and live SpecSpine hashes still match the verified snapshots;
+- the latest integration pass produced no ToDo.
 
-An empty ToDo is necessary but not sufficient. The campaign reports `partial`
-until every gate passes. It reports `blocked` only when all actionable work is
-drained and an explicit blocked task remains.
+This status means every inventory work unit was verified under this protocol;
+it is not a claim that no conceivable architectural concept exists.
 
-After `inventory_closed`, make no further documentation edits. Run the checker
-and `finalize_run.py`. Report the inventory classifications, created/replaced
-documents, integrated relationships, remaining uncertainty, and exact terminal
-reasons. Recommend `$specspine-doctor` in a new session; never invoke it during
-Map.
+After `inventory_verified`, make no further edits. Run `finalize_run.py`,
+report classifications, verification counts, publications and uncertainty, and
+recommend `$specspine-doctor` in a separate session.

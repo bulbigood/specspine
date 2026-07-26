@@ -199,9 +199,9 @@ limited request by exactly one shallowest useful step: survey, overview,
 architectural question, selected subsystem, deepening, refresh, or drift. A
 request to fully document or cover the whole project activates exhaustive mode,
 as does an explicit request for recursive or saturation mapping. That mode
-builds a deterministic source-area inventory, assigns each bounded ToDo to one
-fresh one-shot producer, and lets the root integrate drafts and derive further
-ToDo until the inventory closes. Map records
+mechanically creates verification ToDo for every production work unit, assigns
+each ToDo to one fresh one-shot producer, and lets root integrate coverage
+receipts or drafts and derive further ToDo until the inventory is verified. Map records
 repository evidence separately from intended decisions, preserves
 disagreements, and recommends a separate Doctor audit after an exhaustive run.
 
@@ -451,7 +451,7 @@ Explicitly request exhaustive mapping when the scope should be mapped
 recursively:
 
 ```text
-Use $specspine-map to map Google OAuth exhaustively until its deterministic inventory closes.
+Use $specspine-map to map Google OAuth exhaustively until its deterministic inventory is verified.
 ```
 
 A completion request covering the whole project is also exhaustive without a

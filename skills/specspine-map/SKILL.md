@@ -1,6 +1,6 @@
 ---
 name: specspine-map
-description: "Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use bounded mode for surveys, overviews, selected subsystems, local refresh, and drift. Use exhaustive mode when the operator asks to cover the whole project: build a deterministic source inventory, dispatch each bounded ToDo to one fresh producer, integrate staged drafts centrally, and continue until the inventory closes. Do not invent intended architecture, perform general integrity audits, implement changes, or claim code/spec conformance."
+description: "Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use bounded mode for surveys, overviews, selected subsystems, local refresh, and drift. Use exhaustive mode when the operator asks to cover the whole project: mechanically queue every production work unit, dispatch each verification ToDo to one fresh producer, integrate results centrally, and continue until the inventory is verified. Do not invent intended architecture, perform general integrity audits, implement changes, or claim code/spec conformance."
 ---
 
 # SpecSpine Map
@@ -57,8 +57,9 @@ Read [references/orchestration.md](references/orchestration.md) completely
 before discovery. Exhaustive mode requires fresh producer handles: one producer
 per bounded ToDo, one checkpoint, then termination. Never reuse a producer or
 continue its hidden conversation state. If fresh producers are unavailable,
-record the deterministic inventory and report `blocked`; do not simulate
-exhaustive coverage in the root context.
+record the mechanically generated verification ToDo and report `blocked`; do
+not classify production units or simulate exhaustive coverage in the root
+context.
 
 If the Spine already contains specification nodes, also read
 [references/documentation-first-seeding.md](references/documentation-first-seeding.md)

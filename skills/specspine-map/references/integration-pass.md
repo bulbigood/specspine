@@ -1,14 +1,15 @@
 # Root integration and ToDo derivation
 
-Run this pass after producer drafts are published and once more before campaign
-closure. Candidate acceptance proves mechanical validity, not canonical
-ownership or complete architectural depth.
+Run this pass after producer results settle and once more before campaign
+closure. Acceptance proves checkpoint shape and evidence references, not
+canonical ownership or complete architectural depth.
 
 ## Integrate publications
 
 The root orchestrator must:
 
-1. Read every published document, its owner, and relevant graph neighbors.
+1. Read every published document or `covered_by_owner` receipt, its claimed
+   owner, and relevant graph neighbors.
 2. Confirm or correct ownership, boundaries, terminology, and non-duplication.
 3. Add navigation needed for reachability and comprehension.
 4. Add architectural edges through canonical `Relationships` tables; never add
@@ -71,8 +72,10 @@ Save a report covering every live Markdown document:
 }
 ```
 
-Every currently published task needs one `task_reviews` row. Allowed
+Every task in `published` or `review` needs one `task_reviews` row. Allowed
 dispositions are `integrated`, `already_canonical`, and `not_architectural`.
+`covered_by_owner` receipts require `already_canonical`; otherwise update the
+owner through a new explicit ToDo instead of accepting the receipt.
 
 Every suggestion emitted by those tasks needs one `suggestion_reviews` row.
 Allowed dispositions are:
@@ -96,6 +99,6 @@ python3 <map-skill-root>/scripts/campaign.py integration-pass \
 ```
 
 The command checks the complete Markdown inventory, mechanical validity,
-published-task reviews, suggestion dispositions, and ToDo references. It marks
-reviewed publications complete and appends ToDo atomically. Any later
-publication invalidates the pass.
+settled-task reviews, suggestion dispositions, and ToDo references. It marks
+reviewed results complete and appends ToDo atomically. Any later producer result
+invalidates the pass.

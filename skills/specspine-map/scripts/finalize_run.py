@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Issue a final exhaustive Map receipt for an inventory-closed campaign."""
+"""Issue a final exhaustive Map receipt for an inventory-verified campaign."""
 
 from __future__ import annotations
 
@@ -21,9 +21,9 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
     ledger = campaign.load(args.ledger)
     summary_args = argparse.Namespace(ledger=args.ledger)
     summary = campaign.command_summary(summary_args)
-    if summary["terminal"] != "inventory_closed":
+    if summary["terminal"] != "inventory_verified":
         raise FinalizeError(
-            "campaign is not inventory_closed: "
+            "campaign is not inventory_verified: "
             + json.dumps(summary["terminal_gates"], ensure_ascii=False)
         )
 
@@ -86,6 +86,12 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
         )
         for classification in sorted(campaign.SOURCE_CLASSIFICATIONS)
     }
+    verified_units = sum(
+        value.get("classification") == "queued"
+        and value.get("task") in ledger["tasks"]
+        and ledger["tasks"][value["task"]]["state"] == "complete"
+        for value in source_inventory.values()
+    )
     return {
         "status": "finalized",
         "campaign_id": ledger["campaign_id"],
@@ -101,6 +107,7 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
             "markdown_total": len(actual_documents),
         },
         "inventory_classifications": inventory_counts,
+        "verified_production_units": verified_units,
         "spine_root": str(args.spine_root.resolve()),
     }
 

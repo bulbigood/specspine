@@ -51,6 +51,8 @@ python3 <map-skill-root>/scripts/campaign.py seed-from-spine \
   <campaign> <spine-root> <documentation-plan.json>
 ```
 
-The seed is only the initial ToDo. Later recursive depth comes from the root
-integration pass rereading accepted documents and appending new anchored ToDo.
-Producers never recurse or mutate this list themselves.
+The seed is only additional documentation-derived ToDo. It cannot classify or
+remove the verification tasks that `source-pass` later generates for every
+production work unit. Later recursive depth comes from root integration
+rereading accepted results and appending anchored ToDo. Producers never recurse
+or mutate this list themselves.

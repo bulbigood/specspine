@@ -69,13 +69,14 @@ Do not:
    during this step, and qualitative remaining coverage. For an orchestrated
    checkpoint, explicitly assess ownership coverage, orientation, information
    gain, change utility, and non-duplication; do not report local saturation
-   while any of those gates has a material gap. Classify every reported source
-   area as summarized, queued, neighbor-owned, generated, vendored, test-only,
-   or without durable architectural value with a reason. Create or change no
-   document when the live Spine already answers the question at the quality
-   gate, evidence cannot support a useful architectural node, or further detail
-   would reproduce implementation. Report that terminal reason explicitly
-   instead of manufacturing output.
+   while any of those gates has a material gap. For every reported source area,
+   name the concrete evidence inspected and whether it exposed a missing
+   observation, an explicit existing owner claim, generated/vendored/test
+   material, or only local implementation detail. Create or change no document
+   when the live Spine already answers the question at the quality gate,
+   evidence cannot support a useful architectural node, or further detail would
+   reproduce implementation. Report that terminal reason explicitly instead of
+   manufacturing output.
 
 Stop when the requested architectural scope passes the qualitative depth gate
 and additional reading would have low architectural value or mostly reproduce

@@ -4,8 +4,8 @@
 The campaign deliberately separates four authorities:
 
 * deterministic repository inventory defines the lower bound of discovery;
-* one-shot producers draft one bounded task into private staging;
-* the root orchestrator publishes and integrates accepted drafts;
+* one-shot producers verify one bounded task and stage missing observations;
+* the root orchestrator publishes and integrates accepted results;
 * the ledger derives completion from inventory, ToDo, and integration state.
 
 Producer prose is never treated as proof of coverage or saturation.
@@ -19,6 +19,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -28,29 +29,26 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCHEMA_VERSION = 2
-TASK_STATES = {"todo", "assigned", "published", "complete", "blocked"}
+SCHEMA_VERSION = 3
+TASK_STATES = {"todo", "assigned", "review", "published", "complete", "blocked"}
 CHECKPOINT_STATUSES = {
     "draft_ready",
-    "no_architectural_value",
+    "covered_by_owner",
     "needs_more_evidence",
     "blocked",
 }
 SOURCE_CLASSIFICATIONS = {
-    "mapped",
     "queued",
-    "neighbor-owned",
     "generated",
     "vendored",
     "test-only",
-    "no-architecture-value",
+    "repository-support",
 }
-OWNER_CLASSIFICATIONS = {"mapped", "neighbor-owned"}
 TERMINAL_CLASSIFICATIONS = {
     "generated",
     "vendored",
     "test-only",
-    "no-architecture-value",
+    "repository-support",
 }
 REVIEW_DISPOSITIONS = {
     "integrated",
@@ -70,6 +68,52 @@ COLLAPSED_DIRECTORIES = {
     "target",
     "vendor",
     "venv",
+}
+VENDORED_DIRECTORIES = {"node_modules", "vendor"}
+GENERATED_DIRECTORIES = {
+    ".next",
+    ".venv",
+    ".yarn",
+    "build",
+    "dist",
+    "target",
+    "venv",
+}
+TEST_ROOTS = {
+    "__tests__",
+    "e2e",
+    "e2e-playwright",
+    "integration-tests",
+    "test",
+    "tests",
+}
+ROOT_MANIFESTS = {
+    "Cargo.toml",
+    "Gemfile",
+    "Makefile",
+    "build.gradle",
+    "build.gradle.kts",
+    "go.mod",
+    "go.work",
+    "package.json",
+    "pom.xml",
+    "pyproject.toml",
+    "settings.gradle",
+    "settings.gradle.kts",
+}
+ROOT_GOVERNANCE = {
+    "CHANGELOG.md",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "GOVERNANCE.md",
+    "LICENSE",
+    "LICENSING.md",
+    "MAINTAINERS.md",
+    "NOTICE.md",
+    "README.md",
+    "ROADMAP.md",
+    "SECURITY.md",
+    "SUPPORT.md",
 }
 
 
@@ -217,6 +261,10 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         )
     ]
     excludes = string_list(raw.get("excludes", []), f"ToDo {task_id} excludes")
+    units = [
+        validate_relative_path(value)
+        for value in string_list(raw.get("units", []), f"ToDo {task_id} units")
+    ]
     anchor = raw.get("anchor")
     if anchor is not None:
         if not isinstance(anchor, dict):
@@ -246,6 +294,7 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         "evidence": evidence,
         "documents": documents,
         "excludes": excludes,
+        "units": units,
         "anchor": anchor,
         "state": "todo",
         "owner": None,
@@ -254,6 +303,7 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         "checkpoint_digest": None,
         "producer_suggestions": [],
         "suggestion_reviews": {},
+        "coverage_result": None,
         "terminal_reason": None,
     }
 
@@ -269,6 +319,7 @@ def task_definition(task: dict[str, Any]) -> dict[str, Any]:
             "evidence",
             "documents",
             "excludes",
+            "units",
             "anchor",
         )
     }
@@ -315,11 +366,22 @@ def require_task(ledger: dict[str, Any], task_id: str) -> dict[str, Any]:
 def repository_unit(relative_path: Path) -> str:
     parts = relative_path.parts
     if len(parts) == 1:
-        return parts[0]
+        name = parts[0]
+        if name in ROOT_GOVERNANCE or name.lower().endswith((".md", ".txt")):
+            return "repository-root/governance"
+        if name in ROOT_MANIFESTS:
+            return "repository-root/manifests"
+        if name.startswith(".") or name.lower().endswith(
+            (".json", ".toml", ".yaml", ".yml")
+        ):
+            return "repository-root/tooling"
+        return "repository-root/runtime"
     first = parts[0]
     if first in COLLAPSED_DIRECTORIES:
         return first
     if len(parts) >= 4 and parts[:3] == ("public", "app", "features"):
+        if Path(parts[3]).suffix:
+            return "public/app/features"
         return Path(*parts[:4]).as_posix()
     if (
         len(parts) >= 3
@@ -336,6 +398,8 @@ def repository_unit(relative_path: Path) -> str:
             "tsdb",
         }
     ):
+        if Path(parts[2]).suffix:
+            return Path(*parts[:2]).as_posix()
         return Path(*parts[:3]).as_posix()
     if first in {
         "apps",
@@ -349,8 +413,53 @@ def repository_unit(relative_path: Path) -> str:
         "services",
         "src",
     }:
+        if Path(parts[1]).suffix:
+            return first
         return Path(*parts[:2]).as_posix()
     return first
+
+
+def unit_classification(area: str, record: dict[str, Any]) -> tuple[str, str]:
+    first = Path(area).parts[0]
+    if first in VENDORED_DIRECTORIES:
+        return "vendored", "Mechanically identified vendored dependency tree"
+    if first in GENERATED_DIRECTORIES:
+        return "generated", "Mechanically identified generated/build output"
+    if first in TEST_ROOTS or first.startswith(("e2e-", "test-")):
+        return "test-only", "Mechanically identified repository-level test tree"
+    if area == "repository-root/governance":
+        return "repository-support", "Governance and contributor documentation"
+    if record["files"] == 0 and record["samples"]:
+        collapsed_names = {
+            Path(value.rstrip("/")).name for value in record["samples"]
+        }
+        if collapsed_names <= VENDORED_DIRECTORIES:
+            return "vendored", "Unit contains only a collapsed vendored dependency tree"
+        if collapsed_names <= GENERATED_DIRECTORIES:
+            return "generated", "Unit contains only collapsed generated/build output"
+    return "queued", "Production-capable unit requires producer verification"
+
+
+def verification_task_id(area: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", area.lower()).strip("-") or "root"
+    suffix = hashlib.sha256(area.encode()).hexdigest()[:10]
+    return f"verify-{slug[:48].rstrip('-')}-{suffix}"
+
+
+def candidate_owner_documents(
+    spine_root: Path,
+    area: str,
+    samples: list[str],
+) -> list[str]:
+    needles = [area, *samples]
+    candidates: list[str] = []
+    for path in sorted(spine_root.rglob("*.md")):
+        if not path.is_file():
+            continue
+        body = path.read_text(encoding="utf-8")
+        if any(needle and needle in body for needle in needles):
+            candidates.append(path.relative_to(spine_root).as_posix())
+    return candidates
 
 
 def repository_inventory(
@@ -527,96 +636,70 @@ def command_inventory(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
-    report = read_json(args.report)
     inventory = repository_inventory(
         args.repository_root,
         spine_root=args.spine_root,
     )
-    rows = report.get("inventory")
-    if not isinstance(rows, list):
-        raise CampaignError("source pass inventory must be a list")
     normalized: dict[str, dict[str, Any]] = {}
-    raw_todo = report.get("todo")
-    if not isinstance(raw_todo, list):
-        raise CampaignError("source pass todo must be a list")
-    todo_ids = {
-        validate_id(value.get("id"))
-        for value in raw_todo
-        if isinstance(value, dict)
-    }
-    if len(todo_ids) != len(raw_todo):
-        raise CampaignError("source pass todo contains invalid or duplicate IDs")
-    live_documents = document_hashes(args.spine_root.resolve())
-    for row in rows:
-        if not isinstance(row, dict):
-            raise CampaignError("source inventory classification must be an object")
-        area = row.get("area")
-        classification = row.get("classification")
-        reason = row.get("reason")
-        if not isinstance(area, str) or not area:
-            raise CampaignError("source inventory classification needs area")
-        if area in normalized:
-            raise CampaignError(f"duplicate source inventory area: {area}")
-        if classification not in SOURCE_CLASSIFICATIONS:
-            raise CampaignError(
-                f"invalid source classification for {area}: {classification!r}"
+    raw_todo: list[dict[str, Any]] = []
+    for record in inventory["areas"]:
+        area = record["area"]
+        classification, reason = unit_classification(area, record)
+        task_id: str | None = None
+        candidates: list[str] = []
+        if classification == "queued":
+            task_id = verification_task_id(area)
+            candidates = candidate_owner_documents(
+                args.spine_root.resolve(),
+                area,
+                record["samples"],
             )
-        if not isinstance(reason, str) or not reason.strip():
-            raise CampaignError(f"source inventory area needs reason: {area}")
-        owner = row.get("owner_document")
-        task = row.get("task")
-        if classification in OWNER_CLASSIFICATIONS:
-            owner = validate_relative_path(owner)
-            if owner not in live_documents:
-                raise CampaignError(f"unknown owner document for {area}: {owner}")
-            if task is not None:
-                raise CampaignError(f"owned source area must not name a task: {area}")
-        elif classification == "queued":
-            task = validate_id(task)
-            if task not in todo_ids:
-                raise CampaignError(f"queued source area has no matching ToDo: {area}")
-            if owner is not None:
-                raise CampaignError(f"queued source area must not claim an owner: {area}")
-        else:
-            if owner is not None or task is not None:
-                raise CampaignError(
-                    f"terminal source classification cannot name owner/task: {area}"
-                )
+            raw_todo.append(
+                {
+                    "id": task_id,
+                    "question": (
+                        f"Verify whether repository unit {area} is architecturally "
+                        "covered; publish the missing observation if it is not"
+                    ),
+                    "reason": (
+                        "Every production-capable inventory unit requires an "
+                        "independent producer checkpoint"
+                    ),
+                    "evidence": [area],
+                    "documents": candidates,
+                    "excludes": [],
+                    "units": [area],
+                    "anchor": None,
+                }
+            )
         normalized[area] = {
             "classification": classification,
-            "reason": reason.strip(),
-            "owner_document": owner,
-            "task": task,
+            "reason": reason,
+            "task": task_id,
+            "candidate_documents": candidates,
+            "files": record["files"],
+            "samples": record["samples"],
         }
-    expected_areas = {value["area"] for value in inventory["areas"]}
-    if set(normalized) != expected_areas:
-        raise CampaignError(
-            "source pass must classify every deterministic inventory area; "
-            f"missing={sorted(expected_areas - set(normalized))}, "
-            f"unknown={sorted(set(normalized) - expected_areas)}"
-        )
-    validate_empty_reason(
-        raw_todo,
-        report.get("terminal_reason"),
-        prefix="no source-derived ToDo: ",
-    )
     with locked_ledger(args.ledger) as ledger:
         if ledger["spine_state"] == "existing" and ledger["documentation_seed"] is None:
             raise CampaignError("seed-from-spine is required before source-pass")
+        if ledger["source_pass"] is not None:
+            raise CampaignError("source-pass is immutable once recorded")
         added = add_tasks(ledger, raw_todo, source="source-pass")
         ledger["source_pass"] = {
             "repository_root": str(args.repository_root.resolve()),
             "spine_root": str(args.spine_root.resolve()),
             "inventory_digest": inventory["digest"],
             "inventory": normalized,
-            "todo": added,
-            "terminal_reason": report.get("terminal_reason"),
+            "todo": sorted(value["id"] for value in raw_todo),
+            "terminal_reason": None,
             "publication_epoch": ledger["publication_epoch"],
         }
         save_locked(args.ledger, ledger)
         return {
             "status": "recorded",
             "areas": len(normalized),
+            "verification_todo": len(raw_todo),
             "added_todo": added,
             "revision": ledger["revision"],
         }
@@ -739,7 +822,12 @@ def validate_suggestions(raw: Any) -> list[dict[str, Any]]:
 def validate_checkpoint(
     raw: dict[str, Any],
     staging: dict[str, Path],
-) -> tuple[str, list[dict[str, str]], list[dict[str, Any]]]:
+) -> tuple[
+    str,
+    list[dict[str, str]],
+    list[dict[str, Any]],
+    dict[str, Any] | None,
+]:
     status = raw.get("status")
     if status not in CHECKPOINT_STATUSES:
         raise CampaignError(f"invalid checkpoint status: {status!r}")
@@ -776,22 +864,43 @@ def validate_checkpoint(
     if status != "draft_ready" and candidates:
         raise CampaignError(f"{status} must not publish candidates")
     suggestions = validate_suggestions(raw.get("discovered_directions", []))
-    if status != "draft_ready" and suggestions:
+    if status not in {"draft_ready", "covered_by_owner"} and suggestions:
         raise CampaignError(
-            f"{status} cannot emit discovered_directions without a draft to integrate"
+            f"{status} cannot emit discovered_directions without an integrable result"
         )
     terminal_reason = raw.get("terminal_reason")
     required_evidence = raw.get("required_evidence", [])
-    if status == "no_architectural_value":
-        if (
-            not isinstance(terminal_reason, str)
-            or not terminal_reason.startswith("no architectural value: ")
-        ):
+    coverage: dict[str, Any] | None = None
+    if status == "covered_by_owner":
+        raw_coverage = raw.get("coverage")
+        if not isinstance(raw_coverage, dict) or set(raw_coverage) != {
+            "owner_document",
+            "owner_claim_ids",
+            "boundary_summary",
+        }:
             raise CampaignError(
-                "no_architectural_value requires "
-                "'no architectural value: <reason>'"
+                "covered_by_owner requires coverage with owner_document, "
+                "owner_claim_ids, and boundary_summary"
             )
-    elif status == "needs_more_evidence":
+        owner_document = validate_relative_path(raw_coverage["owner_document"])
+        claim_ids = string_list(
+            raw_coverage["owner_claim_ids"],
+            "coverage owner_claim_ids",
+            nonempty=True,
+        )
+        boundary_summary = raw_coverage["boundary_summary"]
+        if not isinstance(boundary_summary, str) or not boundary_summary.strip():
+            raise CampaignError("coverage boundary_summary must be nonempty")
+        coverage = {
+            "owner_document": owner_document,
+            "owner_claim_ids": claim_ids,
+            "boundary_summary": boundary_summary.strip(),
+        }
+        if terminal_reason is not None:
+            raise CampaignError("covered_by_owner terminal_reason must be null")
+    elif raw.get("coverage") is not None:
+        raise CampaignError(f"{status} checkpoint must not include coverage")
+    if status == "needs_more_evidence":
         string_list(
             required_evidence,
             "required_evidence",
@@ -802,9 +911,9 @@ def validate_checkpoint(
     elif status == "blocked":
         if not isinstance(terminal_reason, str) or not terminal_reason.strip():
             raise CampaignError("blocked checkpoint needs terminal_reason")
-    elif terminal_reason is not None:
+    elif status == "draft_ready" and terminal_reason is not None:
         raise CampaignError("draft_ready terminal_reason must be null")
-    return status, candidates, suggestions
+    return status, candidates, suggestions, coverage
 
 
 def run_checker(checker: Path, root: Path, *, candidates: bool) -> None:
@@ -853,10 +962,80 @@ def rollback_publication(
             os.replace(backup, destination)
 
 
+def validate_task_evidence(
+    ledger: dict[str, Any],
+    task: dict[str, Any],
+    inspected: Any,
+) -> list[str]:
+    paths = [
+        validate_relative_path(value)
+        for value in string_list(
+            inspected,
+            "checkpoint evidence_inspected",
+            nonempty=True,
+        )
+    ]
+    units = task.get("units", [])
+    if not units:
+        return paths
+    source_pass = ledger.get("source_pass")
+    if not isinstance(source_pass, dict):
+        raise CampaignError("verification task requires a recorded source-pass")
+    repository_root = Path(source_pass["repository_root"])
+    covered: set[str] = set()
+    for value in paths:
+        path = repository_root / value
+        if not path.is_file():
+            raise CampaignError(f"checkpoint evidence is not a repository file: {value}")
+        unit = repository_unit(Path(value))
+        if unit in units:
+            covered.add(unit)
+    if covered != set(units):
+        raise CampaignError(
+            "checkpoint must inspect at least one concrete file from every task unit; "
+            f"missing={sorted(set(units) - covered)}"
+        )
+    return paths
+
+
+def validate_coverage_result(
+    task: dict[str, Any],
+    coverage: dict[str, Any] | None,
+    spine_root: Path,
+    inspected: list[str],
+) -> dict[str, Any]:
+    if not task.get("units"):
+        raise CampaignError("covered_by_owner is valid only for inventory verification tasks")
+    if coverage is None:
+        raise CampaignError("covered_by_owner checkpoint is missing coverage")
+    owner_path = spine_root / coverage["owner_document"]
+    if not owner_path.is_file():
+        raise CampaignError(
+            f"coverage owner document does not exist: {coverage['owner_document']}"
+        )
+    body = owner_path.read_text(encoding="utf-8")
+    missing = [
+        claim_id
+        for claim_id in coverage["owner_claim_ids"]
+        if f"**{claim_id}**" not in body
+    ]
+    if missing:
+        raise CampaignError(
+            f"coverage owner claim IDs do not exist in owner document: {missing}"
+        )
+    evidence_refs = [*task["units"], *inspected]
+    if not any(value in body for value in evidence_refs):
+        raise CampaignError(
+            "coverage owner document does not reference the verified unit or "
+            "inspected evidence"
+        )
+    return coverage
+
+
 def command_accept(args: argparse.Namespace) -> dict[str, Any]:
     raw = read_json(args.checkpoint)
     staging = candidate_files(args.staging_root)
-    status, candidates, suggestions = validate_checkpoint(raw, staging)
+    status, candidates, suggestions, coverage = validate_checkpoint(raw, staging)
     checkpoint_digest = digest_json(raw)
     if candidates:
         run_checker(args.checker, args.staging_root, candidates=True)
@@ -875,6 +1054,11 @@ def command_accept(args: argparse.Namespace) -> dict[str, Any]:
                 raise CampaignError(
                     f"checkpoint owner mismatch: expected {task['owner']}, got {args.owner}"
                 )
+            inspected = validate_task_evidence(
+                ledger,
+                task,
+                raw.get("evidence_inspected"),
+            )
             if status == "draft_ready":
                 spine_root = args.spine_root.resolve()
                 plans: list[tuple[dict[str, str], Path, Path, bool]] = []
@@ -919,10 +1103,17 @@ def command_accept(args: argparse.Namespace) -> dict[str, Any]:
                             "publication_epoch": ledger["publication_epoch"],
                         }
                     )
-            elif status == "no_architectural_value":
-                task["state"] = "complete"
-                task["terminal_reason"] = raw["terminal_reason"]
+            elif status == "covered_by_owner":
+                task["state"] = "review"
+                task["coverage_result"] = validate_coverage_result(
+                    task,
+                    coverage,
+                    args.spine_root.resolve(),
+                    inspected,
+                )
                 task["producer_suggestions"] = suggestions
+                ledger["publication_epoch"] += 1
+                ledger["integration_pass"] = None
             elif status == "needs_more_evidence":
                 task["state"] = "todo"
                 task["evidence"] = sorted(
@@ -1058,20 +1249,31 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
         }
 
     with locked_ledger(args.ledger) as ledger:
-        published = {
+        settled = {
             task["id"]: task
             for task in ledger["tasks"].values()
-            if task["state"] == "published"
+            if task["state"] in {"published", "review"}
         }
-        if set(normalized_reviews) != set(published):
+        if set(normalized_reviews) != set(settled):
             raise CampaignError(
-                "integration must review every published task; "
-                f"missing={sorted(set(published) - set(normalized_reviews))}, "
-                f"unknown={sorted(set(normalized_reviews) - set(published))}"
+                "integration must review every settled producer task; "
+                f"missing={sorted(set(settled) - set(normalized_reviews))}, "
+                f"unknown={sorted(set(normalized_reviews) - set(settled))}"
+            )
+        invalid_coverage_reviews = [
+            task_id
+            for task_id, task in settled.items()
+            if task["state"] == "review"
+            and normalized_reviews[task_id]["disposition"] != "already_canonical"
+        ]
+        if invalid_coverage_reviews:
+            raise CampaignError(
+                "covered_by_owner tasks require already_canonical integration "
+                f"disposition: {invalid_coverage_reviews}"
             )
         expected_suggestions = {
             (task_id, suggestion["id"])
-            for task_id, task in published.items()
+            for task_id, task in settled.items()
             for suggestion in task["producer_suggestions"]
         }
         if set(normalized_suggestions) != expected_suggestions:
@@ -1095,7 +1297,7 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
                 raise CampaignError(
                     f"queued suggestion {key} has no matching integration ToDo"
                 )
-        for task_id, task in published.items():
+        for task_id, task in settled.items():
             task["state"] = "complete"
             task["terminal_reason"] = normalized_reviews[task_id]["reason"]
             task["suggestion_reviews"] = {
@@ -1118,7 +1320,7 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
         save_locked(args.ledger, ledger)
         return {
             "status": "integrated",
-            "reviewed_tasks": sorted(published),
+            "reviewed_tasks": sorted(settled),
             "added_todo": added,
             "revision": ledger["revision"],
         }
@@ -1157,18 +1359,33 @@ def current_integration(ledger: dict[str, Any]) -> bool:
 
 def terminal_gates(ledger: dict[str, Any]) -> dict[str, bool]:
     tasks = list(ledger["tasks"].values())
+    source_pass = ledger.get("source_pass")
+    inventory = (
+        source_pass.get("inventory", {}) if isinstance(source_pass, dict) else {}
+    )
+    units_verified = all(
+        value.get("classification") != "queued"
+        or (
+            value.get("task") in ledger["tasks"]
+            and ledger["tasks"][value["task"]]["state"] == "complete"
+        )
+        for value in inventory.values()
+    )
     return {
         "todo_empty": not any(task["state"] == "todo" for task in tasks),
         "producers_finished": not any(
             task["state"] == "assigned" for task in tasks
         ),
         "publications_integrated": not any(
-            task["state"] == "published" for task in tasks
+            task["state"] in {"published", "review"} for task in tasks
         ),
         "no_blocked_tasks": not any(
             task["state"] == "blocked" for task in tasks
         ),
         "source_inventory_current": current_inventory(ledger),
+        "inventory_units_verified": (
+            isinstance(source_pass, dict) and units_verified
+        ),
         "integration_current": current_integration(ledger),
     }
 
@@ -1186,7 +1403,7 @@ def command_summary(args: argparse.Namespace) -> dict[str, Any]:
     }
     terminal: str | None = None
     if all(gates.values()):
-        terminal = "inventory_closed"
+        terminal = "inventory_verified"
     elif (
         gates["todo_empty"]
         and gates["producers_finished"]
@@ -1216,6 +1433,12 @@ def command_coverage_report(args: argparse.Namespace) -> dict[str, Any]:
         )
         for classification in sorted(SOURCE_CLASSIFICATIONS)
     }
+    verified_units = sum(
+        value.get("classification") == "queued"
+        and value.get("task") in ledger["tasks"]
+        and ledger["tasks"][value["task"]]["state"] == "complete"
+        for value in inventory.values()
+    )
     return {
         "campaign_id": ledger["campaign_id"],
         "scope": ledger["scope"],
@@ -1225,9 +1448,10 @@ def command_coverage_report(args: argparse.Namespace) -> dict[str, Any]:
             state: len(values) for state, values in summary["states"].items()
         },
         "inventory_classifications": counts,
+        "verified_production_units": verified_units,
         "coverage_claim": (
-            "inventory_closed"
-            if summary["terminal"] == "inventory_closed"
+            "inventory_verified"
+            if summary["terminal"] == "inventory_verified"
             else "blocked"
             if summary["terminal"] == "blocked"
             else "partial"
@@ -1262,7 +1486,6 @@ def parser() -> argparse.ArgumentParser:
     source.add_argument("ledger", type=Path)
     source.add_argument("repository_root", type=Path)
     source.add_argument("spine_root", type=Path)
-    source.add_argument("report", type=Path)
 
     add = sub.add_parser("todo-add")
     add.add_argument("ledger", type=Path)

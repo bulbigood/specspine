@@ -2,8 +2,9 @@
 
 ## Repository
 
-The repository exposes six independent production areas. Existing
-specifications cover runtime composition but leave all six areas unresolved.
+The repository exposes six independent production responsibilities plus their
+shared configuration work unit. Existing specifications cover runtime
+composition but leave those seven units unverified.
 Only three producers may be active simultaneously.
 
 ## User request
@@ -16,8 +17,8 @@ Use `$specspine-map` to cover the whole repository.
 
 The orchestrator should:
 
-- generate and classify the deterministic source inventory;
-- create six bounded architectural ToDo items;
+- mechanically generate the deterministic source frontier;
+- create verification ToDo for every production work unit;
 - start at most three fresh producers at a time;
 - give each producer exactly one task packet and private staging root;
 - accept one checkpoint from each producer and never continue or reuse it;
@@ -27,7 +28,7 @@ The orchestrator should:
 - disposition every producer suggestion;
 - append accepted and newly observed refinements to persistent ToDo;
 - dispatch every new ToDo to another fresh producer;
-- stop only at `inventory_closed` or an evidence-backed `blocked`.
+- stop only at `inventory_verified` or an evidence-backed `blocked`.
 
 ## Failure indicators
 
@@ -37,6 +38,6 @@ The orchestrator should:
 - producer self-reported quality or saturation closes the campaign;
 - an empty ready list hides unintegrated publications;
 - producer suggestions disappear without an integration disposition;
-- deterministic inventory areas remain unclassified;
+- a production work unit lacks an integrated producer checkpoint;
 - more than three producers are active;
 - the root claims exhaustive coverage without fresh producer support.

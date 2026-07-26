@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Map"
   short_description: "Map brownfield architecture with bounded tasks"
-  default_prompt: "Use $specspine-map to map this repository’s architecture, using deterministic inventory and fresh one-shot producers for exhaustive coverage."
+  default_prompt: "Use $specspine-map to map this repository’s architecture; in exhaustive mode mechanically verify every production work unit with a fresh one-shot producer."

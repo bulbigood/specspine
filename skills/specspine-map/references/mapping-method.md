@@ -101,27 +101,21 @@ the named source. Do not remap the whole repository for a local change.
 
 ## Coverage and depth
 
-For exhaustive brownfield mapping, start from the deterministic area inventory
-produced by `campaign.py inventory`. Treat production source, runtime
-configuration, owned schemas, and deployment behavior as eligible.
-Exclude tests, fixtures, snapshots, generated code, vendored dependencies, and
-build outputs from compression estimates; tests remain useful evidence for
-behavior, edge cases, and failure contracts.
+For exhaustive brownfield mapping, `campaign.py source-pass` mechanically
+creates a verification ToDo for every production-capable work unit. It excludes
+only structurally recognizable vendored, generated, repository-level test, and
+governance units. Tests remain useful evidence for behavior and failures.
 
-Classify each inventory area exactly once as:
+Existing path references produce candidate owners, never terminal coverage.
+Each production unit remains open until a one-shot producer either publishes
+the missing observation or proves coverage through concrete source evidence and
+existing owner semantic IDs. Root must not replace this with regex ownership,
+directory-name inference, a broad fallback owner, or prose classification.
 
-- summarized by a canonical architectural owner;
-- evidence for a queued or active mapping branch;
-- owned by an already documented neighboring specification; or
-- lacking durable architectural value, with a concrete reason.
-
-Grouping is preferred when files share one responsibility. A package or file
-does not deserve its own specification merely to prove coverage.
-
-The inventory is a discovery lower bound, not an architecture model. It
-prevents an agent from silently omitting an unseen area; the mapper still
-chooses responsibility boundaries semantically. A producer may suggest a
-narrower direction but never adds or maps it in the same task.
+The inventory is a discovery lower bound, not an architecture model. One work
+unit does not imply one document: multiple verified units may share a canonical
+owner, while one unit may expose several responsibilities. A producer maps only
+its assigned question and suggests narrower directions for later ToDo.
 
 Use the quality and compression criteria in `spec-format.md` as the depth gate.
 The primary test is qualitative: ownership is accounted for, normal and

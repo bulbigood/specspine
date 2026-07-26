@@ -178,8 +178,8 @@ and `planned` has 10 documented non-executable cases.
 
 `map-deep-repository-no-subagents` sets `agents.enabled=false` through the
 isolated Codex runtime rather than merely describing tool absence in the
-prompt. It asserts that exhaustive Map still inventories and classifies the
-repository, persists unresolved ToDo, avoids collaboration and root-side
+prompt. It asserts that exhaustive Map still generates mechanical verification
+ToDo, persists unresolved work, avoids collaboration and root-side
 producer simulation, leaves the live Spine unchanged, and reports `blocked`.
 This case is intentionally not a documentation-quality benchmark arm.
 
