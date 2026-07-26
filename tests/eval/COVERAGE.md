@@ -21,7 +21,7 @@ includes repository-backed observations.
 ### Map coverage
 
 Executable `specspine-map` coverage currently consists of seven to fifteen
-agent calls across five cases, depending on when the saturation benchmark
+agent calls across five cases, depending on when the comparative benchmark
 reaches its unchanged terminal invocation:
 
 - `lifecycle-survey-deepen`: a shallow initial survey followed by bounded
@@ -38,39 +38,39 @@ reaches its unchanged terminal invocation:
   benchmark.
 
 `map-deep-rolling-small` provides one controlled executable exhaustive-mode case.
-One top-level invocation receives a production-like whole-repository request
-and must keep three available producer slots working across more ready branches
-than slots. Codex JSONL collaboration events verify spawning and same-session
-continuation.
-All three benchmark arms copy the same 21-file
+One top-level invocation receives a production-like whole-repository request,
+builds a deterministic source inventory, and keeps three producer slots working
+across more ready ToDo entries than slots. Every ToDo receives a fresh producer;
+Codex JSONL collaboration events verify spawning and reject producer
+continuation or reuse.
+Both benchmark arms copy the same 21-file
 `map-modes-six-area` fixture tree, including six source/test/config evidence
 slices, require the same terminal evidence coverage, and stop only after the
-requested repository scope is saturated. Generated artifacts verify material
+requested inventory is classified and all derived ToDo is resolved. Generated artifacts verify material
 coverage through their evidence. The
 runtime trace pins the orchestrator and producers to Terra/medium. Exhaustive
 Map obtains, saves, and emits in one script call a generated bundle containing
-the bounded producer protocol, its UTF-8 references, and every UTF-8 Markdown
+the one-shot producer protocol, its UTF-8 references, and every UTF-8 Markdown
 template; producers must not load those source files themselves.
 Collaboration assertions require
 three initial producers, no more than three simultaneously active producers,
-multiple total spawns and resumptions, and an encrypted-message size ratio that
-rejects repeated bundles in continuations. Discovery is adaptive and keeps no
-ledger or recovery manifest. Final assertions verify
+multiple total spawns, zero resumptions, and an encrypted-message size ratio
+that rejects repeated producer instructions. A persistent campaign ledger owns
+the deterministic inventory, source classifications, ToDo, publications, and
+root integration passes. Final assertions verify
 move-based publication, source protection, disposable run-root cleanup, and
 mechanical Spine validity. Document length is observed, not bounded. The
-benchmark adds one blind holistic three-way documentation-quality judgment per
+benchmark adds one blind holistic two-way documentation-quality judgment per
 aligned sample. The judge is an independent bounded task and therefore defaults
 to Terra/medium; its cost is excluded from all arms. This case normally costs one
 Terra/medium orchestrator plus several Terra/medium producer sessions and belongs
 in the explicit `expensive` category.
 
 `map-deep-repository-no-subagents` runs the same six-area fixture with
-`agents.enabled=false`. It verifies that the root capability gate neither reads
-`orchestration.md` nor builds producer instructions, while one Terra/medium
-agent still reaches saturation, runs early deterministic checks, and produces
-the same material evidence coverage. It is the third saturation-benchmark arm,
-so cost, wall time, mechanical results, and blind documentation quality are
-compared directly with bounded Map and parallel exhaustive Map.
+`agents.enabled=false`. It verifies that root still inventories and classifies
+the repository, persists unresolved work, leaves the live Spine unchanged, and
+reports exhaustive mapping blocked because it cannot launch a fresh producer.
+It must not silently replace the missing producer role with root-side mapping.
 
 Remaining distinct behavioral gaps are:
 
@@ -94,12 +94,13 @@ The executable set is divided by resource cost and necessity:
 |---|---:|---:|---|
 | `core` | 8 | 8 | Minimum behavioral regression set, including atomic staged Map output |
 | `extended` | 14 | 21 | Lifecycle, root-first connection, language detection, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
-| `expensive` | 3 | 4–12 per sample | Three-way bounded/exhaustive Map saturation benchmark |
+| `expensive` | 3 | 4–12 per sample | Two-arm Map benchmark plus missing-producer failure behavior |
 | `planned` | 10 | 0 | Documentation and future redesign only |
 
 The table counts top-level agent invocations. The sequential Map arm uses 2–10
 invocations, stopping at the first unchanged terminal result; each exhaustive arm
-uses one top-level invocation, and only the parallel arm creates producer sessions.
+uses one top-level invocation, and only the producer-capable arm creates producer
+sessions.
 The separate category prevents ordinary `core` or `extended` runs from
 selecting either expensive arm.
 

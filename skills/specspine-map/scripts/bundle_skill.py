@@ -10,6 +10,7 @@ from pathlib import Path
 
 SECTION_SEPARATOR = "\n\n---\n\n"
 PRODUCER_REFERENCE_NAMES = (
+    "producer-task.md",
     "bounded-mode.md",
     "spec-semantics.md",
     "spec-format.md",

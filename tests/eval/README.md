@@ -178,10 +178,10 @@ and `planned` has 10 documented non-executable cases.
 
 `map-deep-repository-no-subagents` sets `agents.enabled=false` through the
 isolated Codex runtime rather than merely describing tool absence in the
-prompt. It asserts that sequential exhaustive Map does not read
-`orchestration.md`, build a
-producer bundle, or call collaboration tools, while retaining full recursive
-coverage and early deterministic checks through the root sequential protocol.
+prompt. It asserts that exhaustive Map still inventories and classifies the
+repository, persists unresolved ToDo, avoids collaboration and root-side
+producer simulation, leaves the live Spine unchanged, and reports `blocked`.
+This case is intentionally not a documentation-quality benchmark arm.
 
 `map-deep-rolling-small` makes one top-level call with a production-like request
 to map the whole repository. The adapter applies
@@ -194,9 +194,8 @@ calibration.
 
 Its fixture exposes more independent responsibilities than available producer
 slots. Trace assertions require three initial workers, cap observed concurrency
-at three, require multiple branch-affine sessions and resumptions, and use
-encrypted rollout-message sizes to confirm that resumptions remain materially
-smaller than initial assignments. The concurrency check coalesces terminal/spawn rollout events
+at three, require a fresh producer for every ToDo, and reject all resumptions.
+The concurrency check coalesces terminal/spawn rollout events
 within one second because delivery order can differ from execution order. Both
 benchmark arms use the same
 `tests/eval/fixtures/map-modes-six-area` tree rather than duplicated manifest
@@ -207,7 +206,7 @@ concatenates the bounded protocol, its UTF-8 references, and every UTF-8
 Markdown template, saves the bundle, and emits the same text in that one tool
 result. The orchestrator embeds it in each new producer's initial command
 without rereading the generated file. Producers do not load Map resources, and
-same-branch resumptions do not repeat the bundle.
+each producer terminates after one checkpoint.
 
 The benchmark defaults the top-level agent and parallel producers to
 `gpt-5.6-terra` with medium reasoning. The parallel exhaustive case asserts the requested
@@ -220,9 +219,8 @@ python3 tests/eval/run.py \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium --subagent-role medium"
 ```
 
-To compare repeated bounded Map invocations with parallel exhaustive Map and
-sequential exhaustive Map running with `agents.enabled=false` on the same controlled six-area
-repository, with all three arms required to reach terminal mapping saturation:
+To compare repeated bounded Map invocations with one-shot-producer exhaustive
+Map on the same controlled six-area repository:
 
 ```bash
 report_dir=$(mktemp -d -t specspine-map-modes.XXXXXX)
@@ -233,14 +231,12 @@ python3 tests/eval/benchmark_map_modes.py \
 All arms use the same top-level model and reasoning effort: Terra/medium by
 default. The Map arm repeats independent one-step invocations in the same
 workspace until a terminal invocation leaves `specspine/**` unchanged. The Map
-exhaustive arms reach the same endpoint in one top-level invocation. Only
-parallel exhaustive Map creates producers; those use Terra/medium by default.
-The sequential exhaustive arm disables their tools with
-`agents.enabled=false`. Model overrides
-apply symmetrically to all top-level arms.
+exhaustive arm reaches the same endpoint in one top-level invocation and creates
+fresh producers; those use Terra/medium by default. Model overrides apply
+symmetrically to both top-level arms.
 
 The arms use identical project files and the same final coverage assertions.
-For each aligned sample, one additional blind judge compares all three terminal
+For each aligned sample, one additional blind judge compares both terminal
 generated Spines using architectural fidelity, evidence and epistemic discipline,
 responsibility and boundary clarity, material coverage, coherence/navigation,
 signal-to-noise/usefulness, and holistic overall quality. Length is reported but

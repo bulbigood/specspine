@@ -101,14 +101,14 @@ the named source. Do not remap the whole repository for a local change.
 
 ## Coverage and depth
 
-For exhaustive brownfield mapping, enumerate source internally to establish
-coverage without publishing a source-tree catalog. Treat production source,
-runtime configuration, owned schemas, and deployment behavior as eligible.
+For exhaustive brownfield mapping, start from the deterministic area inventory
+produced by `campaign.py inventory`. Treat production source, runtime
+configuration, owned schemas, and deployment behavior as eligible.
 Exclude tests, fixtures, snapshots, generated code, vendored dependencies, and
 build outputs from compression estimates; tests remain useful evidence for
 behavior, edge cases, and failure contracts.
 
-Classify each eligible path or cohesive path group as:
+Classify each inventory area exactly once as:
 
 - summarized by a canonical architectural owner;
 - evidence for a queued or active mapping branch;
@@ -117,6 +117,11 @@ Classify each eligible path or cohesive path group as:
 
 Grouping is preferred when files share one responsibility. A package or file
 does not deserve its own specification merely to prove coverage.
+
+The inventory is a discovery lower bound, not an architecture model. It
+prevents an agent from silently omitting an unseen area; the mapper still
+chooses responsibility boundaries semantically. A producer may suggest a
+narrower direction but never adds or maps it in the same task.
 
 Use the quality and compression criteria in `spec-format.md` as the depth gate.
 The primary test is qualitative: ownership is accounted for, normal and

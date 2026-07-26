@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Issue the final exhaustive Map receipt only for a clean normalized run."""
+"""Issue a final exhaustive Map receipt for an inventory-closed campaign."""
 
 from __future__ import annotations
 
@@ -19,45 +19,21 @@ class FinalizeError(ValueError):
 
 def finalize(args: argparse.Namespace) -> dict[str, object]:
     ledger = campaign.load(args.ledger)
-    campaign_id = ledger.get("campaign_id")
-    if not isinstance(campaign_id, str) or not campaign_id:
+    summary_args = argparse.Namespace(ledger=args.ledger)
+    summary = campaign.command_summary(summary_args)
+    if summary["terminal"] != "inventory_closed":
         raise FinalizeError(
-            "campaign identity is missing; resume the original ledger before finalizing"
+            "campaign is not inventory_closed: "
+            + json.dumps(summary["terminal_gates"], ensure_ascii=False)
         )
-    findings = campaign.audit_findings(ledger, final=True)
-    if findings:
-        raise FinalizeError(
-            "final frontier audit failed: "
-            + json.dumps(findings, ensure_ascii=False)
-        )
-    discovery = ledger.get("discovery_pass")
-    if (
-        not isinstance(discovery, dict)
-        or discovery.get("frontier_epoch") != ledger.get("frontier_epoch", 0)
-    ):
-        raise FinalizeError("current scope-level discovery pass is missing")
-    documentation = ledger.get("documentation_pass")
-    if not isinstance(documentation, dict):
-        raise FinalizeError("current final Spine review is missing")
-    expected_documents = documentation.get("documents")
-    actual_documents = {
-        path.relative_to(args.spine_root).as_posix(): hashlib.sha256(
-            path.read_bytes()
-        ).hexdigest()
-        for path in args.spine_root.rglob("*.md")
-        if path.is_file()
-    }
-    if expected_documents != actual_documents:
-        raise FinalizeError(
-            "Spine changed after the final documentation pass; review it again"
-        )
+
     integration = ledger.get("integration_pass")
-    if (
-        not isinstance(integration, dict)
-        or integration.get("documents") != actual_documents
-    ):
+    if not isinstance(integration, dict):
+        raise FinalizeError("current integration pass is missing")
+    actual_documents = campaign.document_hashes(args.spine_root.resolve())
+    if integration.get("documents") != actual_documents:
         raise FinalizeError(
-            "Spine changed after graph integration; integrate it again"
+            "Spine changed after the final integration pass; integrate it again"
         )
 
     dirty_staging: list[str] = []
@@ -81,52 +57,50 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
         check=False,
     )
     try:
-        checker_findings = json.loads(result.stdout)
+        findings = json.loads(result.stdout)
     except json.JSONDecodeError as error:
         detail = result.stderr.strip() or result.stdout.strip() or "no output"
         raise FinalizeError(f"checker returned invalid JSON: {detail}") from error
-    if result.returncode != 0 or checker_findings:
+    if result.returncode != 0 or findings:
         raise FinalizeError(
             "final Spine checker is not clean: "
-            + json.dumps(checker_findings, ensure_ascii=False)
+            + json.dumps(findings, ensure_ascii=False)
         )
-    ledger_digest = hashlib.sha256(
-        json.dumps(
-            ledger,
-            ensure_ascii=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        ).encode("utf-8")
-    ).hexdigest()
-    published = sorted(
-        {
-            path
-            for branch in ledger["branches"].values()
-            for path in branch.get("published", [])
-        }
-    )
+
     publication_history = ledger.get("publication_history", [])
     created = sum(
-        1 for value in publication_history if value.get("operation") == "create"
+        value.get("operation") == "create" for value in publication_history
     )
     replaced = sum(
-        1 for value in publication_history if value.get("operation") == "replace"
+        value.get("operation") == "replace" for value in publication_history
     )
+    published = sorted(
+        {value["path"] for value in publication_history if "path" in value}
+    )
+    ledger_digest = hashlib.sha256(campaign.canonical_json(ledger)).hexdigest()
+    source_inventory = ledger["source_pass"]["inventory"]
+    inventory_counts = {
+        classification: sum(
+            value.get("classification") == classification
+            for value in source_inventory.values()
+        )
+        for classification in sorted(campaign.SOURCE_CLASSIFICATIONS)
+    }
     return {
         "status": "finalized",
-        "campaign_id": campaign_id,
+        "campaign_id": ledger["campaign_id"],
         "ledger_digest": ledger_digest,
-        "revision": ledger.get("revision"),
-        "frontier_epoch": ledger.get("frontier_epoch"),
-        "terminal_gates": campaign.terminal_gates(ledger),
+        "revision": ledger["revision"],
+        "terminal": summary["terminal"],
+        "terminal_gates": summary["terminal_gates"],
         "published": published,
         "changes": {
             "created": created,
             "replaced": replaced,
             "published_paths": len(published),
-            "markdown_total": len(list(args.spine_root.rglob("*.md"))),
+            "markdown_total": len(actual_documents),
         },
-        "recovery_history": ledger.get("recovery_history", []),
+        "inventory_classifications": inventory_counts,
         "spine_root": str(args.spine_root.resolve()),
     }
 

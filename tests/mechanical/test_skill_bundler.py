@@ -24,7 +24,9 @@ class SkillBundlerTests(unittest.TestCase):
         references = BUILDER.producer_reference_files(map_root)
         templates = BUILDER.template_files(map_root / "assets/templates")
 
-        self.assertTrue(bundle.startswith("# SpecSpine bounded mapping protocol\n"))
+        self.assertTrue(
+            bundle.startswith("# SpecSpine Map one-shot producer contract\n")
+        )
         self.assertNotIn("name: specspine-map", bundle)
         self.assertNotIn("# SpecSpine Map exhaustive orchestration", bundle)
         self.assertNotIn("Select one execution mode", bundle)

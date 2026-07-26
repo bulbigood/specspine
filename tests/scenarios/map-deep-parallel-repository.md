@@ -1,60 +1,43 @@
-# Scenario: parallel mapping of a large brownfield repository
+# Scenario: parallel exhaustive mapping of a large repository
 
 ## Existing SpecSpine
 
-The repository already has a breadth-first index and broad runtime, frontend,
-and persistence specifications. Several independent product and platform areas
-remain only partially mapped.
+The repository already has broad runtime, frontend, and persistence owners.
+Several product and platform areas remain partial.
 
 ## User request
 
 ```text
-Use `$specspine-map` in exhaustive mode to map every remaining architectural
-area in this large repository until every useful evidence-backed branch is
-saturated. After mapping, recommend a separate SpecSpine Doctor review.
+Use `$specspine-map` to cover every production area in this repository. After
+mapping, recommend a separate SpecSpine Doctor review.
 ```
 
 ## Expected behavior
 
 The orchestrator should:
 
-- plan architectural questions rather than directory assignments;
-- discover the requested scope adaptively from the existing Spine and repository;
-- use the largest safe number of independent workers;
-- prevent workers from modifying source or the live SpecSpine;
-- accept workers that find no useful new specification;
-- require workers to create only publish-ready specifications;
-- make each worker responsible for source evidence, ownership, format, and
-  final relative links;
-- consume and publish every worker result as soon as that worker finishes;
-- add material follow-up questions from completion reports without stopping
-  active workers;
-- continue every useful branch until Map can add no useful document;
-- run one deterministic candidate preflight per completed staging root without
-  reading candidate prose or validating its source;
-- publish every acceptable worker file unchanged using a filesystem move tool,
-  without reconstructing or rereading it;
-- keep only disposable staging state for the current invocation;
-- skip source-aware integration and navigation updates during continuous
-  mapping;
-- after saturation, perform one SpecSpine-only normalization of broad
-  directories, relative links, and curated navigation;
-- run the deterministic checker after normalization;
-- recommend Doctor in a new session after the complete map without invoking it.
+- read the complete existing Spine and seed anchored documentation ToDo;
+- build a deterministic source inventory and classify every area;
+- plan architectural questions rather than directory-shaped specifications;
+- dispatch each task to one fresh producer;
+- keep producers read-only outside private staging;
+- accept exactly one checkpoint from each producer;
+- let producers suggest, but never directly enqueue, narrower directions;
+- integrate every publication centrally;
+- append integration-derived directions to persistent ToDo;
+- repeat with fresh producers until ToDo is empty, all publications are
+  integrated, and the source inventory is current;
+- report `inventory_closed`, not generic model-asserted saturation;
+- recommend Doctor in a new session.
 
 ## Failure indicators
 
-- workers concurrently edit existing specifications;
-- workers recursively spawn an uncontrolled agent tree;
-- the orchestrator introduces planning waves or waits for all active workers
-  while a ready question and a safe slot are available;
-- a requested document count determines decomposition;
-- filename collisions produce arbitrary numbered duplicates;
-- the orchestrator deeply explores or rereads source after dispatch begins;
-- the orchestrator manually reads candidate prose instead of using preflight;
-- the orchestrator reconstructs candidate files instead of moving them;
-- the orchestrator rereads a candidate after moving it;
-- an acceptable worker output is merged, rewritten, or selectively copied;
-- the orchestrator reorganizes documents while mapping work remains;
-- normalization inspects repository source or changes architectural meaning;
-- Doctor runs during exhaustive mapping.
+- a producer is reused or continued;
+- a producer maps a discovered child in the same task;
+- a producer edits existing live specifications or `README.md`;
+- source discovery is only a prose assertion rather than a classified inventory;
+- producer quality self-assessment controls completion;
+- accepted suggestions are not represented in ToDo;
+- root integration skips candidate prose or graph neighbors;
+- an empty queue alone becomes a coverage claim;
+- Doctor runs during Map.

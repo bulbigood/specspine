@@ -1,33 +1,30 @@
-# Scenario: exhaustive Map with unknown partial producer capacity
+# Scenario: exhaustive Map with unknown producer capacity
 
-## Existing SpecSpine
-
-The repository has several independent unmapped architectural branches. The
-environment supports subagents but does not expose producer capacity in
-advance. It accepts one producer start and rejects additional starts while that
-producer remains active.
+The environment supports fresh subagents but does not expose capacity in
+advance. One producer start succeeds; additional starts may fail while it is
+active.
 
 ## User request
 
 ```text
-Use `$specspine-map` in exhaustive mode to map the whole repository until every
-useful evidence-backed branch is saturated.
+Use `$specspine-map` to cover the whole repository.
 ```
 
 ## Expected behavior
 
-The orchestrator should count only a confirmed addressable producer as active.
-Branches whose starts fail should remain queued and unowned. It should continue
-with the confirmed producer, retry queued work after capacity is released, and
-eventually cover every useful branch without treating failed starts as
-completed work. If no producer can be started later, it should preserve the
-same protocol locally.
+The orchestrator must count only confirmed producer handles, assign a task only
+after start succeeds, continue useful root inventory/integration work while a
+producer runs, and retry ready ToDo with newly created producers as slots
+become available.
+
+Every successful producer handles one task and terminates after one checkpoint.
+A failed start leaves the task in ToDo. A completed producer is never reused.
 
 ## Failure indicators
 
-- a branch becomes active before a producer handle is confirmed;
-- an attempted or failed start consumes a logical slot;
-- a rejected branch disappears from the ToDo;
-- partial capacity is mistaken for complete lack of subagent support;
+- a task becomes assigned before a producer handle exists;
 - the orchestrator waits for producers that were never created;
-- mapping stops while a failed-start branch remains queued and actionable.
+- a failed start loses or blocks the ToDo;
+- a completed producer receives another task;
+- capacity uncertainty is treated as architectural blockage while a retry is
+  still possible.

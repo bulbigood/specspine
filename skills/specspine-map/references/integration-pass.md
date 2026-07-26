@@ -1,81 +1,101 @@
-# Exhaustive graph integration
+# Root integration and ToDo derivation
 
-Run this root-only pass after producer publications settle and again before the
-final documentation pass. Candidate acceptance proves mechanical validity; it
-does not prove that independently produced nodes form the best connected
-architecture graph.
+Run this pass after producer drafts are published and once more before campaign
+closure. Candidate acceptance proves mechanical validity, not canonical
+ownership or complete architectural depth.
 
 ## Integrate publications
 
 The root orchestrator must:
 
-1. Inspect every branch with published paths or reported relationships.
-2. Read the affected documents, their canonical owners, and relevant graph
-   neighbors.
-3. Add or correct ordinary navigation links needed for reachability and local
-   comprehension.
-4. Add missing architectural edges through canonical `Relationships` tables.
-   Store each directed fact once in the document that owns its source side; do
-   not manufacture reciprocal rows merely for navigation.
-5. Use a semantic ID as the complete link label when the edge targets a
-   particular statement. Preserve the target document path without a fragment.
-6. Resolve duplicate definitions by keeping one canonical owner and replacing
-   other definitions with short context plus a link. Ask before choosing among
-   materially different plausible owners.
-7. Run the full live checker without deferred reachability findings.
+1. Read every published document, its owner, and relevant graph neighbors.
+2. Confirm or correct ownership, boundaries, terminology, and non-duplication.
+3. Add navigation needed for reachability and comprehension.
+4. Add architectural edges through canonical `Relationships` tables; never add
+   reciprocal rows only for navigation.
+5. Use semantic IDs as complete link labels when targeting statements.
+6. Preserve one canonical definition and ask before choosing among materially
+   different plausible owners.
+7. Inspect every producer-discovered direction.
+8. Reread the integrated documents for narrower unanswered mechanisms,
+   transitions, failures, ownership questions, and consequences.
+9. Append every accepted refinement to persistent ToDo. Do not investigate it
+   during integration.
+10. Run the full live checker.
 
-The root may edit live navigation and existing specifications during this pass.
-Producers may not.
+The root may edit live specifications and `README.md`. Producers may not.
 
-## Review file organization
-
-Keep the flat layout while it remains easy to navigate. Introduce or reorganize
-directories only when several documents form a stable cohesive area and the
-flat list has become materially difficult to use. Directory names organize
-files; they do not define ownership or mirror source directories.
-
-Perform moves only after producers stop writing candidates. Preserve document
-and semantic IDs, update every incoming and outgoing relative link, rerun the
-checker, and ensure `README.md` or another reachable owner still exposes the
-moved nodes.
-
-## Record the pass
+## Report
 
 Save a report covering every live Markdown document:
 
 ```json
 {
   "evidence_inspected": ["README.md", "identity.md", "sessions.md"],
-  "relationship_review": [
+  "task_reviews": [
     {
-      "branch": "identity-sessions",
+      "task": "identity-sessions",
       "disposition": "integrated",
-      "reason": "Added the canonical consumes edge and overview navigation"
+      "reason": "The new owner and consumes edge are canonical"
+    }
+  ],
+  "suggestion_reviews": [
+    {
+      "task": "identity-sessions",
+      "suggestion": "session-refresh-race",
+      "disposition": "queued",
+      "todo": "session-refresh-race",
+      "reason": "The integrated lifecycle exposes unresolved recovery ownership"
+    }
+  ],
+  "todo": [
+    {
+      "id": "session-refresh-race",
+      "question": "Who owns recovery when refresh races with expiry?",
+      "reason": "The integrated lifecycle establishes normal expiry only",
+      "evidence": ["src/sessions", "tests/session-refresh.test.ts"],
+      "documents": ["sessions.md"],
+      "excludes": ["login", "token issuance"],
+      "anchor": {
+        "document": "sessions.md",
+        "location": "Lifecycle / refresh transition",
+        "known": "Normal refresh and expiry are documented"
+      }
     }
   ],
   "organization": {
     "status": "flat_sufficient",
-    "reason": "The current node count remains navigable from three overview owners"
-  }
+    "reason": "The owner set remains directly navigable"
+  },
+  "terminal_reason": null
 }
 ```
 
-Allowed relationship dispositions are `integrated`, `already_canonical`,
-`navigation_only`, and `not_architectural`. Every branch that published a path
-or reported a relationship requires one disposition.
+Every currently published task needs one `task_reviews` row. Allowed
+dispositions are `integrated`, `already_canonical`, and `not_architectural`.
 
-Organization status is `flat_sufficient`, `directories_sufficient`, or
-`reorganized`.
+Every suggestion emitted by those tasks needs one `suggestion_reviews` row.
+Allowed dispositions are:
 
-Record and mechanically verify the result:
+- `queued`, with a matching `todo`;
+- `covered`, when the integrated graph already answers it;
+- `rejected`, with a concrete architectural reason.
+
+The root may add ToDo that no producer suggested. Each task still needs a
+document anchor when documentation-derived. If `todo` is empty, use:
+
+```text
+no integration-derived ToDo: <evidence-based reason>
+```
+
+Record and verify:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py integration-pass \
   <campaign> <spine-root> <integration-report.json>
 ```
 
-The command requires all non-root branches to be complete, verifies a complete
-Markdown inventory, runs the live checker, records document digests, and binds
-the result to the current frontier epoch. Later publications, new branches, or
-repairs invalidate it. Finalization rejects documentation changed after the
-recorded integration.
+The command checks the complete Markdown inventory, mechanical validity,
+published-task reviews, suggestion dispositions, and ToDo references. It marks
+reviewed publications complete and appends ToDo atomically. Any later
+publication invalidates the pass.

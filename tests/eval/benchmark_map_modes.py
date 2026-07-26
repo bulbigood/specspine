@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare repeated bounded Map with parallel and sequential exhaustive Map."""
+"""Compare repeated bounded Map with one-shot-producer exhaustive Map."""
 
 from __future__ import annotations
 
@@ -22,13 +22,11 @@ EVAL_DIR = Path(__file__).resolve().parent
 ARMS = (
     ("map", "map-sequential-saturation-small"),
     ("map-deep", "map-deep-rolling-small"),
-    ("map-deep-no-subagents", "map-deep-repository-no-subagents"),
 )
 SUBAGENT_ARMS = {"map-deep"}
 DISPLAY_NAMES = {
     "map": "Repeated bounded Map",
-    "map-deep": "Parallel exhaustive Map",
-    "map-deep-no-subagents": "Sequential exhaustive Map",
+    "map-deep": "One-shot-producer exhaustive Map",
 }
 DEFAULT_ORCHESTRATOR_MODEL = "gpt-5.6-terra"
 DEFAULT_ORCHESTRATOR_REASONING_EFFORT = "medium"
@@ -321,7 +319,7 @@ def quality_prompt(
         for label, candidate in candidates.items()
     )
     return f"""Act as a blind senior architecture-documentation reviewer.
-Compare three terminal SpecSpine outputs produced from the same small repository.
+Compare the terminal SpecSpine outputs produced from the same small repository.
 All workflows were required to map every useful architecture responsibility
 supported by the repository. Use the rubric and ordinary engineering judgment.
 Judge architectural documentation, not the implementation strategy.
@@ -350,7 +348,7 @@ Repository fixture:
 
 def parse_quality_judgment(
     text: str,
-    labels: tuple[str, ...] = ("A", "B", "C"),
+    labels: tuple[str, ...] = ("A", "B"),
 ) -> dict[str, Any]:
     start = text.find("{")
     end = text.rfind("}")
@@ -507,7 +505,7 @@ def write_comparison(
             ]
         )
     lines = [
-        "# Repeated bounded vs parallel and sequential exhaustive Map benchmark",
+        "# Repeated bounded vs one-shot-producer exhaustive Map benchmark",
         "",
         "| Metric | " + " | ".join(DISPLAY_NAMES[label] for label, _ in ARMS) + " |",
         "|---|" + "---:|" * len(ARMS),
@@ -537,8 +535,7 @@ def write_comparison(
         "thread, model, assignment, prompt size/hash, status, and collaboration-call "
         "duration.",
         "",
-        "Raw reports: `map.json`, `map-deep.json`, and "
-        "`map-deep-no-subagents.json`.",
+        "Raw reports: `map.json` and `map-deep.json`.",
         "",
     ))
     if judge_cost:

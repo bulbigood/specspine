@@ -1,290 +1,192 @@
 # SpecSpine Map exhaustive orchestration
 
-Use this protocol only after the entrypoint selects exhaustive mode and confirms
-that subagent creation is available. Exhaustive mode repeats the bounded Map
-operation until every useful branch in the requested scope is complete.
+Exhaustive mode closes a deterministic repository inventory through independent
+bounded ToDo tasks. It optimizes for visible state and fresh context, not
+producer continuity.
 
 ## Invariants
 
-- The root agent is the only scheduler and the only process that runs
+- The root orchestrator is the only scheduler and the only process that runs
   `campaign.py`.
-- Use a strong root with `medium` or `high` reasoning for exhaustive control.
-  If the active root has low reasoning, do not claim final saturation without
-  an independent strong semantic audit.
-- Each producer owns one branch and writes only to its private staging root.
-- Keep producers evidence-affine. Reuse a producer for the same branch, or for
-  a child that the same producer emitted in its accepted `coverage_frontier`
-  with evidence and a semantic relation reason. Similar naming, a shared
-  top-level domain, or a root-discovered adjacent document is not sufficient.
-- Medium producers may draft ordinary branches. Use a strong producer or
-  reviewer for security, authorization, ownership, migration, compatibility,
-  and the final semantic breadth/depth audit.
-- Producers never edit the live Spine, `README.md`, or campaign state.
-- The root accepts a producer result only through `campaign.py accept`.
-- Continue independent ready work after a branch failure. Stop only when
-  `summary` reports `saturated` or `blocked`.
-- A tool defect is not an operator decision. Preserve its evidence, continue
-  unaffected branches, and report it only if no actionable work remains.
+- One producer handles one ToDo, emits one checkpoint, and terminates.
+- Never reuse a producer handle or send follow-up work into its conversation.
+- Producers write only to private staging. They never edit the live Spine,
+  `README.md`, source, tests, or campaign state.
+- Producer suggestions are not ToDo items until the root integration pass
+  accepts them.
+- Producers do not score their own quality and cannot declare local or global
+  saturation.
+- Deterministic source inventory, persistent ToDo, and root integration are
+  separate completion gates.
+- Continue independent ready tasks after a producer failure. A tool failure is
+  not an architectural blocker.
+- Exhaustive mode requires fresh producer creation. Without it, preserve the
+  inventory and report `blocked`.
 
-## Start or resume
+Read [producer-task.md](producer-task.md) completely before dispatching work.
 
-Create one temporary run root outside the repository and Spine:
+## Start
+
+Create a private run root outside the repository and Spine:
 
 ```text
 mktemp -d
 python3 <map-skill-root>/scripts/campaign.py init \
-  <run-root>/campaign.json --scope <requested-scope> \
-  --root-question <scope-question>
+  <run-root>/campaign.json \
+  --scope <requested-scope> \
+  --root-question <scope-question> \
+  --spine-state existing
 ```
 
-If the live Spine already has specification nodes, follow
-`documentation-first-seeding.md`: initialize with `--spine-state existing`,
-read the whole Spine, and record its gap-derived frontier with
-`seed-from-spine` before source discovery or producer assignment.
-Reject a documentation-derived direction unless its depth witness makes it
-strictly narrower than the cited in-document anchor. The script validates the
-witness shape and provenance; the root validates its semantics.
+For an existing Spine, follow `documentation-first-seeding.md` before source
+inventory. An empty Spine starts after the minimal index required by
+`SKILL.md`.
 
-If the operator supplies an existing campaign, inspect it and run:
-
-```text
-python3 <map-skill-root>/scripts/campaign.py resume <campaign>
-```
-
-`resume` releases stale non-root owners. Discard old staging because a staged
-file is trusted only together with a checkpoint returned in the current
-invocation.
-
-Never replace an unfinished campaign by initializing a new ledger and seeding
-its live documents. Repair the original ledger, or preserve its complete
-frontier and identity with:
-
-```text
-python3 <map-skill-root>/scripts/campaign.py recover \
-  <old-campaign> <new-campaign> --reason <tool-defect>
-```
-
-For an empty Spine, inspect architecture signals and seed every observed
-independent branch before dispatch:
-
-```text
-python3 <map-skill-root>/scripts/campaign.py add <campaign> <branch-id> \
-  --parent root --question <question> --origin <evidence> \
-  [--namespace <name>] [--prerequisite <branch-id>]
-```
-
-Use `documented` instead of `add`, with `--document <path>`, only for an empty-
-Spine campaign that encounters an already complete external owner. Existing-
-Spine campaigns use documentation-first planned branches so owners can be
-semantically tested rather than pre-closed.
-
-Build the producer instructions once:
+Build the immutable producer bundle once:
 
 ```text
 python3 <map-skill-root>/scripts/bundle_skill.py \
   <map-skill-root> <run-root>/producer-instructions.md
 ```
 
-## Dispatch
+## Establish the source lower bound
 
-Use `campaign.py ready <campaign>` to select branches. Fill every safely
-available slot. For each confirmed producer handle run:
+Generate the deterministic area inventory:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py assign \
-  <campaign> <branch-id> --owner <agent-path>
+python3 <map-skill-root>/scripts/campaign.py inventory \
+  <repository-root> --spine-root <spine-root>
 ```
 
-Start a fresh producer handle for every branch not proven to originate in that
-producer's accepted checkpoint. If all slots are occupied, continue root work
-or wait for a slot; never send an unrelated branch through `followup_task` to
-an existing producer merely to avoid waiting. `campaign.py assign` enforces
-this provenance and also rejects assigning two active branches to one owner.
+The root classifies every returned area exactly once as:
 
-Give the producer:
+- `mapped` or `neighbor-owned`, with an existing owner document;
+- `queued`, with a matching ToDo;
+- `generated`, `vendored`, `test-only`, or `no-architecture-value`, with a
+  concrete reason.
 
-- the complete producer instruction bundle inline;
-- repository root, Spine root, evidence baseline and documentation language;
-- its exact branch question and private staging root;
-- permission to inspect only the repository and Spine evidence needed for that
-  branch.
-
-The producer performs one bounded Map step and returns exactly one JSON object:
+Save the complete classification and new tasks:
 
 ```json
 {
-  "status": "continuing",
-  "evidence_inspected": ["src/example"],
-  "candidates": [{"path": "domains/example.md", "operation": "create"}],
-  "mapped_responsibilities": ["Example boundary"],
-  "relationships": [],
-  "source_coverage": [
+  "inventory": [
     {
-      "area": "src/example",
-      "classification": "summarized",
-      "reason": "Owned by the example specification"
+      "area": "pkg/services/ssosettings",
+      "classification": "queued",
+      "task": "sso-settings",
+      "reason": "Durable CRUD, persistence and reload boundary"
+    },
+    {
+      "area": "vendor",
+      "classification": "vendored",
+      "reason": "Third-party source"
     }
   ],
-  "quality_gate": {
-    "ownership_coverage": {"status": "pass", "reason": "All production areas classified"},
-    "orientation": {"status": "pass", "reason": "Purpose and boundaries are clear"},
-    "information_gain": {"status": "pass", "reason": "Non-local behavior is captured"},
-    "change_utility": {"status": "pass", "reason": "Owner and risks are navigable"},
-    "non_duplication": {"status": "pass", "reason": "Local code is not reproduced"}
-  },
-  "continuation": "Check the same boundary for another useful node",
-  "coverage_frontier": [
+  "todo": [
     {
-      "id": "example-child",
-      "question": "Map the child boundary",
-      "evidence": ["src/example/child"],
-      "namespace": "domains",
-      "prerequisite": null,
-      "classification": "fork_candidate",
-      "document": null,
-      "reason": "The inspected adapter document exposes an independent child boundary"
+      "id": "sso-settings",
+      "question": "Who owns provider settings persistence and reload?",
+      "reason": "The inventory exposes an independent service",
+      "evidence": ["pkg/services/ssosettings"],
+      "documents": ["identity-access.md"],
+      "excludes": ["login orchestration"],
+      "anchor": null
     }
   ],
-  "unresolved": [],
   "terminal_reason": null
 }
 ```
 
-Candidate paths are final paths relative to the Spine. `create` requires a
-missing destination; `replace` requires an existing destination. A
-candidate-bearing checkpoint uses `continuing`.
+Record it:
 
-When the candidate already passes every local quality gate and needs no second
-parent-level step, use `publish_and_locally_saturate`, set `continuation` to
-null, and give the normal `no useful node` terminal reason. Acceptance then
-publishes and locally saturates atomically while retaining every child branch.
+```text
+python3 <map-skill-root>/scripts/campaign.py source-pass \
+  <campaign> <repository-root> <spine-root> <report.json>
+```
 
-A terminal checkpoint has no candidates and uses either:
+The command rejects missing, duplicate, or invented inventory areas. An empty
+source ToDo requires `no source-derived ToDo: <reason>`.
 
-- `locally_saturated` with
-  `terminal_reason: "no useful node: <evidence-based reason>"`; or
-- `blocked` with the exact external input or authority required.
+## Dispatch one-shot producers
 
-Before acceptance, confirm every fork candidate cites only paths present in
-that producer's `evidence_inspected` and explains the semantic connection in
-`reason`. Reject a checkpoint whose child is merely adjacent by name or was
-introduced by the root; such work belongs to a fresh producer.
+Inspect ready work:
 
-## Accept atomically
+```text
+python3 <map-skill-root>/scripts/campaign.py ready <campaign>
+python3 <map-skill-root>/scripts/campaign.py todo <campaign>
+```
 
-Save the exact producer JSON outside staging, then run one command:
+For each safely available slot:
+
+1. start a fresh producer with the immutable bundle and one task packet;
+2. only after a producer handle exists, assign it:
+
+```text
+python3 <map-skill-root>/scripts/campaign.py assign \
+  <campaign> <task-id> --owner <fresh-agent-path>
+```
+
+3. let it write private staging, return one checkpoint, and terminate;
+4. root-inspect the checkpoint and staged candidates;
+5. atomically publish an acceptable result:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py accept \
-  <campaign> <branch-id> <checkpoint.json> \
-  <private-staging-root> <spine-root>
+  <campaign> <task-id> <checkpoint.json> \
+  <private-staging-root> <spine-root> \
+  --owner <fresh-agent-path>
 ```
 
-`accept` is one transaction. It:
+`accept` validates staged bytes and the checkpoint, runs candidate and live
+mechanical checks, publishes with rollback, records suggestions for integration,
+and clears producer ownership. It never adds suggestions directly to ToDo.
 
-1. locks and reloads campaign state;
-2. validates branch ownership, checkpoint, paths and child branches;
-3. hashes both checkpoint JSON and staged bytes;
-4. runs the candidate checker;
-5. moves candidates with rollback backups;
-6. runs the live checker while deferring only navigation findings;
-7. commits publications, children and terminal state in one atomic ledger
-   write.
+If a producer disappears, use `release`; the same task returns to ToDo and must
+be assigned to another fresh handle. A `needs_more_evidence` checkpoint also
+returns the task to ToDo with its requested evidence. Never continue the old
+producer.
 
-It also retains the producer's reported relationships for the root integration
-pass. Acceptance validates edges already present in a candidate, but the root
-must follow `integration-pass.md` to connect independently produced documents.
+## Integrate and derive ToDo
 
-On any failure, live files and campaign state remain unchanged and staged files
-remain available for correction. Ask the same producer for a corrected complete
-checkpoint. Never manually move a staged file or partially import a report.
+After any publications settle, perform the root-only integration contract in
+`integration-pass.md`. The root rereads published documents and graph neighbors,
+normalizes shared navigation and relationships, dispositions every producer
+suggestion, and records every accepted or newly observed refinement as an
+explicit ToDo.
 
-After a continuing candidate checkpoint, resume the same producer with its
-reported continuation; this is still the same branch. A reported child may
-reuse that producer only after its current branch reaches a terminal
-checkpoint. After any terminal checkpoint, dispatch a ready queued branch to a
-fresh producer unless the stored discovery provenance explicitly permits reuse.
-
-If a producer terminates without an acceptable checkpoint, run `release` and
-restart that branch with fresh staging. Use `block --reason <exact reason>` only
-for missing authority, evidence, permission, or an unresolved ownership
-decision—not for recoverable validation or tool errors.
-
-If audit reports a prerequisite cycle, repair the original ledger with
-`repair-prerequisite --clear|--set ... --reason ...`; do not reconstruct it.
-
-## Reach saturation
-
-Repeat `ready`, dispatch and `accept` until no producer is active and no branch
-is ready. Close a locally saturated branch after all children are complete:
+The integration pass marks published tasks complete and atomically appends its
+new ToDo items. Dispatch each with a fresh producer. Repeat:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py close <campaign> <branch-id>
+ToDo → fresh producer → staging → accept → integration → new ToDo
 ```
 
-When the queue drains, follow `integration-pass.md`: integrate shared
-navigation, typed relationships, semantic-ID references and file organization,
-then record `integration-pass`. Next reread every live Spine document and run
-`documentation-pass` using the plan shape from
-`documentation-first-seeding.md`. If it returns `gaps_found`, dispatch its new
-branches and repeat from the queue-drain step. Each new direction must descend
-from a precise claim or section in the now richer documents, not restate an
-owner or a previous question. This produces recursive depth across passes. An
-initial problem is empty only
-when its branch is `complete`; a final documentation list is empty only when
-the current pass returns `no_gaps`.
+Do not let an empty ready list skip integration: published drafts may still
+contain unresolved directions.
 
-Next repeat scope-level source discovery. In an existing-Spine campaign this
-is the first broad code pass and only seeks blind spots without a credible
-documented owner. For a whole repository revisit composition roots,
-registries, public interfaces, persistence, integrations, configuration,
-deployment, security, failure behavior and observability. Add newly exposed
-branches and return to the queue-drain step. When a complete pass adds none,
-record:
+## Close the inventory
 
-```text
-python3 <map-skill-root>/scripts/campaign.py discovery-pass \
-  <campaign> --evidence <signals-checked>
-```
-
-Run final `integration-pass` and `documentation-pass`. Continue if the latter
-finds any direction. Before accepting the root checkpoint, inspect the
-collaboration agent list: every assigned producer must have returned its
-terminal result and no producer may still be running. Ledger completion is
-necessary but does not replace this runtime check.
-
-Before claiming coverage, inspect `campaign.py coverage-report <campaign>`.
-An overview may be locally sufficient while useful children remain queued, but
-the exhaustive campaign is not saturated until those children are inspected
-and closed or given evidence-based terminal classifications.
-
-The root producer must then return its own candidate-free `no useful node`
-checkpoint. Accept it and close root after all descendants are complete.
-
-Use:
+Run:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py summary <campaign>
+python3 <map-skill-root>/scripts/campaign.py coverage-report <campaign>
 ```
 
-A final response is permitted only when `terminal` is `saturated` or `blocked`.
-If it is null, continue. Never stop merely to report progress, elapsed time, a
-document count, or one failed branch.
+`inventory_closed` requires:
 
-## Finalize
+- no `todo`, `assigned`, `published`, or `blocked` task;
+- every producer terminated;
+- every publication and suggestion integrated;
+- a current deterministic source inventory;
+- a current integration pass that produced no further ToDo.
 
-After `terminal: saturated`, make no further documentation edits. Run the
-checker, then:
+An empty ToDo is necessary but not sufficient. The campaign reports `partial`
+until every gate passes. It reports `blocked` only when all actionable work is
+drained and an explicit blocked task remains.
 
-```text
-python3 <map-skill-root>/scripts/finalize_run.py \
-  <campaign> <spine-root> --staging-root <staging-root>...
-```
-
-Only `status: finalized` permits deleting the exact run root with
-`find <run-root> -depth -delete`. Otherwise preserve it.
-
-Report scope, created/replaced/total document counts from the final receipt,
-relationships, unresolved drift, exact `no useful node` reasons, normalization
-and checks. Recommend
-`$specspine-doctor` in a new session; never invoke it during exhaustive Map.
+After `inventory_closed`, make no further documentation edits. Run the checker
+and `finalize_run.py`. Report the inventory classifications, created/replaced
+documents, integrated relationships, remaining uncertainty, and exact terminal
+reasons. Recommend `$specspine-doctor` in a new session; never invoke it during
+Map.

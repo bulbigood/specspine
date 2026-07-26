@@ -1,6 +1,6 @@
 ---
 name: specspine-map
-description: Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use bounded mode for surveys, overviews, selected subsystems, local refresh, and drift. Use exhaustive mode when the operator asks to fully document or cover the whole project, recurse through every useful branch, or continue until saturation; it coordinates branch-affine producers when available or runs sequentially. Do not invent intended architecture, perform general integrity audits, implement changes, or claim code/spec conformance.
+description: "Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use bounded mode for surveys, overviews, selected subsystems, local refresh, and drift. Use exhaustive mode when the operator asks to cover the whole project: build a deterministic source inventory, dispatch each bounded ToDo to one fresh producer, integrate staged drafts centrally, and continue until the inventory closes. Do not invent intended architecture, perform general integrity audits, implement changes, or claim code/spec conformance."
 ---
 
 # SpecSpine Map
@@ -54,10 +54,11 @@ navigation normalization. It does not authorize changing accepted intent or
 choosing among materially different canonical owners.
 
 Read [references/orchestration.md](references/orchestration.md) completely
-before discovery. Inspect callable capabilities already exposed by the
-environment; do not probe by starting a subagent. Use its parallel dispatch
-mechanics when subagent creation is exposed and its sequential adaptation
-below otherwise.
+before discovery. Exhaustive mode requires fresh producer handles: one producer
+per bounded ToDo, one checkpoint, then termination. Never reuse a producer or
+continue its hidden conversation state. If fresh producers are unavailable,
+record the deterministic inventory and report `blocked`; do not simulate
+exhaustive coverage in the root context.
 
 If the Spine already contains specification nodes, also read
 [references/documentation-first-seeding.md](references/documentation-first-seeding.md)
@@ -66,13 +67,3 @@ inspecting production source.
 
 Read [references/integration-pass.md](references/integration-pass.md)
 completely before merging producer publications into the final graph.
-
-### Sequential exhaustive protocol
-
-Use the same durable campaign state and terminal rules as parallel mode, but
-act as the sole producer. Read `references/orchestration.md` completely; ignore
-only its subagent dispatch mechanics. Create private staging, write one bounded
-step, emit its checkpoint, and accept it with `campaign.py accept`. Repeat ready
-branches until `campaign.py summary` reports `saturated` or `blocked`. Never
-write directly to the live Spine, bypass transactional acceptance, or stop at a
-progress milestone.

@@ -37,7 +37,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
         self.assertEqual(21, len(fixture))
         self.assertIn("src/webhooks/receiver.js", fixture)
         self.assertEqual(
-            ["map", "map-deep", "map-deep-no-subagents"],
+            ["map", "map-deep"],
             [label for label, _ in BENCHMARK.ARMS],
         )
         self.assertEqual({"map-deep"}, BENCHMARK.SUBAGENT_ARMS)
@@ -56,10 +56,10 @@ class MapModeBenchmarkTests(unittest.TestCase):
         self.assertIn("--subagent-role weak", rendered)
         self.assertEqual(Path("/reports/map.json"), report)
 
-    def test_no_subagent_arm_uses_the_disabled_case(self):
-        self.assertIn(
-            ("map-deep-no-subagents", "map-deep-repository-no-subagents"),
-            BENCHMARK.ARMS,
+    def test_no_subagent_case_is_a_blocking_eval_not_a_quality_arm(self):
+        self.assertNotIn(
+            "map-deep-no-subagents",
+            {label for label, _ in BENCHMARK.ARMS},
         )
         case = BENCHMARK.load_case("map-deep-repository-no-subagents")
         self.assertEqual("disabled", case["subagents"])
@@ -79,11 +79,9 @@ class MapModeBenchmarkTests(unittest.TestCase):
             requests[label] = " ".join(
                 line for line in request.splitlines() if not line.startswith("```")
             ).strip()
-        self.assertEqual(requests["map-deep"], requests["map-deep-no-subagents"])
         self.assertNotIn("exhaustive", requests["map"].lower())
-        self.assertIn("exhaustive", requests["map-deep"].lower())
+        self.assertIn("whole repository", requests["map-deep"].lower())
         for request in requests.values():
-            self.assertIn("architectur", request.lower())
             self.assertIn("repository", request.lower())
         for forbidden in (
             "producer",
@@ -192,8 +190,8 @@ class MapModeBenchmarkTests(unittest.TestCase):
         self.assertIn("per-producer token counters", text)
         self.assertIn("terminal lifecycle notification", text)
         self.assertIn("do not penalize length by itself", text)
-        self.assertIn("Sequential exhaustive Map", text)
-        self.assertIn("map-deep-no-subagents.json", text)
+        self.assertIn("One-shot-producer exhaustive Map", text)
+        self.assertNotIn("map-deep-no-subagents.json", text)
 
     def test_direct_map_does_not_report_unused_subagent_configuration(self):
         report = {
@@ -221,14 +219,13 @@ class MapModeBenchmarkTests(unittest.TestCase):
             {
                 "A": {"specspine/a.md": "long useful architecture"},
                 "B": {"specspine/a.md": "short"},
-                "C": {"specspine/a.md": "different"},
             },
         )
         self.assertIn("ordinary engineering judgment", prompt)
         self.assertIn("map every useful architecture responsibility", prompt)
         self.assertIn("Do not penalize length by itself", prompt)
         self.assertIn("Do not reward brevity by itself", prompt)
-        for label in ("A", "B", "C"):
+        for label in ("A", "B"):
             self.assertIn(f"Candidate {label}:", prompt)
         for dimension in BENCHMARK.QUALITY_DIMENSIONS:
             self.assertIn(dimension, prompt)
@@ -243,20 +240,18 @@ class MapModeBenchmarkTests(unittest.TestCase):
                 {
                     "A": scores,
                     "B": {**scores, "overall": 7},
-                    "C": {**scores, "overall": 8},
-                    "preferred": "C",
+                    "preferred": "B",
                     "rationale": "A is clearer and better grounded.",
                 }
             )
         )
-        self.assertEqual("C", parsed["preferred"])
+        self.assertEqual("B", parsed["preferred"])
         with self.assertRaises(ValueError):
             BENCHMARK.parse_quality_judgment(
                 json.dumps(
                     {
                         "A": {"overall": 9},
                         "B": scores,
-                        "C": scores,
                         "preferred": "A",
                         "rationale": "Incomplete.",
                     }

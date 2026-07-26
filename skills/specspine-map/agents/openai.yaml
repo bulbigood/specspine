@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Map"
-  short_description: "Map architecture in bounded or exhaustive mode"
-  default_prompt: "Use $specspine-map to map this repository’s architecture in bounded mode, or exhaustive mode when explicitly requested."
+  short_description: "Map brownfield architecture with bounded tasks"
+  default_prompt: "Use $specspine-map to map this repository’s architecture, using deterministic inventory and fresh one-shot producers for exhaustive coverage."

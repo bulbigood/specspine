@@ -1,57 +1,75 @@
 #!/usr/bin/env python3
-"""Run a durable exhaustive Map campaign with transactional checkpoint acceptance."""
+"""Run a reliable exhaustive SpecSpine Map campaign.
+
+The campaign deliberately separates four authorities:
+
+* deterministic repository inventory defines the lower bound of discovery;
+* one-shot producers draft one bounded task into private staging;
+* the root orchestrator publishes and integrates accepted drafts;
+* the ledger derives completion from inventory, ToDo, and integration state.
+
+Producer prose is never treated as proof of coverage or saturation.
+"""
 
 from __future__ import annotations
 
 import argparse
 import contextlib
-import copy
 import fcntl
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import uuid
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Iterator
 
 
-SCHEMA_VERSION = 1
-STATES = {"queued", "active", "locally_saturated", "blocked", "complete"}
-BRANCH_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-TERMINAL_REASON = re.compile(r"^no useful node:\s+\S")
-DEFERRED_CODES = {"ID_SECTION_UNVERIFIED", "UNREACHABLE_SPEC"}
-QUALITY_GATES = {
-    "ownership_coverage",
-    "orientation",
-    "information_gain",
-    "change_utility",
-    "non_duplication",
+SCHEMA_VERSION = 2
+TASK_STATES = {"todo", "assigned", "published", "complete", "blocked"}
+CHECKPOINT_STATUSES = {
+    "draft_ready",
+    "no_architectural_value",
+    "needs_more_evidence",
+    "blocked",
 }
-QUALITY_STATUSES = {"pass", "gap", "not_applicable"}
 SOURCE_CLASSIFICATIONS = {
-    "summarized",
+    "mapped",
     "queued",
-    "neighbor_owned",
+    "neighbor-owned",
     "generated",
     "vendored",
-    "test_only",
-    "no_durable_architecture_value",
+    "test-only",
+    "no-architecture-value",
 }
-SPINE_STATES = {"empty", "existing"}
-DOCUMENTATION_SIGNALS = {
-    "coverage_gap",
-    "open_question",
-    "broad_owner",
-    "weak_relationship",
-    "missing_depth",
-    "stale_evidence",
-    "navigation_gap",
-    "semantic_inconsistency",
+OWNER_CLASSIFICATIONS = {"mapped", "neighbor-owned"}
+TERMINAL_CLASSIFICATIONS = {
+    "generated",
+    "vendored",
+    "test-only",
+    "no-architecture-value",
+}
+REVIEW_DISPOSITIONS = {
+    "integrated",
+    "already_canonical",
+    "not_architectural",
+}
+SUGGESTION_DISPOSITIONS = {"queued", "covered", "rejected"}
+DEFERRED_CHECKER_CODES = {"UNREACHABLE_SPEC"}
+COLLAPSED_DIRECTORIES = {
+    ".git",
+    ".next",
+    ".venv",
+    ".yarn",
+    "build",
+    "dist",
+    "node_modules",
+    "target",
+    "vendor",
+    "venv",
 }
 
 
@@ -59,29 +77,17 @@ class CampaignError(ValueError):
     pass
 
 
-def emit(value: Any, *, error: bool = False) -> None:
-    print(
-        json.dumps(value, ensure_ascii=False, sort_keys=True),
-        file=sys.stderr if error else sys.stdout,
-    )
+def canonical_json(value: Any) -> bytes:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
 
 
-def validate_id(value: str) -> str:
-    if not BRANCH_ID.fullmatch(value):
-        raise CampaignError(f"invalid branch id: {value!r}")
-    return value
-
-
-def validate_path(value: str) -> str:
-    path = PurePosixPath(value)
-    if (
-        not value
-        or "\\" in value
-        or path.is_absolute()
-        or any(part in {"", ".", ".."} for part in path.parts)
-    ):
-        raise CampaignError(f"invalid relative path: {value!r}")
-    return path.as_posix()
+def digest_json(value: Any) -> str:
+    return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -94,561 +100,612 @@ def read_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def load(path: Path) -> dict[str, Any]:
-    ledger = read_json(path)
-    if ledger.get("schema_version") != SCHEMA_VERSION:
-        raise CampaignError("unsupported campaign schema")
-    if not isinstance(ledger.get("branches"), dict):
-        raise CampaignError("campaign branches must be an object")
-    return ledger
+def validate_id(value: Any) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or any(
+            not (
+                character.isascii()
+                and (character.islower() or character.isdigit() or character == "-")
+            )
+            for character in value
+        )
+        or value.startswith("-")
+        or value.endswith("-")
+        or "--" in value
+    ):
+        raise CampaignError(f"invalid stable ID: {value!r}")
+    return value
+
+
+def validate_relative_path(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise CampaignError(f"invalid relative path: {value!r}")
+    path = Path(value)
+    if path.is_absolute() or ".." in path.parts or value.startswith("./"):
+        raise CampaignError(f"path must be repository-relative: {value!r}")
+    return path.as_posix()
+
+
+def string_list(
+    value: Any,
+    field: str,
+    *,
+    nonempty: bool = False,
+) -> list[str]:
+    if (
+        not isinstance(value, list)
+        or (nonempty and not value)
+        or any(not isinstance(item, str) or not item.strip() for item in value)
+    ):
+        qualifier = "nonempty " if nonempty else ""
+        raise CampaignError(f"{field} must be a {qualifier}list of strings")
+    return list(value)
+
+
+def document_hashes(spine_root: Path) -> dict[str, str]:
+    return {
+        path.relative_to(spine_root).as_posix(): hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
+        for path in sorted(spine_root.rglob("*.md"))
+        if path.is_file()
+    }
 
 
 def atomic_write(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(
-        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
     )
-    temporary_path = Path(temporary)
+    temporary_path = Path(temporary_name)
     try:
-        os.fchmod(descriptor, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            json.dump(value, stream, indent=2, sort_keys=True, ensure_ascii=False)
-            stream.write("\n")
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(canonical_json(value) + b"\n")
             stream.flush()
             os.fsync(stream.fileno())
+        os.chmod(temporary_path, 0o600)
         os.replace(temporary_path, path)
-        directory = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory)
-        finally:
-            os.close(directory)
-    except BaseException:
+    finally:
         temporary_path.unlink(missing_ok=True)
-        raise
+
+
+def load(path: Path) -> dict[str, Any]:
+    ledger = read_json(path)
+    if ledger.get("schema_version") != SCHEMA_VERSION:
+        raise CampaignError(
+            f"unsupported campaign schema: {ledger.get('schema_version')!r}; "
+            f"expected {SCHEMA_VERSION}"
+        )
+    if not isinstance(ledger.get("tasks"), dict):
+        raise CampaignError("campaign tasks are missing")
+    return ledger
 
 
 @contextlib.contextmanager
-def locked(path: Path) -> Iterator[None]:
+def locked_ledger(path: Path) -> Iterator[dict[str, Any]]:
     path.parent.mkdir(parents=True, exist_ok=True)
-    lock_path = path.with_name(path.name + ".lock")
-    descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
-    try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX)
-        yield
-    finally:
-        fcntl.flock(descriptor, fcntl.LOCK_UN)
-        os.close(descriptor)
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    with lock_path.open("a+", encoding="utf-8") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        ledger = load(path)
+        yield ledger
 
 
-def save(path: Path, ledger: dict[str, Any]) -> None:
-    ledger["revision"] = int(ledger.get("revision", 0)) + 1
+def save_locked(path: Path, ledger: dict[str, Any]) -> None:
+    ledger["revision"] += 1
     atomic_write(path, ledger)
 
 
-def new_branch(
-    branch_id: str,
-    parent: str | None,
-    question: str,
-    *,
-    state: str = "queued",
-    **extra: Any,
-) -> dict[str, Any]:
+def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
+    task_id = validate_id(raw.get("id"))
+    question = raw.get("question")
+    reason = raw.get("reason")
+    if not isinstance(question, str) or not question.strip():
+        raise CampaignError(f"ToDo {task_id} needs a question")
+    if not isinstance(reason, str) or not reason.strip():
+        raise CampaignError(f"ToDo {task_id} needs a reason")
+    evidence = string_list(raw.get("evidence", []), f"ToDo {task_id} evidence")
+    documents = [
+        validate_relative_path(value)
+        for value in string_list(
+            raw.get("documents", []),
+            f"ToDo {task_id} documents",
+        )
+    ]
+    excludes = string_list(raw.get("excludes", []), f"ToDo {task_id} excludes")
+    anchor = raw.get("anchor")
+    if anchor is not None:
+        if not isinstance(anchor, dict):
+            raise CampaignError(f"ToDo {task_id} anchor must be an object")
+        document = validate_relative_path(anchor.get("document"))
+        location = anchor.get("location")
+        known = anchor.get("known")
+        if (
+            not isinstance(location, str)
+            or not location.strip()
+            or not isinstance(known, str)
+            or not known.strip()
+        ):
+            raise CampaignError(
+                f"ToDo {task_id} anchor needs nonempty location and known"
+            )
+        anchor = {
+            "document": document,
+            "location": location,
+            "known": known,
+        }
     return {
-        "id": branch_id,
-        "parent": parent,
-        "question": question,
-        "state": state,
+        "id": task_id,
+        "question": question.strip(),
+        "reason": reason.strip(),
+        "origin": source,
+        "evidence": evidence,
+        "documents": documents,
+        "excludes": excludes,
+        "anchor": anchor,
+        "state": "todo",
         "owner": None,
-        "terminal_reason": None,
+        "attempts": 0,
         "published": [],
-        **extra,
+        "checkpoint_digest": None,
+        "producer_suggestions": [],
+        "suggestion_reviews": {},
+        "terminal_reason": None,
     }
 
 
-def require_branch(ledger: dict[str, Any], branch_id: str) -> dict[str, Any]:
+def task_definition(task: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: task.get(key)
+        for key in (
+            "id",
+            "question",
+            "reason",
+            "origin",
+            "evidence",
+            "documents",
+            "excludes",
+            "anchor",
+        )
+    }
+
+
+def task_semantics(task: dict[str, Any]) -> dict[str, Any]:
+    definition = task_definition(task)
+    definition.pop("origin", None)
+    return definition
+
+
+def add_tasks(
+    ledger: dict[str, Any],
+    raw_tasks: list[Any],
+    *,
+    source: str,
+) -> list[str]:
+    added: list[str] = []
+    for raw in raw_tasks:
+        if not isinstance(raw, dict):
+            raise CampaignError("each ToDo entry must be an object")
+        task = new_task(raw, source=source)
+        existing = ledger["tasks"].get(task["id"])
+        if existing is not None:
+            if task_semantics(existing) != task_semantics(task):
+                raise CampaignError(f"conflicting ToDo ID: {task['id']}")
+            continue
+        ledger["tasks"][task["id"]] = task
+        added.append(task["id"])
+    return added
+
+
+def require_task(ledger: dict[str, Any], task_id: str) -> dict[str, Any]:
+    task_id = validate_id(task_id)
     try:
-        return ledger["branches"][branch_id]
+        task = ledger["tasks"][task_id]
     except KeyError as error:
-        raise CampaignError(f"unknown branch: {branch_id}") from error
+        raise CampaignError(f"unknown ToDo: {task_id}") from error
+    if task.get("state") not in TASK_STATES:
+        raise CampaignError(f"invalid ToDo state: {task_id}")
+    return task
 
 
-def affinity_domain(ledger: dict[str, Any], branch_id: str) -> str:
-    root = ledger["root"]
-    current = require_branch(ledger, branch_id)
-    while current.get("parent") not in {None, root}:
-        current = require_branch(ledger, current["parent"])
-    return current["id"]
+def repository_unit(relative_path: Path) -> str:
+    parts = relative_path.parts
+    if len(parts) == 1:
+        return parts[0]
+    first = parts[0]
+    if first in COLLAPSED_DIRECTORIES:
+        return first
+    if len(parts) >= 4 and parts[:3] == ("public", "app", "features"):
+        return Path(*parts[:4]).as_posix()
+    if (
+        len(parts) >= 3
+        and first == "pkg"
+        and parts[1]
+        in {
+            "api",
+            "cmd",
+            "infra",
+            "plugins",
+            "registry",
+            "services",
+            "storage",
+            "tsdb",
+        }
+    ):
+        return Path(*parts[:3]).as_posix()
+    if first in {
+        "apps",
+        "cmd",
+        "internal",
+        "kinds",
+        "lib",
+        "modules",
+        "packages",
+        "plugins",
+        "services",
+        "src",
+    }:
+        return Path(*parts[:2]).as_posix()
+    return first
 
 
-def mutate(path: Path, action) -> dict[str, Any]:
-    with locked(path):
-        ledger = load(path)
-        changed = action(ledger)
-        if changed:
-            save(path, ledger)
-        return ledger
+def repository_inventory(
+    repository_root: Path,
+    *,
+    spine_root: Path | None = None,
+) -> dict[str, Any]:
+    root = repository_root.resolve()
+    if not root.is_dir():
+        raise CampaignError(f"repository root is not a directory: {root}")
+    excluded_spine: Path | None = None
+    if spine_root is not None:
+        resolved_spine = spine_root.resolve()
+        try:
+            resolved_spine.relative_to(root)
+        except ValueError:
+            pass
+        else:
+            excluded_spine = resolved_spine
+
+    units: dict[str, dict[str, Any]] = {}
+    snapshot = hashlib.sha256()
+    for directory, names, files in os.walk(root):
+        current = Path(directory)
+        names.sort()
+        files.sort()
+        if excluded_spine is not None and (
+            current == excluded_spine or excluded_spine in current.parents
+        ):
+            names[:] = []
+            continue
+        relative_directory = current.relative_to(root)
+        if relative_directory.parts and relative_directory.parts[0] == ".git":
+            names[:] = []
+            continue
+        collapsed = [
+            name for name in names if name in COLLAPSED_DIRECTORIES and name != ".git"
+        ]
+        for name in collapsed:
+            area_path = (relative_directory / name).as_posix()
+            stat = (current / name).stat()
+            snapshot.update(
+                f"D\0{area_path}\0{stat.st_size}\0{stat.st_mtime_ns}\n".encode()
+            )
+            area = repository_unit(Path(area_path))
+            record = units.setdefault(area, {"area": area, "files": 0, "samples": []})
+            record["samples"].append(area_path + "/")
+            names.remove(name)
+        for filename in files:
+            path = relative_directory / filename
+            source = current / filename
+            snapshot.update(f"F\0{path.as_posix()}\0".encode())
+            with source.open("rb") as stream:
+                while chunk := stream.read(1024 * 1024):
+                    snapshot.update(chunk)
+            snapshot.update(b"\n")
+            area = repository_unit(path)
+            record = units.setdefault(area, {"area": area, "files": 0, "samples": []})
+            record["files"] += 1
+            if len(record["samples"]) < 5:
+                record["samples"].append(path.as_posix())
+    inventory = sorted(units.values(), key=lambda value: value["area"])
+    return {
+        "repository_root": str(root),
+        "areas": inventory,
+        "digest": snapshot.hexdigest(),
+        "shape_digest": digest_json(inventory),
+    }
+
+
+def validate_document_inventory(
+    spine_root: Path,
+    inspected: Any,
+    *,
+    field: str,
+) -> dict[str, str]:
+    documents = document_hashes(spine_root)
+    paths = {
+        validate_relative_path(value)
+        for value in string_list(inspected, field, nonempty=True)
+    }
+    if paths != set(documents):
+        raise CampaignError(
+            f"{field} must equal every live Markdown document; "
+            f"missing={sorted(set(documents) - paths)}, "
+            f"unknown={sorted(paths - set(documents))}"
+        )
+    return documents
+
+
+def validate_empty_reason(
+    todo: list[Any],
+    terminal_reason: Any,
+    *,
+    prefix: str,
+) -> None:
+    if todo:
+        if terminal_reason is not None:
+            raise CampaignError("terminal_reason must be null when ToDo is nonempty")
+    elif (
+        not isinstance(terminal_reason, str)
+        or not terminal_reason.startswith(prefix)
+    ):
+        raise CampaignError(f"empty ToDo requires '{prefix}<reason>'")
 
 
 def command_init(args: argparse.Namespace) -> dict[str, Any]:
-    with locked(args.ledger):
-        if args.ledger.exists():
-            raise CampaignError(f"campaign already exists: {args.ledger}")
-        ledger = {
-            "schema_version": SCHEMA_VERSION,
-            "campaign_id": str(uuid.uuid4()),
-            "revision": 1,
-            "frontier_epoch": 0,
-            "discovery_pass": None,
-            "documentation_pass": None,
-            "integration_pass": None,
-            "spine_state": args.spine_state,
-            "documentation_plan": None,
-            "scope": args.scope,
-            "root": "root",
-            "branches": {
-                "root": new_branch(
-                    "root",
-                    None,
-                    args.root_question,
-                    state="active",
-                    origin="operator",
-                )
-            },
-        }
-        atomic_write(args.ledger, ledger)
-        return ledger
-
-
-def validate_documentation_plan(
-    spine_root_value: Path, plan_value: Path
-) -> tuple[
-    dict[str, Any], dict[str, Path], list[dict[str, Any]], str | None
-]:
-    plan = read_json(plan_value)
-    spine_root = spine_root_value.resolve()
-    if not spine_root.is_dir():
-        raise CampaignError(f"Spine root is not a directory: {spine_root_value}")
-    markdown = {
-        path.relative_to(spine_root).as_posix(): path
-        for path in spine_root.rglob("*.md")
-        if path.is_file()
+    if args.ledger.exists():
+        raise CampaignError(f"campaign already exists: {args.ledger}")
+    ledger = {
+        "schema_version": SCHEMA_VERSION,
+        "campaign_id": str(uuid.uuid4()),
+        "revision": 0,
+        "scope": args.scope,
+        "root_question": args.root_question,
+        "spine_state": args.spine_state,
+        "tasks": {},
+        "used_producers": {},
+        "publication_epoch": 0,
+        "publication_history": [],
+        "documentation_seed": None,
+        "source_pass": None,
+        "integration_pass": None,
     }
-    inspected = plan.get("evidence_inspected")
-    if (
-        not isinstance(inspected, list)
-        or not inspected
-        or any(not isinstance(value, str) for value in inspected)
-    ):
-        raise CampaignError("documentation plan needs nonempty evidence_inspected")
-    inspected_paths = {validate_path(value) for value in inspected}
-    if inspected_paths != set(markdown):
-        missing = sorted(set(markdown) - inspected_paths)
-        unknown = sorted(inspected_paths - set(markdown))
-        raise CampaignError(
-            "documentation plan does not cover the live Spine; "
-            f"missing={missing}, unknown={unknown}"
-        )
-    directions = plan.get("directions")
-    if not isinstance(directions, list):
-        raise CampaignError("documentation plan directions must be a list")
-    terminal_reason = plan.get("terminal_reason")
-    if not directions and (
-        not isinstance(terminal_reason, str)
-        or not terminal_reason.startswith("no documentation-derived direction: ")
-    ):
-        raise CampaignError(
-            "an empty documentation plan needs "
-            "'no documentation-derived direction: <reason>'"
-        )
-
-    normalized: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for raw in directions:
-        if not isinstance(raw, dict):
-            raise CampaignError("documentation direction must be an object")
-        branch_id = validate_id(raw.get("id", ""))
-        if branch_id in seen:
-            raise CampaignError(f"duplicate documentation direction: {branch_id}")
-        seen.add(branch_id)
-        question = raw.get("question")
-        documents = raw.get("documents")
-        signals = raw.get("signals")
-        depth = raw.get("depth")
-        if not isinstance(question, str) or not question.strip():
-            raise CampaignError(f"direction {branch_id} needs a question")
-        if (
-            not isinstance(documents, list)
-            or not documents
-            or any(not isinstance(value, str) for value in documents)
-        ):
-            raise CampaignError(f"direction {branch_id} needs owner documents")
-        owner_documents = [validate_path(value) for value in documents]
-        unknown_documents = sorted(set(owner_documents) - set(markdown))
-        if unknown_documents:
-            raise CampaignError(
-                f"direction {branch_id} has unknown documents: {unknown_documents}"
-            )
-        if not isinstance(signals, list) or not signals:
-            raise CampaignError(f"direction {branch_id} needs gap signals")
-        normalized_signals: list[dict[str, str]] = []
-        for signal in signals:
-            if not isinstance(signal, dict):
-                raise CampaignError(f"direction {branch_id} signal must be an object")
-            kind = signal.get("type")
-            detail = signal.get("detail")
-            if kind not in DOCUMENTATION_SIGNALS:
-                raise CampaignError(
-                    f"direction {branch_id} has invalid signal type: {kind!r}"
-                )
-            if not isinstance(detail, str) or not detail.strip():
-                raise CampaignError(
-                    f"direction {branch_id} signal needs nonempty detail"
-                )
-            normalized_signals.append({"type": kind, "detail": detail})
-        if not isinstance(depth, dict):
-            raise CampaignError(
-                f"direction {branch_id} needs a documentation depth witness"
-            )
-        anchor_document = depth.get("anchor_document")
-        anchor = depth.get("anchor")
-        known = depth.get("known")
-        unknown = depth.get("unknown")
-        completion_evidence = depth.get("completion_evidence")
-        excludes = depth.get("excludes")
-        if not isinstance(anchor_document, str):
-            raise CampaignError(
-                f"direction {branch_id} depth needs anchor_document"
-            )
-        anchor_document = validate_path(anchor_document)
-        if anchor_document not in owner_documents:
-            raise CampaignError(
-                f"direction {branch_id} depth anchor must be one of its owner documents"
-            )
-        for field_name, value in (
-            ("anchor", anchor),
-            ("known", known),
-            ("unknown", unknown),
-            ("completion_evidence", completion_evidence),
-        ):
-            if not isinstance(value, str) or not value.strip():
-                raise CampaignError(
-                    f"direction {branch_id} depth needs nonempty {field_name}"
-                )
-        if known.strip() == unknown.strip():
-            raise CampaignError(
-                f"direction {branch_id} depth known and unknown must differ"
-            )
-        if question.strip() != unknown.strip():
-            raise CampaignError(
-                f"direction {branch_id} question must equal its narrower depth unknown"
-            )
-        if (
-            not isinstance(excludes, list)
-            or not excludes
-            or any(not isinstance(value, str) or not value.strip() for value in excludes)
-        ):
-            raise CampaignError(
-                f"direction {branch_id} depth needs nonempty excludes"
-            )
-        normalized.append(
-            {
-                "id": branch_id,
-                "question": question,
-                "documents": owner_documents,
-                "signals": normalized_signals,
-                "depth": {
-                    "anchor_document": anchor_document,
-                    "anchor": anchor.strip(),
-                    "known": known.strip(),
-                    "unknown": unknown.strip(),
-                    "completion_evidence": completion_evidence.strip(),
-                    "excludes": [value.strip() for value in excludes],
-                },
-            }
-        )
-    return plan, markdown, normalized, terminal_reason
-
-
-def documentation_snapshot(
-    plan: dict[str, Any],
-    markdown: dict[str, Path],
-    directions: list[dict[str, Any]],
-    terminal_reason: str | None,
-) -> dict[str, Any]:
-    return {
-        "digest": hashlib.sha256(
-            json.dumps(plan, sort_keys=True, ensure_ascii=False).encode("utf-8")
-        ).hexdigest(),
-        "documents": {
-            relative: hashlib.sha256(path.read_bytes()).hexdigest()
-            for relative, path in sorted(markdown.items())
-        },
-        "directions": directions,
-        "terminal_reason": terminal_reason,
-    }
+    atomic_write(args.ledger, ledger)
+    return ledger
 
 
 def command_seed_from_spine(args: argparse.Namespace) -> dict[str, Any]:
-    plan, markdown, normalized, terminal_reason = validate_documentation_plan(
-        args.spine_root, args.plan
+    plan = read_json(args.plan)
+    documents = validate_document_inventory(
+        args.spine_root.resolve(),
+        plan.get("evidence_inspected"),
+        field="documentation seed evidence_inspected",
     )
-
-    def action(ledger: dict[str, Any]) -> bool:
-        if ledger.get("spine_state") != "existing":
+    raw_todo = plan.get("todo")
+    if not isinstance(raw_todo, list):
+        raise CampaignError("documentation seed todo must be a list")
+    validate_empty_reason(
+        raw_todo,
+        plan.get("terminal_reason"),
+        prefix="no documentation-derived ToDo: ",
+    )
+    with locked_ledger(args.ledger) as ledger:
+        if ledger["spine_state"] != "existing":
             raise CampaignError("seed-from-spine requires --spine-state existing")
-        if ledger.get("documentation_plan") is not None:
-            raise CampaignError("documentation plan is already recorded")
-        if set(ledger["branches"]) != {ledger["root"]}:
-            raise CampaignError(
-                "documentation plan must be recorded before other branches"
-            )
-        root = require_branch(ledger, ledger["root"])
-        if root["state"] != "active":
-            raise CampaignError("root branch is not active")
-        for direction in normalized:
-            ledger["branches"][direction["id"]] = new_branch(
-                direction["id"],
-                ledger["root"],
-                direction["question"],
-                origin="existing Spine: " + ", ".join(direction["documents"]),
-                namespace=None,
-                prerequisite=None,
-                resolution=None,
-                document=None,
-                plan_origin="existing_spine",
-                plan_documents=direction["documents"],
-                plan_signals=direction["signals"],
-                plan_depth=direction["depth"],
-            )
-        ledger["documentation_plan"] = documentation_snapshot(
-            plan, markdown, normalized, terminal_reason
+        if ledger["documentation_seed"] is not None:
+            raise CampaignError("documentation seed already exists")
+        added = add_tasks(
+            ledger,
+            raw_todo,
+            source="documentation-seed",
         )
-        ledger["frontier_epoch"] = int(ledger.get("frontier_epoch", 0)) + len(
-            normalized
-        )
-        return True
+        ledger["documentation_seed"] = {
+            "documents": documents,
+            "todo": added,
+            "terminal_reason": plan.get("terminal_reason"),
+        }
+        save_locked(args.ledger, ledger)
+        return {
+            "status": "seeded",
+            "campaign_id": ledger["campaign_id"],
+            "documents": len(documents),
+            "added_todo": added,
+            "revision": ledger["revision"],
+        }
 
-    ledger = mutate(args.ledger, action)
-    return {
-        "status": "seeded",
-        "campaign_id": ledger.get("campaign_id"),
-        "documents": len(markdown),
-        "directions": [value["id"] for value in normalized],
-        "revision": ledger["revision"],
-    }
 
-
-def command_documentation_pass(args: argparse.Namespace) -> dict[str, Any]:
-    plan, markdown, normalized, terminal_reason = validate_documentation_plan(
-        args.spine_root, args.plan
+def command_inventory(args: argparse.Namespace) -> dict[str, Any]:
+    return repository_inventory(
+        args.repository_root,
+        spine_root=args.spine_root,
     )
 
-    def action(ledger: dict[str, Any]) -> bool:
-        unfinished = sorted(
-            item["id"]
-            for item in ledger["branches"].values()
-            if item["id"] != ledger["root"] and item["state"] != "complete"
-        )
-        if unfinished:
-            raise CampaignError(
-                "documentation pass requires all producer branches complete: "
-                + ", ".join(unfinished)
-            )
-        if (
-            ledger.get("spine_state") == "existing"
-            and ledger.get("documentation_plan") is None
-        ):
-            raise CampaignError("initial seed-from-spine plan is missing")
-        snapshot = documentation_snapshot(
-            plan, markdown, normalized, terminal_reason
-        )
-        ledger.setdefault("documentation_review_history", []).append(
-            {
-                "frontier_epoch": ledger["frontier_epoch"],
-                **snapshot,
-            }
-        )
-        if normalized:
-            for direction in normalized:
-                if direction["id"] in ledger["branches"]:
-                    raise CampaignError(
-                        "documentation review direction must use a new branch id: "
-                        + direction["id"]
-                    )
-                ledger["branches"][direction["id"]] = new_branch(
-                    direction["id"],
-                    ledger["root"],
-                    direction["question"],
-                    origin="final Spine review: "
-                    + ", ".join(direction["documents"]),
-                    namespace=None,
-                    prerequisite=None,
-                    resolution=None,
-                    document=None,
-                    plan_origin="documentation_review",
-                    plan_documents=direction["documents"],
-                    plan_signals=direction["signals"],
-                    plan_depth=direction["depth"],
-                )
-            ledger["frontier_epoch"] += len(normalized)
-            ledger["discovery_pass"] = None
-            ledger["documentation_pass"] = None
-            ledger["integration_pass"] = None
-        else:
-            ledger["documentation_pass"] = {
-                "frontier_epoch": ledger["frontier_epoch"],
-                **snapshot,
-            }
-        return True
 
-    ledger = mutate(args.ledger, action)
-    return {
-        "status": "gaps_found" if normalized else "no_gaps",
-        "campaign_id": ledger.get("campaign_id"),
-        "documents": len(markdown),
-        "directions": [value["id"] for value in normalized],
-        "revision": ledger["revision"],
+def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
+    report = read_json(args.report)
+    inventory = repository_inventory(
+        args.repository_root,
+        spine_root=args.spine_root,
+    )
+    rows = report.get("inventory")
+    if not isinstance(rows, list):
+        raise CampaignError("source pass inventory must be a list")
+    normalized: dict[str, dict[str, Any]] = {}
+    raw_todo = report.get("todo")
+    if not isinstance(raw_todo, list):
+        raise CampaignError("source pass todo must be a list")
+    todo_ids = {
+        validate_id(value.get("id"))
+        for value in raw_todo
+        if isinstance(value, dict)
     }
-
-
-def command_add(args: argparse.Namespace, *, documented: bool = False) -> dict[str, Any]:
-    def action(ledger: dict[str, Any]) -> bool:
-        if (
-            ledger.get("spine_state") == "existing"
-            and ledger.get("documentation_plan") is None
-        ):
+    if len(todo_ids) != len(raw_todo):
+        raise CampaignError("source pass todo contains invalid or duplicate IDs")
+    live_documents = document_hashes(args.spine_root.resolve())
+    for row in rows:
+        if not isinstance(row, dict):
+            raise CampaignError("source inventory classification must be an object")
+        area = row.get("area")
+        classification = row.get("classification")
+        reason = row.get("reason")
+        if not isinstance(area, str) or not area:
+            raise CampaignError("source inventory classification needs area")
+        if area in normalized:
+            raise CampaignError(f"duplicate source inventory area: {area}")
+        if classification not in SOURCE_CLASSIFICATIONS:
             raise CampaignError(
-                "record the documentation-first frontier with seed-from-spine "
-                "before adding source-derived branches"
+                f"invalid source classification for {area}: {classification!r}"
             )
-        if documented and any(
-            branch.get("published")
-            or (
-                branch["id"] != ledger["root"]
-                and branch.get("state") in {"active", "locally_saturated", "blocked"}
-            )
-            for branch in ledger["branches"].values()
-        ):
-            raise CampaignError(
-                "documented seeding is allowed only before assignment or publication"
-            )
-        branch_id = validate_id(args.id)
-        parent = require_branch(ledger, args.parent)
-        if parent["state"] not in {"queued", "active"}:
-            raise CampaignError(f"parent is not open: {args.parent}")
-        if args.prerequisite:
-            require_branch(ledger, args.prerequisite)
-        candidate = new_branch(
-            branch_id,
-            args.parent,
-            args.question,
-            state="complete" if documented else "queued",
-            origin=args.origin,
-            namespace=args.namespace,
-            prerequisite=args.prerequisite,
-            resolution="already_documented" if documented else None,
-            document=args.document if documented else None,
+        if not isinstance(reason, str) or not reason.strip():
+            raise CampaignError(f"source inventory area needs reason: {area}")
+        owner = row.get("owner_document")
+        task = row.get("task")
+        if classification in OWNER_CLASSIFICATIONS:
+            owner = validate_relative_path(owner)
+            if owner not in live_documents:
+                raise CampaignError(f"unknown owner document for {area}: {owner}")
+            if task is not None:
+                raise CampaignError(f"owned source area must not name a task: {area}")
+        elif classification == "queued":
+            task = validate_id(task)
+            if task not in todo_ids:
+                raise CampaignError(f"queued source area has no matching ToDo: {area}")
+            if owner is not None:
+                raise CampaignError(f"queued source area must not claim an owner: {area}")
+        else:
+            if owner is not None or task is not None:
+                raise CampaignError(
+                    f"terminal source classification cannot name owner/task: {area}"
+                )
+        normalized[area] = {
+            "classification": classification,
+            "reason": reason.strip(),
+            "owner_document": owner,
+            "task": task,
+        }
+    expected_areas = {value["area"] for value in inventory["areas"]}
+    if set(normalized) != expected_areas:
+        raise CampaignError(
+            "source pass must classify every deterministic inventory area; "
+            f"missing={sorted(expected_areas - set(normalized))}, "
+            f"unknown={sorted(set(normalized) - expected_areas)}"
         )
-        existing = ledger["branches"].get(branch_id)
-        if existing is not None:
-            if existing != candidate:
-                raise CampaignError(f"conflicting branch id: {branch_id}")
-            return False
-        ledger["branches"][branch_id] = candidate
-        validate_dependency_graph(ledger)
-        ledger["frontier_epoch"] += 1
-        ledger["discovery_pass"] = None
-        ledger["documentation_pass"] = None
-        ledger["integration_pass"] = None
-        return True
+    validate_empty_reason(
+        raw_todo,
+        report.get("terminal_reason"),
+        prefix="no source-derived ToDo: ",
+    )
+    with locked_ledger(args.ledger) as ledger:
+        if ledger["spine_state"] == "existing" and ledger["documentation_seed"] is None:
+            raise CampaignError("seed-from-spine is required before source-pass")
+        added = add_tasks(ledger, raw_todo, source="source-pass")
+        ledger["source_pass"] = {
+            "repository_root": str(args.repository_root.resolve()),
+            "spine_root": str(args.spine_root.resolve()),
+            "inventory_digest": inventory["digest"],
+            "inventory": normalized,
+            "todo": added,
+            "terminal_reason": report.get("terminal_reason"),
+            "publication_epoch": ledger["publication_epoch"],
+        }
+        save_locked(args.ledger, ledger)
+        return {
+            "status": "recorded",
+            "areas": len(normalized),
+            "added_todo": added,
+            "revision": ledger["revision"],
+        }
 
-    return mutate(args.ledger, action)
+
+def command_todo_add(args: argparse.Namespace) -> dict[str, Any]:
+    raw = {
+        "id": args.id,
+        "question": args.question,
+        "reason": args.reason,
+        "evidence": args.evidence,
+        "documents": args.document,
+        "excludes": args.exclude,
+    }
+    with locked_ledger(args.ledger) as ledger:
+        added = add_tasks(ledger, [raw], source=args.origin)
+        if added:
+            ledger["integration_pass"] = None
+        save_locked(args.ledger, ledger)
+        return {
+            "status": "added" if added else "already-present",
+            "added_todo": added,
+            "revision": ledger["revision"],
+        }
+
+
+def command_todo(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    tasks = [
+        task_definition(task)
+        | {
+            "state": task["state"],
+            "attempts": task["attempts"],
+            "terminal_reason": task["terminal_reason"],
+        }
+        for task in sorted(ledger["tasks"].values(), key=lambda value: value["id"])
+        if args.all or task["state"] in {"todo", "assigned", "published", "blocked"}
+    ]
+    return {"campaign_id": ledger["campaign_id"], "todo": tasks}
+
+
+def command_ready(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    return {
+        "campaign_id": ledger["campaign_id"],
+        "ready": [
+            task["id"]
+            for task in sorted(ledger["tasks"].values(), key=lambda value: value["id"])
+            if task["state"] == "todo"
+        ],
+    }
 
 
 def command_assign(args: argparse.Namespace) -> dict[str, Any]:
-    def action(ledger: dict[str, Any]) -> bool:
-        if (
-            ledger.get("spine_state") == "existing"
-            and ledger.get("documentation_plan") is None
-            and args.id != ledger["root"]
-        ):
+    with locked_ledger(args.ledger) as ledger:
+        task = require_task(ledger, args.id)
+        if task["state"] != "todo":
+            raise CampaignError(f"assign requires todo state: {args.id}")
+        if args.owner in ledger["used_producers"]:
+            previous = ledger["used_producers"][args.owner]
             raise CampaignError(
-                "record the documentation-first frontier with seed-from-spine "
-                "before assigning producers"
+                f"one producer may run only one task: {args.owner} already ran {previous}"
             )
-        item = require_branch(ledger, args.id)
-        if item["state"] != "queued":
-            raise CampaignError(f"assign requires queued state: {args.id}")
-        if not args.owner.strip():
-            raise CampaignError("owner must not be empty")
-        active_for_owner = sorted(
-            branch["id"]
-            for branch in ledger["branches"].values()
-            if branch.get("owner") == args.owner
-            and branch["state"] == "active"
-            and branch["id"] != args.id
-        )
-        if active_for_owner:
-            raise CampaignError(
-                f"producer is still active on {active_for_owner}; "
-                "wait for its terminal checkpoint"
-            )
-        assignments = ledger.setdefault("producer_assignments", {})
-        previous_assignments = assignments.get(args.owner, [])
-        producer_seen = bool(previous_assignments) or args.owner in ledger.get(
-            "producer_affinity", {}
-        )
-        if (
-            producer_seen
-            and args.id not in previous_assignments
-            and item.get("discovered_by_owner") != args.owner
-        ):
-            raise CampaignError(
-                f"fresh producer required for {args.id}: {args.owner} did not "
-                "discover this branch in its own checkpoint"
-            )
-        domain = affinity_domain(ledger, args.id)
-        affinity = ledger.setdefault("producer_affinity", {})
-        previous = affinity.get(args.owner)
-        if previous is not None and previous != domain:
-            raise CampaignError(
-                f"producer affinity violation: {args.owner} owns {previous}, "
-                f"cannot assign {domain}"
-            )
-        affinity[args.owner] = domain
-        if args.id not in previous_assignments:
-            assignments[args.owner] = [*previous_assignments, args.id]
-        item["state"] = "active"
-        item["owner"] = args.owner
-        return True
-
-    return mutate(args.ledger, action)
+        task["state"] = "assigned"
+        task["owner"] = args.owner
+        task["attempts"] += 1
+        ledger["used_producers"][args.owner] = task["id"]
+        save_locked(args.ledger, ledger)
+        return {
+            "status": "assigned",
+            "task": task_definition(task),
+            "owner": args.owner,
+            "revision": ledger["revision"],
+        }
 
 
 def command_release(args: argparse.Namespace) -> dict[str, Any]:
-    def action(ledger: dict[str, Any]) -> bool:
-        item = require_branch(ledger, args.id)
-        if item["state"] not in {"active", "blocked"}:
-            raise CampaignError(f"release requires active or blocked state: {args.id}")
-        item["state"] = "queued"
-        item["owner"] = None
-        item["terminal_reason"] = None
-        return True
-
-    return mutate(args.ledger, action)
-
-
-def command_block(args: argparse.Namespace) -> dict[str, Any]:
-    def action(ledger: dict[str, Any]) -> bool:
-        item = require_branch(ledger, args.id)
-        if item["state"] not in {"queued", "active"}:
-            raise CampaignError(f"block requires queued or active state: {args.id}")
-        item["state"] = "blocked"
-        item["owner"] = None
-        item["terminal_reason"] = args.reason
-        return True
-
-    return mutate(args.ledger, action)
+    with locked_ledger(args.ledger) as ledger:
+        task = require_task(ledger, args.id)
+        if task["state"] != "assigned":
+            raise CampaignError(f"release requires assigned state: {args.id}")
+        task["state"] = "todo"
+        task["owner"] = None
+        save_locked(args.ledger, ledger)
+        return {
+            "status": "released",
+            "task": args.id,
+            "revision": ledger["revision"],
+        }
 
 
 def candidate_files(root: Path) -> dict[str, Path]:
@@ -657,541 +714,286 @@ def candidate_files(root: Path) -> dict[str, Path]:
     result: dict[str, Path] = {}
     for path in root.rglob("*"):
         if path.is_symlink():
-            raise CampaignError(f"staging contains a symbolic link: {path}")
+            raise CampaignError(f"staging contains symbolic link: {path}")
         if path.is_file():
             result[path.relative_to(root).as_posix()] = path
     return result
 
 
-def validate_quality_gate(raw: dict[str, Any], *, terminal: bool) -> None:
-    quality = raw.get("quality_gate")
-    if not isinstance(quality, dict) or set(quality) != QUALITY_GATES:
-        raise CampaignError(
-            "checkpoint quality_gate requires exactly: "
-            + ", ".join(sorted(QUALITY_GATES))
-        )
-    gaps: list[str] = []
-    for name in sorted(QUALITY_GATES):
-        value = quality[name]
-        if not isinstance(value, dict) or set(value) != {"status", "reason"}:
-            raise CampaignError(
-                f"quality gate {name} requires only status and reason"
-            )
-        if value["status"] not in QUALITY_STATUSES:
-            raise CampaignError(
-                f"invalid quality gate status for {name}: {value['status']!r}"
-            )
-        if not isinstance(value["reason"], str) or not value["reason"].strip():
-            raise CampaignError(f"quality gate reason is missing: {name}")
-        if value["status"] == "gap":
-            gaps.append(name)
-    if terminal and gaps:
-        raise CampaignError(
-            "terminal checkpoint has unresolved quality gaps: "
-            + ", ".join(gaps)
-        )
-
-
-def validate_source_coverage(raw: dict[str, Any]) -> None:
-    coverage = raw.get("source_coverage")
-    if not isinstance(coverage, list) or not coverage:
-        raise CampaignError("checkpoint source_coverage must be a nonempty list")
-    for index, value in enumerate(coverage):
+def validate_suggestions(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        raise CampaignError("discovered_directions must be a list")
+    suggestions: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for value in raw:
         if not isinstance(value, dict):
-            raise CampaignError(f"source_coverage[{index}] must be an object")
-        area = value.get("area", value.get("path"))
-        classification = value.get("classification")
-        reason = value.get("reason", value.get("coverage"))
-        if not isinstance(area, str) or not area.strip():
-            raise CampaignError(f"source_coverage[{index}] area/path is missing")
-        if classification not in SOURCE_CLASSIFICATIONS:
-            raise CampaignError(
-                f"invalid source classification at {area}: {classification!r}"
-            )
-        if not isinstance(reason, str) or not reason.strip():
-            raise CampaignError(f"source_coverage reason is missing: {area}")
+            raise CampaignError("discovered direction must be an object")
+        suggestion = new_task(value, source="producer-suggestion")
+        if suggestion["id"] in seen:
+            raise CampaignError(f"duplicate discovered direction: {suggestion['id']}")
+        seen.add(suggestion["id"])
+        suggestions.append(task_definition(suggestion))
+    return suggestions
 
 
 def validate_checkpoint(
-    raw: dict[str, Any], staging: dict[str, Path]
-) -> tuple[str, list[dict[str, str]], list[dict[str, Any]], str | None]:
+    raw: dict[str, Any],
+    staging: dict[str, Path],
+) -> tuple[str, list[dict[str, str]], list[dict[str, Any]]]:
     status = raw.get("status")
-    if status not in {
-        "continuing",
-        "publish_and_locally_saturate",
-        "locally_saturated",
-        "blocked",
-    }:
+    if status not in CHECKPOINT_STATUSES:
         raise CampaignError(f"invalid checkpoint status: {status!r}")
-    evidence = raw.get("evidence_inspected")
-    if not isinstance(evidence, list) or not evidence or not all(
-        isinstance(value, str) and value.strip() for value in evidence
-    ):
-        raise CampaignError("checkpoint evidence_inspected must be nonempty")
-    responsibilities = raw.get("mapped_responsibilities")
-    if not isinstance(responsibilities, list) or not responsibilities or not all(
-        isinstance(value, str) and value.strip() for value in responsibilities
-    ):
-        raise CampaignError("checkpoint mapped_responsibilities must be nonempty")
-    relationships = raw.get("relationships")
-    if not isinstance(relationships, list):
-        raise CampaignError("checkpoint relationships must be a list")
-    unresolved = raw.get("unresolved")
-    if not isinstance(unresolved, list):
-        raise CampaignError("checkpoint unresolved must be a list")
-    validate_source_coverage(raw)
+    string_list(
+        raw.get("evidence_inspected"),
+        "checkpoint evidence_inspected",
+        nonempty=True,
+    )
+    findings = string_list(raw.get("findings"), "checkpoint findings", nonempty=True)
+    if not findings:
+        raise CampaignError("checkpoint findings must be nonempty")
     raw_candidates = raw.get("candidates")
     if not isinstance(raw_candidates, list):
         raise CampaignError("checkpoint candidates must be a list")
     candidates: list[dict[str, str]] = []
     for value in raw_candidates:
         if not isinstance(value, dict) or set(value) != {"path", "operation"}:
-            raise CampaignError("each candidate requires only path and operation")
-        path = validate_path(value["path"])
+            raise CampaignError("candidate requires only path and operation")
+        path = validate_relative_path(value["path"])
         operation = value["operation"]
         if operation not in {"create", "replace"}:
             raise CampaignError(f"invalid candidate operation: {operation!r}")
         if path == "README.md":
             raise CampaignError("producer must not publish README.md")
         candidates.append({"path": path, "operation": operation})
-    paths = [item["path"] for item in candidates]
+    paths = [value["path"] for value in candidates]
     if len(paths) != len(set(paths)) or set(paths) != set(staging):
         raise CampaignError(
             f"checkpoint/staging paths differ: checkpoint={sorted(paths)}, "
             f"staging={sorted(staging)}"
         )
-    frontier = raw.get("coverage_frontier", [])
-    if not isinstance(frontier, list):
-        raise CampaignError("coverage_frontier must be a list")
-    inspected_evidence = set(evidence)
-    for value in frontier:
-        if not isinstance(value, dict):
-            raise CampaignError("coverage_frontier entries must be objects")
-        child_evidence = value.get("evidence")
-        if (
-            not isinstance(child_evidence, list)
-            or not child_evidence
-            or any(not isinstance(item, str) for item in child_evidence)
-        ):
-            raise CampaignError("coverage_frontier evidence must be nonempty")
-        if not set(child_evidence).issubset(inspected_evidence):
-            raise CampaignError(
-                "coverage_frontier may cite only evidence inspected by this producer"
-            )
+    if status == "draft_ready" and not candidates:
+        raise CampaignError("draft_ready requires at least one candidate")
+    if status != "draft_ready" and candidates:
+        raise CampaignError(f"{status} must not publish candidates")
+    suggestions = validate_suggestions(raw.get("discovered_directions", []))
+    if status != "draft_ready" and suggestions:
+        raise CampaignError(
+            f"{status} cannot emit discovered_directions without a draft to integrate"
+        )
     terminal_reason = raw.get("terminal_reason")
-    if candidates and status not in {
-        "continuing",
-        "publish_and_locally_saturate",
-    }:
-        raise CampaignError(
-            "candidate-bearing checkpoint must continue or publish-and-saturate"
+    required_evidence = raw.get("required_evidence", [])
+    if status == "no_architectural_value":
+        if (
+            not isinstance(terminal_reason, str)
+            or not terminal_reason.startswith("no architectural value: ")
+        ):
+            raise CampaignError(
+                "no_architectural_value requires "
+                "'no architectural value: <reason>'"
+            )
+    elif status == "needs_more_evidence":
+        string_list(
+            required_evidence,
+            "required_evidence",
+            nonempty=True,
         )
-    if not candidates and status == "continuing":
-        raise CampaignError("continuing checkpoint requires a candidate")
-    if status == "publish_and_locally_saturate" and not candidates:
-        raise CampaignError("publish-and-saturate checkpoint requires a candidate")
-    if status in {"locally_saturated", "publish_and_locally_saturate"} and (
-        not isinstance(terminal_reason, str)
-        or not TERMINAL_REASON.match(terminal_reason.strip())
-    ):
-        raise CampaignError(
-            "terminal saturation requires 'no useful node: <reason>'"
-        )
-    if status == "blocked" and (
-        not isinstance(terminal_reason, str) or not terminal_reason.strip()
-    ):
-        raise CampaignError("blocked checkpoint requires terminal_reason")
-    continuation = raw.get("continuation")
-    if status == "continuing" and (
-        not isinstance(continuation, str) or not continuation.strip()
-    ):
-        raise CampaignError("continuing checkpoint requires continuation")
-    if status != "continuing" and continuation is not None:
-        raise CampaignError("terminal checkpoint continuation must be null")
-    validate_quality_gate(
-        raw,
-        terminal=status in {
-            "locally_saturated",
-            "publish_and_locally_saturate",
-        },
-    )
-    return status, candidates, frontier, terminal_reason
+        if terminal_reason is not None:
+            raise CampaignError("needs_more_evidence terminal_reason must be null")
+    elif status == "blocked":
+        if not isinstance(terminal_reason, str) or not terminal_reason.strip():
+            raise CampaignError("blocked checkpoint needs terminal_reason")
+    elif terminal_reason is not None:
+        raise CampaignError("draft_ready terminal_reason must be null")
+    return status, candidates, suggestions
 
 
-def dependency_edges(ledger: dict[str, Any]) -> dict[str, set[str]]:
-    edges = {branch_id: set() for branch_id in ledger["branches"]}
-    for branch_id, item in ledger["branches"].items():
-        parent = item.get("parent")
-        if parent is not None:
-            if parent not in edges:
-                raise CampaignError(f"unknown parent for {branch_id}: {parent}")
-            edges[parent].add(branch_id)
-        prerequisite = item.get("prerequisite")
-        if prerequisite:
-            if prerequisite not in edges:
-                raise CampaignError(
-                    f"unknown prerequisite for {branch_id}: {prerequisite}"
-                )
-            edges[branch_id].add(prerequisite)
-    return edges
-
-
-def dependency_cycles(ledger: dict[str, Any]) -> list[list[str]]:
-    edges = dependency_edges(ledger)
-    state: dict[str, int] = {}
-    stack: list[str] = []
-    positions: dict[str, int] = {}
-    cycles: set[tuple[str, ...]] = set()
-
-    def canonical_cycle(values: list[str]) -> tuple[str, ...]:
-        body = values[:-1]
-        rotations = [tuple(body[index:] + body[:index]) for index in range(len(body))]
-        return min(rotations)
-
-    def visit(branch_id: str) -> None:
-        state[branch_id] = 1
-        positions[branch_id] = len(stack)
-        stack.append(branch_id)
-        for target in sorted(edges[branch_id]):
-            target_state = state.get(target, 0)
-            if target_state == 0:
-                visit(target)
-            elif target_state == 1:
-                cycle = stack[positions[target] :] + [target]
-                cycles.add(canonical_cycle(cycle))
-        stack.pop()
-        positions.pop(branch_id, None)
-        state[branch_id] = 2
-
-    for branch_id in sorted(edges):
-        if state.get(branch_id, 0) == 0:
-            visit(branch_id)
-    return [list(value) + [value[0]] for value in sorted(cycles)]
-
-
-def validate_dependency_graph(ledger: dict[str, Any]) -> None:
-    cycles = dependency_cycles(ledger)
-    if cycles:
-        rendered = [" -> ".join(value) for value in cycles]
-        raise CampaignError("campaign dependency cycle: " + "; ".join(rendered))
-
-
-def run_checker(
-    checker: Path,
-    spine: Path,
-    *,
-    staging: Path | None = None,
-    replacements: list[str] | None = None,
-    ignored: set[str] | None = None,
-) -> None:
-    command = [sys.executable, str(checker), str(spine)]
-    if staging is not None:
-        command.extend(["--candidates", str(staging)])
-    for path in replacements or []:
-        command.extend(["--replace-existing", path])
-    command.append("--json")
+def run_checker(checker: Path, root: Path, *, candidates: bool) -> None:
+    command = [sys.executable, str(checker), str(root), "--json"]
+    if candidates:
+        command.append("--candidates")
     result = subprocess.run(command, text=True, capture_output=True, check=False)
     try:
         findings = json.loads(result.stdout)
     except json.JSONDecodeError as error:
         detail = result.stderr.strip() or result.stdout.strip() or "no output"
         raise CampaignError(f"checker returned invalid JSON: {detail}") from error
-    blocking = [
-        finding
-        for finding in findings
-        if finding.get("code") not in (ignored or set())
+    if not isinstance(findings, list):
+        raise CampaignError("checker output must be a JSON list")
+    material = [
+        value
+        for value in findings
+        if not (
+            not candidates
+            and isinstance(value, dict)
+            and value.get("code") in DEFERRED_CHECKER_CODES
+        )
     ]
-    if blocking or (result.returncode != 0 and not findings):
+    if result.returncode != 0 and not findings:
+        raise CampaignError(result.stderr.strip() or "checker failed")
+    if material:
         raise CampaignError(
-            "checker blocked acceptance: "
-            + json.dumps(blocking or findings, ensure_ascii=False)
+            "SpecSpine checker rejected publication: "
+            + json.dumps(material, ensure_ascii=False)
         )
 
 
-def checkpoint_digest(raw: dict[str, Any], files: dict[str, Path]) -> str:
-    digest = hashlib.sha256()
-    digest.update(
-        json.dumps(raw, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        .encode("utf-8")
-    )
-    for relative, path in sorted(files.items()):
-        digest.update(relative.encode("utf-8"))
-        digest.update(hashlib.sha256(path.read_bytes()).digest())
-    return digest.hexdigest()
-
-
-def add_frontier(ledger: dict[str, Any], parent: str, values: list[Any]) -> list[str]:
-    added: list[str] = []
-    for value in values:
-        if not isinstance(value, dict):
-            raise CampaignError("coverage_frontier entries must be objects")
-        classification = value.get("classification")
-        if classification not in {"fork_candidate", "documented", "blocked"}:
-            raise CampaignError(f"invalid frontier classification: {classification!r}")
-        branch_id = validate_id(value.get("id", ""))
-        question = value.get("question")
-        evidence = value.get("evidence")
-        if not isinstance(question, str) or not question.strip():
-            raise CampaignError(f"frontier question is missing: {branch_id}")
-        if not isinstance(evidence, list) or not evidence:
-            raise CampaignError(f"frontier evidence is missing: {branch_id}")
-        reason = value.get("reason")
-        if classification == "fork_candidate" and (
-            not isinstance(reason, str) or not reason.strip()
-        ):
-            raise CampaignError(
-                f"fork frontier requires a semantic relation reason: {branch_id}"
-            )
-        state = "complete" if classification == "documented" else (
-            "blocked" if classification == "blocked" else "queued"
-        )
-        if classification == "documented" and not value.get("document"):
-            raise CampaignError(
-                f"documented frontier requires document: {branch_id}"
-            )
-        prerequisite = value.get("prerequisite")
-        if prerequisite:
-            require_branch(ledger, prerequisite)
-        candidate = new_branch(
-            branch_id,
-            parent,
-            question.strip(),
-            state=state,
-            origin=", ".join(str(item) for item in evidence),
-            namespace=value.get("namespace"),
-            prerequisite=prerequisite,
-            resolution="already_documented" if state == "complete" else None,
-            document=value.get("document"),
-            discovered_from_branch=parent,
-            discovered_by_owner=require_branch(ledger, parent).get("owner"),
-            discovery_reason=reason.strip() if isinstance(reason, str) else None,
-        )
-        if state == "blocked":
-            if not isinstance(reason, str) or not reason.strip():
-                raise CampaignError(f"blocked frontier requires reason: {branch_id}")
-            candidate["terminal_reason"] = reason.strip()
-        existing = ledger["branches"].get(branch_id)
-        if existing is not None:
-            if existing["parent"] != parent or existing["question"] != question.strip():
-                raise CampaignError(f"conflicting frontier branch: {branch_id}")
-            if classification == "documented" and (
-                existing.get("resolution") != "already_documented"
-                or existing.get("document") != value.get("document")
-            ):
-                raise CampaignError(f"conflicting documented branch: {branch_id}")
-            continue
-        ledger["branches"][branch_id] = candidate
-        added.append(branch_id)
-    validate_dependency_graph(ledger)
-    if added:
-        ledger["frontier_epoch"] += len(added)
-        ledger["discovery_pass"] = None
-        ledger["documentation_pass"] = None
-        ledger["integration_pass"] = None
-    return added
-
-
-def rollback(changes: list[tuple[Path, Path, Path | None]]) -> None:
-    for source, destination, backup in reversed(changes):
+def rollback_publication(
+    destinations: list[Path],
+    backups: dict[Path, Path],
+    sources: dict[Path, Path],
+) -> None:
+    for destination in reversed(destinations):
+        source = sources[destination]
+        source.parent.mkdir(parents=True, exist_ok=True)
         if destination.exists():
-            source.parent.mkdir(parents=True, exist_ok=True)
             os.replace(destination, source)
+        backup = backups.get(destination)
         if backup is not None and backup.exists():
             destination.parent.mkdir(parents=True, exist_ok=True)
             os.replace(backup, destination)
 
 
 def command_accept(args: argparse.Namespace) -> dict[str, Any]:
-    spine = args.spine_root.resolve()
-    staging_root = args.staging_root.resolve()
-    if (
-        spine == staging_root
-        or spine.is_relative_to(staging_root)
-        or staging_root.is_relative_to(spine)
-    ):
-        raise CampaignError("staging and live Spine must be disjoint")
     raw = read_json(args.checkpoint)
-    files = candidate_files(staging_root)
-    status, candidates, frontier, terminal_reason = validate_checkpoint(raw, files)
-    digest = checkpoint_digest(raw, files)
+    staging = candidate_files(args.staging_root)
+    status, candidates, suggestions = validate_checkpoint(raw, staging)
+    checkpoint_digest = digest_json(raw)
+    if candidates:
+        run_checker(args.checker, args.staging_root, candidates=True)
 
-    with locked(args.ledger):
-        ledger = load(args.ledger)
-        item = require_branch(ledger, args.branch)
-        if item["state"] != "active":
-            raise CampaignError(f"accept requires active branch: {args.branch}")
-        working = copy.deepcopy(ledger)
-        working_item = require_branch(working, args.branch)
-        added = add_frontier(working, args.branch, frontier)
-        requested = [value["path"] for value in candidates]
-        replacements = [
-            value["path"] for value in candidates if value["operation"] == "replace"
-        ]
-        occupied = {
-            path
-            for branch_id, branch in ledger["branches"].items()
-            if branch_id != args.branch
-            for path in branch.get("published", [])
-        }
-        conflict = sorted(set(requested) & occupied)
-        if conflict:
-            raise CampaignError("destination owned by another branch: " + ", ".join(conflict))
-        for value in candidates:
-            destination = args.spine_root / value["path"]
-            if value["operation"] == "create" and destination.exists():
-                raise CampaignError(f"create destination exists: {value['path']}")
-            if value["operation"] == "replace" and not destination.is_file():
-                raise CampaignError(f"replace destination is missing: {value['path']}")
-            if destination.is_file() and destination.read_bytes() == files[value["path"]].read_bytes():
-                raise CampaignError(f"candidate has no content change: {value['path']}")
-        if candidates:
-            run_checker(
-                args.checker,
-                args.spine_root,
-                staging=staging_root,
-                replacements=replacements,
-            )
-            stable_digest = checkpoint_digest(raw, candidate_files(staging_root))
-            if stable_digest != digest:
-                raise CampaignError("staging changed during checkpoint acceptance")
-
-        backup_root = Path(tempfile.mkdtemp(prefix=".accept-", dir=args.ledger.parent))
-        changes: list[tuple[Path, Path, Path | None]] = []
-        try:
-            for value in candidates:
-                source = files[value["path"]]
-                destination = args.spine_root / value["path"]
-                backup = backup_root / value["path"] if destination.exists() else None
-                changes.append((source, destination, backup))
-                if backup is not None:
-                    backup.parent.mkdir(parents=True, exist_ok=True)
-                    os.replace(destination, backup)
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                os.replace(source, destination)
-            if candidates:
-                run_checker(
-                    args.checker,
-                    args.spine_root,
-                    ignored=DEFERRED_CODES,
+    backups_root = Path(tempfile.mkdtemp(prefix="specspine-map-backup."))
+    destinations: list[Path] = []
+    backups: dict[Path, Path] = {}
+    sources: dict[Path, Path] = {}
+    published: list[str] = []
+    try:
+        with locked_ledger(args.ledger) as ledger:
+            task = require_task(ledger, args.id)
+            if task["state"] != "assigned":
+                raise CampaignError(f"accept requires assigned task: {args.id}")
+            if task["owner"] != args.owner:
+                raise CampaignError(
+                    f"checkpoint owner mismatch: expected {task['owner']}, got {args.owner}"
                 )
-                working_item["published"] = sorted(
-                    set(working_item.get("published", [])) | set(requested)
-                )
-                history = working.setdefault("publication_history", [])
-                for value in candidates:
-                    history.append(
+            if status == "draft_ready":
+                spine_root = args.spine_root.resolve()
+                plans: list[tuple[dict[str, str], Path, Path, bool]] = []
+                for candidate in candidates:
+                    source = staging[candidate["path"]]
+                    destination = spine_root / candidate["path"]
+                    exists = destination.exists()
+                    if candidate["operation"] == "create" and exists:
+                        raise CampaignError(f"create destination exists: {candidate['path']}")
+                    if candidate["operation"] == "replace" and not exists:
+                        raise CampaignError(
+                            f"replace destination is missing: {candidate['path']}"
+                        )
+                    plans.append((candidate, source, destination, exists))
+                try:
+                    for candidate, source, destination, exists in plans:
+                        sources[destination] = source
+                        if exists:
+                            backup = backups_root / candidate["path"]
+                            backup.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(destination, backup)
+                            backups[destination] = backup
+                        destination.parent.mkdir(parents=True, exist_ok=True)
+                        os.replace(source, destination)
+                        destinations.append(destination)
+                        published.append(candidate["path"])
+                    run_checker(args.checker, spine_root, candidates=False)
+                except Exception:
+                    rollback_publication(destinations, backups, sources)
+                    raise
+                task["state"] = "published"
+                task["published"] = published
+                task["producer_suggestions"] = suggestions
+                ledger["publication_epoch"] += 1
+                ledger["integration_pass"] = None
+                for candidate in candidates:
+                    ledger["publication_history"].append(
                         {
-                            "branch": args.branch,
-                            "path": value["path"],
-                            "operation": value["operation"],
+                            "task": task["id"],
+                            "path": candidate["path"],
+                            "operation": candidate["operation"],
+                            "publication_epoch": ledger["publication_epoch"],
                         }
                     )
-            if status == "publish_and_locally_saturate":
-                working_item["owner"] = None
-                working_item["terminal_reason"] = terminal_reason
-                working_item["state"] = "locally_saturated"
-            elif not candidates:
-                working_item["owner"] = None
-                working_item["terminal_reason"] = terminal_reason
-                working_item["state"] = (
-                    "locally_saturated" if status == "locally_saturated" else "blocked"
+            elif status == "no_architectural_value":
+                task["state"] = "complete"
+                task["terminal_reason"] = raw["terminal_reason"]
+                task["producer_suggestions"] = suggestions
+            elif status == "needs_more_evidence":
+                task["state"] = "todo"
+                task["evidence"] = sorted(
+                    set(task["evidence"])
+                    | set(
+                        string_list(
+                            raw["required_evidence"],
+                            "required_evidence",
+                            nonempty=True,
+                        )
+                    )
                 )
-            working_item["last_checkpoint_digest"] = digest
-            working_item["reported_relationships"] = raw["relationships"]
-            if args.branch != working["root"] or candidates or added:
-                working["documentation_pass"] = None
-                working["integration_pass"] = None
-            save(args.ledger, working)
-        except BaseException:
-            rollback(changes)
-            raise
-        finally:
-            shutil.rmtree(backup_root, ignore_errors=True)
-    return {
-        "status": "accepted",
-        "branch": args.branch,
-        "digest": digest,
-        "published": requested,
-        "added_branches": added,
-        "branch_state": working_item["state"],
-        "revision": working["revision"],
-    }
+            else:
+                task["state"] = "blocked"
+                task["terminal_reason"] = raw["terminal_reason"]
+                task["producer_suggestions"] = suggestions
+            task["owner"] = None
+            task["checkpoint_digest"] = checkpoint_digest
+            save_locked(args.ledger, ledger)
+            return {
+                "status": "accepted",
+                "task": task["id"],
+                "task_state": task["state"],
+                "published": published,
+                "suggestions_pending_review": [
+                    value["id"] for value in suggestions
+                ],
+                "revision": ledger["revision"],
+            }
+    finally:
+        shutil.rmtree(backups_root, ignore_errors=True)
 
 
-def command_close(args: argparse.Namespace) -> dict[str, Any]:
-    def action(ledger: dict[str, Any]) -> bool:
-        item = require_branch(ledger, args.id)
-        if item["state"] != "locally_saturated":
-            raise CampaignError(f"close requires locally_saturated state: {args.id}")
-        unfinished = [
-            child["id"]
-            for child in ledger["branches"].values()
-            if child.get("parent") == args.id and child["state"] != "complete"
-        ]
-        if unfinished:
-            raise CampaignError("unfinished children: " + ", ".join(sorted(unfinished)))
-        if args.id == ledger["root"]:
-            discovery = ledger.get("discovery_pass")
-            if not isinstance(discovery, dict) or discovery.get("frontier_epoch") != ledger["frontier_epoch"]:
-                raise CampaignError("root close requires a current discovery pass")
-            documentation = ledger.get("documentation_pass")
-            if (
-                not isinstance(documentation, dict)
-                or documentation.get("frontier_epoch") != ledger["frontier_epoch"]
-                or documentation.get("directions")
-            ):
-                raise CampaignError(
-                    "root close requires a current empty documentation pass"
-                )
-            integration = ledger.get("integration_pass")
-            if (
-                not isinstance(integration, dict)
-                or integration.get("frontier_epoch") != ledger["frontier_epoch"]
-            ):
-                raise CampaignError(
-                    "root close requires a current graph integration pass"
-                )
-        item["state"] = "complete"
-        return True
-
-    return mutate(args.ledger, action)
-
-
-def command_discovery(args: argparse.Namespace) -> dict[str, Any]:
-    def action(ledger: dict[str, Any]) -> bool:
-        if (
-            ledger.get("spine_state") == "existing"
-            and ledger.get("documentation_plan") is None
-        ):
-            raise CampaignError(
-                "seed-from-spine is required before source discovery"
-            )
-        ledger["discovery_pass"] = {
-            "frontier_epoch": ledger["frontier_epoch"],
-            "evidence": args.evidence,
+def command_block(args: argparse.Namespace) -> dict[str, Any]:
+    with locked_ledger(args.ledger) as ledger:
+        task = require_task(ledger, args.id)
+        if task["state"] not in {"todo", "assigned"}:
+            raise CampaignError(f"block requires todo or assigned state: {args.id}")
+        task["state"] = "blocked"
+        task["owner"] = None
+        task["terminal_reason"] = args.reason
+        save_locked(args.ledger, ledger)
+        return {
+            "status": "blocked",
+            "task": args.id,
+            "revision": ledger["revision"],
         }
-        return True
-
-    return mutate(args.ledger, action)
 
 
 def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
     report = read_json(args.report)
     spine_root = args.spine_root.resolve()
-    markdown = {
-        path.relative_to(spine_root).as_posix(): path
-        for path in spine_root.rglob("*.md")
-        if path.is_file()
-    }
-    inspected = report.get("evidence_inspected")
-    if (
-        not isinstance(inspected, list)
-        or any(not isinstance(value, str) for value in inspected)
-        or {validate_path(value) for value in inspected} != set(markdown)
-    ):
-        raise CampaignError(
-            "integration report must inspect every live Markdown document"
-        )
+    documents = validate_document_inventory(
+        spine_root,
+        report.get("evidence_inspected"),
+        field="integration evidence_inspected",
+    )
+    reviews = report.get("task_reviews")
+    if not isinstance(reviews, list):
+        raise CampaignError("integration task_reviews must be a list")
+    suggestion_reviews = report.get("suggestion_reviews")
+    if not isinstance(suggestion_reviews, list):
+        raise CampaignError("integration suggestion_reviews must be a list")
+    raw_todo = report.get("todo")
+    if not isinstance(raw_todo, list):
+        raise CampaignError("integration todo must be a list")
+    validate_empty_reason(
+        raw_todo,
+        report.get("terminal_reason"),
+        prefix="no integration-derived ToDo: ",
+    )
     organization = report.get("organization")
     if (
         not isinstance(organization, dict)
@@ -1200,496 +1002,356 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
         or not isinstance(organization.get("reason"), str)
         or not organization["reason"].strip()
     ):
-        raise CampaignError(
-            "integration report needs a reasoned organization assessment"
-        )
-    reviews = report.get("relationship_review")
-    if not isinstance(reviews, list):
-        raise CampaignError("integration report relationship_review must be a list")
+        raise CampaignError("integration needs a reasoned organization assessment")
+    run_checker(args.checker, spine_root, candidates=False)
+
     normalized_reviews: dict[str, dict[str, str]] = {}
-    for review in reviews:
-        if not isinstance(review, dict):
-            raise CampaignError("relationship review must be an object")
-        branch = validate_id(review.get("branch", ""))
-        disposition = review.get("disposition")
-        reason = review.get("reason")
-        if disposition not in {
-            "integrated",
-            "already_canonical",
-            "navigation_only",
-            "not_architectural",
-        }:
+    for value in reviews:
+        if not isinstance(value, dict):
+            raise CampaignError("task review must be an object")
+        task_id = validate_id(value.get("task"))
+        disposition = value.get("disposition")
+        reason = value.get("reason")
+        if disposition not in REVIEW_DISPOSITIONS:
             raise CampaignError(
-                f"invalid relationship disposition for {branch}: {disposition!r}"
+                f"invalid integration disposition for {task_id}: {disposition!r}"
             )
         if not isinstance(reason, str) or not reason.strip():
-            raise CampaignError(f"relationship review needs a reason: {branch}")
-        if branch in normalized_reviews:
-            raise CampaignError(f"duplicate relationship review: {branch}")
-        normalized_reviews[branch] = {
+            raise CampaignError(f"task review needs a reason: {task_id}")
+        if task_id in normalized_reviews:
+            raise CampaignError(f"duplicate task review: {task_id}")
+        normalized_reviews[task_id] = {
             "disposition": disposition,
-            "reason": reason,
+            "reason": reason.strip(),
         }
-    run_checker(args.checker, spine_root)
 
-    def action(ledger: dict[str, Any]) -> bool:
-        unfinished = sorted(
-            item["id"]
-            for item in ledger["branches"].values()
-            if item["id"] != ledger["root"] and item["state"] != "complete"
-        )
-        if unfinished:
+    normalized_suggestions: dict[tuple[str, str], dict[str, str]] = {}
+    for value in suggestion_reviews:
+        if not isinstance(value, dict):
+            raise CampaignError("suggestion review must be an object")
+        task_id = validate_id(value.get("task"))
+        suggestion_id = validate_id(value.get("suggestion"))
+        disposition = value.get("disposition")
+        reason = value.get("reason")
+        queued_task = value.get("todo")
+        if disposition not in SUGGESTION_DISPOSITIONS:
             raise CampaignError(
-                "integration pass requires all producer branches complete: "
-                + ", ".join(unfinished)
+                f"invalid suggestion disposition for {suggestion_id}: {disposition!r}"
             )
-        required = {
-            item["id"]
-            for item in ledger["branches"].values()
-            if item["id"] != ledger["root"]
-            and (item.get("published") or item.get("reported_relationships"))
+        if not isinstance(reason, str) or not reason.strip():
+            raise CampaignError(
+                f"suggestion review needs a reason: {suggestion_id}"
+            )
+        if disposition == "queued":
+            queued_task = validate_id(queued_task)
+        elif queued_task is not None:
+            raise CampaignError(
+                f"non-queued suggestion must not name ToDo: {suggestion_id}"
+            )
+        key = (task_id, suggestion_id)
+        if key in normalized_suggestions:
+            raise CampaignError(f"duplicate suggestion review: {key}")
+        normalized_suggestions[key] = {
+            "disposition": disposition,
+            "reason": reason.strip(),
+            "todo": queued_task,
         }
-        if set(normalized_reviews) != required:
+
+    with locked_ledger(args.ledger) as ledger:
+        published = {
+            task["id"]: task
+            for task in ledger["tasks"].values()
+            if task["state"] == "published"
+        }
+        if set(normalized_reviews) != set(published):
             raise CampaignError(
-                "integration report must disposition every publishing or "
-                f"relationship-reporting branch; missing="
-                f"{sorted(required - set(normalized_reviews))}, "
-                f"unknown={sorted(set(normalized_reviews) - required)}"
+                "integration must review every published task; "
+                f"missing={sorted(set(published) - set(normalized_reviews))}, "
+                f"unknown={sorted(set(normalized_reviews) - set(published))}"
             )
+        expected_suggestions = {
+            (task_id, suggestion["id"])
+            for task_id, task in published.items()
+            for suggestion in task["producer_suggestions"]
+        }
+        if set(normalized_suggestions) != expected_suggestions:
+            raise CampaignError(
+                "integration must disposition every producer suggestion; "
+                f"missing={sorted(expected_suggestions - set(normalized_suggestions))}, "
+                f"unknown={sorted(set(normalized_suggestions) - expected_suggestions)}"
+            )
+        added = add_tasks(
+            ledger,
+            raw_todo,
+            source=f"integration-{ledger['publication_epoch']}",
+        )
+        added_set = set(added) | {
+            validate_id(value.get("id"))
+            for value in raw_todo
+            if isinstance(value, dict)
+        }
+        for key, review in normalized_suggestions.items():
+            if review["disposition"] == "queued" and review["todo"] not in added_set:
+                raise CampaignError(
+                    f"queued suggestion {key} has no matching integration ToDo"
+                )
+        for task_id, task in published.items():
+            task["state"] = "complete"
+            task["terminal_reason"] = normalized_reviews[task_id]["reason"]
+            task["suggestion_reviews"] = {
+                suggestion_id: normalized_suggestions[(task_id, suggestion_id)]
+                for candidate_task, suggestion_id in expected_suggestions
+                if candidate_task == task_id
+            }
         ledger["integration_pass"] = {
-            "frontier_epoch": ledger["frontier_epoch"],
-            "digest": hashlib.sha256(
-                json.dumps(report, sort_keys=True, ensure_ascii=False).encode("utf-8")
-            ).hexdigest(),
-            "documents": {
-                relative: hashlib.sha256(path.read_bytes()).hexdigest()
-                for relative, path in sorted(markdown.items())
+            "publication_epoch": ledger["publication_epoch"],
+            "documents": documents,
+            "task_reviews": normalized_reviews,
+            "suggestion_reviews": {
+                f"{task}:{suggestion}": value
+                for (task, suggestion), value in normalized_suggestions.items()
             },
-            "relationship_review": normalized_reviews,
+            "todo": sorted(added_set),
+            "terminal_reason": report.get("terminal_reason"),
             "organization": organization,
         }
-        return True
-
-    ledger = mutate(args.ledger, action)
-    return {
-        "status": "integrated",
-        "campaign_id": ledger.get("campaign_id"),
-        "documents": len(markdown),
-        "reviewed_branches": sorted(normalized_reviews),
-        "organization": organization["status"],
-        "revision": ledger["revision"],
-    }
+        save_locked(args.ledger, ledger)
+        return {
+            "status": "integrated",
+            "reviewed_tasks": sorted(published),
+            "added_todo": added,
+            "revision": ledger["revision"],
+        }
 
 
-def ready(ledger: dict[str, Any]) -> list[dict[str, Any]]:
-    result = []
-    for item in ledger["branches"].values():
-        prerequisite = item.get("prerequisite")
-        if item["state"] == "queued" and (
-            not prerequisite
-            or require_branch(ledger, prerequisite)["state"] == "complete"
-        ):
-            result.append(item)
-    return sorted(result, key=lambda item: item["id"])
-
-
-def command_resume(args: argparse.Namespace) -> dict[str, Any]:
-    released: list[str] = []
-
-    def action(ledger: dict[str, Any]) -> bool:
-        changed = False
-        if not ledger.get("campaign_id"):
-            ledger["campaign_id"] = str(uuid.uuid4())
-            changed = True
-        for item in ledger["branches"].values():
-            if item["id"] != ledger["root"] and item["state"] == "active":
-                item["state"] = "queued"
-                item["owner"] = None
-                released.append(item["id"])
-                changed = True
-        validate_dependency_graph(ledger)
-        return changed
-
-    ledger = mutate(args.ledger, action)
-    return {
-        "status": "ok",
-        "campaign_id": ledger["campaign_id"],
-        "released": sorted(released),
-        "revision": ledger["revision"],
-    }
-
-
-def command_repair_prerequisite(args: argparse.Namespace) -> dict[str, Any]:
-    before_cycles: list[list[str]] = []
-
-    def action(ledger: dict[str, Any]) -> bool:
-        nonlocal before_cycles
-        item = require_branch(ledger, args.id)
-        if args.clear:
-            prerequisite = None
-        else:
-            prerequisite = validate_id(args.set)
-            require_branch(ledger, prerequisite)
-        if item.get("prerequisite") == prerequisite:
-            return False
-        before_cycles = dependency_cycles(ledger)
-        previous = item.get("prerequisite")
-        item["prerequisite"] = prerequisite
-        after_cycles = dependency_cycles(ledger)
-        if len(after_cycles) > len(before_cycles) or any(
-            args.id in cycle for cycle in after_cycles
-        ):
-            raise CampaignError("prerequisite repair does not resolve target cycles")
-        ledger.setdefault("recovery_history", []).append(
-            {
-                "operation": "repair_prerequisite",
-                "branch": args.id,
-                "from": previous,
-                "to": prerequisite,
-                "reason": args.reason.strip(),
-            }
-        )
-        ledger["discovery_pass"] = None
-        ledger["documentation_pass"] = None
-        ledger["integration_pass"] = None
-        return True
-
-    ledger = mutate(args.ledger, action)
-    return {
-        "status": "repaired",
-        "branch": args.id,
-        "cycles_before": before_cycles,
-        "cycles_after": dependency_cycles(ledger),
-        "revision": ledger["revision"],
-    }
-
-
-def command_recover(args: argparse.Namespace) -> dict[str, Any]:
-    source = load(args.source)
-    with locked(args.destination):
-        if args.destination.exists():
-            raise CampaignError(
-                f"recovery destination already exists: {args.destination}"
-            )
-        recovered = copy.deepcopy(source)
-        recovered.setdefault("campaign_id", str(uuid.uuid4()))
-        recovered.setdefault("recovery_history", []).append(
-            {
-                "operation": "recover",
-                "source": str(args.source.resolve()),
-                "source_revision": source.get("revision"),
-                "reason": args.reason.strip(),
-            }
-        )
-        for item in recovered["branches"].values():
-            if item["id"] != recovered["root"] and item["state"] == "active":
-                item["state"] = "queued"
-                item["owner"] = None
-        recovered["discovery_pass"] = None
-        recovered["documentation_pass"] = None
-        recovered["integration_pass"] = None
-        recovered["revision"] = int(recovered.get("revision", 0)) + 1
-        atomic_write(args.destination, recovered)
-    return {
-        "status": "recovered",
-        "campaign_id": recovered["campaign_id"],
-        "source_revision": source.get("revision"),
-        "revision": recovered["revision"],
-        "branches": len(recovered["branches"]),
-    }
-
-
-def audit_findings(ledger: dict[str, Any], final: bool) -> list[dict[str, str]]:
-    findings: list[dict[str, str]] = []
-    if not ledger.get("campaign_id"):
-        findings.append(
-            {
-                "code": "missing_campaign_id",
-                "branch": ledger.get("root", "root"),
-                "message": "resume the legacy campaign before continuing",
-            }
-        )
-    if (
-        ledger.get("spine_state") == "existing"
-        and ledger.get("documentation_plan") is None
-    ):
-        findings.append(
-            {
-                "code": "missing_documentation_plan",
-                "branch": ledger.get("root", "root"),
-                "message": (
-                    "seed the frontier from the existing Spine before source discovery"
-                ),
-            }
-        )
+def current_inventory(ledger: dict[str, Any]) -> bool:
+    source = ledger.get("source_pass")
+    if not isinstance(source, dict):
+        return False
     try:
-        cycles = dependency_cycles(ledger)
-    except CampaignError as error:
-        findings.append(
-            {
-                "code": "invalid_dependency",
-                "branch": ledger.get("root", "root"),
-                "message": str(error),
-            }
+        current = repository_inventory(
+            Path(source["repository_root"]),
+            spine_root=Path(source["spine_root"]),
         )
-        cycles = []
-    for cycle in cycles:
-        findings.append(
-            {
-                "code": "dependency_cycle",
-                "branch": cycle[0],
-                "message": " -> ".join(cycle),
-            }
-        )
-    for branch_id, item in ledger["branches"].items():
-        if item.get("state") not in STATES:
-            findings.append({"code": "invalid_state", "branch": branch_id, "message": str(item.get("state"))})
-        if final and item.get("state") != "complete":
-            findings.append({"code": "unfinished", "branch": branch_id, "message": f"state is {item.get('state')}"})
-    if final:
-        discovery = ledger.get("discovery_pass")
-        if not isinstance(discovery, dict) or discovery.get("frontier_epoch") != ledger.get("frontier_epoch"):
-            findings.append({"code": "stale_discovery", "branch": ledger["root"], "message": "current discovery pass is missing"})
-        documentation = ledger.get("documentation_pass")
-        if (
-            not isinstance(documentation, dict)
-            or documentation.get("frontier_epoch") != ledger.get("frontier_epoch")
-            or documentation.get("directions")
-        ):
-            findings.append(
-                {
-                    "code": "stale_documentation_pass",
-                    "branch": ledger["root"],
-                    "message": "current final Spine review is missing or found directions",
-                }
-            )
-        integration = ledger.get("integration_pass")
-        if (
-            not isinstance(integration, dict)
-            or integration.get("frontier_epoch") != ledger.get("frontier_epoch")
-        ):
-            findings.append(
-                {
-                    "code": "stale_integration_pass",
-                    "branch": ledger["root"],
-                    "message": "current graph and organization integration is missing",
-                }
-            )
-    return findings
+    except (CampaignError, KeyError, OSError):
+        return False
+    return current["digest"] == source.get("inventory_digest")
+
+
+def current_integration(ledger: dict[str, Any]) -> bool:
+    integration = ledger.get("integration_pass")
+    source = ledger.get("source_pass")
+    if (
+        not isinstance(integration, dict)
+        or not isinstance(source, dict)
+        or integration.get("publication_epoch") != ledger["publication_epoch"]
+        or integration.get("todo")
+    ):
+        return False
+    try:
+        current_documents = document_hashes(Path(source["spine_root"]))
+    except (KeyError, OSError):
+        return False
+    return current_documents == integration.get("documents")
 
 
 def terminal_gates(ledger: dict[str, Any]) -> dict[str, bool]:
-    epoch = ledger.get("frontier_epoch")
-    documentation = ledger.get("documentation_pass")
-    discovery = ledger.get("discovery_pass")
-    integration = ledger.get("integration_pass")
-    non_root = [
-        item
-        for item in ledger["branches"].values()
-        if item["id"] != ledger["root"]
-    ]
+    tasks = list(ledger["tasks"].values())
     return {
-        "problem_list_empty": all(item["state"] == "complete" for item in non_root),
-        "producer_branches_finished": not any(
-            item["state"] == "active" for item in non_root
+        "todo_empty": not any(task["state"] == "todo" for task in tasks),
+        "producers_finished": not any(
+            task["state"] == "assigned" for task in tasks
         ),
-        "documentation_questions_empty": (
-            isinstance(documentation, dict)
-            and documentation.get("frontier_epoch") == epoch
-            and not documentation.get("directions")
+        "publications_integrated": not any(
+            task["state"] == "published" for task in tasks
         ),
-        "source_discovery_current": (
-            isinstance(discovery, dict)
-            and discovery.get("frontier_epoch") == epoch
+        "no_blocked_tasks": not any(
+            task["state"] == "blocked" for task in tasks
         ),
-        "graph_integrated": (
-            isinstance(integration, dict)
-            and integration.get("frontier_epoch") == epoch
-        ),
-        "root_complete": require_branch(ledger, ledger["root"])["state"]
-        == "complete",
+        "source_inventory_current": current_inventory(ledger),
+        "integration_current": current_integration(ledger),
     }
 
 
 def command_summary(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
+    gates = terminal_gates(ledger)
     states = {
-        state: sorted(item["id"] for item in ledger["branches"].values() if item["state"] == state)
-        for state in STATES
+        state: sorted(
+            task["id"]
+            for task in ledger["tasks"].values()
+            if task["state"] == state
+        )
+        for state in sorted(TASK_STATES)
     }
-    final_clean = not audit_findings(ledger, True)
-    only_blocked = bool(states["blocked"]) and not states["queued"] and not states["active"] and not states["locally_saturated"]
+    terminal: str | None = None
+    if all(gates.values()):
+        terminal = "inventory_closed"
+    elif (
+        gates["todo_empty"]
+        and gates["producers_finished"]
+        and gates["publications_integrated"]
+        and not gates["no_blocked_tasks"]
+    ):
+        terminal = "blocked"
     return {
-        "campaign_id": ledger.get("campaign_id"),
+        "campaign_id": ledger["campaign_id"],
         "revision": ledger["revision"],
-        "terminal_gates": terminal_gates(ledger),
-        "ready": [item["id"] for item in ready(ledger)],
-        **states,
-        "terminal": "saturated" if final_clean else "blocked" if only_blocked else None,
+        "states": states,
+        "ready": states["todo"],
+        "terminal_gates": gates,
+        "terminal": terminal,
     }
 
 
 def command_coverage_report(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
-    states = {
-        state: sorted(
-            item["id"]
-            for item in ledger["branches"].values()
-            if item["state"] == state
+    summary = command_summary(args)
+    inventory = ledger.get("source_pass", {}).get("inventory", {})
+    counts = {
+        classification: sum(
+            1
+            for value in inventory.values()
+            if value.get("classification") == classification
         )
-        for state in STATES
+        for classification in sorted(SOURCE_CLASSIFICATIONS)
     }
-    unresolved = [
-        {
-            "id": item["id"],
-            "state": item["state"],
-            "question": item["question"],
-            "parent": item.get("parent"),
-            "prerequisite": item.get("prerequisite"),
-            "reason": item.get("terminal_reason"),
-        }
-        for item in sorted(
-            ledger["branches"].values(), key=lambda value: value["id"]
-        )
-        if item["state"] != "complete"
-    ]
     return {
-        "campaign_id": ledger.get("campaign_id"),
-        "scope": ledger.get("scope"),
-        "terminal": command_summary(args)["terminal"],
-        "terminal_gates": terminal_gates(ledger),
-        "counts": {state: len(values) for state, values in states.items()},
-        "ready": [item["id"] for item in ready(ledger)],
-        "unresolved": unresolved,
+        "campaign_id": ledger["campaign_id"],
+        "scope": ledger["scope"],
+        "terminal": summary["terminal"],
+        "terminal_gates": summary["terminal_gates"],
+        "task_states": {
+            state: len(values) for state, values in summary["states"].items()
+        },
+        "inventory_classifications": counts,
         "coverage_claim": (
-            "mapped"
-            if not unresolved
-            else "partially_mapped"
-            if any(item["state"] != "blocked" for item in unresolved)
+            "inventory_closed"
+            if summary["terminal"] == "inventory_closed"
             else "blocked"
+            if summary["terminal"] == "blocked"
+            else "partial"
         ),
     }
-
-
-def compact(command: str, args: argparse.Namespace, result: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "status": "ok",
-        "command": command,
-        "branch": getattr(args, "id", None),
-        "revision": result.get("revision"),
-    }
-
-
-def add_identity_arguments(parser: argparse.ArgumentParser, *, document: bool = False) -> None:
-    parser.add_argument("ledger", type=Path)
-    parser.add_argument("id")
-    parser.add_argument("--parent", required=True)
-    parser.add_argument("--question", required=True)
-    parser.add_argument("--origin", required=True)
-    parser.add_argument("--namespace")
-    parser.add_argument("--prerequisite")
-    if document:
-        parser.add_argument("--document", required=True)
 
 
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     sub = result.add_subparsers(dest="command", required=True)
+
     init = sub.add_parser("init")
     init.add_argument("ledger", type=Path)
     init.add_argument("--scope", required=True)
     init.add_argument("--root-question", required=True)
-    init.add_argument("--spine-state", choices=sorted(SPINE_STATES), default="empty")
+    init.add_argument(
+        "--spine-state",
+        choices=("empty", "existing"),
+        default="empty",
+    )
+
     seed = sub.add_parser("seed-from-spine")
     seed.add_argument("ledger", type=Path)
     seed.add_argument("spine_root", type=Path)
     seed.add_argument("plan", type=Path)
-    documentation = sub.add_parser("documentation-pass")
-    documentation.add_argument("ledger", type=Path)
-    documentation.add_argument("spine_root", type=Path)
-    documentation.add_argument("plan", type=Path)
+
+    inventory = sub.add_parser("inventory")
+    inventory.add_argument("repository_root", type=Path)
+    inventory.add_argument("--spine-root", type=Path)
+
+    source = sub.add_parser("source-pass")
+    source.add_argument("ledger", type=Path)
+    source.add_argument("repository_root", type=Path)
+    source.add_argument("spine_root", type=Path)
+    source.add_argument("report", type=Path)
+
+    add = sub.add_parser("todo-add")
+    add.add_argument("ledger", type=Path)
+    add.add_argument("id")
+    add.add_argument("--question", required=True)
+    add.add_argument("--reason", required=True)
+    add.add_argument("--origin", required=True)
+    add.add_argument("--evidence", action="append", default=[])
+    add.add_argument("--document", action="append", default=[])
+    add.add_argument("--exclude", action="append", default=[])
+
+    todo = sub.add_parser("todo")
+    todo.add_argument("ledger", type=Path)
+    todo.add_argument("--all", action="store_true")
+
+    ready = sub.add_parser("ready")
+    ready.add_argument("ledger", type=Path)
+
+    assign = sub.add_parser("assign")
+    assign.add_argument("ledger", type=Path)
+    assign.add_argument("id")
+    assign.add_argument("--owner", required=True)
+
+    release = sub.add_parser("release")
+    release.add_argument("ledger", type=Path)
+    release.add_argument("id")
+
+    accept = sub.add_parser("accept")
+    accept.add_argument("ledger", type=Path)
+    accept.add_argument("id")
+    accept.add_argument("checkpoint", type=Path)
+    accept.add_argument("staging_root", type=Path)
+    accept.add_argument("spine_root", type=Path)
+    accept.add_argument("--owner", required=True)
+    accept.add_argument(
+        "--checker",
+        type=Path,
+        default=Path(__file__).with_name("check_spine.py"),
+    )
+
+    block = sub.add_parser("block")
+    block.add_argument("ledger", type=Path)
+    block.add_argument("id")
+    block.add_argument("--reason", required=True)
+
     integration = sub.add_parser("integration-pass")
     integration.add_argument("ledger", type=Path)
     integration.add_argument("spine_root", type=Path)
     integration.add_argument("report", type=Path)
     integration.add_argument(
-        "--checker", type=Path, default=Path(__file__).with_name("check_spine.py")
+        "--checker",
+        type=Path,
+        default=Path(__file__).with_name("check_spine.py"),
     )
-    add_identity_arguments(sub.add_parser("add"))
-    add_identity_arguments(sub.add_parser("documented"), document=True)
-    assign = sub.add_parser("assign")
-    assign.add_argument("ledger", type=Path)
-    assign.add_argument("id")
-    assign.add_argument("--owner", required=True)
-    for name in ("release", "close"):
-        command = sub.add_parser(name)
-        command.add_argument("ledger", type=Path)
-        command.add_argument("id")
-    block = sub.add_parser("block")
-    block.add_argument("ledger", type=Path)
-    block.add_argument("id")
-    block.add_argument("--reason", required=True)
-    repair = sub.add_parser("repair-prerequisite")
-    repair.add_argument("ledger", type=Path)
-    repair.add_argument("id")
-    repair_mode = repair.add_mutually_exclusive_group(required=True)
-    repair_mode.add_argument("--clear", action="store_true")
-    repair_mode.add_argument("--set")
-    repair.add_argument("--reason", required=True)
-    recover = sub.add_parser("recover")
-    recover.add_argument("source", type=Path)
-    recover.add_argument("destination", type=Path)
-    recover.add_argument("--reason", required=True)
-    accept = sub.add_parser("accept")
-    accept.add_argument("ledger", type=Path)
-    accept.add_argument("branch")
-    accept.add_argument("checkpoint", type=Path)
-    accept.add_argument("staging_root", type=Path)
-    accept.add_argument("spine_root", type=Path)
-    accept.add_argument("--checker", type=Path, default=Path(__file__).with_name("check_spine.py"))
-    discovery = sub.add_parser("discovery-pass")
-    discovery.add_argument("ledger", type=Path)
-    discovery.add_argument("--evidence", required=True)
-    for name in ("ready", "summary", "coverage-report", "resume", "audit"):
-        command = sub.add_parser(name)
-        command.add_argument("ledger", type=Path)
-        if name == "audit":
-            command.add_argument("--final", action="store_true")
+
+    summary = sub.add_parser("summary")
+    summary.add_argument("ledger", type=Path)
+
+    coverage = sub.add_parser("coverage-report")
+    coverage.add_argument("ledger", type=Path)
+
     return result
 
 
 def main() -> int:
     args = parser().parse_args()
+    commands = {
+        "init": command_init,
+        "seed-from-spine": command_seed_from_spine,
+        "inventory": command_inventory,
+        "source-pass": command_source_pass,
+        "todo-add": command_todo_add,
+        "todo": command_todo,
+        "ready": command_ready,
+        "assign": command_assign,
+        "release": command_release,
+        "accept": command_accept,
+        "block": command_block,
+        "integration-pass": command_integration_pass,
+        "summary": command_summary,
+        "coverage-report": command_coverage_report,
+    }
     try:
-        handlers = {
-            "init": command_init,
-            "seed-from-spine": command_seed_from_spine,
-            "documentation-pass": command_documentation_pass,
-            "integration-pass": command_integration_pass,
-            "add": command_add,
-            "documented": lambda value: command_add(value, documented=True),
-            "assign": command_assign,
-            "release": command_release,
-            "block": command_block,
-            "repair-prerequisite": command_repair_prerequisite,
-            "recover": command_recover,
-            "accept": command_accept,
-            "close": command_close,
-            "discovery-pass": command_discovery,
-            "ready": lambda value: ready(load(value.ledger)),
-            "summary": command_summary,
-            "coverage-report": command_coverage_report,
-            "resume": command_resume,
-            "audit": lambda value: audit_findings(load(value.ledger), value.final),
-        }
-        result = handlers[args.command](args)
-        emit(result)
-        if args.command == "audit" and result:
-            return 1
-        return 0
-    except (CampaignError, OSError, subprocess.SubprocessError) as error:
-        emit({"error": str(error)}, error=True)
+        value = commands[args.command](args)
+    except (CampaignError, OSError, UnicodeError) as error:
+        print(json.dumps({"error": str(error)}, ensure_ascii=False), file=sys.stderr)
         return 2
+    print(json.dumps(value, ensure_ascii=False))
+    return 0
 
 
 if __name__ == "__main__":
