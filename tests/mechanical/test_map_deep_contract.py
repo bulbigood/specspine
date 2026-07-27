@@ -160,6 +160,23 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("integration-pass", normalized)
         self.assertIn("add_tasks(", self.campaign)
 
+    def test_root_reports_each_integrated_producer_document_immediately(self):
+        integration = " ".join(self.integration.split())
+        protocol = " ".join(self.protocol.split())
+        self.assertIn(
+            "After each producer document is integrated and its live checks pass",
+            integration,
+        )
+        self.assertIn("immediate commentary update", integration)
+        self.assertIn("Spine-relative Markdown path", integration)
+        self.assertIn("label each path `created` or `changed`", integration)
+        self.assertIn("before starting the next", integration)
+        self.assertIn("Never announce a write before it and its checks succeed", integration)
+        self.assertIn(
+            "Do not batch these per-document write notifications into the final summary",
+            protocol,
+        )
+
     def test_producers_cannot_write_shared_navigation(self):
         normalized = " ".join(self.producer.split())
         self.assertIn(

@@ -23,6 +23,13 @@ The root orchestrator must:
 9. Append every accepted refinement to persistent ToDo. Do not investigate it
    during integration.
 10. Run the full live checker.
+11. After each producer document is integrated and its live checks pass, send
+    the operator an immediate commentary update. Name the producer task, say
+    what the integration established or corrected, name every affected
+    Spine-relative Markdown path, and label each path `created` or `changed`.
+    Report one document's integration before starting the next; do not defer
+    these updates to the final campaign summary. Never announce a write before
+    it and its checks succeed.
 
 The root may edit live specifications and `README.md`. Producers may not.
 

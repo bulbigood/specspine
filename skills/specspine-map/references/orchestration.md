@@ -162,7 +162,10 @@ and report the campaign blocked. Never fall back to a weak or strongest tier.
 After results settle, follow `integration-pass.md`. Root reviews both published
 drafts and `covered` receipts, dispositions every suggestion, updates
 navigation or relationships, and atomically appends newly exposed questions to
-ToDo.
+ToDo. After each producer document is successfully integrated, root immediately
+tells the operator in commentary what the integration established or corrected
+and lists every created or changed Spine-relative Markdown path. Do not batch
+these per-document write notifications into the final summary.
 
 Repeat:
 
