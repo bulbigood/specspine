@@ -27,6 +27,9 @@ class MapExhaustiveContractTests(unittest.TestCase):
         cls.integration = (
             ROOT / "skills/specspine-map/references/integration-pass.md"
         ).read_text(encoding="utf-8")
+        cls.selection = (
+            ROOT / "skills/specspine-map/references/campaign-selection.md"
+        ).read_text(encoding="utf-8")
         cls.campaign = (
             ROOT / "skills/specspine-map/scripts/campaign.py"
         ).read_text(encoding="utf-8")
@@ -116,6 +119,19 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("def command_next_action", self.campaign)
         self.assertIn('"next-action": command_next_action', self.campaign)
 
+    def test_new_session_requires_operator_campaign_choice(self):
+        entrypoint = " ".join(self.entrypoint.split())
+        selection = " ".join(self.selection.split())
+        self.assertIn("campaign-selection.md", entrypoint)
+        self.assertIn("Before `init` in a new session", selection)
+        self.assertIn("Always require this choice", selection)
+        self.assertIn("activity is at most 24 hours old", selection)
+        self.assertIn("campaign.py discover", selection)
+        self.assertIn("campaign.py resume-session", selection)
+        self.assertIn("Never silently choose the newest directory", selection)
+        self.assertIn("def command_discover", self.campaign)
+        self.assertIn("def command_resume_session", self.campaign)
+
     def test_campaign_has_atomic_publication_and_no_self_quality_gate(self):
         self.assertIn("fcntl.flock", self.campaign)
         self.assertIn("os.replace(temporary_path, path)", self.campaign)
@@ -153,11 +169,12 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("producer must not publish README.md", self.campaign)
 
     def test_prompt_files_stay_bounded(self):
-        self.assertLessEqual(len(self.entrypoint.splitlines()), 90)
+        self.assertLessEqual(len(self.entrypoint.splitlines()), 95)
         self.assertLessEqual(len(self.producer.splitlines()), 125)
         self.assertLessEqual(len(self.protocol.splitlines()), 240)
         self.assertLessEqual(len(self.documentation_first.splitlines()), 100)
         self.assertLessEqual(len(self.integration.splitlines()), 150)
+        self.assertLessEqual(len(self.selection.splitlines()), 80)
 
 
 if __name__ == "__main__":

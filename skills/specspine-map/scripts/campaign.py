@@ -26,6 +26,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -63,6 +64,7 @@ REVIEW_DISPOSITIONS = {
 }
 SUGGESTION_DISPOSITIONS = {"queued", "covered", "rejected"}
 DEFERRED_CHECKER_CODES = {"UNREACHABLE_SPEC"}
+DEFAULT_RECENT_HOURS = 24.0
 COLLAPSED_DIRECTORIES = {
     ".git",
     ".next",
@@ -155,6 +157,26 @@ REPOSITORY_SUPPORT_UNITS = {
 
 class CampaignError(ValueError):
     pass
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def utc_timestamp() -> str:
+    return utc_now().isoformat().replace("+00:00", "Z")
+
+
+def parse_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def canonical_json(value: Any) -> bytes:
@@ -277,6 +299,7 @@ def locked_ledger(path: Path) -> Iterator[dict[str, Any]]:
 
 def save_locked(path: Path, ledger: dict[str, Any]) -> None:
     ledger["revision"] += 1
+    ledger["updated_at"] = utc_timestamp()
     atomic_write(path, ledger)
 
 
@@ -822,10 +845,18 @@ def validate_empty_reason(
 def command_init(args: argparse.Namespace) -> dict[str, Any]:
     if args.ledger.exists():
         raise CampaignError(f"campaign already exists: {args.ledger}")
+    timestamp = utc_timestamp()
     ledger = {
         "schema_version": SCHEMA_VERSION,
         "campaign_id": str(uuid.uuid4()),
         "revision": 0,
+        "created_at": timestamp,
+        "updated_at": timestamp,
+        "repository_root": (
+            str(args.repository_root.resolve())
+            if args.repository_root is not None
+            else None
+        ),
         "scope": args.scope,
         "root_question": args.root_question,
         "spine_state": args.spine_state,
@@ -836,6 +867,7 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         "documentation_seed": None,
         "source_pass": None,
         "integration_pass": None,
+        "resume_history": [],
     }
     atomic_write(args.ledger, ledger)
     return ledger
@@ -999,6 +1031,163 @@ def command_ready(args: argparse.Namespace) -> dict[str, Any]:
             if task["state"] == "todo"
         ],
     }
+
+
+def ledger_repository_root(ledger: dict[str, Any]) -> Path | None:
+    source_pass = ledger.get("source_pass")
+    raw = (
+        source_pass.get("repository_root")
+        if isinstance(source_pass, dict)
+        else ledger.get("repository_root")
+    )
+    if not isinstance(raw, str) or not raw:
+        return None
+    return Path(raw).resolve()
+
+
+def incomplete_reason(ledger: dict[str, Any]) -> str | None:
+    states = {
+        state: sum(
+            task.get("state") == state for task in ledger["tasks"].values()
+        )
+        for state in TASK_STATES
+    }
+    if any(states[state] for state in ("todo", "assigned", "review", "published")):
+        return "actionable_tasks"
+    if ledger.get("source_pass") is None:
+        return "source_pass_missing"
+    if states["blocked"]:
+        return None
+    integration = ledger.get("integration_pass")
+    if (
+        not isinstance(integration, dict)
+        or integration.get("publication_epoch") != ledger.get("publication_epoch")
+        or integration.get("todo")
+    ):
+        return "integration_incomplete"
+    return None
+
+
+def campaign_files(root: Path) -> list[Path]:
+    if not root.is_dir():
+        return []
+    result: list[Path] = []
+    for directory, names, files in os.walk(root, followlinks=False):
+        names[:] = sorted(
+            name
+            for name in names
+            if not (Path(directory) / name).is_symlink()
+        )
+        if "campaign.json" in files:
+            path = Path(directory) / "campaign.json"
+            if path.is_file() and not path.is_symlink():
+                result.append(path)
+    return sorted(result)
+
+
+def command_discover(args: argparse.Namespace) -> dict[str, Any]:
+    if not math.isfinite(args.recent_hours) or args.recent_hours <= 0:
+        raise CampaignError("recent-hours must be positive")
+    repository_root = args.repository_root.resolve()
+    now = utc_now()
+    recent_seconds = args.recent_hours * 3600
+    campaigns: list[dict[str, Any]] = []
+    invalid: list[dict[str, str]] = []
+    for path in campaign_files(args.campaign_home.resolve()):
+        try:
+            ledger = load(path)
+        except (CampaignError, OSError, UnicodeError) as error:
+            invalid.append({"ledger": str(path), "error": str(error)})
+            continue
+        if ledger_repository_root(ledger) != repository_root:
+            continue
+        reason = incomplete_reason(ledger)
+        if reason is None:
+            continue
+        activity = (
+            parse_timestamp(ledger.get("updated_at"))
+            or parse_timestamp(ledger.get("created_at"))
+            or datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+        )
+        age_seconds = max(0, int((now - activity).total_seconds()))
+        source_current: bool | None = (
+            current_inventory(ledger)
+            if isinstance(ledger.get("source_pass"), dict)
+            else None
+        )
+        recent = age_seconds <= recent_seconds
+        resume_allowed = source_current is not False
+        recommendation = (
+            "resume"
+            if recent and resume_allowed
+            else "new"
+        )
+        states = {
+            state: sum(
+                task.get("state") == state
+                for task in ledger["tasks"].values()
+            )
+            for state in sorted(TASK_STATES)
+        }
+        campaigns.append(
+            {
+                "ledger": str(path.resolve()),
+                "campaign_id": ledger["campaign_id"],
+                "scope": ledger["scope"],
+                "last_activity": activity.isoformat().replace("+00:00", "Z"),
+                "age_seconds": age_seconds,
+                "recency": "recent" if recent else "stale",
+                "recent_hours": args.recent_hours,
+                "source_current": source_current,
+                "resume_allowed": resume_allowed,
+                "recommendation": recommendation,
+                "requires_operator_choice": True,
+                "incomplete_reason": reason,
+                "states": states,
+            }
+        )
+    campaigns.sort(key=lambda value: (value["age_seconds"], value["ledger"]))
+    return {
+        "repository_root": str(repository_root),
+        "campaign_home": str(args.campaign_home.resolve()),
+        "campaigns": campaigns,
+        "invalid_ledgers": invalid,
+        "requires_operator_choice": bool(campaigns),
+    }
+
+
+def command_resume_session(args: argparse.Namespace) -> dict[str, Any]:
+    with locked_ledger(args.ledger) as ledger:
+        if incomplete_reason(ledger) is None:
+            raise CampaignError("campaign is not resumable")
+        if isinstance(ledger.get("source_pass"), dict) and not current_inventory(ledger):
+            raise CampaignError(
+                "campaign source snapshot changed; start a new campaign"
+            )
+        released = sorted(
+            task["id"]
+            for task in ledger["tasks"].values()
+            if task["state"] == "assigned"
+        )
+        for task_id in released:
+            task = ledger["tasks"][task_id]
+            task["state"] = "todo"
+            task["owner"] = None
+        resumed_at = utc_timestamp()
+        ledger.setdefault("resume_history", []).append(
+            {
+                "resumed_at": resumed_at,
+                "released_orphaned_tasks": released,
+            }
+        )
+        save_locked(args.ledger, ledger)
+        return {
+            "status": "resumed",
+            "campaign_id": ledger["campaign_id"],
+            "resumed_at": resumed_at,
+            "released_orphaned_tasks": released,
+            "revision": ledger["revision"],
+        }
 
 
 def command_packet(args: argparse.Namespace) -> dict[str, Any]:
@@ -1905,6 +2094,19 @@ def parser() -> argparse.ArgumentParser:
         choices=("empty", "existing"),
         default="empty",
     )
+    init.add_argument("--repository-root", type=Path)
+
+    discover = sub.add_parser("discover")
+    discover.add_argument("campaign_home", type=Path)
+    discover.add_argument("repository_root", type=Path)
+    discover.add_argument(
+        "--recent-hours",
+        type=float,
+        default=DEFAULT_RECENT_HOURS,
+    )
+
+    resume = sub.add_parser("resume-session")
+    resume.add_argument("ledger", type=Path)
 
     seed = sub.add_parser("seed-from-spine")
     seed.add_argument("ledger", type=Path)
@@ -1994,6 +2196,8 @@ def main() -> int:
     args = parser().parse_args()
     commands = {
         "init": command_init,
+        "discover": command_discover,
+        "resume-session": command_resume_session,
         "seed-from-spine": command_seed_from_spine,
         "inventory": command_inventory,
         "source-pass": command_source_pass,

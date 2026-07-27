@@ -35,6 +35,8 @@ Select one execution mode before project discovery:
   editing, or restructuring specifications.
 - Read [references/mapping-method.md](references/mapping-method.md) before a
   substantial survey, refresh, or restructuring.
+- Read [references/campaign-selection.md](references/campaign-selection.md)
+  before starting or resuming an exhaustive campaign in a new session.
 - Start new files from `assets/templates/` and omit empty sections.
 
 If the live root lacks `README.md` and no separate output root exists, create a

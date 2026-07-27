@@ -417,6 +417,128 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual("written", receipt["status"])
         self.assertEqual(task_id, json.loads(packet_path.read_text())["task"]["id"])
 
+    def test_discover_recent_incomplete_campaign_recommends_operator_resume(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+
+        result = self.cli(
+            "discover",
+            str(self.root),
+            str(self.repository),
+        )
+
+        self.assertTrue(result["requires_operator_choice"])
+        self.assertEqual(1, len(result["campaigns"]))
+        campaign = result["campaigns"][0]
+        self.assertEqual(str(self.ledger.resolve()), campaign["ledger"])
+        self.assertEqual("recent", campaign["recency"])
+        self.assertTrue(campaign["source_current"])
+        self.assertTrue(campaign["resume_allowed"])
+        self.assertEqual("resume", campaign["recommendation"])
+        self.assertTrue(campaign["requires_operator_choice"])
+        self.assertEqual(1, campaign["states"]["assigned"])
+
+    def test_discover_finds_campaign_interrupted_before_source_pass(self):
+        early_ledger = self.root / "early" / "campaign.json"
+        self.cli(
+            "init",
+            str(early_ledger),
+            "--scope",
+            "whole repository",
+            "--root-question",
+            "Map repository",
+            "--repository-root",
+            str(self.repository),
+        )
+
+        result = self.cli(
+            "discover",
+            str(self.root),
+            str(self.repository),
+        )
+
+        self.assertEqual(1, len(result["campaigns"]))
+        campaign = result["campaigns"][0]
+        self.assertEqual(str(early_ledger.resolve()), campaign["ledger"])
+        self.assertEqual("source_pass_missing", campaign["incomplete_reason"])
+        self.assertIsNone(campaign["source_current"])
+        self.assertTrue(campaign["resume_allowed"])
+
+    def test_discover_stale_campaign_recommends_new_but_requires_choice(self):
+        self.source_pass()
+        ledger = self.ledger_value()
+        ledger["updated_at"] = "2000-01-01T00:00:00Z"
+        self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
+
+        result = self.cli(
+            "discover",
+            str(self.root),
+            str(self.repository),
+        )
+
+        campaign = result["campaigns"][0]
+        self.assertEqual("stale", campaign["recency"])
+        self.assertEqual("new", campaign["recommendation"])
+        self.assertTrue(campaign["requires_operator_choice"])
+
+    def test_resume_session_releases_orphaned_assigned_producers(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+
+        receipt = self.cli("resume-session", str(self.ledger))
+
+        self.assertEqual("resumed", receipt["status"])
+        self.assertEqual([task_id], receipt["released_orphaned_tasks"])
+        ledger = self.ledger_value()
+        self.assertEqual("todo", ledger["tasks"][task_id]["state"])
+        self.assertIsNone(ledger["tasks"][task_id]["owner"])
+        self.assertEqual(
+            [task_id],
+            ledger["resume_history"][-1]["released_orphaned_tasks"],
+        )
+
+    def test_changed_source_disables_and_refuses_resume(self):
+        self.source_pass()
+        (self.repository / "src/identity/session.py").write_text(
+            "SESSION = False\n",
+            encoding="utf-8",
+        )
+
+        result = self.cli(
+            "discover",
+            str(self.root),
+            str(self.repository),
+        )
+        campaign = result["campaigns"][0]
+        self.assertFalse(campaign["source_current"])
+        self.assertFalse(campaign["resume_allowed"])
+        self.assertEqual("new", campaign["recommendation"])
+        error = self.cli("resume-session", str(self.ledger), expected=2)
+        self.assertIn("source snapshot changed", error["error"])
+
+    def test_discover_excludes_unrelated_repository_campaign(self):
+        self.source_pass()
+        unrelated = self.root / "unrelated"
+        unrelated.mkdir()
+
+        result = self.cli("discover", str(self.root), str(unrelated))
+
+        self.assertFalse(result["requires_operator_choice"])
+        self.assertEqual([], result["campaigns"])
+
+    def test_campaign_records_and_updates_activity_timestamps(self):
+        before = self.ledger_value()
+        self.assertIsNotNone(before["created_at"])
+        self.assertEqual(before["created_at"], before["updated_at"])
+
+        self.source_pass()
+
+        after = self.ledger_value()
+        self.assertEqual(before["created_at"], after["created_at"])
+        self.assertGreaterEqual(after["updated_at"], before["updated_at"])
+
     def test_existing_spine_requires_documentation_seed(self):
         ledger = self.run / "existing.json"
         self.cli(
