@@ -71,14 +71,15 @@ only as commentary, never as a final answer.
 
 Start each producer in a fresh isolated context with no inherited conversation,
 reasoning, or hidden memory. In Codex this is `fork_turns: none`; on another
-agent platform use its equivalent new-session/no-history option. Pass only the
-immutable bundle, task packet, and required paths. Never reuse a producer. If
-the platform cannot provide both a fresh producer and a medium-capability tier,
-preserve the generated ToDo and report `blocked`; do not substitute another
-tier, classify production units, or simulate exhaustive coverage in root.
+agent platform use its equivalent new-session/no-history option. Pass only a
+minimal command naming the producer contract, task packet, and required paths.
+Never reuse a producer. If the platform cannot provide both a fresh producer
+and a medium-capability tier, preserve the generated ToDo and report `blocked`;
+do not substitute another tier, classify production units, or simulate
+exhaustive coverage in root.
 
 Require every producer to iterate in its durable private work package, run the
-bundled `producer_finalize.py` preflight, and atomically expose exactly one
+specified `producer_finalize.py` preflight, and atomically expose exactly one
 checked handoff package. Root independently repeats acceptance checks. Do not
 invoke Doctor inside producers; its whole-Spine semantic audit is a separate
 operator-authorized workflow.

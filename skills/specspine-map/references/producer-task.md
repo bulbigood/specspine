@@ -3,9 +3,8 @@
 Handle exactly one bounded ToDo, write one checkpoint, and terminate only after
 revising it to a checked atomic handoff. Inspect every packet `sample`, then read
 only enough evidence to establish responsibility, interfaces, lifecycle, state,
-dependencies, failures, and boundaries. This immutable bundle is the complete
-producer instruction set: do not load an installed Map skill, its `SKILL.md`, or
-its source references.
+dependencies, failures, and boundaries. This file is the complete producer
+instruction set: do not load the Map `SKILL.md` or any other Map reference.
 
 Write Markdown only in staging; write checkpoint to `<work-package>/checkpoint.json`.
 Do not edit the live Spine, repository source, tests, README, or campaign state;

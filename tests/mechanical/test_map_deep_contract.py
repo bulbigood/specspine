@@ -179,15 +179,25 @@ class MapExhaustiveContractTests(unittest.TestCase):
             protocol,
         )
 
-    def test_producer_uses_inline_bundle_without_installed_skill_or_messages(self):
+    def test_producer_uses_minimal_contract_without_other_skill_context(self):
         producer = " ".join(self.producer.split())
         protocol = " ".join(self.protocol.split())
         self.assertIn("complete producer instruction set", producer)
-        self.assertIn("do not load an installed Map skill", producer)
+        self.assertIn("do not load the Map `SKILL.md`", producer)
         self.assertIn("Do not message root or any other agent", producer)
-        self.assertIn("producer-instructions.md --print", protocol)
-        self.assertIn("Embed it literally in every producer's initial command", protocol)
-        self.assertIn("Do not reread the saved bundle between spawns", protocol)
+        self.assertIn("Give each producer only this minimal launch command", protocol)
+        self.assertIn(
+            "references/producer-task.md completely; it is your sole Map contract",
+            protocol,
+        )
+        self.assertIn("Do not read SKILL.md or any other Map reference", protocol)
+        self.assertIn("ignore any legacy generated instruction artifact", protocol)
+
+    def test_exhaustive_runtime_does_not_use_the_reference_bundler(self):
+        runtime = "\n".join((self.entrypoint, self.protocol, self.producer))
+        self.assertNotIn("bundle_skill.py", runtime)
+        self.assertNotIn("producer-instructions.md", runtime)
+        self.assertNotIn("immutable bundle", runtime)
 
     def test_producers_cannot_write_shared_navigation(self):
         normalized = " ".join(self.producer.split())

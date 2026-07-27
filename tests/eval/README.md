@@ -201,12 +201,12 @@ benchmark arms use the same
 `tests/eval/fixtures/map-modes-six-area` tree rather than duplicated manifest
 content.
 
-The exhaustive Map orchestrator runs the bounded-producer bundler once. It
-concatenates the bounded protocol, its UTF-8 references, and every UTF-8
-Markdown template, saves the bundle, and emits the same text in that one tool
-result. The orchestrator embeds it in each new producer's initial command
-without rereading the generated file. Producers do not load Map resources, and
-each producer terminates after one checkpoint.
+The exhaustive Map orchestrator sends each producer a minimal launch command
+containing only the path to `producer-task.md`, the task packet, required roots,
+private work and handoff paths, and the finalize script. The producer reads that
+single contract rather than loading the Map skill or its other references, and
+terminates after one checkpoint. The standalone reference bundler is not part
+of exhaustive Map runtime.
 
 The benchmark defaults the top-level agent and parallel producers to
 `gpt-5.6-terra` with medium reasoning. The parallel exhaustive case asserts the requested

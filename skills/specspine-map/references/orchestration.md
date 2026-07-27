@@ -15,7 +15,7 @@ classify production code as already covered.
 - Give every producer a fresh isolated context with no inherited conversation,
   reasoning, or hidden memory. `fork_turns: none` is the Codex spelling; on
   another platform create a new independent session or use its no-history
-  equivalent. Pass only the immutable bundle, task packet, and required paths.
+  equivalent. Pass only the minimal launch command below.
 - Producers write only to private staging.
 - Root cannot create, remove, group, or terminally classify production work
   units.
@@ -25,8 +25,6 @@ classify production code as already covered.
 - Continue independent tasks after a producer failure.
 - Without fresh producer creation, preserve generated ToDo and report
   `blocked`.
-
-Read [producer-task.md](producer-task.md) completely before dispatch.
 
 ## Start
 
@@ -52,18 +50,20 @@ python3 <map-skill-root>/scripts/campaign.py init \
 For an existing Spine, run the mechanical index from
 `documentation-first-seeding.md`.
 
-Build the immutable producer bundle once:
+Give each producer only this minimal launch command with resolved absolute paths:
 
 ```text
-python3 <map-skill-root>/scripts/bundle_skill.py \
-  <map-skill-root> <run-root>/producer-instructions.md --print
+Handle exactly one exhaustive SpecSpine Map ToDo.
+Contract: read <map-skill-root>/references/producer-task.md completely; it is
+your sole Map contract. Do not read SKILL.md or any other Map reference.
+Task: <task-packet.json>; roots: repository=<repository-root>; Spine=<spine-root>
+Packages: work=<work-package>; handoff=<handoff-package>
+Finalize script: <map-skill-root>/scripts/producer_finalize.py
+Do not message other agents. Terminate after the atomic handoff.
 ```
 
-Capture that complete output once. Embed it literally in every producer's initial
-command as authoritative; forbid installed Map sources. Do not reread the saved
-bundle between spawns.
-Use `<map-skill-root>/scripts/producer_finalize.py` as immutable preflight. Pass
-its exact path to every producer; producers invoke neither `campaign.py` nor Doctor.
+On resume, ignore any legacy generated instruction artifact in the run root; it
+is not required by the ledger. Producers invoke neither `campaign.py` nor Doctor.
 
 ## Generate the source frontier
 
@@ -123,9 +123,9 @@ python3 <map-skill-root>/scripts/campaign.py packet \
 ```
 
 2. start a medium-capability producer in a fresh isolated session; for Codex
-   use `agent_type: medium` and `fork_turns: none`; pass only the immutable
-   bundle inline, packet, roots, work/handoff and preflight paths; forbid skill
-   reads and agent messages;
+   use `agent_type: medium` and `fork_turns: none`; pass only the minimal launch
+   command above with the contract, packet, roots, work/handoff, and preflight
+   paths;
 3. after the handle exists, assign it immediately:
 
 ```text
