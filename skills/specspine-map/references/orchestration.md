@@ -23,6 +23,7 @@ classify production code as already covered.
   concrete source evidence and existing semantic claim IDs.
 - Producer suggestions enter ToDo only through root integration.
 - Continue independent tasks after a producer failure.
+- Dispatch strict waves; never refill a finished producer slot mid-wave.
 - Without fresh producer creation, preserve generated ToDo and report
   `blocked`.
 
@@ -101,52 +102,50 @@ snapshot.
 Candidate owners do not close work. There is no fallback owner and no root
 classification equivalent to `mapped` or `neighbor-owned`.
 
-## Dispatch producers
+## Dispatch producer waves
 
-Inspect ready work with bounded output. Use `todo --limit <n>` only for bounded
-diagnosis; never print the whole frontier during normal dispatch.
+At a wave boundary, set the wave size to the smaller of ready ToDo and available producer slots. Inspect only that bounded slice:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py ready <campaign> --limit <free-slots>
+python3 <map-skill-root>/scripts/campaign.py ready <campaign> --limit <wave-size>
 ```
 
-For every available slot:
+Use `todo --limit <n>` only for bounded diagnosis. For the selected wave:
 
-1. allocate unique absent sibling work and handoff paths:
-   `<run-root>/producer-work/<task-id>-<attempt>` and
+1. before spawning, prepare every packet and unique sibling work/handoff path: `<run-root>/producer-work/<task-id>-<attempt>` and
    `<run-root>/handoffs/<task-id>-<attempt>`; create only work's `staging/`:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py packet \
-  <campaign> <task-id> \
-  --output <run-root>/packets/<task-id>-<attempt>.json
+python3 <map-skill-root>/scripts/campaign.py packet <campaign> <task-id> --output <run-root>/packets/<task-id>-<attempt>.json
 ```
 
-2. start a medium-capability producer in a fresh isolated session; for Codex
-   use `agent_type: medium` and `fork_turns: none`; pass only the minimal launch
-   command above with the contract, packet, roots, work/handoff, and preflight
-   paths;
-3. after the handle exists, assign it immediately:
+2. emit all independent producer spawn calls in one assistant action. Do not wait between them. For Codex use `agent_type: medium`,
+   `fork_turns: none`, and the minimal launch command above;
+3. after every handle is returned, assign the whole wave:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py assign \
-  <campaign> <task-id> --owner <fresh-agent-path>
-```
-
-Only a successfully renamed handoff package is ready. Accept its single
-checkpoint:
-
-```text
-python3 <map-skill-root>/scripts/campaign.py accept \
-  <campaign> <task-id> <handoff-package>/checkpoint.json \
-  <handoff-package>/staging <spine-root> \
+python3 <map-skill-root>/scripts/campaign.py assign <campaign> <task-id> \
   --owner <fresh-agent-path>
 ```
 
-Do not inspect or accept `producer-work`. A missing handoff after producer
-termination is a failed attempt: preserve the work package for diagnosis,
-release the task, and use a fresh producer. Root must still rerun candidate and
-post-publication checks; never trust the producer receipt as acceptance proof.
+4. whenever root wakes, inspect producer states. For each terminal producer with an atomic handoff, run read-only harvest while others continue:
+
+```text
+python3 <map-skill-root>/scripts/campaign.py harvest <campaign> <task-id> <handoff-package>/checkpoint.json <handoff-package>/staging <spine-root> --owner <fresh-agent-path> --output <run-root>/harvest/<task-id>-<attempt>.json
+```
+
+Harvest may validate and review the immutable package and prepare integration decisions, but must not mutate the ledger or live Spine.
+5. if any producer remains live, wait again without refill. Interrupt only when its predeclared deadline expired or the platform explicitly reports an
+   irrecoverable stall; never invent a timeout after launch. After confirmed cancellation, preserve its work, release its task, and count it terminal.
+6. after every wave member is completed, failed, or cancelled, accept or release the whole wave, then perform one integration pass:
+
+```text
+python3 <map-skill-root>/scripts/campaign.py accept <campaign> <task-id> <handoff-package>/checkpoint.json <handoff-package>/staging <spine-root> --owner <fresh-agent-path> --harvest-receipt <run-root>/harvest/<task-id>-<attempt>.json
+```
+
+Only an atomically renamed handoff may be harvested. Do not inspect or accept `producer-work`. Missing handoff after termination is a failed attempt: preserve work
+for diagnosis and release the task. Root reruns candidate and post-publication checks; never trust the producer receipt as acceptance proof. A failed spawn remains ready
+in the smaller wave and is not refilled; elapsed time without a predeclared deadline or explicit stall is not failure.
 
 `draft` is transactionally published and waits for root integration. `covered`
 also waits for root integration; acceptance checks every evidence stratum,
@@ -161,10 +160,8 @@ and report the campaign blocked. Never fall back to a weak or strongest tier.
 
 ## Integrate and derive ToDo
 
-After results settle, follow `integration-pass.md`. Root reviews both published
-drafts and `covered` receipts, dispositions every suggestion, updates
-navigation or relationships, and atomically appends newly exposed questions to
-ToDo. After each producer document is successfully integrated, root immediately
+After the entire wave settles, follow `integration-pass.md`. Root reviews published drafts and `covered` receipts, dispositions every suggestion, updates
+navigation or relationships, and atomically appends newly exposed questions to ToDo. After each producer document is successfully integrated, root immediately
 tells the operator in commentary what the integration established or corrected
 and lists every created or changed Spine-relative Markdown path. Do not batch
 these per-document write notifications into the final summary.
@@ -172,7 +169,7 @@ these per-document write notifications into the final summary.
 Repeat:
 
 ```text
-ToDo → fresh producer → one checkpoint → root integration → new ToDo
+ToDo → producer wave → barrier → batch acceptance → one integration → new ToDo
 ```
 
 An empty ready list does not skip integration: tasks may be waiting in
@@ -193,8 +190,8 @@ python3 <map-skill-root>/scripts/campaign.py next-action <campaign>
 
 Follow its `action`:
 
-- `dispatch` — fill every available producer slot from `ready`;
-- `wait` — wait for assigned producers, then accept or release them;
+- `dispatch` — start one bounded wave in a single assistant action;
+- `wait` — wait for the entire assigned wave without refill;
 - `integrate` — perform the root integration pass before dispatching more;
 - `repair` — restore current source/integration evidence without inventing
   coverage;

@@ -1170,6 +1170,7 @@ def evaluate_assertion(
         "collab_tools_absent",
         "collab_message_size_ratio",
         "collab_refill_without_wait",
+        "collab_wave_barriers",
         "collab_max_active",
         "collab_spawn_prompts",
         "collab_refill_before_staging_consume",
@@ -1357,6 +1358,66 @@ def evaluate_assertion(
                 (
                     f"post-saturation refill opportunities: {observed}; "
                     f"waits before refill: {violations}"
+                ),
+            )
+        if kind == "collab_wave_barriers":
+            size = assertion.get("size")
+            if not isinstance(size, int) or isinstance(size, bool) or size < 1:
+                return CheckResult(False, "wave barrier size must be a positive integer")
+            waves: list[list[str]] = []
+            current: list[str] = []
+            terminal: set[str] = set()
+            violations: list[str] = []
+            for item in calls:
+                tool = item.get("tool")
+                states = item.get("agents_states", {})
+                if isinstance(states, dict):
+                    terminal.update(
+                        str(receiver)
+                        for receiver, state in states.items()
+                        if isinstance(state, dict)
+                        and state.get("status") in {"completed", "failed", "cancelled"}
+                        and str(receiver) in current
+                    )
+                if tool == "agent_terminal":
+                    terminal.update(
+                        str(receiver)
+                        for receiver in item.get("receiver_thread_ids", [])
+                        if str(receiver) in current
+                    )
+                    continue
+                if tool != "spawn_agent":
+                    continue
+                if current and set(current).issubset(terminal):
+                    if len(current) != size:
+                        violations.append(
+                            f"nonfinal wave had {len(current)} producers, expected {size}"
+                        )
+                    waves.append(current)
+                    current = []
+                    terminal = set()
+                elif terminal:
+                    violations.append(
+                        "next producer spawned before the whole current wave terminated"
+                    )
+                receivers = [
+                    str(receiver)
+                    for receiver in item.get("receiver_thread_ids", [])
+                ]
+                current.extend(receivers or [str(item.get("event_id") or "spawn")])
+                if len(current) > size:
+                    violations.append(
+                        f"wave exceeded capacity: {len(current)} > {size}"
+                    )
+            if current:
+                if not set(current).issubset(terminal):
+                    violations.append("final wave did not reach the terminal barrier")
+                waves.append(current)
+            return CheckResult(
+                bool(waves) and not violations,
+                (
+                    f"wave sizes {[len(wave) for wave in waves]}; "
+                    f"violations: {violations}"
                 ),
             )
         if kind == "collab_spawn_prompts":

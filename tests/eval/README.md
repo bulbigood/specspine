@@ -183,7 +183,7 @@ ToDo, persists unresolved work, avoids collaboration and root-side
 producer simulation, leaves the live Spine unchanged, and reports `blocked`.
 This case is intentionally not a documentation-quality benchmark arm.
 
-`map-deep-rolling-small` makes one top-level call with a production-like request
+`map-deep-waves-small` makes one top-level call with a production-like request
 to map the whole repository. The adapter applies
 `agents.max_concurrent_threads_per_session=3`; the prompt does not describe
 producer management, branch partition, filenames, commands, continuation
@@ -193,8 +193,10 @@ select it. Use one sample during iteration and repeated samples only for release
 calibration.
 
 Its fixture exposes more independent responsibilities than available producer
-slots. Trace assertions require three initial workers, cap observed concurrency
-at three, require a fresh producer for every ToDo, and reject all resumptions.
+slots. Trace assertions require strict waves of three initial workers, prohibit
+mid-wave refill, cap observed concurrency at three, require read-only early
+harvest of completed handoffs, require a fresh producer for every ToDo, and
+reject all resumptions.
 The concurrency check coalesces terminal/spawn rollout events
 within one second because delivery order can differ from execution order. Both
 benchmark arms use the same
@@ -215,7 +217,7 @@ optional models that may not be exposed by the current Codex runtime.
 
 ```bash
 python3 tests/eval/run.py \
-  --case map-deep-rolling-small --samples 1 --jobs 1 \
+  --case map-deep-waves-small --samples 1 --jobs 1 \
   --agent-command "python3 $(pwd)/tests/eval/adapters/codex.py --model gpt-5.6-terra --reasoning-effort medium --subagent-role medium"
 ```
 
@@ -345,6 +347,7 @@ Supported assertions:
 - collaboration: `collab_spawn_count`, `collab_initial_spawn_count`,
   `collab_resume_count`, `collab_spawn_assignments`,
   `collab_message_size_ratio`, `collab_refill_without_wait`,
+  `collab_wave_barriers`,
   `collab_spawn_prompts`,
   `collab_resume_prompts`, `collab_targets_spawned_agents`,
   `collab_refill_before_staging_consume`;

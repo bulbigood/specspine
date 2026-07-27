@@ -1410,6 +1410,15 @@ def infer_candidates(
     ]
 
 
+def staging_digest(staging: dict[str, Path]) -> str:
+    return digest_json(
+        {
+            relative: hashlib.sha256(path.read_bytes()).hexdigest()
+            for relative, path in sorted(staging.items())
+        }
+    )
+
+
 def validate_checkpoint(
     raw: dict[str, Any],
     staging: dict[str, Path],
@@ -1631,6 +1640,127 @@ def validate_coverage_result(
     return coverage
 
 
+def harvest_receipt(
+    ledger: dict[str, Any],
+    task_id: str,
+    owner: str,
+    raw: dict[str, Any],
+    staging: dict[str, Path],
+    staging_root: Path,
+    spine_root: Path,
+    checker: Path,
+) -> dict[str, Any]:
+    status, directions, coverage = validate_checkpoint(raw, staging)
+    candidates = infer_candidates(staging, spine_root)
+    if candidates:
+        run_checker(checker, spine_root, candidates_root=staging_root)
+    task = require_task(ledger, task_id)
+    if task["state"] != "assigned":
+        raise CampaignError(f"harvest requires assigned task: {task_id}")
+    if task["owner"] != owner:
+        raise CampaignError(
+            f"checkpoint owner mismatch: expected {task['owner']}, got {owner}"
+        )
+    inspected = validate_task_evidence(
+        ledger,
+        task,
+        raw.get("evidence"),
+        outcome=status,
+    )
+    if status == "covered":
+        validate_coverage_result(task, coverage, spine_root, inspected)
+    if status == "supporting" and not task.get("units"):
+        raise CampaignError(
+            "supporting is valid only for inventory verification tasks"
+        )
+    return {
+        "status": "harvested",
+        "campaign_id": ledger["campaign_id"],
+        "task": task["id"],
+        "owner": owner,
+        "outcome": status,
+        "checkpoint_digest": digest_json(raw),
+        "staging_digest": staging_digest(staging),
+        "candidates": candidates,
+        "directions": len(directions),
+    }
+
+
+def command_harvest(args: argparse.Namespace) -> dict[str, Any]:
+    raw = read_json(args.checkpoint)
+    staging = candidate_files(args.staging_root)
+    receipt = harvest_receipt(
+        load(args.ledger),
+        args.id,
+        args.owner,
+        raw,
+        staging,
+        args.staging_root.resolve(),
+        args.spine_root.resolve(),
+        args.checker,
+    )
+    if args.output is None:
+        return receipt
+    if args.output.exists():
+        existing = read_json(args.output)
+        if existing != receipt:
+            raise CampaignError(
+                f"harvest receipt conflicts with current handoff: {args.output}"
+            )
+        return {
+            "status": "already_harvested",
+            "task": receipt["task"],
+            "outcome": receipt["outcome"],
+            "receipt": str(args.output.resolve()),
+            "checkpoint_digest": receipt["checkpoint_digest"],
+            "staging_digest": receipt["staging_digest"],
+        }
+    atomic_write(args.output, receipt)
+    return {
+        "status": "harvested",
+        "task": receipt["task"],
+        "outcome": receipt["outcome"],
+        "receipt": str(args.output.resolve()),
+        "checkpoint_digest": receipt["checkpoint_digest"],
+        "staging_digest": receipt["staging_digest"],
+    }
+
+
+def require_harvest_receipt(
+    path: Path,
+    ledger: dict[str, Any],
+    task_id: str,
+    owner: str,
+    status: str,
+    checkpoint_digest: str,
+    current_staging_digest: str,
+) -> None:
+    receipt = read_json(path)
+    expected = {
+        "campaign_id": ledger["campaign_id"],
+        "task": task_id,
+        "owner": owner,
+        "outcome": status,
+        "checkpoint_digest": checkpoint_digest,
+        "staging_digest": current_staging_digest,
+    }
+    mismatches = {
+        key: {"expected": value, "actual": receipt.get(key)}
+        for key, value in expected.items()
+        if receipt.get(key) != value
+    }
+    if receipt.get("status") != "harvested":
+        mismatches["status"] = {
+            "expected": "harvested",
+            "actual": receipt.get("status"),
+        }
+    if mismatches:
+        raise CampaignError(
+            "handoff changed after harvest or receipt does not match: "
+            + json.dumps(mismatches, ensure_ascii=False)
+        )
+
+
 def command_accept(args: argparse.Namespace) -> dict[str, Any]:
     raw = read_json(args.checkpoint)
     staging = candidate_files(args.staging_root)
@@ -1658,6 +1788,15 @@ def command_accept(args: argparse.Namespace) -> dict[str, Any]:
                 raise CampaignError(
                     f"checkpoint owner mismatch: expected {task['owner']}, got {args.owner}"
                 )
+            require_harvest_receipt(
+                args.harvest_receipt,
+                ledger,
+                task["id"],
+                args.owner,
+                status,
+                checkpoint_digest,
+                staging_digest(staging),
+            )
             inspected = validate_task_evidence(
                 ledger,
                 task,
@@ -2274,6 +2413,20 @@ def parser() -> argparse.ArgumentParser:
     release.add_argument("ledger", type=Path)
     release.add_argument("id")
 
+    harvest = sub.add_parser("harvest")
+    harvest.add_argument("ledger", type=Path)
+    harvest.add_argument("id")
+    harvest.add_argument("checkpoint", type=Path)
+    harvest.add_argument("staging_root", type=Path)
+    harvest.add_argument("spine_root", type=Path)
+    harvest.add_argument("--owner", required=True)
+    harvest.add_argument("--output", type=Path)
+    harvest.add_argument(
+        "--checker",
+        type=Path,
+        default=Path(__file__).with_name("check_spine.py"),
+    )
+
     accept = sub.add_parser("accept")
     accept.add_argument("ledger", type=Path)
     accept.add_argument("id")
@@ -2281,6 +2434,7 @@ def parser() -> argparse.ArgumentParser:
     accept.add_argument("staging_root", type=Path)
     accept.add_argument("spine_root", type=Path)
     accept.add_argument("--owner", required=True)
+    accept.add_argument("--harvest-receipt", required=True, type=Path)
     accept.add_argument(
         "--checker",
         type=Path,
@@ -2329,6 +2483,7 @@ def main() -> int:
         "packet": command_packet,
         "assign": command_assign,
         "release": command_release,
+        "harvest": command_harvest,
         "accept": command_accept,
         "block": command_block,
         "integration-pass": command_integration_pass,

@@ -33,30 +33,28 @@ reaches its unchanged terminal invocation:
 - `map-staged-producer`: one bounded producer writes a publish-ready candidate
   to a private output root while the live Spine remains read-only.
 - `map-sequential-saturation-small`: repeatedly performs one Map step on the same
-  controlled six-area repository used by `map-deep-rolling-small` until an
+  controlled six-area repository used by `map-deep-waves-small` until an
   unchanged terminal invocation, enabling a paired saturation-quality/cost
   benchmark.
 
-`map-deep-rolling-small` provides one controlled executable exhaustive-mode case.
+`map-deep-waves-small` provides one controlled executable exhaustive-mode case.
 One top-level invocation receives a production-like whole-repository request,
-builds a deterministic source frontier, and keeps three producer slots working
-across more ready ToDo entries than slots. Every ToDo receives a fresh producer;
+builds a deterministic source frontier, and dispatches strict waves of three
+producers across more ready ToDo entries than slots. Every ToDo receives a fresh producer;
 Codex JSONL collaboration events verify spawning and reject producer
 continuation or reuse.
 Both benchmark arms copy the same 21-file
 `map-modes-six-area` fixture tree, including six source/test/config evidence
 slices, require the same terminal evidence coverage, and stop only after the
 requested production units have integrated producer checkpoints and all derived
-ToDo is resolved. Generated artifacts verify material
-coverage through their evidence. The
-runtime trace pins the orchestrator and producers to Terra/medium. Exhaustive
-Map obtains, saves, and emits in one script call a generated bundle containing
-the one-shot producer protocol, its UTF-8 references, and every UTF-8 Markdown
-template; producers must not load those source files themselves.
-Collaboration assertions require
-three initial producers, no more than three simultaneously active producers,
-multiple total spawns, zero resumptions, and an encrypted-message size ratio
-that rejects repeated producer instructions. A persistent campaign ledger owns
+ToDo is resolved. Generated artifacts verify material coverage through their
+evidence. The runtime trace pins the orchestrator and producers to
+Terra/medium. Producers receive the compact one-shot contract directly and
+must not load unrelated Map references.
+For this controlled fixture, collaboration assertions require three-producer
+wave barriers without refill, no more than three simultaneously active
+producers, multiple total spawns, zero resumptions, and read-only early harvest.
+A persistent campaign ledger owns
 the deterministic inventory, verification ToDo, producer results, and
 root integration passes. Final assertions verify
 move-based publication, source protection, disposable run-root cleanup, and

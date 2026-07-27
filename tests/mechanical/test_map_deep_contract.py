@@ -198,12 +198,27 @@ class MapExhaustiveContractTests(unittest.TestCase):
     def test_dispatch_and_resume_keep_context_bounded_and_versioned(self):
         protocol = " ".join(self.protocol.split())
         selection = " ".join(self.selection.split())
-        self.assertIn("ready <campaign> --limit <free-slots>", protocol)
+        self.assertIn("ready <campaign> --limit <wave-size>", protocol)
         self.assertIn("todo --limit <n>", protocol)
         self.assertIn("producer-contract metadata", selection)
         self.assertIn("--adopt-producer-contract", selection)
         self.assertIn("PRODUCER_CONTRACT_VERSION", self.campaign)
         self.assertIn("require_current_producer_contract", self.campaign)
+
+    def test_exhaustive_dispatch_uses_strict_wave_barriers(self):
+        entrypoint = " ".join(self.entrypoint.split())
+        protocol = " ".join(self.protocol.split())
+        self.assertIn("Dispatch strict waves", entrypoint)
+        self.assertIn("all independent producer spawn calls in one assistant action", protocol)
+        self.assertIn("read-only harvest while others continue", protocol)
+        self.assertIn("must not mutate the ledger or live Spine", protocol)
+        self.assertIn("predeclared deadline", protocol)
+        self.assertIn("never invent a timeout after launch", protocol)
+        self.assertIn("after every wave member is completed, failed, or cancelled", protocol)
+        self.assertIn("--harvest-receipt", protocol)
+        self.assertIn("without refill", protocol)
+        self.assertIn("batch acceptance", protocol)
+        self.assertNotIn("fill every available producer slot", protocol)
 
     def test_exhaustive_runtime_does_not_use_the_reference_bundler(self):
         runtime = "\n".join((self.entrypoint, self.protocol, self.producer))

@@ -128,6 +128,34 @@ class MapCampaignTests(unittest.TestCase):
 
     def accept(self, task_id, payload, *, owner="/root/producer-1", expected=0):
         self.checkpoint.write_text(json.dumps(payload), encoding="utf-8")
+        attempt = self.ledger_value()["tasks"][task_id]["attempts"]
+        harvest_receipt = self.run / f"harvest-{task_id}-{attempt}.json"
+        harvest = subprocess.run(
+            [
+                sys.executable,
+                str(CAMPAIGN),
+                "harvest",
+                str(self.ledger),
+                task_id,
+                str(self.checkpoint),
+                str(self.staging),
+                str(self.spine),
+                "--owner",
+                owner,
+                "--output",
+                str(harvest_receipt),
+                "--checker",
+                str(self.checker),
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        harvest_payload = json.loads(harvest.stdout or harvest.stderr)
+        if harvest.returncode != 0:
+            self.assertEqual(expected, harvest.returncode, harvest.stderr)
+            return harvest_payload
+        self.assertEqual(0, harvest.returncode, harvest.stderr)
         return self.cli(
             "accept",
             str(self.ledger),
@@ -137,6 +165,8 @@ class MapCampaignTests(unittest.TestCase):
             str(self.spine),
             "--owner",
             owner,
+            "--harvest-receipt",
+            str(harvest_receipt),
             "--checker",
             str(self.checker),
             expected=expected,
@@ -716,6 +746,77 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual("review", receipt["task_state"])
         summary = self.cli("summary", str(self.ledger))
         self.assertFalse(summary["terminal_gates"]["publications_integrated"])
+
+    def test_harvest_is_read_only_and_accept_rejects_changed_handoff(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+        staged = self.staging / "identity.md"
+        staged.write_text(
+            "# Identity\n\n- **OBS-identity-owner** — `src/identity/session.py`.\n",
+            encoding="utf-8",
+        )
+        self.checkpoint.write_text(
+            json.dumps(
+                self.checkpoint_payload(
+                    outcome="draft",
+                    evidence=["src/identity/session.py"],
+                )
+            ),
+            encoding="utf-8",
+        )
+        receipt_path = self.run / "harvest.json"
+        before = self.ledger_value()
+        receipt = self.cli(
+            "harvest",
+            str(self.ledger),
+            task_id,
+            str(self.checkpoint),
+            str(self.staging),
+            str(self.spine),
+            "--owner",
+            "/root/producer-1",
+            "--output",
+            str(receipt_path),
+            "--checker",
+            str(self.checker),
+        )
+        self.assertEqual(before, self.ledger_value())
+        self.assertEqual("harvested", receipt["status"])
+        repeated = self.cli(
+            "harvest",
+            str(self.ledger),
+            task_id,
+            str(self.checkpoint),
+            str(self.staging),
+            str(self.spine),
+            "--owner",
+            "/root/producer-1",
+            "--output",
+            str(receipt_path),
+            "--checker",
+            str(self.checker),
+        )
+        self.assertEqual("already_harvested", repeated["status"])
+        self.assertEqual(before, self.ledger_value())
+        staged.write_text("# Changed after harvest\n", encoding="utf-8")
+        error = self.cli(
+            "accept",
+            str(self.ledger),
+            task_id,
+            str(self.checkpoint),
+            str(self.staging),
+            str(self.spine),
+            "--owner",
+            "/root/producer-1",
+            "--harvest-receipt",
+            str(receipt_path),
+            "--checker",
+            str(self.checker),
+            expected=2,
+        )
+        self.assertIn("changed after harvest", error["error"])
+        self.assertEqual("assigned", self.ledger_value()["tasks"][task_id]["state"])
 
     def test_covered_requires_evidence_from_every_mechanical_stratum(self):
         root = self.repository / "src/identity"

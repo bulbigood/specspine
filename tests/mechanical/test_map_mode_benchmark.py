@@ -96,7 +96,7 @@ class MapModeBenchmarkTests(unittest.TestCase):
                 self.assertNotIn(forbidden, request.lower())
 
     def test_parallel_arm_limits_threads_out_of_band(self):
-        case = BENCHMARK.load_case("map-deep-rolling-small")
+        case = BENCHMARK.load_case("map-deep-waves-small")
         self.assertEqual(3, case["subagent_max_concurrent_threads"])
 
     def test_all_arms_use_the_same_top_level_model(self):

@@ -681,6 +681,52 @@ class RunnerTests(unittest.TestCase):
         )
         self.assertFalse(refill.passed)
 
+        wave_terminal_1 = dict(terminal)
+        wave_terminal_1["receiver_thread_ids"] = ["agent-spawn-1"]
+        wave_terminal_2 = dict(terminal)
+        wave_terminal_2["receiver_thread_ids"] = ["agent-spawn-2"]
+        wave_terminal_3 = dict(terminal)
+        wave_terminal_3["receiver_thread_ids"] = ["agent-spawn-3"]
+        wave_trace = {
+            "collab_calls": [
+                activity[0],
+                activity[1],
+                wave_terminal_1,
+                wave_terminal_2,
+                activity[6],
+                wave_terminal_3,
+            ]
+        }
+        waves = RUNNER.evaluate_assertion(
+            {"type": "collab_wave_barriers", "size": 2},
+            Path("."),
+            unchanged,
+            unchanged,
+            "",
+            wave_trace,
+        )
+        self.assertTrue(waves.passed, waves.message)
+
+        rolling_trace = {
+            "collab_calls": [
+                activity[0],
+                activity[1],
+                wave_terminal_1,
+                activity[6],
+                wave_terminal_2,
+                wave_terminal_3,
+            ]
+        }
+        waves = RUNNER.evaluate_assertion(
+            {"type": "collab_wave_barriers", "size": 2},
+            Path("."),
+            unchanged,
+            unchanged,
+            "",
+            rolling_trace,
+        )
+        self.assertFalse(waves.passed)
+
         forbidden_prompt = dict(trace)
         forbidden_calls = [dict(item) for item in trace["collab_calls"]]
         forbidden_calls[0]["prompt"] += " Read SKILL.md"

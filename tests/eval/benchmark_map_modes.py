@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = Path(__file__).resolve().parent
 ARMS = (
     ("map", "map-sequential-saturation-small"),
-    ("map-deep", "map-deep-rolling-small"),
+    ("map-deep", "map-deep-waves-small"),
 )
 SUBAGENT_ARMS = {"map-deep"}
 DISPLAY_NAMES = {
