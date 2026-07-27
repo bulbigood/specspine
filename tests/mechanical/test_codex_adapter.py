@@ -106,6 +106,9 @@ class CodexAdapterTests(unittest.TestCase):
             production.with_name("ranking.py").write_text(
                 "# ranking\n", encoding="utf-8"
             )
+            production.with_name("check_spine.py").write_text(
+                "# checker\n", encoding="utf-8"
+            )
 
             ADAPTER.enable_retrieval_telemetry(root, "minimal")
 
@@ -123,6 +126,10 @@ class CodexAdapterTests(unittest.TestCase):
             self.assertEqual(
                 "# ranking\n",
                 (root / ".eval/tools/ranking.py").read_text(encoding="utf-8"),
+            )
+            self.assertEqual(
+                "# checker\n",
+                (root / ".eval/tools/check_spine.py").read_text(encoding="utf-8"),
             )
             self.assertIn("minimal_telemetry", production.read_text(encoding="utf-8"))
 
@@ -728,6 +735,32 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertEqual("warm", attempts[0]["index_state"])
         self.assertEqual(63, attempts[0]["documents"])
         self.assertEqual(512, attempts[0]["production_output_utf8_bytes"])
+
+    def test_parses_single_closure_query_retrieval(self):
+        query = '{"id":"migration","targets":["dual-write"],"terms":[]}'
+        stdout = json.dumps(
+            {
+                "type": "item.completed",
+                "item": {
+                    "id": "retrieval",
+                    "type": "command_execution",
+                    "command": (
+                        "python3 search_spine.py specspine "
+                        f"--query-json '{query}'"
+                    ),
+                    "exit_code": 0,
+                    "aggregated_output": (
+                        '{"closure_status":"complete","coverage":"mapped"}\n'
+                    ),
+                },
+            }
+        )
+
+        attempt = ADAPTER.parse_retrieval_attempts(stdout)[0]
+
+        self.assertEqual(json.loads(query), attempt["query_slices"][0])
+        self.assertEqual(query, attempt["queries_json"])
+        self.assertIsNone(attempt["failure_kind"])
 
     def test_classifies_malformed_retrieval_output(self):
         stdout = json.dumps(

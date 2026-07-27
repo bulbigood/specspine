@@ -144,6 +144,20 @@ Defines the system retry ceiling.
             [item["id"] for item in result["required"]],
         )
 
+    def test_typed_closure_recognizes_known_facets_inside_task_phrases(self):
+        result = self.query(facets=["availability failure", "migration lifecycle"])
+        self.assertEqual(
+            ["retry-policy"],
+            [item["id"] for item in result["required"]],
+        )
+
+    def test_typed_closure_recognizes_hyphenated_facet_phrases(self):
+        result = self.query(facets=["failure-boundary", "migration-lifecycle"])
+        self.assertEqual(
+            ["retry-policy"],
+            [item["id"] for item in result["required"]],
+        )
+
     def test_includes_system_wide_claims_and_root_divergences(self):
         root_claims = """
 

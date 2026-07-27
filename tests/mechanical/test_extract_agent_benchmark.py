@@ -52,6 +52,15 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
             self.assertTrue((target / "specspine" / "README.md").is_file())
             self.assertFalse((target / "ignored.go").exists())
 
+    def test_grafana_no_extract_adapter_does_not_enable_retrieval_telemetry(self):
+        command = GRAFANA_BENCHMARK.adapter_command(
+            "accelerated",
+            "model",
+            "medium",
+            instrument_retrieval=False,
+        )
+        self.assertNotIn("--retrieval-telemetry", command)
+
     def test_three_fixed_arms_use_current_extract_cases(self):
         self.assertEqual(
             ["no-extract", "fallback", "accelerated"],

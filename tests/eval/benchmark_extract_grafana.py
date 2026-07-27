@@ -125,7 +125,11 @@ def grafana_case(fixture: Path, profile: str) -> dict[str, Any]:
 
 
 def adapter_command(
-    retrieval_profile: str, model: str, reasoning_effort: str
+    retrieval_profile: str,
+    model: str,
+    reasoning_effort: str,
+    *,
+    instrument_retrieval: bool = True,
 ) -> list[str]:
     command = [
         sys.executable,
@@ -137,7 +141,7 @@ def adapter_command(
         "--retrieval-profile",
         retrieval_profile,
     ]
-    if retrieval_profile in {"fallback", "accelerated"}:
+    if instrument_retrieval:
         command.extend(("--retrieval-telemetry", "minimal"))
     return command
 
@@ -156,7 +160,12 @@ def run_arm(
     timestamp: str,
 ) -> tuple[dict[str, Any], bool]:
     case = grafana_case(fixture, execution_profile)
-    command = adapter_command(retrieval_profile, model, reasoning_effort)
+    command = adapter_command(
+        retrieval_profile,
+        model,
+        reasoning_effort,
+        instrument_retrieval=execution_profile != "no-extract",
+    )
     queued = __import__("time").monotonic()
     reports = []
     with ThreadPoolExecutor(max_workers=min(jobs, samples)) as executor:

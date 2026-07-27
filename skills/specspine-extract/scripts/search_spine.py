@@ -1973,12 +1973,20 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
         "external-contract": {"exposes"},
         "event": {"consumes", "publishes"},
         "data-mutation": {"owns-data", "reads-from", "writes-to"},
-        "failure": {"constrained-by", "depends-on"},
+        "failure": {"constrained-by"},
         "lifecycle": {"constrained-by", "owns-data", "performs"},
     }
     mandatory = {"superseded-by", "constrained-by"}
+    direct_context = {"depends-on", "consumes"}
+    normalized_facets = {
+        known
+        for facet in query["facets"]
+        for known in strong_by_facet
+        if known == facet
+        or known in re.findall(r"[a-z0-9]+", facet.casefold())
+    }
     facet_relations = set().union(*(
-        strong_by_facet.get(facet, set()) for facet in query["facets"]
+        strong_by_facet[facet] for facet in normalized_facets
     ))
     queue: list[tuple[str, int]] = [(primary_id, 0)]
     traversed: set[str] = set()
@@ -1994,6 +2002,9 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
                 if target_id != primary_id:
                     required.setdefault(target_id, set()).add(relation_type)
                 queue.append((target_id, depth + 1))
+            elif depth == 0 and relation_type in direct_context:
+                if target_id != primary_id:
+                    required.setdefault(target_id, set()).add(relation_type)
             elif relation_type == "related-to":
                 potential.add(target_id)
     impact_targets = {primary_id, *required}

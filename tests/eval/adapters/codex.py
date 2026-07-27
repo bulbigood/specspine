@@ -1197,7 +1197,58 @@ def parse_retrieval_protocol(
         elif name == "END_SLICE":
             current_slice = None
     if result is None:
-        return None
+        try:
+            closure = json.loads(raw_output)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(closure, dict) or not isinstance(
+            closure.get("closure_status"), str
+        ):
+            return None
+        primary = closure.get("primary")
+        required = closure.get("required", [])
+        affected = closure.get("potentially_affected", [])
+        direct_matches = []
+        if isinstance(primary, dict) and isinstance(primary.get("path"), str):
+            direct_matches.append(
+                {
+                    "path": qualify_candidate_path(
+                        str(primary["path"]), spine_root
+                    ),
+                    "origin": "primary",
+                }
+            )
+        for candidate in required if isinstance(required, list) else []:
+            if isinstance(candidate, dict) and isinstance(candidate.get("path"), str):
+                direct_matches.append(
+                    {
+                        "path": qualify_candidate_path(
+                            str(candidate["path"]), spine_root
+                        ),
+                        "origin": "required",
+                    }
+                )
+        graph_neighbors = [
+            {
+                "path": qualify_candidate_path(str(candidate["path"]), spine_root),
+                "origin": "potentially_affected",
+            }
+            for candidate in affected if isinstance(affected, list)
+            if isinstance(candidate, dict) and isinstance(candidate.get("path"), str)
+        ]
+        return {
+            "mode": "closure",
+            "ranking_system": None,
+            "graph_depth": None,
+            "graph_limit": None,
+            "reason_code": closure.get("reason"),
+            "truncated": closure.get("closure_status") == "truncated",
+            "slices": [],
+            "direct_matches": direct_matches,
+            "graph_neighbors": graph_neighbors,
+            "inline_documents": [],
+            "omitted_documents": closure.get("omitted", []),
+        }
     return {
         "mode": result.get("mode", "unknown"),
         "ranking_system": result.get("ranking"),
@@ -1294,6 +1345,8 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
             )
         candidates = direct_matches + graph_neighbors
         queries_json = command_option(command, "--queries-json")
+        if queries_json is None:
+            queries_json = command_option(command, "--query-json")
         query_slices = None
         if queries_json:
             try:
@@ -1302,6 +1355,8 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
                 parsed_queries = None
             if isinstance(parsed_queries, list):
                 query_slices = parsed_queries
+            elif isinstance(parsed_queries, dict):
+                query_slices = [parsed_queries]
         attempts.append(
             {
                 "attempt_number": len(attempts) + 1,
@@ -2035,6 +2090,9 @@ def enable_retrieval_telemetry(root: Path, level: str) -> None:
     shutil.copy2(production, preserved)
     shutil.copy2(
         production.with_name("ranking.py"), preserved.with_name("ranking.py")
+    )
+    shutil.copy2(
+        production.with_name("check_spine.py"), preserved.with_name("check_spine.py")
     )
     shutil.copy2(source, production)
 

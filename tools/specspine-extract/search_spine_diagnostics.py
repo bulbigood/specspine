@@ -136,7 +136,9 @@ def main() -> int:
         help=f"telemetry level; defaults to ${LEVEL_ENV}",
     )
     parser.add_argument("spine_root", type=Path)
-    parser.add_argument("--queries-json", required=True)
+    query_group = parser.add_mutually_exclusive_group(required=True)
+    query_group.add_argument("--query-json")
+    query_group.add_argument("--queries-json")
     parser.add_argument("--rebuild", action="store_true")
     args = parser.parse_args()
     if args.telemetry is None:
@@ -145,7 +147,33 @@ def main() -> int:
         os.environ.get(PRODUCTION_ENV, str(DEFAULT_PRODUCTION_SCRIPT))
     )
     production = load_production(production_path)
-    query = args.queries_json
+    query = args.query_json or args.queries_json
+    if args.query_json is not None:
+        try:
+            parsed = json.loads(query)
+        except json.JSONDecodeError as error:
+            parser.error(str(error))
+        result = production.build_closure(args.spine_root, parsed)
+        production_output = json.dumps(
+            result, ensure_ascii=False, sort_keys=True
+        ) + "\n"
+        telemetry = {
+            "schema_version": 4,
+            "mode": "closure",
+            "exit_code": 1 if result.get("closure_status") == "invalid" else 0,
+            "query_sha256": hashlib.sha256(query.encode("utf-8")).hexdigest(),
+            "reason_code": result.get("reason"),
+            "documents": len(result.get("sources", [])),
+            "closure_status": result.get("closure_status"),
+            "coverage": result.get("coverage"),
+            "production_output_utf8_bytes": len(
+                production_output.encode("utf-8")
+            ),
+            "telemetry_level": args.telemetry,
+        }
+        append_sidecar(telemetry)
+        print(production_output, end="")
+        return int(telemetry["exit_code"])
     try:
         slices = production.RANKING.parse_query_slices(query)
     except production.RANKING.InvalidRankingQuery as error:
