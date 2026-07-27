@@ -31,6 +31,7 @@ DIRECT_LIMIT = 10
 GRAPH_LIMIT = 2
 GRAPH_DEPTH = 1
 MAX_OUTPUT_BYTES = 128 * 1024
+POTENTIAL_LIMIT = 12
 FENCE_RE = re.compile(r"^ {0,3}(?:>\s*)?(`{3,}|~{3,})")
 HEADING_RE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$")
 DEFINITION_RE = re.compile(r"^ {0,3}[-+*]\s+\*\*((?:DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*)\*\*\s+—\s+(.*)")
@@ -1839,6 +1840,51 @@ def _validate_query(payload: object) -> tuple[dict[str, object] | None, str | No
     return query, None
 
 
+def _normalize_query_paths(
+    raw_paths: list[str], document_paths: set[str]
+) -> set[str]:
+    """Accept both Spine-relative and repository-relative document paths."""
+    normalized: set[str] = set()
+    folded_paths = {
+        path.casefold(): path
+        for path in document_paths
+    }
+    for raw_path in raw_paths:
+        candidate = raw_path.strip().removeprefix("./").replace("\\", "/")
+        exact = folded_paths.get(candidate.casefold())
+        if exact is not None:
+            normalized.add(exact)
+            continue
+        suffix = "/" + candidate.casefold().lstrip("/")
+        matches = [
+            path
+            for folded, path in folded_paths.items()
+            if suffix.endswith("/" + folded)
+        ]
+        if len(matches) == 1:
+            normalized.add(matches[0])
+    return normalized
+
+
+def _query_group_score(group: list[str], searchable: dict[str, str]) -> float:
+    field_scores = {
+        "title": 120.0,
+        "alias": 110.0,
+        "summary": 6.0,
+        "responsibility": 5.0,
+        "body": 1.0,
+    }
+    return max(
+        (
+            score
+            for term in group
+            for field, score in field_scores.items()
+            if term.casefold() in searchable[field]
+        ),
+        default=0.0,
+    )
+
+
 def _estimated_tokens(value: object) -> int:
     encoded = json.dumps(
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -1976,7 +2022,10 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
     candidates: dict[str, float] = {}
     targets = set(query["targets"])
     semantic_ids = set(query["semantic_ids"])
-    paths = set(query["paths"])
+    paths = _normalize_query_paths(
+        query["paths"],
+        {str(document["path"]) for document in documents.values()},
+    )
     for document_id, document in documents.items():
         score = 0.0
         if document_id in targets:
@@ -1993,19 +2042,7 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
             "body": str(document["text"]).casefold(),
         }
         for group in query["terms"]:
-            matched = [term.casefold() for term in group if any(term.casefold() in value for value in searchable.values())]
-            if matched:
-                term = matched[0]
-                if term in searchable["title"]:
-                    score += 120
-                elif term in searchable["alias"]:
-                    score += 110
-                elif term in searchable["summary"]:
-                    score += 6
-                elif term in searchable["responsibility"]:
-                    score += 5
-                else:
-                    score += 1
+            score += _query_group_score(group, searchable)
         if score:
             candidates[document_id] = score
     candidates.pop(str(index["id"]), None)
@@ -2063,6 +2100,12 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
                 "owns-data", "constrained-by", "depends-on",
             }:
                 potential.add(str(document["id"]))
+    strong_task_matches = {
+        document_id
+        for document_id, score in candidates.items()
+        if score >= 100
+    }
+    potential.update(strong_task_matches - {primary_id, *required})
     selected_ids = {primary_id, *required}
     statements = {
         identifier: (str(document["id"]), statement)
@@ -2099,6 +2142,10 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
     source_paths = [str(index["path"]), str(primary["path"])] + [
         str(documents[item]["path"]) for item in sorted(required)
     ]
+    potential_ids = sorted(
+        potential - set(required) - {primary_id},
+        key=lambda item: (-candidates.get(item, 0), item),
+    )[:POTENTIAL_LIMIT]
     result = {
         "closure_status": "complete",
         "reason": "mapped_task_closure_satisfied",
@@ -2120,7 +2167,7 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
         ],
         "potentially_affected": [
             {"id": item, "path": documents[item]["path"], "reason": "incoming_or_weak_relationship"}
-            for item in sorted(potential - set(required) - {primary_id})
+            for item in potential_ids
         ],
         "decisions": decisions, "constraints": constraints,
         "known_divergences": divergences, "blocking_questions": questions,

@@ -839,6 +839,43 @@ class RunnerTests(unittest.TestCase):
         self.assertTrue(passed.passed)
         self.assertFalse(failed.passed)
 
+    def test_retrieval_query_terms_include_checks_localized_concepts(self):
+        assertion = {
+            "type": "retrieval_query_terms_include",
+            "groups": [["покуп", "оплат"], ["ссыл", "навигац"]],
+        }
+        trace = {
+            "retrieval_attempts": [{
+                "query_slices": [{
+                    "terms": [
+                        ["подтверждённая покупка"],
+                        ["разбор внешней ссылки"],
+                    ],
+                }],
+            }],
+        }
+
+        passed = RUNNER.evaluate_assertion(
+            assertion, Path("."), {}, {}, "", trace
+        )
+        failed = RUNNER.evaluate_assertion(
+            assertion,
+            Path("."),
+            {},
+            {},
+            "",
+            {
+                "retrieval_attempts": [{
+                    "query_slices": [{
+                        "terms": [["confirmed purchase"], ["external link"]],
+                    }],
+                }],
+            },
+        )
+
+        self.assertTrue(passed.passed)
+        self.assertFalse(failed.passed)
+
     def test_checks_structured_response_without_prose_contracts(self):
         response = (
             "# Handoff\n\n## Primary specification\n\n"

@@ -285,6 +285,9 @@ representative-corpora benchmark. They also split wall time into pre-retrieval,
 production retrieval, and post-retrieval phases and report
 post-retrieval source reads, including whether each read repeats a file
 returned by retrieval or opens a file outside that result.
+
+Use `--scenario <id>` to run a focused scenario; repeat the option to select
+multiple scenarios. Use `--arm accelerated` for an Extract-only diagnostic run.
 Current Codex JSONL exposes only cumulative token usage for the
 orchestrator plus nested producers; it does not expose exact orchestrator-only
 or per-producer token counters. Producer wall times are observed lifecycle

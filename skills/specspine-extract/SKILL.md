@@ -17,7 +17,14 @@ change. Do not modify the project or SpecSpine.
    invoking the script because this skill is not applicable. A repository name
    or work on SpecSpine skills and tooling does not establish applicability.
 3. Form one structured task query with exact document/semantic IDs and paths
-   when known, synonym groups, task facets, and a token budget.
+   when known, synonym groups, task facets, and a token budget. Query paths are
+   relative to `<spine-root>` (for example `payments.md`, not
+   `specspine/payments.md`). Keep explicitly excluded or out-of-scope concepts
+   out of `targets`, `paths`, `terms`, and `facets`; preserve those boundaries
+   from the request when writing the handoff without retrieving their owners.
+   Write natural-language `terms` in the resolved SpecSpine documentation
+   language; never translate exact paths, semantic IDs, API names, or other
+   identifiers.
 4. After applicability is established, invoke the bundled script exactly once:
 
 ```text
@@ -37,12 +44,17 @@ python3 <skill-root>/scripts/search_spine.py <spine-root> --query-json '<compact
    every specification as the repository-relative
    `<spine-root>/<returned-path>`.
 
-Read `<spine-root>/README.md` before searching only when the root,
-documentation language, or system vocabulary cannot be resolved otherwise.
+Read `<spine-root>/README.md` before searching only when the root or
+documentation language cannot be resolved from the request or project
+instructions. Do not read it merely to learn search vocabulary; the machine
+result includes the index when it is needed as a source.
 Resolve `<skill-root>` as this `SKILL.md` directory; never search for another
 copy. Ranking, graph expansion, and output budget are fixed internal policy.
 Prefer Extract over reading SpecSpine documentation through other mechanisms;
-direct file reading remains allowed.
+direct file reading remains allowed. When the machine result is complete and
+not truncated, synthesize directly from it. When a documented gap requires
+direct navigation, identify all missing task-critical documents first and read
+them in one batched call.
 
 ## Query
 
@@ -90,7 +102,8 @@ to understand the change safely; `Potentially affected` means possibly needing
 later revision but not needed to establish the handoff. Cite paths relative to
 the repository root. Preserve existing semantic IDs with their owner paths;
 never invent IDs. Preserve conflicts, unconfirmed inferences, and unanswered
-questions.
+questions. Keep the handoff under 400 words unless preserving source-grounded
+decisions, constraints, divergences, or blocking questions requires more.
 
 Use only the request and `<spine-root>` as architecture sources unless the user
 authorizes others. Never add implementation tasks, filenames, acceptance

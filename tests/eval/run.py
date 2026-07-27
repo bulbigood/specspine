@@ -1033,6 +1033,43 @@ def evaluate_assertion(
         expected = assertion["value"]
         actual = trace.get(field)
         return CheckResult(actual == expected, f"trace {field}: {actual!r}, expected: {expected!r}")
+    if kind == "retrieval_query_terms_include":
+        if trace is None or not isinstance(trace.get("retrieval_attempts"), list):
+            return CheckResult(False, "agent did not produce retrieval attempts")
+        terms: list[str] = []
+        for attempt in trace["retrieval_attempts"]:
+            if not isinstance(attempt, dict):
+                continue
+            slices = attempt.get("query_slices")
+            if not isinstance(slices, list):
+                continue
+            for query_slice in slices:
+                if not isinstance(query_slice, dict):
+                    continue
+                groups = query_slice.get("terms")
+                if not isinstance(groups, list):
+                    continue
+                for group in groups:
+                    if isinstance(group, list):
+                        terms.extend(str(term).casefold() for term in group)
+        expected_groups = assertion["groups"]
+        missing = [
+            group
+            for group in expected_groups
+            if not any(
+                str(fragment).casefold() in term
+                for fragment in group
+                for term in terms
+            )
+        ]
+        return CheckResult(
+            not missing,
+            (
+                f"retrieval query terms missing documentation-language concepts: {missing}"
+                if missing
+                else "retrieval query terms use the required documentation-language concepts"
+            ),
+        )
     if kind == "unchanged":
         patterns = assertion["paths"]
         violations = sorted(item for item in changed if matches_any(item, patterns))

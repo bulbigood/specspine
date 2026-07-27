@@ -224,9 +224,10 @@ def run_arm(
     model: str,
     reasoning_effort: str,
     timestamp: str,
+    scenarios: tuple[dict[str, Any], ...] = SCENARIOS,
 ) -> tuple[dict[str, Any], bool]:
     cases = [
-        grafana_case(fixture, execution_profile, scenario) for scenario in SCENARIOS
+        grafana_case(fixture, execution_profile, scenario) for scenario in scenarios
     ]
     command = adapter_command(
         retrieval_profile,
@@ -284,6 +285,18 @@ def main() -> int:
     parser.add_argument("--jobs", type=int, default=3)
     parser.add_argument("--model", default="gpt-5.6-luna")
     parser.add_argument("--reasoning-effort", default="medium")
+    parser.add_argument(
+        "--scenario",
+        action="append",
+        choices=[scenario["id"] for scenario in SCENARIOS],
+        help="run only this scenario; repeat to select multiple scenarios",
+    )
+    parser.add_argument(
+        "--arm",
+        action="append",
+        choices=[label for label, *_ in ARMS],
+        help="run only this arm; repeat to select multiple arms",
+    )
     args = parser.parse_args()
     if args.samples < 1 or args.jobs < 1:
         parser.error("--samples and --jobs must be positive")
@@ -291,12 +304,20 @@ def main() -> int:
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     reports: dict[str, dict[str, Any]] = {}
     passed = True
+    selected_scenarios = tuple(
+        scenario
+        for scenario in SCENARIOS
+        if args.scenario is None or scenario["id"] in args.scenario
+    )
+    selected_arms = tuple(
+        arm for arm in ARMS if args.arm is None or arm[0] in args.arm
+    )
     with tempfile.TemporaryDirectory(prefix="specspine-grafana-fixture-") as directory:
         try:
             fixture = materialize_fixture(args.grafana_root, Path(directory) / "project")
         except ValueError as error:
             parser.error(str(error))
-        for label, execution_profile, retrieval_profile in ARMS:
+        for label, execution_profile, retrieval_profile in selected_arms:
             report, arm_passed = run_arm(
                 args.output_dir,
                 fixture,
@@ -308,11 +329,12 @@ def main() -> int:
                 model=args.model,
                 reasoning_effort=args.reasoning_effort,
                 timestamp=timestamp,
+                scenarios=selected_scenarios,
             )
             reports[label] = report
             passed &= arm_passed
     comparison = args.output_dir / "comparison.md"
-    AGENT_BENCHMARK.write_comparison(comparison, reports, ARMS)
+    AGENT_BENCHMARK.write_comparison(comparison, reports, selected_arms)
     print(comparison)
     return 0 if passed else 1
 

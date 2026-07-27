@@ -72,6 +72,17 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
         )
         self.assertNotIn("--retrieval-telemetry", command)
 
+    def test_grafana_run_arm_accepts_a_scenario_subset(self):
+        selected = tuple(
+            scenario
+            for scenario in GRAFANA_BENCHMARK.SCENARIOS
+            if scenario["id"] == "extract-grafana-frontend-api-boundary"
+        )
+        self.assertEqual(
+            ["extract-grafana-frontend-api-boundary"],
+            [scenario["id"] for scenario in selected],
+        )
+
     def test_three_fixed_arms_use_current_extract_cases(self):
         self.assertEqual(
             ["no-extract", "fallback", "accelerated"],

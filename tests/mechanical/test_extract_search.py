@@ -115,6 +115,24 @@ class ExtractV2Tests(unittest.TestCase):
             item["id"] for item in result["constraints"]
         ])
 
+    def test_repository_relative_query_path_selects_spine_document(self):
+        result = self.query(
+            targets=[],
+            paths=["specspine/payments.md"],
+            terms=[],
+            facets=[],
+        )
+        self.assertEqual("payment-processing", result["primary"]["id"])
+
+    def test_spine_relative_query_path_selects_spine_document(self):
+        result = self.query(
+            targets=[],
+            paths=["payments.md"],
+            terms=[],
+            facets=[],
+        )
+        self.assertEqual("payment-processing", result["primary"]["id"])
+
     def test_typed_closure_follows_required_relationships_to_depth_two(self):
         base = """# Base policy
 
@@ -217,6 +235,19 @@ Defines the system retry ceiling.
     def test_retrieves_by_alias_and_responsibility(self):
         result = self.query(targets=[], terms=[["Checkout"], ["state mutation"]])
         self.assertEqual("payment-processing", result["primary"]["id"])
+
+    def test_query_group_uses_strongest_synonym_match(self):
+        score = SEARCH._query_group_score(
+            ["state mutation", "Checkout"],
+            {
+                "title": "payments",
+                "alias": "checkout",
+                "summary": "",
+                "responsibility": "state mutation",
+                "body": "",
+            },
+        )
+        self.assertEqual(110.0, score)
 
     def test_no_match_is_explicit(self):
         result = self.query(targets=[], terms=[["absent"]])
