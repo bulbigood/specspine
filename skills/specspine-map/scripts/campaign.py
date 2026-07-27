@@ -1792,6 +1792,47 @@ def command_summary(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
+    summary = command_summary(args)
+    states = summary["states"]
+    if summary["terminal"] == "inventory_verified":
+        action = "finalize"
+        may_finish = True
+        reason = "inventory_verified"
+    elif summary["terminal"] == "blocked":
+        action = "report_blocked"
+        may_finish = True
+        reason = "campaign has only terminal blockers"
+    elif states["published"] or states["review"]:
+        action = "integrate"
+        may_finish = False
+        reason = "settled producer results require root integration"
+    elif states["assigned"]:
+        action = "wait"
+        may_finish = False
+        reason = "assigned producers have not settled"
+    elif states["todo"]:
+        action = "dispatch"
+        may_finish = False
+        reason = "ready verification work remains"
+    else:
+        action = "repair"
+        may_finish = False
+        reason = "terminal gates are stale or incomplete"
+    return {
+        "campaign_id": summary["campaign_id"],
+        "revision": summary["revision"],
+        "action": action,
+        "may_finish": may_finish,
+        "reason": reason,
+        "counts": {
+            state: len(task_ids) for state, task_ids in states.items()
+        },
+        "terminal": summary["terminal"],
+        "terminal_gates": summary["terminal_gates"],
+    }
+
+
 def command_coverage_report(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
     summary = command_summary(args)
@@ -1914,6 +1955,9 @@ def parser() -> argparse.ArgumentParser:
     summary = sub.add_parser("summary")
     summary.add_argument("ledger", type=Path)
 
+    next_action = sub.add_parser("next-action")
+    next_action.add_argument("ledger", type=Path)
+
     coverage = sub.add_parser("coverage-report")
     coverage.add_argument("ledger", type=Path)
 
@@ -1936,6 +1980,7 @@ def main() -> int:
         "block": command_block,
         "integration-pass": command_integration_pass,
         "summary": command_summary,
+        "next-action": command_next_action,
         "coverage-report": command_coverage_report,
     }
     try:

@@ -736,8 +736,18 @@ class MapCampaignTests(unittest.TestCase):
         summary = self.cli("summary", str(self.ledger))
         self.assertEqual("inventory_verified", summary["terminal"])
         self.assertTrue(all(summary["terminal_gates"].values()))
+        next_action = self.cli("next-action", str(self.ledger))
+        self.assertTrue(next_action["may_finish"])
+        self.assertEqual("finalize", next_action["action"])
         coverage = self.cli("coverage-report", str(self.ledger))
         self.assertEqual("inventory_verified", coverage["coverage_claim"])
+
+    def test_next_action_for_active_campaign_forbids_finishing(self):
+        self.source_pass()
+        next_action = self.cli("next-action", str(self.ledger))
+        self.assertFalse(next_action["may_finish"])
+        self.assertEqual("dispatch", next_action["action"])
+        self.assertGreater(next_action["counts"]["todo"], 0)
 
     def test_repository_content_change_invalidates_inventory(self):
         self.verify_all_source_units()

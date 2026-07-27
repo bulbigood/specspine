@@ -90,6 +90,18 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("verification_task_id", self.campaign)
         self.assertNotIn("OWNER_CLASSIFICATIONS", self.campaign)
 
+    def test_turn_boundary_cannot_complete_an_active_campaign(self):
+        entrypoint = " ".join(self.entrypoint.split())
+        protocol = " ".join(self.protocol.split())
+        self.assertIn("A turn boundary", entrypoint)
+        self.assertIn("Before any final answer", entrypoint)
+        self.assertIn("`may_finish: true`", entrypoint)
+        self.assertIn("The durable campaign is the unit of completion", protocol)
+        self.assertIn("`may_finish: false` forbids a final answer", protocol)
+        self.assertIn("Do not phrase progress as a handoff", protocol)
+        self.assertIn("def command_next_action", self.campaign)
+        self.assertIn('"next-action": command_next_action', self.campaign)
+
     def test_campaign_has_atomic_publication_and_no_self_quality_gate(self):
         self.assertIn("fcntl.flock", self.campaign)
         self.assertIn("os.replace(temporary_path, path)", self.campaign)

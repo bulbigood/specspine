@@ -40,6 +40,10 @@ reports, or other campaign artifacts. Old run roots are inert unless selected
 explicitly, so resolve and pass the exact intended ledger path instead of
 discovering or selecting a campaign by directory order.
 
+Before initializing, inspect the current thread for an exact campaign ledger
+created for this request. If one exists, resume it; never create a replacement
+campaign merely because execution entered a new turn or context was compacted.
+
 ```text
 mkdir -p <durable-private-run-root>
 python3 <map-skill-root>/scripts/campaign.py init \
@@ -151,6 +155,43 @@ ToDo → fresh producer → one checkpoint → root integration → new ToDo
 
 An empty ready list does not skip integration: tasks may be waiting in
 `published` or `review`.
+
+## Turn continuity
+
+The durable campaign is the unit of completion. A model turn is only an
+execution slice. Elapsed time, token use, context compaction, a settled wave,
+an empty producer slot, or a large remaining count never authorizes stopping.
+
+At campaign start, after every integration pass, after every resumed turn, and
+before any final answer, run:
+
+```text
+python3 <map-skill-root>/scripts/campaign.py next-action <campaign>
+```
+
+Follow its `action`:
+
+- `dispatch` — fill every available producer slot from `ready`;
+- `wait` — wait for assigned producers, then accept or release them;
+- `integrate` — perform the root integration pass before dispatching more;
+- `repair` — restore current source/integration evidence without inventing
+  coverage;
+- `finalize` — run `finalize_run.py`;
+- `report_blocked` — report the concrete protocol blocker.
+
+`may_finish: false` forbids a final answer. Send progress counts only through
+the platform's intermediate/commentary channel and immediately continue the
+returned action. Do not phrase progress as a handoff, ask the operator to say
+“continue”, or treat a platform turn-duration hint as task completion.
+
+`may_finish: true` is necessary but not sufficient for success:
+
+- for `finalize`, finish only after `finalize_run.py` succeeds;
+- for `report_blocked`, finish only with the exact blocker and preserved ledger.
+
+If execution is resumed after an infrastructure interruption, use the exact
+ledger path already reported in the thread, run `next-action`, and continue
+from that state. Never infer the newest campaign by directory ordering.
 
 ## Verify the inventory
 

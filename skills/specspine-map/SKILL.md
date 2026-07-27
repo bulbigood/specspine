@@ -60,6 +60,13 @@ medium-capability general-purpose agent tier for every producer: neither its
 weak/cheap tier nor its strongest/premium tier. In Codex this is
 `agent_type: medium`.
 
+Treat exhaustive intent as one durable campaign, not one turn. A turn boundary,
+elapsed-time boundary, context compaction, or progress report is never a
+terminal condition. Before any final answer, run `campaign.py next-action` on
+the exact ledger. Emit a final answer only when it returns `may_finish: true`;
+otherwise perform the returned action and continue. Send intermediate counts
+only as commentary, never as a final answer.
+
 Start each producer in a fresh isolated context with no inherited conversation,
 reasoning, or hidden memory. In Codex this is `fork_turns: none`; on another
 agent platform use its equivalent new-session/no-history option. Pass only the
