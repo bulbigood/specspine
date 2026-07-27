@@ -278,8 +278,11 @@ The scenario asks for the cross-document migration boundary spanning
 dual-write cutover, migration-log fallback, and the served-version guard. Its
 hard negative is repository provisioning's unrelated interactive dual
 read/write path. Raw reports and `comparison.md` use the same quality and cost
-metrics as the representative-corpora benchmark.
-arms. Current Codex JSONL exposes only cumulative token usage for the
+metrics as the representative-corpora benchmark. They also split wall time
+into pre-retrieval, production retrieval, and post-retrieval phases and report
+post-retrieval source reads, including whether each read repeats a file
+returned by retrieval or opens a file outside that result.
+Current Codex JSONL exposes only cumulative token usage for the
 orchestrator plus nested producers; it does not expose exact orchestrator-only
 or per-producer token counters. Producer wall times are observed lifecycle
 intervals and report their coverage; unavailable counters stay null and are

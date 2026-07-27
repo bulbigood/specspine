@@ -158,6 +158,28 @@ Defines the system retry ceiling.
             [item["id"] for item in result["required"]],
         )
 
+    def test_closure_returns_complete_files_with_named_separators(self):
+        result = self.query()
+        concatenated = result["concatenated_files"]
+        self.assertTrue(
+            concatenated.startswith(
+                "The following content is the complete, concatenated content"
+            )
+        )
+        self.assertEqual(
+            result["sources"],
+            result["concatenated_source_paths"],
+        )
+        for relative in result["concatenated_source_paths"]:
+            self.assertIn(
+                f'<<<SPECSPINE_FILE path="{relative}">>>',
+                concatenated,
+            )
+            self.assertIn(
+                (self.spine / relative).read_text(encoding="utf-8").rstrip("\n"),
+                concatenated,
+            )
+
     def test_includes_system_wide_claims_and_root_divergences(self):
         root_claims = """
 

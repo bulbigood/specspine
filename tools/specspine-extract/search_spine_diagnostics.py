@@ -10,6 +10,7 @@ import json
 import os
 import platform
 import sys
+import time
 from pathlib import Path
 from types import ModuleType
 
@@ -153,10 +154,10 @@ def main() -> int:
             parsed = json.loads(query)
         except json.JSONDecodeError as error:
             parser.error(str(error))
+        retrieval_started = time.perf_counter()
         result = production.build_closure(args.spine_root, parsed)
-        production_output = json.dumps(
-            result, ensure_ascii=False, sort_keys=True
-        ) + "\n"
+        retrieval_seconds = time.perf_counter() - retrieval_started
+        production_output = json.dumps(result, ensure_ascii=False) + "\n"
         telemetry = {
             "schema_version": 4,
             "mode": "closure",
@@ -169,6 +170,7 @@ def main() -> int:
             "production_output_utf8_bytes": len(
                 production_output.encode("utf-8")
             ),
+            "timings": {"total_seconds": round(retrieval_seconds, 6)},
             "telemetry_level": args.telemetry,
         }
         append_sidecar(telemetry)

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import collections
 import datetime
 import json
 import re
@@ -90,6 +91,21 @@ def run_values(report: dict[str, Any], section: str, field: str) -> list[float]:
     return values
 
 
+def phase_values(report: dict[str, Any], field: str) -> list[float]:
+    return run_values(report, "retrieval_phase_metrics", field)
+
+
+def phase_path_counts(report: dict[str, Any], field: str) -> dict[str, int]:
+    counts: collections.Counter[str] = collections.Counter()
+    for sample in report.get("samples", []):
+        for run in sample.get("agent_runs", []):
+            metrics = run.get("retrieval_phase_metrics", {})
+            paths = metrics.get(field, []) if isinstance(metrics, dict) else []
+            if isinstance(paths, list):
+                counts.update(path for path in paths if isinstance(path, str))
+    return dict(sorted(counts.items()))
+
+
 def mean(values: list[float]) -> float | None:
     return statistics.fmean(values) if values else None
 
@@ -172,6 +188,30 @@ def summarize(report: dict[str, Any]) -> dict[str, Any]:
         "mean_retrieval_bytes": mean(
             run_values(report, "cost_ledger", "retrieval_output_utf8_bytes")
         ),
+        "mean_pre_retrieval_seconds": mean(
+            phase_values(report, "pre_retrieval_seconds")
+        ),
+        "mean_production_retrieval_seconds": mean(
+            phase_values(report, "production_retrieval_seconds")
+        ),
+        "mean_post_retrieval_seconds": mean(
+            phase_values(report, "post_retrieval_seconds")
+        ),
+        "mean_post_retrieval_file_reads": mean(
+            phase_values(report, "post_retrieval_file_reads")
+        ),
+        "mean_post_retrieval_returned_file_reads": mean(
+            phase_values(report, "post_retrieval_returned_file_reads")
+        ),
+        "mean_post_retrieval_unreturned_file_reads": mean(
+            phase_values(report, "post_retrieval_unreturned_file_reads")
+        ),
+        "post_retrieval_returned_file_path_counts": phase_path_counts(
+            report, "post_retrieval_returned_file_paths"
+        ),
+        "post_retrieval_unreturned_file_path_counts": phase_path_counts(
+            report, "post_retrieval_unreturned_file_paths"
+        ),
         "mean_project_source_bytes": mean(
             run_values(report, "cost_ledger", "project_source_file_bytes")
         ),
@@ -210,6 +250,12 @@ def write_comparison(
         "mean_retrieval_attempts",
         "unexpected_retry_rate",
         "mean_retrieval_bytes",
+        "mean_pre_retrieval_seconds",
+        "mean_production_retrieval_seconds",
+        "mean_post_retrieval_seconds",
+        "mean_post_retrieval_file_reads",
+        "mean_post_retrieval_returned_file_reads",
+        "mean_post_retrieval_unreturned_file_reads",
         "mean_project_source_bytes",
     )
     display_names = {
@@ -232,6 +278,28 @@ def write_comparison(
             + " | ".join(format_value(summaries[label][field]) for label in labels)
             + " |"
         )
+    lines.extend(("", "## Post-retrieval file reads", ""))
+    for label in labels:
+        summary = summaries[label]
+        lines.extend((f"### {display_names[label]}", ""))
+        for heading, field in (
+            (
+                "Files returned by retrieval and read again",
+                "post_retrieval_returned_file_path_counts",
+            ),
+            (
+                "Files read outside the retrieval result",
+                "post_retrieval_unreturned_file_path_counts",
+            ),
+        ):
+            counts = summary[field]
+            rendered = (
+                ", ".join(f"`{path}` ({count})" for path, count in counts.items())
+                if counts
+                else "none"
+            )
+            lines.append(f"- {heading}: {rendered}")
+        lines.append("")
     lines.extend(
         (
             "",

@@ -1236,6 +1236,14 @@ def parse_retrieval_protocol(
             for candidate in affected if isinstance(affected, list)
             if isinstance(candidate, dict) and isinstance(candidate.get("path"), str)
         ]
+        inline_documents = [
+            {
+                "path": qualify_candidate_path(str(path), spine_root),
+                "origin": "closure_source",
+            }
+            for path in closure.get("concatenated_source_paths", [])
+            if isinstance(path, str)
+        ]
         return {
             "mode": "closure",
             "ranking_system": None,
@@ -1246,7 +1254,7 @@ def parse_retrieval_protocol(
             "slices": [],
             "direct_matches": direct_matches,
             "graph_neighbors": graph_neighbors,
-            "inline_documents": [],
+            "inline_documents": inline_documents,
             "omitted_documents": closure.get("omitted", []),
         }
     return {
@@ -1466,6 +1474,127 @@ def merge_retrieval_telemetry(
             if key in record:
                 attempt[key] = record[key]
         attempt["telemetry_level"] = record.get("telemetry_level")
+
+
+def retrieval_phase_metrics(
+    stdout: str,
+    event_timings: list[dict[str, object]],
+    duration_seconds: float,
+    candidates: list[str],
+    retrieval_attempts: list[dict[str, object]],
+) -> dict[str, object]:
+    """Split the top-level agent run around its first successful retrieval."""
+    if not retrieval_attempts:
+        return {
+            "pre_retrieval_seconds": None,
+            "retrieval_command_seconds": None,
+            "production_retrieval_seconds": None,
+            "post_retrieval_seconds": None,
+            "pre_retrieval_command_count": None,
+            "post_retrieval_command_count": None,
+            "pre_retrieval_file_reads": None,
+            "pre_retrieval_file_paths": [],
+            "post_retrieval_file_reads": None,
+            "post_retrieval_file_paths": [],
+            "retrieval_returned_file_paths": [],
+            "post_retrieval_returned_file_reads": None,
+            "post_retrieval_returned_file_paths": [],
+            "post_retrieval_unreturned_file_reads": None,
+            "post_retrieval_unreturned_file_paths": [],
+        }
+    observed_by_line = {
+        int(item["line_number"]): float(item["observed_seconds"])
+        for item in event_timings
+        if isinstance(item.get("line_number"), int)
+        and isinstance(item.get("observed_seconds"), (int, float))
+    }
+    retrieval_started: float | None = None
+    retrieval_completed: float | None = None
+    completed_commands: list[tuple[float, str]] = []
+    for line_number, line in enumerate(stdout.splitlines(), 1):
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        item = event.get("item", {})
+        if not isinstance(item, dict) or item.get("type") != "command_execution":
+            continue
+        command = str(item.get("command", ""))
+        observed = observed_by_line.get(line_number)
+        if observed is None:
+            continue
+        if is_retrieval_command(command):
+            if event.get("type") == "item.started" and retrieval_started is None:
+                retrieval_started = observed
+            if event.get("type") in {None, "item.completed"}:
+                retrieval_completed = observed
+        elif event.get("type") in {None, "item.completed"}:
+            completed_commands.append((observed, command))
+    production_seconds = sum(
+        float(attempt.get("timings", {}).get("total_seconds", 0.0))
+        for attempt in retrieval_attempts
+        if isinstance(attempt.get("timings"), dict)
+    )
+    if retrieval_completed is not None and retrieval_started is None:
+        retrieval_started = max(0.0, retrieval_completed - production_seconds)
+    pre_seconds = retrieval_started
+    retrieval_seconds = (
+        max(0.0, retrieval_completed - retrieval_started)
+        if retrieval_started is not None and retrieval_completed is not None
+        else (production_seconds or None)
+    )
+    post_seconds = (
+        max(0.0, duration_seconds - retrieval_completed)
+        if retrieval_completed is not None
+        else None
+    )
+    pre_commands = [
+        command
+        for observed, command in completed_commands
+        if retrieval_started is not None and observed <= retrieval_started
+    ]
+    post_commands = [
+        command
+        for observed, command in completed_commands
+        if retrieval_completed is not None and observed >= retrieval_completed
+    ]
+    pre_reads = set().union(
+        *(explicit_content_reads(command, candidates) for command in pre_commands)
+    ) if pre_commands else set()
+    post_reads = set().union(
+        *(explicit_content_reads(command, candidates) for command in post_commands)
+    ) if post_commands else set()
+    returned_paths = {
+        str(document["path"])
+        for attempt in retrieval_attempts
+        for document in attempt.get("inline_documents", [])
+        if isinstance(document, dict) and isinstance(document.get("path"), str)
+    }
+    returned_reads = post_reads & returned_paths
+    unreturned_reads = post_reads - returned_paths
+    return {
+        "pre_retrieval_seconds": (
+            round(pre_seconds, 6) if pre_seconds is not None else None
+        ),
+        "retrieval_command_seconds": (
+            round(retrieval_seconds, 6) if retrieval_seconds is not None else None
+        ),
+        "production_retrieval_seconds": round(production_seconds, 6),
+        "post_retrieval_seconds": (
+            round(post_seconds, 6) if post_seconds is not None else None
+        ),
+        "pre_retrieval_command_count": len(pre_commands),
+        "post_retrieval_command_count": len(post_commands),
+        "pre_retrieval_file_reads": len(pre_reads),
+        "pre_retrieval_file_paths": sorted(pre_reads),
+        "post_retrieval_file_reads": len(post_reads),
+        "post_retrieval_file_paths": sorted(post_reads),
+        "retrieval_returned_file_paths": sorted(returned_paths),
+        "post_retrieval_returned_file_reads": len(returned_reads),
+        "post_retrieval_returned_file_paths": sorted(returned_reads),
+        "post_retrieval_unreturned_file_reads": len(unreturned_reads),
+        "post_retrieval_unreturned_file_paths": sorted(unreturned_reads),
+    }
 
 
 def deterministic_cost_ledger(
@@ -2233,6 +2362,13 @@ def main() -> int:
     )
     retrieval_attempts = parse_retrieval_attempts(completed.stdout)
     merge_retrieval_telemetry(retrieval_attempts, retrieval_telemetry)
+    retrieval_phases = retrieval_phase_metrics(
+        completed.stdout,
+        event_timings,
+        duration_seconds,
+        candidates,
+        retrieval_attempts,
+    )
     all_candidates = relative_files(root)
     event_metrics = parse_event_metrics(completed.stdout, candidates)
     if rollout_calls:
@@ -2289,6 +2425,7 @@ def main() -> int:
                 "retrieval_attempts": retrieval_attempts,
                 "retrieval_mode": retrieval_attempts[-1]["mode"] if retrieval_attempts else None,
                 "retrieval_attempt_count": len(retrieval_attempts),
+                "retrieval_phase_metrics": retrieval_phases,
                 "unexpected_retry": len(retrieval_attempts) > 1,
                 "unknown_attempt_count": sum(
                     attempt.get("mode") == "unknown" for attempt in retrieval_attempts

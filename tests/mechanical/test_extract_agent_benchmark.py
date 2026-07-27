@@ -120,6 +120,20 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
                     "retrieval_output_utf8_bytes": 20,
                     "project_source_file_bytes": 30,
                 },
+                "retrieval_phase_metrics": {
+                    "pre_retrieval_seconds": 0.5,
+                    "production_retrieval_seconds": 0.1,
+                    "post_retrieval_seconds": 0.4,
+                    "post_retrieval_file_reads": 0,
+                    "post_retrieval_returned_file_reads": 0,
+                    "post_retrieval_unreturned_file_reads": 0,
+                    "post_retrieval_returned_file_paths": [
+                        "specspine/owner.md"
+                    ],
+                    "post_retrieval_unreturned_file_paths": [
+                        "specspine/extra.md"
+                    ],
+                },
             }],
         }
         reports = {
@@ -159,6 +173,12 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
         self.assertIn("mean_required_recall", text)
         self.assertIn("mean_handoff_precision", text)
         self.assertIn("unexpected_retry_rate", text)
+        self.assertIn("mean_production_retrieval_seconds", text)
+        self.assertIn("mean_post_retrieval_file_reads", text)
+        self.assertIn("mean_post_retrieval_returned_file_reads", text)
+        self.assertIn("mean_post_retrieval_unreturned_file_reads", text)
+        self.assertIn("`specspine/owner.md` (1)", text)
+        self.assertIn("`specspine/extra.md` (1)", text)
 
 
 if __name__ == "__main__":

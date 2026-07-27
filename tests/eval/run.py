@@ -132,6 +132,7 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
     event_metrics = trace.get("event_metrics")
     cost_ledger = trace.get("cost_ledger")
     usefulness = trace.get("retrieval_usefulness")
+    phase_metrics = trace.get("retrieval_phase_metrics")
     agent_telemetry = trace.get("agent_telemetry")
     return {
         "evaluation_profile": trace.get("evaluation_profile"),
@@ -161,6 +162,9 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         ),
         "cost_ledger": cost_ledger if isinstance(cost_ledger, dict) else {},
         "retrieval_usefulness": usefulness if isinstance(usefulness, dict) else {},
+        "retrieval_phase_metrics": (
+            phase_metrics if isinstance(phase_metrics, dict) else {}
+        ),
         "duration_seconds": duration if isinstance(duration, (int, float)) else None,
         "started_at": trace.get("started_at"),
         "finished_at": trace.get("finished_at"),

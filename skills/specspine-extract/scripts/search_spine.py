@@ -1765,6 +1765,54 @@ def _coverage(index: dict[str, object], primary: dict[str, object]) -> tuple[str
     return "unknown", "primary area is not classified in Coverage"
 
 
+def _attach_concatenated_files(
+    root: Path,
+    result: dict[str, object],
+    source_paths: list[str],
+    token_budget: int,
+) -> dict[str, object]:
+    notice = (
+        "The following content is the complete, concatenated content of "
+        "the selected SpecSpine files."
+    )
+    blocks = [notice]
+    returned: list[str] = []
+    output = {
+        "concatenated_files": notice,
+        "concatenated_source_paths": returned,
+        "concatenated_files_truncated": False,
+        **result,
+    }
+    for relative in source_paths:
+        block = "\n".join((
+            f'<<<SPECSPINE_FILE path="{relative}">>>',
+            read_selected_document(root, relative).rstrip("\n"),
+            "<<<SPECSPINE_END_FILE>>>",
+        ))
+        trial = {
+            **output,
+            "concatenated_files": "\n".join((*blocks, block)),
+            "concatenated_source_paths": [*returned, relative],
+        }
+        if _estimated_tokens(trial) > token_budget:
+            output["concatenated_files_truncated"] = True
+            continue
+        blocks.append(block)
+        returned.append(relative)
+        output = trial
+    if _estimated_tokens(output) > token_budget:
+        output = {
+            "concatenated_files": notice,
+            "concatenated_source_paths": [],
+            "concatenated_files_truncated": True,
+            "closure_status": "truncated",
+            "reason": "token_budget_exceeded",
+            "omitted": [{"reason": "token_budget"}],
+            "sources": source_paths,
+        }
+    return output
+
+
 def _validate_query(payload: object) -> tuple[dict[str, object] | None, str | None]:
     if not isinstance(payload, dict):
         return None, "query must be an object"
@@ -2048,6 +2096,9 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
                 or observed[0] in selected_ids
             ):
                 divergences.append({"owner": document["id"], **divergence})
+    source_paths = [str(index["path"]), str(primary["path"])] + [
+        str(documents[item]["path"]) for item in sorted(required)
+    ]
     result = {
         "closure_status": "complete",
         "reason": "mapped_task_closure_satisfied",
@@ -2073,15 +2124,19 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
         ],
         "decisions": decisions, "constraints": constraints,
         "known_divergences": divergences, "blocking_questions": questions,
-        "omitted": [], "sources": [str(index["path"]), str(primary["path"])] + [
-            str(documents[item]["path"]) for item in sorted(required)
-        ],
+        "omitted": [], "sources": source_paths,
     }
     if coverage != "mapped":
         result["closure_status"] = "partial"
         result["reason"] = "coverage_incomplete"
         result["omitted"].append({"reason": coverage_detail})
-    return _apply_token_budget(result, query["token_budget"])
+    budgeted = _apply_token_budget(result, query["token_budget"])
+    return _attach_concatenated_files(
+        root,
+        budgeted,
+        source_paths,
+        query["token_budget"],
+    )
 
 
 def main() -> int:
@@ -2107,7 +2162,7 @@ def main() -> int:
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
         return 1
     result = build_closure(args.spine_root, payload)
-    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    print(json.dumps(result, ensure_ascii=False))
     return 1 if result["closure_status"] == "invalid" else 0
 
 

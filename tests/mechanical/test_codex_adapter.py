@@ -750,7 +750,10 @@ class CodexAdapterTests(unittest.TestCase):
                     ),
                     "exit_code": 0,
                     "aggregated_output": (
-                        '{"closure_status":"complete","coverage":"mapped"}\n'
+                        '{"concatenated_files":"complete files",'
+                        '"concatenated_source_paths":["README.md","owner.md"],'
+                        '"closure_status":"complete","coverage":"mapped",'
+                        '"sources":["README.md","owner.md"]}\n'
                     ),
                 },
             }
@@ -761,6 +764,132 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertEqual(json.loads(query), attempt["query_slices"][0])
         self.assertEqual(query, attempt["queries_json"])
         self.assertIsNone(attempt["failure_kind"])
+        self.assertEqual(
+            ["specspine/README.md", "specspine/owner.md"],
+            [
+                document["path"]
+                for document in attempt["inline_documents"]
+            ],
+        )
+
+    def test_splits_agent_metrics_around_retrieval(self):
+        events = [
+            {
+                "type": "item.completed",
+                "item": {
+                    "id": "pre",
+                    "type": "command_execution",
+                    "command": "sed -n '1,80p' specspine/README.md",
+                },
+            },
+            {
+                "type": "item.started",
+                "item": {
+                    "id": "retrieval",
+                    "type": "command_execution",
+                    "command": (
+                        "python3 search_spine.py specspine "
+                        "--query-json '{}'"
+                    ),
+                },
+            },
+            {
+                "type": "item.completed",
+                "item": {
+                    "id": "retrieval",
+                    "type": "command_execution",
+                    "command": (
+                        "python3 search_spine.py specspine "
+                        "--query-json '{}'"
+                    ),
+                },
+            },
+            {
+                "type": "item.completed",
+                "item": {
+                    "id": "post",
+                    "type": "command_execution",
+                    "command": "sed -n '1,80p' specspine/owner.md",
+                },
+            },
+        ]
+        stdout = "\n".join(json.dumps(item) for item in events)
+        timings = [
+            {"line_number": 1, "observed_seconds": 2.0},
+            {"line_number": 2, "observed_seconds": 3.0},
+            {"line_number": 3, "observed_seconds": 3.5},
+            {"line_number": 4, "observed_seconds": 5.0},
+        ]
+
+        metrics = ADAPTER.retrieval_phase_metrics(
+            stdout,
+            timings,
+            7.0,
+            ["specspine/README.md", "specspine/owner.md"],
+            [{"timings": {"total_seconds": 0.4}}],
+        )
+
+        self.assertEqual(3.0, metrics["pre_retrieval_seconds"])
+        self.assertEqual(0.5, metrics["retrieval_command_seconds"])
+        self.assertEqual(0.4, metrics["production_retrieval_seconds"])
+        self.assertEqual(3.5, metrics["post_retrieval_seconds"])
+        self.assertEqual(1, metrics["post_retrieval_file_reads"])
+        self.assertEqual(
+            ["specspine/owner.md"], metrics["post_retrieval_file_paths"]
+        )
+        self.assertEqual(
+            [], metrics["post_retrieval_returned_file_paths"]
+        )
+        self.assertEqual(
+            ["specspine/owner.md"],
+            metrics["post_retrieval_unreturned_file_paths"],
+        )
+
+    def test_classifies_reads_of_files_returned_by_retrieval(self):
+        stdout = "\n".join(
+            json.dumps(item)
+            for item in [
+                {
+                    "type": "item.completed",
+                    "item": {
+                        "type": "command_execution",
+                        "command": "python3 search_spine.py specspine --query-json '{}'",
+                    },
+                },
+                {
+                    "type": "item.completed",
+                    "item": {
+                        "type": "command_execution",
+                        "command": (
+                            "cat specspine/owner.md "
+                            "specspine/unrelated.md"
+                        ),
+                    },
+                },
+            ]
+        )
+        metrics = ADAPTER.retrieval_phase_metrics(
+            stdout,
+            [
+                {"line_number": 1, "observed_seconds": 1.0},
+                {"line_number": 2, "observed_seconds": 2.0},
+            ],
+            3.0,
+            ["specspine/owner.md", "specspine/unrelated.md"],
+            [{
+                "timings": {"total_seconds": 0.2},
+                "inline_documents": [{"path": "specspine/owner.md"}],
+            }],
+        )
+
+        self.assertEqual(
+            ["specspine/owner.md"],
+            metrics["post_retrieval_returned_file_paths"],
+        )
+        self.assertEqual(
+            ["specspine/unrelated.md"],
+            metrics["post_retrieval_unreturned_file_paths"],
+        )
 
     def test_classifies_malformed_retrieval_output(self):
         stdout = json.dumps(

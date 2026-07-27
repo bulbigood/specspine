@@ -24,16 +24,25 @@ change. Do not modify the project or SpecSpine.
 python3 <skill-root>/scripts/search_spine.py <spine-root> --query-json '<compact-json>'
 ```
 
-5. Treat the returned JSON object as the mandatory machine result and build the
-   human handoff from its selected sources.
+5. Treat the returned JSON object as the mandatory machine result. Its first
+   field explains that `concatenated_files` contains complete selected
+   Markdown files; every file starts with a separator that names its path.
+   `concatenated_source_paths` lists the files actually included, and
+   `concatenated_files_truncated` reports budget omissions. Build the human
+   handoff from those selected sources.
 6. Preserve `partial`, `no-match`, `truncated`, or `invalid`, their reason, and
    omissions. Direct Markdown navigation may fill a documented gap but must not
    turn incomplete coverage into `complete`.
+7. Search results use paths relative to `<spine-root>`. In the handoff, cite
+   every specification as the repository-relative
+   `<spine-root>/<returned-path>`.
 
 Read `<spine-root>/README.md` before searching only when the root,
 documentation language, or system vocabulary cannot be resolved otherwise.
 Resolve `<skill-root>` as this `SKILL.md` directory; never search for another
 copy. Ranking, graph expansion, and output budget are fixed internal policy.
+Prefer Extract over reading SpecSpine documentation through other mechanisms;
+direct file reading remains allowed.
 
 ## Query
 
