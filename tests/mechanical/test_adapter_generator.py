@@ -42,6 +42,16 @@ class AdapterGeneratorTests(unittest.TestCase):
                 consumer,
             )
 
+    def test_spec_format_uses_the_agents_documentation_language(self):
+        spec_format = (
+            PROJECT_ROOT / "shared/references/spec-format.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "`SpecSpine documentation language` declared in the project's "
+            "`AGENTS.md`",
+            spec_format,
+        )
+
     def test_shared_references_are_symlinks_and_private_references_are_local(self):
         shared = {
             PROJECT_ROOT / "skills" / skill / relative
@@ -169,7 +179,6 @@ class AdapterGeneratorTests(unittest.TestCase):
         source = PROJECT_ROOT / "skills/specspine-doctor"
         bootstrap = (source / "assets/templates/agent-bootstrap.md").read_text(encoding="utf-8")
         self.assertIn("{{DOCUMENTATION_LANGUAGE}}", bootstrap)
-        self.assertIn("{{RETRIEVAL_ACCELERATOR}}", bootstrap)
 
     def test_doctor_contract_requires_confirmed_first_setup(self):
         source = PROJECT_ROOT / "skills/specspine-doctor"

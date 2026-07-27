@@ -43,6 +43,11 @@ Resolve `<spine-root>` once before reading or writing specifications:
 
 Keep this value stable for the operation. Start with a flat directory:
 
+Write all natural-language content in every SpecSpine document in the
+`SpecSpine documentation language`.
+Preserve paths, semantic IDs, API names, code identifiers, and other exact
+identifiers without translation.
+
 ```text
 <spine-root>/
 ├── README.md
