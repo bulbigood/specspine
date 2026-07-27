@@ -171,13 +171,19 @@ class MapExhaustiveContractTests(unittest.TestCase):
         )
         self.assertIn("immediate commentary update", integration)
         self.assertIn("Spine-relative Markdown path", integration)
-        self.assertIn("label each path `created` or `changed`", integration)
+        self.assertIn(
+            "label each path `created`, `changed`, or `deleted`",
+            integration,
+        )
         self.assertIn("before starting the next", integration)
         self.assertIn("Never announce a write before it and its checks succeed", integration)
         self.assertIn(
-            "Do not batch these per-document write notifications into the final summary",
+            "repeat the cumulative document-change history",
             protocol,
         )
+        self.assertIn("`changed_documents` is the exact delta", self.integration)
+        self.assertIn("rejects missing, extra, or mislabeled paths", integration)
+        self.assertIn("use that receipt for the operator update", integration)
 
     def test_producer_uses_minimal_contract_without_other_skill_context(self):
         producer = " ".join(self.producer.split())

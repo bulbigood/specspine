@@ -77,6 +77,14 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
     published = sorted(
         {value["path"] for value in publication_history if "path" in value}
     )
+    document_change_history = ledger.get("document_change_history", [])
+    changed_documents = sorted(
+        {
+            value["path"]
+            for value in document_change_history
+            if isinstance(value, dict) and isinstance(value.get("path"), str)
+        }
+    )
     ledger_digest = hashlib.sha256(campaign.canonical_json(ledger)).hexdigest()
     source_inventory = ledger["source_pass"]["inventory"]
     inventory_counts = {
@@ -100,10 +108,14 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
         "terminal": summary["terminal"],
         "terminal_gates": summary["terminal_gates"],
         "published": published,
+        "changed_documents": changed_documents,
+        "document_change_history": document_change_history,
         "changes": {
             "created": created,
             "replaced": replaced,
             "published_paths": len(published),
+            "changed_document_paths": len(changed_documents),
+            "document_change_events": len(document_change_history),
             "markdown_total": len(actual_documents),
         },
         "inventory_classifications": inventory_counts,

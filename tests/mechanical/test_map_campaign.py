@@ -185,6 +185,31 @@ class MapCampaignTests(unittest.TestCase):
 
     def integration_report(self, *, todo=None, omit_suggestions=False):
         ledger = self.ledger_value()
+        before = ledger.get("spine_snapshot")
+        if before is None:
+            before = (ledger.get("integration_pass") or {}).get("documents")
+        if before is None:
+            before = (ledger.get("documentation_seed") or {}).get("documents", {})
+        after = {
+            path.relative_to(self.spine).as_posix(): hashlib.sha256(
+                path.read_bytes()
+            ).hexdigest()
+            for path in sorted(self.spine.rglob("*.md"))
+        }
+        changed_documents = [
+            {
+                "path": path,
+                "operation": (
+                    "created"
+                    if path not in before
+                    else "deleted"
+                    if path not in after
+                    else "changed"
+                ),
+            }
+            for path in sorted(before.keys() | after.keys())
+            if before.get(path) != after.get(path)
+        ]
         settled = [
             task
             for task in ledger["tasks"].values()
@@ -223,6 +248,7 @@ class MapCampaignTests(unittest.TestCase):
                 path.relative_to(self.spine).as_posix()
                 for path in self.spine.rglob("*.md")
             ),
+            "changed_documents": changed_documents,
             "task_reviews": reviews,
             "suggestion_reviews": suggestion_reviews,
             "todo": raw_todo,
@@ -1097,6 +1123,77 @@ class MapCampaignTests(unittest.TestCase):
             self.ledger_value()["tasks"]["session-recovery"]["state"],
         )
 
+    def test_integration_records_and_returns_exact_live_document_changes(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+        (self.staging / "identity.md").write_text(
+            "# Identity\n\n"
+            "- **OBS-identity-owner** — `src/identity/session.py`.\n",
+            encoding="utf-8",
+        )
+        self.accept(
+            task_id,
+            self.checkpoint_payload(
+                outcome="draft",
+                evidence=["src/identity/session.py"],
+            ),
+        )
+        (self.spine / "README.md").write_text(
+            (self.spine / "README.md").read_text(encoding="utf-8")
+            + "\nSee [Identity](identity.md).\n",
+            encoding="utf-8",
+        )
+        result = self.integrate()
+        expected = [
+            {"path": "README.md", "operation": "changed"},
+            {"path": "identity.md", "operation": "created"},
+        ]
+        self.assertEqual(expected, result["changed_documents"])
+        ledger = self.ledger_value()
+        self.assertEqual(
+            [
+                {"publication_epoch": 1, **change}
+                for change in expected
+            ],
+            ledger["document_change_history"],
+        )
+        summary = self.cli("summary", str(self.ledger))
+        self.assertEqual(
+            ledger["document_change_history"],
+            summary["document_change_history"],
+        )
+
+    def test_integration_rejects_incomplete_document_change_report(self):
+        self.source_pass()
+        (self.spine / "README.md").write_text(
+            "# Architecture\n\nChanged by root.\n",
+            encoding="utf-8",
+        )
+        report = self.integration_report()
+        report["changed_documents"] = []
+        error = self.integrate(report, expected=2)
+        self.assertIn(
+            "does not match live Spine changes",
+            error["error"],
+        )
+
+    def test_legacy_campaign_uses_last_integration_as_change_snapshot(self):
+        self.source_pass()
+        self.integrate()
+        ledger = self.ledger_value()
+        ledger.pop("spine_snapshot")
+        self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
+        (self.spine / "README.md").write_text(
+            "# Architecture\n\nChanged after legacy integration.\n",
+            encoding="utf-8",
+        )
+        result = self.integrate()
+        self.assertEqual(
+            [{"path": "README.md", "operation": "changed"}],
+            result["changed_documents"],
+        )
+
     def test_integration_must_review_every_covered_task(self):
         self.source_pass()
         task_id, _ = self.task_for_unit("src/identity")
@@ -1177,6 +1274,8 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertEqual("finalized", receipt["status"])
         self.assertEqual("inventory_verified", receipt["terminal"])
+        self.assertEqual([], receipt["changed_documents"])
+        self.assertEqual([], receipt["document_change_history"])
 
 
 if __name__ == "__main__":

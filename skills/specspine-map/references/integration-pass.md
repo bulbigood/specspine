@@ -26,10 +26,14 @@ The root orchestrator must:
 11. After each producer document is integrated and its live checks pass, send
     the operator an immediate commentary update. Name the producer task, say
     what the integration established or corrected, name every affected
-    Spine-relative Markdown path, and label each path `created` or `changed`.
+    Spine-relative Markdown path, and label each path `created`, `changed`, or
+    `deleted`.
     Report one document's integration before starting the next; do not defer
-    these updates to the final campaign summary. Never announce a write before
-    it and its checks succeed.
+    these updates until the final campaign summary. Never announce a write
+    before it and its checks succeed.
+12. Repeat the cumulative path-and-operation history in every campaign progress
+    or final summary, even though each change was already reported immediately.
+    If the pass changed no Spine files, explicitly say so.
 
 The root may edit live specifications and `README.md`. Producers may not.
 
@@ -43,6 +47,10 @@ field unless every document was read:
 ```json
 {
   "evidence_inspected": ["README.md", "identity.md", "sessions.md"],
+  "changed_documents": [
+    {"path": "identity.md", "operation": "changed"},
+    {"path": "sessions.md", "operation": "created"}
+  ],
   "task_reviews": [
     {
       "task": "identity-sessions",
@@ -81,6 +89,14 @@ field unless every document was read:
   "terminal_reason": null
 }
 ```
+
+`changed_documents` is the exact delta since the preceding successful
+integration pass (or source pass for the first integration). The command
+independently hashes the live Spine and rejects missing, extra, or mislabeled
+paths. It records the verified delta in persistent campaign history and returns
+it in the integration receipt; use that receipt for the operator update. On
+first use with a legacy campaign lacking a saved integration snapshot, the
+verified delta is cumulative from its documentation seed.
 
 Every task in `published` or `review` needs one `task_reviews` row. A published
 draft requires `integrated`; a `covered` receipt requires

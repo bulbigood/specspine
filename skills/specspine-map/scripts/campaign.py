@@ -310,6 +310,87 @@ def document_hashes(spine_root: Path) -> dict[str, str]:
     }
 
 
+def spine_changes(
+    before: dict[str, str],
+    after: dict[str, str],
+) -> list[dict[str, str]]:
+    return [
+        {
+            "path": path,
+            "operation": (
+                "created"
+                if path not in before
+                else "deleted"
+                if path not in after
+                else "changed"
+            ),
+        }
+        for path in sorted(before.keys() | after.keys())
+        if before.get(path) != after.get(path)
+    ]
+
+
+def ledger_spine_snapshot(ledger: dict[str, Any]) -> dict[str, str]:
+    raw = ledger.get("spine_snapshot")
+    if raw is None:
+        integration = ledger.get("integration_pass")
+        raw = (
+            integration.get("documents")
+            if isinstance(integration, dict)
+            else None
+        )
+    if raw is None:
+        seed = ledger.get("documentation_seed")
+        raw = seed.get("documents", {}) if isinstance(seed, dict) else {}
+    if (
+        not isinstance(raw, dict)
+        or any(
+            not isinstance(path, str)
+            or not isinstance(digest, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", digest)
+            for path, digest in raw.items()
+        )
+    ):
+        raise CampaignError("campaign Spine snapshot is invalid")
+    return dict(raw)
+
+
+def validate_reported_spine_changes(
+    raw: Any,
+    actual: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    if not isinstance(raw, list):
+        raise CampaignError("integration changed_documents must be a list")
+    normalized: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for value in raw:
+        if (
+            not isinstance(value, dict)
+            or set(value) != {"path", "operation"}
+            or value.get("operation") not in {"created", "changed", "deleted"}
+        ):
+            raise CampaignError(
+                "each changed document needs path and created/changed/deleted operation"
+            )
+        path = validate_relative_path(value["path"])
+        if Path(path).suffix.lower() != ".md":
+            raise CampaignError(f"changed document must be Markdown: {path}")
+        if path in seen:
+            raise CampaignError(f"duplicate changed document: {path}")
+        seen.add(path)
+        normalized.append({"path": path, "operation": value["operation"]})
+    normalized.sort(key=lambda value: value["path"])
+    if normalized != actual:
+        raise CampaignError(
+            "integration changed_documents does not match live Spine changes: "
+            + json.dumps(
+                {"reported": normalized, "actual": actual},
+                ensure_ascii=False,
+            )
+        )
+    return normalized
+
+
 def atomic_write(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
@@ -931,7 +1012,9 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         "used_producers": {},
         "publication_epoch": 0,
         "publication_history": [],
+        "document_change_history": [],
         "documentation_seed": None,
+        "spine_snapshot": None,
         "source_pass": None,
         "integration_pass": None,
         "resume_history": [],
@@ -1042,6 +1125,8 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
             "terminal_reason": None,
             "publication_epoch": ledger["publication_epoch"],
         }
+        ledger["spine_snapshot"] = document_hashes(args.spine_root.resolve())
+        ledger.setdefault("document_change_history", [])
         save_locked(args.ledger, ledger)
         return {
             "status": "recorded",
@@ -2197,6 +2282,14 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
         }
 
     with locked_ledger(args.ledger) as ledger:
+        actual_changes = spine_changes(
+            ledger_spine_snapshot(ledger),
+            documents,
+        )
+        reported_changes = validate_reported_spine_changes(
+            report.get("changed_documents"),
+            actual_changes,
+        )
         settled = {
             task["id"]: task
             for task in ledger["tasks"].values()
@@ -2292,6 +2385,7 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
         ledger["integration_pass"] = {
             "publication_epoch": ledger["publication_epoch"],
             "documents": documents,
+            "changed_documents": reported_changes,
             "task_reviews": normalized_reviews,
             "suggestion_reviews": {
                 f"{task}:{suggestion}": value
@@ -2301,11 +2395,22 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
             "terminal_reason": report.get("terminal_reason"),
             "organization": organization,
         }
+        history = ledger.setdefault("document_change_history", [])
+        history.extend(
+            {
+                "publication_epoch": ledger["publication_epoch"],
+                "path": value["path"],
+                "operation": value["operation"],
+            }
+            for value in reported_changes
+        )
+        ledger["spine_snapshot"] = documents
         save_locked(args.ledger, ledger)
         return {
             "status": "integrated",
             "reviewed_tasks": sorted(settled),
             "added_todo": added,
+            "changed_documents": reported_changes,
             "revision": ledger["revision"],
         }
 
@@ -2400,6 +2505,7 @@ def command_summary(args: argparse.Namespace) -> dict[str, Any]:
         "revision": ledger["revision"],
         "states": states,
         "ready": states["todo"],
+        "document_change_history": ledger.get("document_change_history", []),
         "terminal_gates": gates,
         "terminal": terminal,
     }
