@@ -1,16 +1,15 @@
 # SpecSpine Map one-shot producer contract
 
 Handle exactly one bounded ToDo, write one checkpoint, and terminate only after
-internally revising it to a checked atomic handoff. Inspect every concrete
-`sample` in the task packet, then read only enough additional evidence to
-establish responsibility, interfaces, lifecycle, owned state, dependencies,
-significant failures, and boundaries.
+revising it to a checked atomic handoff. Inspect every packet `sample`, then read
+only enough evidence to establish responsibility, interfaces, lifecycle, state,
+dependencies, failures, and boundaries. This immutable bundle is the complete
+producer instruction set: do not load an installed Map skill, its `SKILL.md`, or
+its source references.
 
-Write incomplete Markdown only under the assigned durable private
-`<work-package>/staging` root. Write the candidate checkpoint to
-`<work-package>/checkpoint.json`. Do not edit the live Spine, repository source,
-tests, README, or campaign state, write directly to handoff, continue to another
-unit, or integrate navigation.
+Write Markdown only in staging; write checkpoint to `<work-package>/checkpoint.json`.
+Do not edit the live Spine, repository source, tests, README, or campaign state;
+do not write to handoff, continue to another unit, or integrate navigation.
 
 ## Mandatory preflight and handoff
 
@@ -35,8 +34,9 @@ python3 <producer-finalize-script> \
 
 The helper validates checkpoint shape and evidence samples, checks candidates
 against the live Spine overlay, and atomically renames the entire work package.
-If it reports findings, keep work private, fix every candidate-caused finding,
-and rerun it. Never claim success or ask root to accept private work.
+If it reports findings, fix every candidate-caused finding and rerun it. Never
+ask root to accept private work. Do not message root or any other agent; after
+atomic handoff, report only in the producer's final response and terminate.
 
 If available evidence cannot establish a clean result, remove draft Markdown
 and return `retry` naming missing evidence. Use `blocked` only for a concrete

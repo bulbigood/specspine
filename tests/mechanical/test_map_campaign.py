@@ -882,7 +882,29 @@ class MapCampaignTests(unittest.TestCase):
         next_action = self.cli("next-action", str(self.ledger))
         self.assertFalse(next_action["may_finish"])
         self.assertEqual("dispatch", next_action["action"])
+        self.assertEqual(
+            "continue_in_same_turn_no_final_response",
+            next_action["response_policy"],
+        )
         self.assertGreater(next_action["counts"]["todo"], 0)
+
+    def test_integration_evidence_may_be_relevant_live_subset(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.covered(task_id, "src/identity/session.py")
+        report = self.integration_report()
+        report["evidence_inspected"] = ["README.md"]
+        result = self.integrate(report)
+        self.assertEqual("integrated", result["status"])
+
+    def test_integration_evidence_rejects_unknown_document(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.covered(task_id, "src/identity/session.py")
+        report = self.integration_report()
+        report["evidence_inspected"] = ["missing.md"]
+        error = self.integrate(report, expected=2)
+        self.assertIn("only live Markdown documents", error["error"])
 
     def test_repository_content_change_invalidates_inventory(self):
         self.verify_all_source_units()

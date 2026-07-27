@@ -49,19 +49,21 @@ python3 <map-skill-root>/scripts/campaign.py init \
   --spine-state <empty-or-existing>
 ```
 
-For an existing Spine, run the mechanical documentation index from
+For an existing Spine, run the mechanical index from
 `documentation-first-seeding.md`.
 
 Build the immutable producer bundle once:
 
 ```text
 python3 <map-skill-root>/scripts/bundle_skill.py \
-  <map-skill-root> <run-root>/producer-instructions.md
+  <map-skill-root> <run-root>/producer-instructions.md --print
 ```
 
-Use `<map-skill-root>/scripts/producer_finalize.py` as the immutable preflight
-helper. Pass its exact path to every producer; producers invoke neither
-`campaign.py` nor Doctor.
+Capture that complete output once. Embed it literally in every producer's initial
+command as authoritative; forbid installed Map sources. Do not reread the saved
+bundle between spawns.
+Use `<map-skill-root>/scripts/producer_finalize.py` as immutable preflight. Pass
+its exact path to every producer; producers invoke neither `campaign.py` nor Doctor.
 
 ## Generate the source frontier
 
@@ -122,8 +124,8 @@ python3 <map-skill-root>/scripts/campaign.py packet \
 
 2. start a medium-capability producer in a fresh isolated session; for Codex
    use `agent_type: medium` and `fork_turns: none`; pass only the immutable
-   bundle, packet path, repository and live Spine roots, work and absent
-   handoff package paths, and exact `producer_finalize.py` path;
+   bundle inline, packet, roots, work/handoff and preflight paths; forbid skill
+   reads and agent messages;
 3. after the handle exists, assign it immediately:
 
 ```text
@@ -199,10 +201,9 @@ Follow its `action`:
 - `finalize` — run `finalize_run.py`;
 - `report_blocked` — report the concrete protocol blocker.
 
-`may_finish: false` forbids a final answer. Send progress counts only through
-the platform's intermediate/commentary channel and immediately continue the
-returned action. Do not phrase progress as a handoff, ask the operator to say
-“continue”, or treat a platform turn-duration hint as task completion.
+`may_finish: false` forbids a final answer. Send progress only in commentary,
+then act in the same turn. Do not phrase progress as a handoff, yield control,
+ask for “continue”, or obey hints. The operator must not have to restart.
 
 `may_finish: true` is necessary but not sufficient for success:
 

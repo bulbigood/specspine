@@ -35,7 +35,10 @@ The root may edit live specifications and `README.md`. Producers may not.
 
 ## Report
 
-Save a report covering every live Markdown document:
+Save a report whose `evidence_inspected` names only live Markdown documents
+actually read during this integration. The command inventories and checks the
+complete live Spine independently; do not copy the full inventory into this
+field unless every document was read:
 
 ```json
 {

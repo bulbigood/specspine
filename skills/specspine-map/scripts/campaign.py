@@ -806,7 +806,7 @@ def repository_inventory(
     }
 
 
-def validate_document_inventory(
+def validate_integration_evidence(
     spine_root: Path,
     inspected: Any,
     *,
@@ -817,11 +817,11 @@ def validate_document_inventory(
         validate_relative_path(value)
         for value in string_list(inspected, field, nonempty=True)
     }
-    if paths != set(documents):
+    unknown = paths - set(documents)
+    if unknown:
         raise CampaignError(
-            f"{field} must equal every live Markdown document; "
-            f"missing={sorted(set(documents) - paths)}, "
-            f"unknown={sorted(paths - set(documents))}"
+            f"{field} must name only live Markdown documents; "
+            f"unknown={sorted(unknown)}"
         )
     return documents
 
@@ -1711,7 +1711,7 @@ def validate_integrated_source_publication(
 def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
     report = read_json(args.report)
     spine_root = args.spine_root.resolve()
-    documents = validate_document_inventory(
+    documents = validate_integration_evidence(
         spine_root,
         report.get("evidence_inspected"),
         field="integration evidence_inspected",
@@ -2034,6 +2034,11 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
         "revision": summary["revision"],
         "action": action,
         "may_finish": may_finish,
+        "response_policy": (
+            "final_response_allowed"
+            if may_finish
+            else "continue_in_same_turn_no_final_response"
+        ),
         "reason": reason,
         "counts": {
             state: len(task_ids) for state, task_ids in states.items()

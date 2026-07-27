@@ -116,6 +116,8 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("The durable campaign is the unit of completion", protocol)
         self.assertIn("`may_finish: false` forbids a final answer", protocol)
         self.assertIn("Do not phrase progress as a handoff", protocol)
+        self.assertIn("The operator must not have to restart", protocol)
+        self.assertIn("continue_in_same_turn_no_final_response", self.campaign)
         self.assertIn("def command_next_action", self.campaign)
         self.assertIn('"next-action": command_next_action', self.campaign)
 
@@ -176,6 +178,16 @@ class MapExhaustiveContractTests(unittest.TestCase):
             "Do not batch these per-document write notifications into the final summary",
             protocol,
         )
+
+    def test_producer_uses_inline_bundle_without_installed_skill_or_messages(self):
+        producer = " ".join(self.producer.split())
+        protocol = " ".join(self.protocol.split())
+        self.assertIn("complete producer instruction set", producer)
+        self.assertIn("do not load an installed Map skill", producer)
+        self.assertIn("Do not message root or any other agent", producer)
+        self.assertIn("producer-instructions.md --print", protocol)
+        self.assertIn("Embed it literally in every producer's initial command", protocol)
+        self.assertIn("Do not reread the saved bundle between spawns", protocol)
 
     def test_producers_cannot_write_shared_navigation(self):
         normalized = " ".join(self.producer.split())
