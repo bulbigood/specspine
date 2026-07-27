@@ -42,5 +42,8 @@ python3 <map-skill-root>/scripts/campaign.py next-action <campaign>
 `resume-session` refuses a changed source snapshot and returns every `assigned`
 task to `todo`, because producer handles from another session are not live in
 the new session. Preserve their private work packages for diagnosis and use
-fresh producers. If the operator chooses new, create a unique run and do not
-modify old ledgers.
+fresh producers. It migrates a legacy ledger without producer-contract metadata.
+If recorded contract metadata differs from the current contract, stop for
+operator approval, then rerun with `--adopt-producer-contract`; never adopt
+silently. If the operator chooses new, create a unique run and do not modify old
+ledgers.

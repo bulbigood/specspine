@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 import sys
@@ -244,6 +245,13 @@ class MapCampaignTests(unittest.TestCase):
     def test_init_uses_schema_five_and_private_ledger(self):
         ledger = self.ledger_value()
         self.assertEqual(5, ledger["schema_version"])
+        contract = ROOT / "skills/specspine-map/references/producer-task.md"
+        self.assertEqual(1, ledger["producer_contract_version"])
+        self.assertEqual(
+            hashlib.sha256(contract.read_bytes()).hexdigest(),
+            ledger["producer_contract_digest"],
+        )
+        self.assertEqual("init", ledger["producer_contract_history"][0]["reason"])
         self.assertEqual({}, ledger["tasks"])
         self.assertEqual(0o600, self.ledger.stat().st_mode & 0o777)
 
@@ -280,6 +288,19 @@ class MapCampaignTests(unittest.TestCase):
             row = ledger["source_pass"]["inventory"][area]
             self.assertEqual("queued", row["classification"])
             self.assertEqual("todo", ledger["tasks"][row["task"]]["state"])
+
+    def test_ready_and_todo_can_limit_large_frontier_output(self):
+        self.source_pass()
+
+        ready = self.cli("ready", str(self.ledger), "--limit", "1")
+        todo = self.cli("todo", str(self.ledger), "--limit", "1")
+
+        self.assertEqual(1, ready["returned"])
+        self.assertEqual(2, ready["total"])
+        self.assertEqual(1, len(ready["ready"]))
+        self.assertEqual(1, todo["returned"])
+        self.assertEqual(2, todo["total"])
+        self.assertEqual(1, len(todo["todo"]))
 
     def test_inventory_splits_oversized_units_mechanically(self):
         large = self.repository / "packages/big/src"
@@ -405,6 +426,11 @@ class MapCampaignTests(unittest.TestCase):
         self.assertIn(task_id, self.cli("ready", str(self.ledger))["ready"])
         packet = self.cli("packet", str(self.ledger), task_id)
         self.assertEqual(task_id, packet["task"]["id"])
+        self.assertEqual(1, packet["producer_contract"]["version"])
+        self.assertEqual(
+            self.ledger_value()["producer_contract_digest"],
+            packet["producer_contract"]["digest"],
+        )
         self.assertTrue(packet["task"]["evidence_strata"])
         packet_path = self.run / "packets" / f"{task_id}.json"
         receipt = self.cli(
@@ -497,6 +523,53 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual(
             [task_id],
             ledger["resume_history"][-1]["released_orphaned_tasks"],
+        )
+
+    def test_resume_session_migrates_legacy_contract_metadata(self):
+        ledger = self.ledger_value()
+        del ledger["producer_contract_version"]
+        del ledger["producer_contract_digest"]
+        del ledger["producer_contract_history"]
+        self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
+
+        receipt = self.cli("resume-session", str(self.ledger))
+
+        self.assertEqual(
+            "legacy-migration",
+            receipt["producer_contract_change"]["reason"],
+        )
+        migrated = self.ledger_value()
+        self.assertEqual(1, migrated["producer_contract_version"])
+        self.assertEqual(
+            migrated["producer_contract_digest"],
+            receipt["producer_contract"]["digest"],
+        )
+
+    def test_resume_session_requires_approval_for_contract_change(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        ledger = self.ledger_value()
+        ledger["producer_contract_digest"] = "0" * 64
+        self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
+
+        packet_error = self.cli(
+            "packet",
+            str(self.ledger),
+            task_id,
+            expected=2,
+        )
+        self.assertIn("--adopt-producer-contract", packet_error["error"])
+        error = self.cli("resume-session", str(self.ledger), expected=2)
+        self.assertIn("--adopt-producer-contract", error["error"])
+
+        receipt = self.cli(
+            "resume-session",
+            str(self.ledger),
+            "--adopt-producer-contract",
+        )
+        self.assertEqual(
+            "operator-adopted",
+            receipt["producer_contract_change"]["reason"],
         )
 
     def test_changed_source_disables_and_refuses_resume(self):

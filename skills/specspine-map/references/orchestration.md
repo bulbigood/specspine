@@ -103,11 +103,11 @@ classification equivalent to `mapped` or `neighbor-owned`.
 
 ## Dispatch producers
 
-Inspect ready work:
+Inspect ready work with bounded output. Use `todo --limit <n>` only for bounded
+diagnosis; never print the whole frontier during normal dispatch.
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py ready <campaign>
-python3 <map-skill-root>/scripts/campaign.py todo <campaign>
+python3 <map-skill-root>/scripts/campaign.py ready <campaign> --limit <free-slots>
 ```
 
 For every available slot:

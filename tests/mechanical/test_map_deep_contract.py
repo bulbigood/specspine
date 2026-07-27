@@ -192,6 +192,18 @@ class MapExhaustiveContractTests(unittest.TestCase):
         )
         self.assertIn("Do not read SKILL.md or any other Map reference", protocol)
         self.assertIn("ignore any legacy generated instruction artifact", protocol)
+        self.assertIn("targeted `rg` and narrow excerpts", producer)
+        self.assertIn("at most 10,000 output tokens per call", producer)
+
+    def test_dispatch_and_resume_keep_context_bounded_and_versioned(self):
+        protocol = " ".join(self.protocol.split())
+        selection = " ".join(self.selection.split())
+        self.assertIn("ready <campaign> --limit <free-slots>", protocol)
+        self.assertIn("todo --limit <n>", protocol)
+        self.assertIn("producer-contract metadata", selection)
+        self.assertIn("--adopt-producer-contract", selection)
+        self.assertIn("PRODUCER_CONTRACT_VERSION", self.campaign)
+        self.assertIn("require_current_producer_contract", self.campaign)
 
     def test_exhaustive_runtime_does_not_use_the_reference_bundler(self):
         runtime = "\n".join((self.entrypoint, self.protocol, self.producer))

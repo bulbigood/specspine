@@ -5,6 +5,7 @@ revising it to a checked atomic handoff. Inspect every packet `sample`, then rea
 only enough evidence to establish responsibility, interfaces, lifecycle, state,
 dependencies, failures, and boundaries. This file is the complete producer
 instruction set: do not load the Map `SKILL.md` or any other Map reference.
+Start with targeted `rg` and narrow excerpts, target at most 10,000 output tokens per call, and never dump complete large files; exceed the target only for a concrete unresolved boundary.
 
 Write Markdown only in staging; write checkpoint to `<work-package>/checkpoint.json`.
 Do not edit the live Spine, repository source, tests, README, or campaign state;

@@ -32,6 +32,7 @@ from typing import Any, Iterator
 
 
 SCHEMA_VERSION = 5
+PRODUCER_CONTRACT_VERSION = 1
 MAX_UNIT_FILES = 80
 MAX_EVIDENCE_STRATA = 4
 MAX_CANDIDATE_DOCUMENTS = 12
@@ -192,6 +193,59 @@ def digest_json(value: Any) -> str:
     return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
+def producer_contract() -> dict[str, Any]:
+    path = Path(__file__).resolve().parents[1] / "references/producer-task.md"
+    try:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as error:
+        raise CampaignError(f"cannot read producer contract {path}: {error}") from error
+    return {
+        "version": PRODUCER_CONTRACT_VERSION,
+        "digest": digest,
+    }
+
+
+def ledger_producer_contract(ledger: dict[str, Any]) -> dict[str, Any] | None:
+    version = ledger.get("producer_contract_version")
+    digest = ledger.get("producer_contract_digest")
+    if version is None and digest is None:
+        return None
+    if (
+        not isinstance(version, int)
+        or isinstance(version, bool)
+        or version < 1
+        or not isinstance(digest, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", digest)
+    ):
+        raise CampaignError("campaign producer contract metadata is invalid")
+    return {"version": version, "digest": digest}
+
+
+def require_current_producer_contract(ledger: dict[str, Any]) -> dict[str, Any]:
+    recorded = ledger_producer_contract(ledger)
+    current = producer_contract()
+    if recorded is None:
+        raise CampaignError(
+            "campaign has no producer contract metadata; run resume-session first"
+        )
+    if recorded != current:
+        raise CampaignError(
+            "producer contract changed; run resume-session "
+            "--adopt-producer-contract after operator approval"
+        )
+    return current
+
+
+def positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be a positive integer") from error
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
 def read_json(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -284,6 +338,7 @@ def load(path: Path) -> dict[str, Any]:
         )
     if not isinstance(ledger.get("tasks"), dict):
         raise CampaignError("campaign tasks are missing")
+    ledger_producer_contract(ledger)
     return ledger
 
 
@@ -846,6 +901,7 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
     if args.ledger.exists():
         raise CampaignError(f"campaign already exists: {args.ledger}")
     timestamp = utc_timestamp()
+    contract = producer_contract()
     ledger = {
         "schema_version": SCHEMA_VERSION,
         "campaign_id": str(uuid.uuid4()),
@@ -860,6 +916,17 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         "scope": args.scope,
         "root_question": args.root_question,
         "spine_state": args.spine_state,
+        "producer_contract_version": contract["version"],
+        "producer_contract_digest": contract["digest"],
+        "producer_contract_history": [
+            {
+                "version": contract["version"],
+                "digest": contract["digest"],
+                "activated_at": timestamp,
+                "activated_revision": 0,
+                "reason": "init",
+            }
+        ],
         "tasks": {},
         "used_producers": {},
         "publication_epoch": 0,
@@ -1018,18 +1085,28 @@ def command_todo(args: argparse.Namespace) -> dict[str, Any]:
         for task in sorted(ledger["tasks"].values(), key=lambda value: value["id"])
         if args.all or task["state"] in {"todo", "assigned", "published", "blocked"}
     ]
-    return {"campaign_id": ledger["campaign_id"], "todo": tasks}
+    selected = tasks[: args.limit] if args.limit is not None else tasks
+    return {
+        "campaign_id": ledger["campaign_id"],
+        "todo": selected,
+        "returned": len(selected),
+        "total": len(tasks),
+    }
 
 
 def command_ready(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
+    ready = [
+        task["id"]
+        for task in sorted(ledger["tasks"].values(), key=lambda value: value["id"])
+        if task["state"] == "todo"
+    ]
+    selected = ready[: args.limit] if args.limit is not None else ready
     return {
         "campaign_id": ledger["campaign_id"],
-        "ready": [
-            task["id"]
-            for task in sorted(ledger["tasks"].values(), key=lambda value: value["id"])
-            if task["state"] == "todo"
-        ],
+        "ready": selected,
+        "returned": len(selected),
+        "total": len(ready),
     }
 
 
@@ -1164,6 +1241,38 @@ def command_resume_session(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(
                 "campaign source snapshot changed; start a new campaign"
             )
+        recorded_contract = ledger_producer_contract(ledger)
+        current_contract = producer_contract()
+        contract_change = None
+        if recorded_contract is None:
+            contract_change = {
+                "from": None,
+                "to": current_contract,
+                "reason": "legacy-migration",
+            }
+        elif recorded_contract != current_contract:
+            if not args.adopt_producer_contract:
+                raise CampaignError(
+                    "producer contract changed; resume requires operator-approved "
+                    "--adopt-producer-contract"
+                )
+            contract_change = {
+                "from": recorded_contract,
+                "to": current_contract,
+                "reason": "operator-adopted",
+            }
+        if contract_change is not None:
+            ledger["producer_contract_version"] = current_contract["version"]
+            ledger["producer_contract_digest"] = current_contract["digest"]
+            ledger.setdefault("producer_contract_history", []).append(
+                {
+                    "version": current_contract["version"],
+                    "digest": current_contract["digest"],
+                    "activated_at": utc_timestamp(),
+                    "activated_revision": ledger["revision"] + 1,
+                    "reason": contract_change["reason"],
+                }
+            )
         released = sorted(
             task["id"]
             for task in ledger["tasks"].values()
@@ -1178,6 +1287,7 @@ def command_resume_session(args: argparse.Namespace) -> dict[str, Any]:
             {
                 "resumed_at": resumed_at,
                 "released_orphaned_tasks": released,
+                "producer_contract_change": contract_change,
             }
         )
         save_locked(args.ledger, ledger)
@@ -1186,17 +1296,21 @@ def command_resume_session(args: argparse.Namespace) -> dict[str, Any]:
             "campaign_id": ledger["campaign_id"],
             "resumed_at": resumed_at,
             "released_orphaned_tasks": released,
+            "producer_contract": current_contract,
+            "producer_contract_change": contract_change,
             "revision": ledger["revision"],
         }
 
 
 def command_packet(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
+    contract = require_current_producer_contract(ledger)
     task = require_task(ledger, args.id)
     if task["state"] != "todo":
         raise CampaignError(f"packet requires todo state: {args.id}")
     packet = {
         "campaign_id": ledger["campaign_id"],
+        "producer_contract": contract,
         "task": task_definition(task),
     }
     if args.output is None:
@@ -2112,6 +2226,7 @@ def parser() -> argparse.ArgumentParser:
 
     resume = sub.add_parser("resume-session")
     resume.add_argument("ledger", type=Path)
+    resume.add_argument("--adopt-producer-contract", action="store_true")
 
     seed = sub.add_parser("seed-from-spine")
     seed.add_argument("ledger", type=Path)
@@ -2139,9 +2254,11 @@ def parser() -> argparse.ArgumentParser:
     todo = sub.add_parser("todo")
     todo.add_argument("ledger", type=Path)
     todo.add_argument("--all", action="store_true")
+    todo.add_argument("--limit", type=positive_int)
 
     ready = sub.add_parser("ready")
     ready.add_argument("ledger", type=Path)
+    ready.add_argument("--limit", type=positive_int)
 
     packet = sub.add_parser("packet")
     packet.add_argument("ledger", type=Path)
