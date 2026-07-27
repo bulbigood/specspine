@@ -91,6 +91,10 @@ class DoctorCheckerV2Tests(unittest.TestCase):
             Path(__file__).parents[2]
             / "skills/specspine-doctor/assets/templates/spine-index.md"
         ).read_text(encoding="utf-8")
+        self.assertIn(
+            "This directory contains the project's long-lived architectural intent",
+            template,
+        )
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name)

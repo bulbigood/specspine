@@ -9,6 +9,9 @@ The index MUST contain:
 
 - exactly one H1;
 - `**ID:** \`...\` · **Kind:** \`index\``;
+- a short scope statement explaining that the directory contains the project's
+  long-lived architectural intent and architecture-relevant repository
+  observations;
 - a short project purpose and architectural context;
 - a compact `Architecture map`;
 - qualitative `Coverage` with `Mapped`, `Partially mapped`, and `Unmapped`

@@ -39,7 +39,16 @@ as one setup operation. Create no concept specifications and never overwrite an
 existing index. Use the bundled index template as a semantic outline and render
 its natural-language headings and placeholder prose in the accepted
 documentation language. Do not translate paths, identifiers, or managed
-bootstrap labels.
+bootstrap labels. Preserve the template's short scope statement that the
+directory contains the project's long-lived architectural intent and
+architecture-relevant repository observations; translate that natural-language
+statement when the accepted documentation language is not English. Keep the
+rest of the new index project-specific: it may state that the project purpose
+or architecture is not documented yet, but MUST NOT include a SpecSpine
+tutorial, framework purpose, installation instructions, retrieval procedure,
+relation vocabulary, or agent workflow. Those belong to the framework
+documentation or the managed bootstrap, not to the project's canonical
+architecture index.
 
 ## Selected-root states
 
@@ -165,6 +174,10 @@ Do not include framework commands, directory maps, copied architecture,
 bindings, adapters, or downstream workflow instructions. Naming
 `specspine-extract` as the framework-neutral retrieval route is part of this
 contract, not workflow adaptation.
+
+Do not copy a general explanation of SpecSpine into either the managed block or
+the project index. The managed block answers where and when agents retrieve
+architecture; the index answers what architecture this project has.
 
 The documentation language also guides Extract's retrieval query language.
 Exact paths, semantic IDs, API names, and other identifiers are never

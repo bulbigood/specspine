@@ -65,6 +65,12 @@ runs the mechanical checker.
 
 Connection administration and health review are separate operations.
 
+The managed project-instruction block contains only the index location,
+documentation language, accelerator policy, retrieval route, and compact
+authority rules. The root index contains only project-specific architectural
+context and coverage. General explanations of the SpecSpine framework remain
+in this documentation and are not copied into either project artifact.
+
 ## Start or evolve intended architecture
 
 Ask Grow to initialize a small Spine:

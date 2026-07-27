@@ -2,6 +2,9 @@
 
 **ID:** `project-architecture` · **Kind:** `index`
 
+This directory contains the project's long-lived architectural intent and
+architecture-relevant repository observations.
+
 Describe the project, its users, and the problem it solves in a few sentences.
 
 ## Architecture map

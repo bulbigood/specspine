@@ -192,7 +192,23 @@ class AdapterGeneratorTests(unittest.TestCase):
         self.assertIn("Do not translate its headings", instructions)
         self.assertIn("natural-language headings", instructions)
         self.assertIn("accepted documentation language", instructions)
+        self.assertIn("MUST NOT include a", instructions)
+        self.assertIn("tutorial, framework purpose", instructions)
+        self.assertIn(
+            "the index answers what architecture this project has",
+            instructions,
+        )
         self.assertIn("# Project architecture", index)
+        self.assertIn(
+            "This directory contains the project's long-lived architectural intent",
+            index,
+        )
+        self.assertIn(
+            "architecture-relevant repository observations",
+            index,
+        )
+        self.assertNotIn("SpecSpine is", index)
+        self.assertNotIn("specspine-extract", index)
 
     def test_doctor_explains_modes_before_requesting_a_selection(self):
         source = PROJECT_ROOT / "skills/specspine-doctor"

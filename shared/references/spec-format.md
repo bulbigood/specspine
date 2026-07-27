@@ -88,6 +88,16 @@ Every SpecSpine has a `<spine-root>/README.md` entry point with one H1,
 It is a curated architecture map, not the semantic parent of every
 specification.
 
+A newly created index starts its natural-language introduction with this scope
+statement, translated into the configured documentation language when needed:
+
+> This directory contains the project's long-lived architectural intent and
+> architecture-relevant repository observations.
+
+Follow it with the project-specific purpose and architectural context. The
+scope statement is not a framework tutorial and does not replace the project
+summary.
+
 Use the architecture-index template routed from `SKILL.md` when creating it.
 Coverage has exactly the reader-facing groups `Mapped`, `Partially mapped`,
 and `Unmapped`. It measures sufficiency of architecture memory, never delivery
