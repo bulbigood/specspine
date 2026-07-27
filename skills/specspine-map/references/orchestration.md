@@ -104,7 +104,7 @@ classification equivalent to `mapped` or `neighbor-owned`.
 
 ## Dispatch producer waves
 
-At a wave boundary, set the wave size to the smaller of ready ToDo and available producer slots. Inspect only that bounded slice:
+At a wave boundary, set the wave size to the smallest of ready ToDo, available producer slots, and five. Inspect only that bounded slice:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py ready <campaign> --limit <wave-size>

@@ -214,7 +214,11 @@ class MapExhaustiveContractTests(unittest.TestCase):
     def test_exhaustive_dispatch_uses_strict_wave_barriers(self):
         entrypoint = " ".join(self.entrypoint.split())
         protocol = " ".join(self.protocol.split())
-        self.assertIn("Dispatch strict waves", entrypoint)
+        self.assertIn("Dispatch strict waves of at most five producers", entrypoint)
+        self.assertIn(
+            "smallest of ready ToDo, available producer slots, and five",
+            protocol,
+        )
         self.assertIn("emit all spawn calls back-to-back", protocol)
         self.assertIn("no reasoning, status checks, assignments, waits, or other tools", protocol)
         self.assertIn("harvest every available atomic handoff", protocol)

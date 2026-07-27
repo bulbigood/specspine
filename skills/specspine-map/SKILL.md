@@ -73,7 +73,7 @@ Start each producer in a fresh isolated context with no inherited conversation,
 reasoning, or hidden memory. In Codex this is `fork_turns: none`; on another
 agent platform use its equivalent new-session/no-history option. Pass only a
 minimal command naming the producer contract, task packet, and required paths.
-Dispatch strict waves: precompute every prompt, then emit spawn calls back-to-back with no reasoning or other tools between them; use platform batch spawn when available.
+Dispatch strict waves of at most five producers: precompute every prompt, then emit spawn calls back-to-back with no reasoning or other tools between them; use platform batch spawn when available.
 While a wave runs, read-only harvest completed handoffs; publish/integrate only after its terminal barrier, never refill, and stop only at a predeclared timeout or explicit stall.
 Never reuse a producer. If the platform cannot provide both a fresh producer
 and a medium-capability tier, preserve the generated ToDo and report `blocked`;
