@@ -34,6 +34,12 @@ Create a durable private run root outside the repository. Do not use an
 OS-temporary directory for an exhaustive campaign: the ledger and staging must
 survive thread restarts and machine cleanup.
 
+Use a new uniquely named run root for every campaign. Never reuse a directory
+that already contains `campaign.json`, checkpoints, staging, integration
+reports, or other campaign artifacts. Old run roots are inert unless selected
+explicitly, so resolve and pass the exact intended ledger path instead of
+discovering or selecting a campaign by directory order.
+
 ```text
 mkdir -p <durable-private-run-root>
 python3 <map-skill-root>/scripts/campaign.py init \
