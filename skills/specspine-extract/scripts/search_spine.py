@@ -32,6 +32,8 @@ GRAPH_LIMIT = 2
 GRAPH_DEPTH = 1
 MAX_OUTPUT_BYTES = 128 * 1024
 POTENTIAL_LIMIT = 12
+TASK_CONTEXT_DOCUMENT_LIMIT = 6
+TASK_CONTEXT_DOCUMENT_CHARS = 1800
 FENCE_RE = re.compile(r"^ {0,3}(?:>\s*)?(`{3,}|~{3,})")
 HEADING_RE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$")
 DEFINITION_RE = re.compile(r"^ {0,3}[-+*]\s+\*\*((?:DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*)\*\*\s+—\s+(.*)")
@@ -1885,6 +1887,256 @@ def _query_group_score(group: list[str], searchable: dict[str, str]) -> float:
     )
 
 
+def _morphological_phrase_match(query: str, document: str) -> bool:
+    query_tokens = RANKING.expanded_tokens(query)
+    document_tokens = RANKING.expanded_tokens(document)
+    return bool(query_tokens) and all(
+        any(
+            RANKING.morphological_token_match(query_token, document_token)
+            for document_token in document_tokens
+        )
+        for query_token in query_tokens
+    )
+
+
+def _identity_overlap_score(
+    document: dict[str, object], query: dict[str, object]
+) -> float:
+    identity_tokens = RANKING.expanded_tokens(
+        f"{document['id']} {document['path']}"
+    )
+    routing_tokens = {
+        token
+        for value in (
+            *query["targets"],
+            *query["facets"],
+            *(term for group in query["terms"] for term in group),
+        )
+        for token in RANKING.expanded_tokens(value)
+    }
+    return 10.0 * sum(
+        any(
+            RANKING.morphological_token_match(query_token, identity_token)
+            for identity_token in identity_tokens
+        )
+        for query_token in routing_tokens
+    )
+
+
+def _capsule_excerpt(
+    document: dict[str, object], query: dict[str, object]
+) -> list[dict[str, str]]:
+    sections = document["sections"]
+    assert isinstance(sections, dict)
+    query_terms = [
+        term.casefold()
+        for group in query["terms"]
+        for term in group
+    ]
+    priorities = {
+        "Boundaries": 60,
+        "Behavior": 50,
+        "Lifecycle and invariants": 45,
+        "Failure behavior": 40,
+        "Interfaces": 35,
+        "Relationships": 30,
+    }
+    ranked = []
+    for heading, body in sections.items():
+        if heading == "Responsibility" or not body:
+            continue
+        lexical = sum(term in body.casefold() for term in query_terms)
+        ranked.append((lexical * 100 + priorities.get(heading, 0), heading, body))
+    excerpts: list[dict[str, str]] = []
+    remaining = TASK_CONTEXT_DOCUMENT_CHARS
+    for _, heading, body in sorted(ranked, key=lambda item: (-item[0], item[1])):
+        if remaining <= 0 or len(excerpts) >= 3:
+            break
+        content = body[:remaining].rstrip()
+        if content:
+            excerpts.append({"heading": heading, "content": content})
+            remaining -= len(content)
+    return excerpts
+
+
+def _task_context(
+    documents: dict[str, dict[str, object]],
+    query: dict[str, object],
+    primary_id: str,
+    required_ids: set[str],
+    candidates: dict[str, float],
+    preferred_ids: list[str],
+) -> dict[str, object]:
+    group_scores = {
+        document_id: [
+            max(
+                _query_group_score(
+                    group,
+                    {
+                        "title": str(document["title"]).casefold(),
+                        "alias": " ".join(document["aliases"]).casefold(),
+                        "summary": str(document["summary"]).casefold(),
+                        "responsibility": str(document["responsibility"]).casefold(),
+                        "body": str(document["text"]).casefold(),
+                    },
+                ),
+                90.0
+                if any(
+                    _morphological_phrase_match(
+                        term, f"{document_id} {document['path']}"
+                    )
+                    for term in group
+                )
+                else 0.0,
+                max(
+                    (
+                        score
+                        for term in group
+                        for field, score in (
+                            ("title", 80.0),
+                            ("summary", 20.0),
+                            ("responsibility", 15.0),
+                        )
+                        if _morphological_phrase_match(
+                            term, str(document[field])
+                        )
+                    ),
+                    default=0.0,
+                ),
+            )
+            for group in query["terms"]
+        ]
+        for document_id, document in documents.items()
+        if document["kind"] != "index"
+    }
+    selected = [primary_id, *sorted(required_ids)]
+    selected = list(dict.fromkeys(selected))[:TASK_CONTEXT_DOCUMENT_LIMIT]
+    covered = {
+        index
+        for document_id in selected
+        for index, score in enumerate(group_scores.get(document_id, []))
+        if score >= 5
+    }
+    all_groups = set(range(len(query["terms"])))
+    while len(selected) < TASK_CONTEXT_DOCUMENT_LIMIT and covered != all_groups:
+        choice: tuple[tuple[float, ...], str] | None = None
+        for document_id, scores in group_scores.items():
+            if document_id in selected:
+                continue
+            new_groups = {
+                index
+                for index, score in enumerate(scores)
+                if score >= 5 and index not in covered
+            }
+            if not new_groups:
+                continue
+            rank = (
+                float(len(new_groups)),
+                sum(scores[index] for index in new_groups),
+                _identity_overlap_score(documents[document_id], query),
+                candidates.get(document_id, 0.0),
+            )
+            candidate = (rank, document_id)
+            if choice is None or candidate > choice:
+                choice = candidate
+        if choice is None:
+            break
+        selected.append(choice[1])
+        covered.update(
+            index
+            for index, score in enumerate(group_scores[choice[1]])
+            if score >= 5
+        )
+    identity_ranked = sorted(
+        (
+            (
+                _identity_overlap_score(document, query),
+                candidates.get(document_id, 0.0),
+                document_id,
+            )
+            for document_id, document in documents.items()
+            if document["kind"] != "index" and document_id not in selected
+        ),
+        reverse=True,
+    )
+    for identity_score, _, document_id in identity_ranked:
+        if len(selected) >= TASK_CONTEXT_DOCUMENT_LIMIT or identity_score < 20:
+            break
+        selected.append(document_id)
+        covered.update(
+            index
+            for index, score in enumerate(group_scores.get(document_id, []))
+            if score >= 5
+        )
+    for document_id in preferred_ids:
+        if len(selected) >= TASK_CONTEXT_DOCUMENT_LIMIT:
+            break
+        if document_id not in selected:
+            selected.append(document_id)
+            covered.update(
+                index
+                for index, score in enumerate(group_scores.get(document_id, []))
+                if score >= 5
+            )
+    context_documents = []
+    for document_id in selected:
+        document = documents[document_id]
+        matched = [
+            query["terms"][index][0]
+            for index, score in enumerate(group_scores.get(document_id, []))
+            if score >= 5
+        ]
+        context_documents.append({
+            "id": document_id,
+            "path": document["path"],
+            "role": (
+                "primary"
+                if document_id == primary_id
+                else "required"
+                if document_id in required_ids
+                else "task_match"
+            ),
+            "matched_query_groups": matched,
+            "responsibility": document["responsibility"],
+            "excerpts": _capsule_excerpt(document, query),
+        })
+    uncovered = sorted(all_groups - covered)
+    suggested_paths = {
+        query["terms"][index][0]: [
+            documents[document_id]["path"]
+            for _, _, document_id in sorted(
+                (
+                    (
+                        group_scores[document_id][index],
+                        _identity_overlap_score(document, query),
+                        document_id,
+                    )
+                    for document_id, document in documents.items()
+                    if (
+                        document["kind"] != "index"
+                        and group_scores.get(document_id, [0] * len(query["terms"]))[
+                            index
+                        ] > 0
+                    )
+                ),
+                reverse=True,
+            )[:2]
+        ]
+        for index in uncovered
+    }
+    return {
+        "complete": covered == all_groups,
+        "covered_query_groups": [
+            query["terms"][index][0] for index in sorted(covered)
+        ],
+        "uncovered_query_groups": [
+            query["terms"][index][0] for index in uncovered
+        ],
+        "suggested_paths": suggested_paths,
+        "documents": context_documents,
+    }
+
+
 def _estimated_tokens(value: object) -> int:
     encoded = json.dumps(
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -2146,6 +2398,14 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
         potential - set(required) - {primary_id},
         key=lambda item: (-candidates.get(item, 0), item),
     )[:POTENTIAL_LIMIT]
+    task_context = _task_context(
+        documents,
+        query,
+        primary_id,
+        set(required),
+        candidates,
+        potential_ids,
+    )
     result = {
         "closure_status": "complete",
         "reason": "mapped_task_closure_satisfied",
@@ -2171,6 +2431,7 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
         ],
         "decisions": decisions, "constraints": constraints,
         "known_divergences": divergences, "blocking_questions": questions,
+        "task_context": task_context,
         "omitted": [], "sources": source_paths,
     }
     if coverage != "mapped":

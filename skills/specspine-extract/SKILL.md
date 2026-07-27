@@ -56,6 +56,14 @@ not truncated, synthesize directly from it. When a documented gap requires
 direct navigation, identify all missing task-critical documents first and read
 them in one batched call.
 
+Prefer the machine result's `task_context` capsules over direct file reads.
+When `task_context.complete` is true, synthesize from its source excerpts and
+do not read those files again. When it is false, read only documents needed for
+the reported `uncovered_query_groups`, using only its `suggested_paths`, in one
+batched call. Never enumerate or read the whole Spine to fill a capsule gap;
+read at most four explicitly suggested paths. Capsule excerpts are source text,
+not inferred summaries; preserve any reported omissions.
+
 ## Query
 
 Preserve exact paths, semantic IDs, API names, and identifiers. Put synonyms

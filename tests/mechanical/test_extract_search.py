@@ -249,6 +249,21 @@ Defines the system retry ceiling.
         )
         self.assertEqual(110.0, score)
 
+    def test_task_context_covers_query_with_source_excerpts(self):
+        result = self.query()
+        context = result["task_context"]
+        self.assertTrue(context["complete"])
+        self.assertFalse(context["uncovered_query_groups"])
+        self.assertFalse(context["suggested_paths"])
+        payment = next(
+            item
+            for item in context["documents"]
+            if item["id"] == "payment-processing"
+        )
+        self.assertEqual("primary", payment["role"])
+        self.assertIn("payment state mutation", payment["responsibility"])
+        self.assertTrue(payment["excerpts"])
+
     def test_no_match_is_explicit(self):
         result = self.query(targets=[], terms=[["absent"]])
         self.assertEqual("no-match", result["closure_status"])
