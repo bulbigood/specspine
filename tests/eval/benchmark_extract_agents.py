@@ -186,7 +186,11 @@ def format_value(value: Any) -> str:
     return str(value)
 
 
-def write_comparison(output: Path, reports: dict[str, dict[str, Any]]) -> None:
+def write_comparison(
+    output: Path,
+    reports: dict[str, dict[str, Any]],
+    arms: tuple[tuple[str, str, str], ...] = ARMS,
+) -> None:
     case_sets = [set(report.get("cases", {})) for report in reports.values()]
     if not case_sets or any(case_set != case_sets[0] for case_set in case_sets[1:]):
         raise ValueError("benchmark arms contain different cases")
@@ -208,21 +212,33 @@ def write_comparison(output: Path, reports: dict[str, dict[str, Any]]) -> None:
         "mean_retrieval_bytes",
         "mean_project_source_bytes",
     )
+    display_names = {
+        "no-extract": "No Extract",
+        "fallback": "Extract fallback",
+        "accelerated": "Accelerated Extract",
+    }
+    labels = [label for label, *_ in arms]
     lines = [
         "# Extract agent benchmark",
         "",
-        "| Metric | No Extract | Extract fallback | Accelerated Extract |",
-        "|---|---:|---:|---:|",
+        "| Metric | " + " | ".join(display_names[label] for label in labels) + " |",
+        "|---|" + "---:|" * len(labels),
     ]
     for field in fields:
         lines.append(
             "| "
             + field
             + " | "
-            + " | ".join(format_value(summaries[label][field]) for label, *_ in ARMS)
+            + " | ".join(format_value(summaries[label][field]) for label in labels)
             + " |"
         )
-    lines.extend(("", "Raw reports: `no-extract.json`, `fallback.json`, `accelerated.json`.", ""))
+    lines.extend(
+        (
+            "",
+            "Raw reports: " + ", ".join(f"`{label}.json`" for label in labels) + ".",
+            "",
+        )
+    )
     output.write_text("\n".join(lines), encoding="utf-8")
 
 

@@ -11,8 +11,47 @@ BENCHMARK = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(BENCHMARK)
 
+GRAFANA_SCRIPT = Path(__file__).parents[1] / "eval" / "benchmark_extract_grafana.py"
+GRAFANA_SPEC = importlib.util.spec_from_file_location(
+    "benchmark_extract_grafana", GRAFANA_SCRIPT
+)
+GRAFANA_BENCHMARK = importlib.util.module_from_spec(GRAFANA_SPEC)
+assert GRAFANA_SPEC.loader is not None
+GRAFANA_SPEC.loader.exec_module(GRAFANA_BENCHMARK)
+
 
 class ExtractAgentBenchmarkTests(unittest.TestCase):
+    def test_grafana_case_uses_large_external_fixture_and_fixed_arms(self):
+        fixture = Path("/fixtures/grafana")
+        case = GRAFANA_BENCHMARK.grafana_case(fixture, "extract")
+        self.assertEqual(str(fixture), case["initial_tree"])
+        self.assertEqual("expensive", case["category"])
+        self.assertIn(
+            "specspine/resource-dualwrite-lifecycle.md",
+            case["handoff_judgments"]["required"],
+        )
+        self.assertIn(
+            "specspine/resource-provisioning-reconciliation.md",
+            case["handoff_judgments"]["hard_negatives"],
+        )
+        self.assertEqual(
+            ["no-extract", "accelerated"],
+            [label for label, *_ in GRAFANA_BENCHMARK.ARMS],
+        )
+
+    def test_grafana_fixture_copies_only_bootstrap_and_spine(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "grafana"
+            (source / "specspine").mkdir(parents=True)
+            (source / "AGENTS.md").write_text("bootstrap", encoding="utf-8")
+            (source / "specspine" / "README.md").write_text("index", encoding="utf-8")
+            (source / "ignored.go").write_text("ignored", encoding="utf-8")
+            target = GRAFANA_BENCHMARK.materialize_fixture(source, root / "fixture")
+            self.assertTrue((target / "AGENTS.md").is_file())
+            self.assertTrue((target / "specspine" / "README.md").is_file())
+            self.assertFalse((target / "ignored.go").exists())
+
     def test_three_fixed_arms_use_current_extract_cases(self):
         self.assertEqual(
             ["no-extract", "fallback", "accelerated"],

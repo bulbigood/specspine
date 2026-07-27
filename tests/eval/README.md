@@ -258,6 +258,27 @@ also records every observed producer thread, model, assignment, prompt
 size/hash, terminal status, spawn-to-terminal observation interval, and every
 collaboration-call duration. Failed command diagnostics retain a bounded output
 excerpt. Judge time and tokens are reported separately and excluded from all
+
+### Large external Grafana Extract benchmark
+
+The opt-in Grafana benchmark compares direct navigation and accelerated Extract on
+the complete SpecSpine from a local Grafana checkout. It copies only
+`AGENTS.md` and `specspine/` into an immutable temporary fixture; the normal
+eval inventory and CI remain hermetic.
+
+```bash
+report_dir=$(mktemp -d -t specspine-extract-grafana.XXXXXX)
+python3 tests/eval/benchmark_extract_grafana.py \
+  --grafana-root ~/projects/grafana \
+  --output-dir "$report_dir" --samples 3 --jobs 3
+```
+
+The fallback arm remains commented out in `benchmark_extract_grafana.py`.
+The scenario asks for the cross-document migration boundary spanning
+dual-write cutover, migration-log fallback, and the served-version guard. Its
+hard negative is repository provisioning's unrelated interactive dual
+read/write path. Raw reports and `comparison.md` use the same quality and cost
+metrics as the representative-corpora benchmark.
 arms. Current Codex JSONL exposes only cumulative token usage for the
 orchestrator plus nested producers; it does not expose exact orchestrator-only
 or per-producer token counters. Producer wall times are observed lifecycle
