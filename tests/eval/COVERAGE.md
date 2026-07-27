@@ -53,7 +53,8 @@ Terra/medium. Producers receive the compact one-shot contract directly and
 must not load unrelated Map references.
 For this controlled fixture, collaboration assertions require three-producer
 wave barriers without refill, no more than three simultaneously active
-producers, multiple total spawns, zero resumptions, and read-only early harvest.
+producers, a bounded launch ramp, multiple total spawns, zero resumptions, and
+wave-level read-only early harvest without shell-delimited task records.
 A persistent campaign ledger owns
 the deterministic inventory, verification ToDo, producer results, and
 root integration passes. Final assertions verify

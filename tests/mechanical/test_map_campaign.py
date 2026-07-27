@@ -309,6 +309,8 @@ class MapCampaignTests(unittest.TestCase):
         receipt = self.source_pass()
         self.assertEqual(3, receipt["areas"])
         self.assertEqual(2, receipt["verification_todo"])
+        self.assertEqual(2, receipt["added_todo_count"])
+        self.assertNotIn("added_todo", receipt)
         ledger = self.ledger_value()
         self.assertEqual(
             "test-only",
@@ -817,6 +819,70 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertIn("changed after harvest", error["error"])
         self.assertEqual("assigned", self.ledger_value()["tasks"][task_id]["state"])
+
+    def test_wave_commands_derive_paths_without_shell_parsing(self):
+        self.source_pass()
+        ledger = self.ledger_value()
+        handoffs = self.run / "handoffs with spaces"
+        harvest = self.run / "harvest receipts"
+        assigned = []
+        for index, task in enumerate(ledger["tasks"].values()):
+            owner = f"/root/producer-{index}"
+            self.assign(task["id"], owner)
+            package = handoffs / f"{task['id']}-1"
+            staging = package / "staging"
+            staging.mkdir(parents=True)
+            unit = task["units"][0]
+            evidence = ledger["source_pass"]["inventory"][unit]["samples"]
+            (package / "checkpoint.json").write_text(
+                json.dumps(
+                    self.checkpoint_payload(
+                        outcome="covered",
+                        evidence=evidence,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            assigned.append(task["id"])
+
+        before = self.ledger_value()
+        harvested = self.cli(
+            "harvest-wave",
+            str(self.ledger),
+            str(handoffs),
+            str(self.spine),
+            str(harvest),
+            "--checker",
+            str(self.checker),
+        )
+        self.assertEqual(2, harvested["harvested"])
+        self.assertEqual(0, harvested["pending"])
+        self.assertEqual(before, self.ledger_value())
+
+        repeated = self.cli(
+            "harvest-wave",
+            str(self.ledger),
+            str(handoffs),
+            str(self.spine),
+            str(harvest),
+            "--checker",
+            str(self.checker),
+        )
+        self.assertEqual(2, repeated["already_harvested"])
+        accepted = self.cli(
+            "accept-wave",
+            str(self.ledger),
+            str(handoffs),
+            str(self.spine),
+            str(harvest),
+            "--checker",
+            str(self.checker),
+        )
+        self.assertEqual(2, accepted["accepted"])
+        self.assertEqual(
+            {task_id: "review" for task_id in assigned},
+            accepted["task_states"],
+        )
 
     def test_covered_requires_evidence_from_every_mechanical_stratum(self):
         root = self.repository / "src/identity"

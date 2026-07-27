@@ -194,9 +194,9 @@ calibration.
 
 Its fixture exposes more independent responsibilities than available producer
 slots. Trace assertions require strict waves of three initial workers, prohibit
-mid-wave refill, cap observed concurrency at three, require read-only early
-harvest of completed handoffs, require a fresh producer for every ToDo, and
-reject all resumptions.
+mid-wave refill, cap each spawn ramp at 30 seconds and concurrency at three,
+require wave-level read-only harvest of completed handoffs, require a fresh
+producer for every ToDo, and reject all resumptions.
 The concurrency check coalesces terminal/spawn rollout events
 within one second because delivery order can differ from execution order. Both
 benchmark arms use the same
@@ -347,7 +347,7 @@ Supported assertions:
 - collaboration: `collab_spawn_count`, `collab_initial_spawn_count`,
   `collab_resume_count`, `collab_spawn_assignments`,
   `collab_message_size_ratio`, `collab_refill_without_wait`,
-  `collab_wave_barriers`,
+  `collab_wave_barriers`, `collab_wave_spawn_ramp`,
   `collab_spawn_prompts`,
   `collab_resume_prompts`, `collab_targets_spawned_agents`,
   `collab_refill_before_staging_consume`;

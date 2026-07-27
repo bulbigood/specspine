@@ -1,6 +1,7 @@
 import importlib.util
 import io
 import json
+import re
 import sys
 import tempfile
 import threading
@@ -455,9 +456,12 @@ class RunnerTests(unittest.TestCase):
     def test_checks_collaboration_handoff_and_refill_order(self):
         def spawn(identifier, prompt):
             task_name = prompt.rsplit("/", 1)[-1]
+            match = re.search(r"(\\d+)$", identifier)
+            sequence = int(match.group(1)) if match else 59
             return {
                 "kind": "collab",
                 "event_id": identifier,
+                "timestamp": f"2026-01-01T00:00:{sequence:02d}Z",
                 "tool": "spawn_agent",
                 "fork_turns": "none",
                 "receiver_thread_ids": [f"agent-{identifier}"],
@@ -706,6 +710,37 @@ class RunnerTests(unittest.TestCase):
             wave_trace,
         )
         self.assertTrue(waves.passed, waves.message)
+
+        ramp = RUNNER.evaluate_assertion(
+            {
+                "type": "collab_wave_spawn_ramp",
+                "size": 2,
+                "max_seconds": 2,
+            },
+            Path("."),
+            unchanged,
+            unchanged,
+            "",
+            wave_trace,
+        )
+        self.assertTrue(ramp.passed, ramp.message)
+        slow_trace = dict(wave_trace)
+        slow_calls = [dict(item) for item in wave_trace["collab_calls"]]
+        slow_calls[1]["timestamp"] = "2026-01-01T00:00:10Z"
+        slow_trace["collab_calls"] = slow_calls
+        ramp = RUNNER.evaluate_assertion(
+            {
+                "type": "collab_wave_spawn_ramp",
+                "size": 2,
+                "max_seconds": 2,
+            },
+            Path("."),
+            unchanged,
+            unchanged,
+            "",
+            slow_trace,
+        )
+        self.assertFalse(ramp.passed)
 
         rolling_trace = {
             "collab_calls": [

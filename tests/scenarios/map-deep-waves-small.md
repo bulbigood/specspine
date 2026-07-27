@@ -19,10 +19,11 @@ The orchestrator should:
 
 - mechanically generate the deterministic source frontier;
 - create verification ToDo for every production work unit;
-- emit each wave of up to three fresh producer spawns in one assistant action;
+- precompute prompts and emit each wave's fresh producer spawns back-to-back;
 - give each producer exactly one task packet and private staging root;
 - accept one checkpoint from each producer and never continue or reuse it;
 - read-only harvest completed handoffs while the rest of the wave runs;
+- use wave-level harvest and acceptance commands without shell-delimited records;
 - stop only at a predeclared timeout or an explicitly reported stall;
 - wait for every producer in the wave and never refill an early finish;
 - accept the settled wave and integrate it once before the next wave;
@@ -43,6 +44,7 @@ The orchestrator should:
 - producer suggestions disappear without an integration disposition;
 - a production work unit lacks an integrated producer checkpoint;
 - more than three producers are active;
+- a three-producer launch burst takes more than 30 seconds;
 - a replacement producer starts before the whole prior wave is terminal;
 - early harvest mutates the ledger or live Spine;
 - a producer is stopped merely because root woke or elapsed time increased;

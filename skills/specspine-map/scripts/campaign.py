@@ -1047,7 +1047,7 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
             "status": "recorded",
             "areas": len(normalized),
             "verification_todo": len(raw_todo),
-            "added_todo": added,
+            "added_todo_count": len(added),
             "revision": ledger["revision"],
         }
 
@@ -1726,6 +1726,71 @@ def command_harvest(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def wave_result_paths(
+    task: dict[str, Any],
+    handoffs_root: Path,
+    harvest_root: Path,
+) -> tuple[Path, Path, Path]:
+    attempt = task.get("attempts")
+    if not isinstance(attempt, int) or isinstance(attempt, bool) or attempt < 1:
+        raise CampaignError(f"assigned task has invalid attempt: {task['id']}")
+    name = f"{task['id']}-{attempt}"
+    package = handoffs_root / name
+    return package / "checkpoint.json", package / "staging", harvest_root / f"{name}.json"
+
+
+def command_harvest_wave(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    tasks = sorted(
+        (
+            task
+            for task in ledger["tasks"].values()
+            if task["state"] == "assigned"
+        ),
+        key=lambda value: value["id"],
+    )
+    harvested: list[str] = []
+    pending: list[str] = []
+    cached = 0
+    for task in tasks:
+        checkpoint, staging_root, receipt = wave_result_paths(
+            task,
+            args.handoffs_root,
+            args.harvest_root,
+        )
+        package = checkpoint.parent
+        if not package.exists():
+            pending.append(task["id"])
+            continue
+        if not checkpoint.is_file() or not staging_root.is_dir():
+            raise CampaignError(
+                f"atomic handoff is incomplete for assigned task: {task['id']}"
+            )
+        result = command_harvest(
+            argparse.Namespace(
+                ledger=args.ledger,
+                id=task["id"],
+                checkpoint=checkpoint,
+                staging_root=staging_root,
+                spine_root=args.spine_root,
+                owner=task["owner"],
+                output=receipt,
+                checker=args.checker,
+            )
+        )
+        harvested.append(task["id"])
+        cached += result["status"] == "already_harvested"
+    return {
+        "status": "harvested_wave",
+        "assigned": len(tasks),
+        "harvested": len(harvested),
+        "already_harvested": cached,
+        "pending": len(pending),
+        "harvested_tasks": harvested,
+        "pending_tasks": pending,
+    }
+
+
 def require_harvest_receipt(
     path: Path,
     ledger: dict[str, Any],
@@ -1908,6 +1973,91 @@ def command_accept(args: argparse.Namespace) -> dict[str, Any]:
             }
     finally:
         shutil.rmtree(backups_root, ignore_errors=True)
+
+
+def command_accept_wave(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    tasks = sorted(
+        (
+            task
+            for task in ledger["tasks"].values()
+            if task["state"] == "assigned"
+        ),
+        key=lambda value: value["id"],
+    )
+    prepared: list[tuple[dict[str, Any], Path, Path, Path]] = []
+    candidate_owners: dict[str, str] = {}
+    for task in tasks:
+        checkpoint, staging_root, receipt = wave_result_paths(
+            task,
+            args.handoffs_root,
+            args.harvest_root,
+        )
+        if not checkpoint.is_file() or not staging_root.is_dir() or not receipt.is_file():
+            raise CampaignError(
+                f"wave is not fully harvested for assigned task: {task['id']}"
+            )
+        raw = read_json(checkpoint)
+        staging = candidate_files(staging_root)
+        fresh_receipt = harvest_receipt(
+            ledger,
+            task["id"],
+            task["owner"],
+            raw,
+            staging,
+            staging_root.resolve(),
+            args.spine_root.resolve(),
+            args.checker,
+        )
+        recorded_receipt = read_json(receipt)
+        if recorded_receipt != fresh_receipt:
+            raise CampaignError(
+                f"handoff changed after wave harvest: {task['id']}"
+            )
+        for candidate in fresh_receipt["candidates"]:
+            relative = candidate["path"]
+            previous = candidate_owners.get(relative)
+            if previous is not None:
+                raise CampaignError(
+                    "wave candidates conflict on live Spine path: "
+                    f"{relative} from {previous} and {task['id']}"
+                )
+            candidate_owners[relative] = task["id"]
+        prepared.append((task, checkpoint, staging_root, receipt))
+
+    results = [
+        command_accept(
+            argparse.Namespace(
+                ledger=args.ledger,
+                id=task["id"],
+                checkpoint=checkpoint,
+                staging_root=staging_root,
+                spine_root=args.spine_root,
+                owner=task["owner"],
+                harvest_receipt=receipt,
+                checker=args.checker,
+            )
+        )
+        for task, checkpoint, staging_root, receipt in prepared
+    ]
+    publications = [
+        {"task": result["task"], "paths": result["published"]}
+        for result in results
+        if result["published"]
+    ]
+    return {
+        "status": "accepted_wave",
+        "accepted": len(results),
+        "task_states": {
+            result["task"]: result["task_state"]
+            for result in results
+        },
+        "publications": publications,
+        "suggestions_pending_review": sum(
+            len(result["suggestions_pending_review"])
+            for result in results
+        ),
+    }
 
 
 def command_block(args: argparse.Namespace) -> dict[str, Any]:
@@ -2427,6 +2577,17 @@ def parser() -> argparse.ArgumentParser:
         default=Path(__file__).with_name("check_spine.py"),
     )
 
+    harvest_wave = sub.add_parser("harvest-wave")
+    harvest_wave.add_argument("ledger", type=Path)
+    harvest_wave.add_argument("handoffs_root", type=Path)
+    harvest_wave.add_argument("spine_root", type=Path)
+    harvest_wave.add_argument("harvest_root", type=Path)
+    harvest_wave.add_argument(
+        "--checker",
+        type=Path,
+        default=Path(__file__).with_name("check_spine.py"),
+    )
+
     accept = sub.add_parser("accept")
     accept.add_argument("ledger", type=Path)
     accept.add_argument("id")
@@ -2436,6 +2597,17 @@ def parser() -> argparse.ArgumentParser:
     accept.add_argument("--owner", required=True)
     accept.add_argument("--harvest-receipt", required=True, type=Path)
     accept.add_argument(
+        "--checker",
+        type=Path,
+        default=Path(__file__).with_name("check_spine.py"),
+    )
+
+    accept_wave = sub.add_parser("accept-wave")
+    accept_wave.add_argument("ledger", type=Path)
+    accept_wave.add_argument("handoffs_root", type=Path)
+    accept_wave.add_argument("spine_root", type=Path)
+    accept_wave.add_argument("harvest_root", type=Path)
+    accept_wave.add_argument(
         "--checker",
         type=Path,
         default=Path(__file__).with_name("check_spine.py"),
@@ -2484,7 +2656,9 @@ def main() -> int:
         "assign": command_assign,
         "release": command_release,
         "harvest": command_harvest,
+        "harvest-wave": command_harvest_wave,
         "accept": command_accept,
+        "accept-wave": command_accept_wave,
         "block": command_block,
         "integration-pass": command_integration_pass,
         "summary": command_summary,

@@ -82,7 +82,7 @@ python3 <map-skill-root>/scripts/campaign.py source-pass \
   <campaign> <repository-root> <spine-root>
 ```
 
-The command:
+The command returns counts, never the full generated ToDo list. The ledger retains the complete frontier. It:
 
 - classifies concrete files before grouping;
 - separates nested tests, fixtures, generated files, vendored dependencies,
@@ -119,8 +119,8 @@ Use `todo --limit <n>` only for bounded diagnosis. For the selected wave:
 python3 <map-skill-root>/scripts/campaign.py packet <campaign> <task-id> --output <run-root>/packets/<task-id>-<attempt>.json
 ```
 
-2. emit all independent producer spawn calls in one assistant action. Do not wait between them. For Codex use `agent_type: medium`,
-   `fork_turns: none`, and the minimal launch command above;
+2. precompute every launch prompt, then emit all spawn calls back-to-back with no reasoning, status checks, assignments, waits, or other tools between them.
+   Use a platform batch-spawn operation when available. For Codex use `agent_type: medium`, `fork_turns: none`, and the minimal command above;
 3. after every handle is returned, assign the whole wave:
 
 ```text
@@ -128,19 +128,20 @@ python3 <map-skill-root>/scripts/campaign.py assign <campaign> <task-id> \
   --owner <fresh-agent-path>
 ```
 
-4. whenever root wakes, inspect producer states. For each terminal producer with an atomic handoff, run read-only harvest while others continue:
+4. whenever root wakes, inspect producer states, then harvest every available atomic handoff in one read-only command while others continue:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py harvest <campaign> <task-id> <handoff-package>/checkpoint.json <handoff-package>/staging <spine-root> --owner <fresh-agent-path> --output <run-root>/harvest/<task-id>-<attempt>.json
+python3 <map-skill-root>/scripts/campaign.py harvest-wave <campaign> <run-root>/handoffs <spine-root> <run-root>/harvest
 ```
 
-Harvest may validate and review the immutable package and prepare integration decisions, but must not mutate the ledger or live Spine.
+The command derives task, attempt, owner, handoff, and receipt paths from the ledger; never construct or parse shell-delimited task records. Harvest may
+validate and review immutable packages and prepare integration decisions, but must not mutate the ledger or live Spine.
 5. if any producer remains live, wait again without refill. Interrupt only when its predeclared deadline expired or the platform explicitly reports an
    irrecoverable stall; never invent a timeout after launch. After confirmed cancellation, preserve its work, release its task, and count it terminal.
 6. after every wave member is completed, failed, or cancelled, accept or release the whole wave, then perform one integration pass:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py accept <campaign> <task-id> <handoff-package>/checkpoint.json <handoff-package>/staging <spine-root> --owner <fresh-agent-path> --harvest-receipt <run-root>/harvest/<task-id>-<attempt>.json
+python3 <map-skill-root>/scripts/campaign.py accept-wave <campaign> <run-root>/handoffs <spine-root> <run-root>/harvest
 ```
 
 Only an atomically renamed handoff may be harvested. Do not inspect or accept `producer-work`. Missing handoff after termination is a failed attempt: preserve work

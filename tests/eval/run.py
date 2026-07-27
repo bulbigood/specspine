@@ -1171,6 +1171,7 @@ def evaluate_assertion(
         "collab_message_size_ratio",
         "collab_refill_without_wait",
         "collab_wave_barriers",
+        "collab_wave_spawn_ramp",
         "collab_max_active",
         "collab_spawn_prompts",
         "collab_refill_before_staging_consume",
@@ -1419,6 +1420,47 @@ def evaluate_assertion(
                     f"wave sizes {[len(wave) for wave in waves]}; "
                     f"violations: {violations}"
                 ),
+            )
+        if kind == "collab_wave_spawn_ramp":
+            size = assertion.get("size")
+            maximum = assertion.get("max_seconds")
+            if not isinstance(size, int) or isinstance(size, bool) or size < 1:
+                return CheckResult(False, "spawn ramp size must be a positive integer")
+            if (
+                not isinstance(maximum, (int, float))
+                or isinstance(maximum, bool)
+                or maximum <= 0
+            ):
+                return CheckResult(False, "spawn ramp maximum must be positive")
+            ramps: list[float] = []
+            violations: list[str] = []
+            for offset in range(0, len(spawns), size):
+                wave = spawns[offset : offset + size]
+                timestamps: list[datetime.datetime] = []
+                for item in wave:
+                    value = item.get("timestamp")
+                    if not isinstance(value, str):
+                        violations.append("spawn is missing a timestamp")
+                        continue
+                    try:
+                        timestamps.append(
+                            datetime.datetime.fromisoformat(
+                                value.replace("Z", "+00:00")
+                            )
+                        )
+                    except ValueError:
+                        violations.append(f"invalid spawn timestamp: {value}")
+                if len(timestamps) != len(wave):
+                    continue
+                ramp = (max(timestamps) - min(timestamps)).total_seconds()
+                ramps.append(ramp)
+                if ramp > maximum:
+                    violations.append(
+                        f"wave spawn ramp {ramp:.3f}s exceeds {maximum:.3f}s"
+                    )
+            return CheckResult(
+                bool(ramps) and not violations,
+                f"wave spawn ramps {ramps}; violations: {violations}",
             )
         if kind == "collab_spawn_prompts":
             prompts = [str(item.get("prompt") or "") for item in spawns]
