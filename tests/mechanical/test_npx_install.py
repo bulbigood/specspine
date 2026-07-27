@@ -41,6 +41,9 @@ class NpxStandaloneInstallTests(unittest.TestCase):
                 if name == "specspine-map":
                     self.assertTrue((installed / "scripts/campaign.py").is_file())
                     self.assertTrue((installed / "scripts/finalize_run.py").is_file())
+                    self.assertTrue(
+                        (installed / "scripts/producer_finalize.py").is_file()
+                    )
                     for removed in (
                         "frontier.py",
                         "checkpoint.py",

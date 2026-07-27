@@ -75,6 +75,12 @@ the platform cannot provide both a fresh producer and a medium-capability tier,
 preserve the generated ToDo and report `blocked`; do not substitute another
 tier, classify production units, or simulate exhaustive coverage in root.
 
+Require every producer to iterate in its durable private work package, run the
+bundled `producer_finalize.py` preflight, and atomically expose exactly one
+checked handoff package. Root independently repeats acceptance checks. Do not
+invoke Doctor inside producers; its whole-Spine semantic audit is a separate
+operator-authorized workflow.
+
 If the Spine already contains specification nodes, also read
 [references/documentation-first-seeding.md](references/documentation-first-seeding.md)
 completely and record the mechanical documentation index before inspecting

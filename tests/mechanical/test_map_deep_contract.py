@@ -51,6 +51,20 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("another agent platform", normalized)
         self.assertIn("report `blocked`", normalized)
         self.assertNotIn("Sequential exhaustive protocol", self.entrypoint)
+        self.assertIn("`producer_finalize.py` preflight", normalized)
+        self.assertIn("Do not invoke Doctor inside producers", normalized)
+
+    def test_producer_self_checks_before_atomic_handoff(self):
+        producer = " ".join(self.producer.split())
+        protocol = " ".join(self.protocol.split())
+        self.assertIn("Mandatory preflight and handoff", self.producer)
+        self.assertIn("atomically renames the entire work package", producer)
+        self.assertIn("fix every candidate-caused finding", producer)
+        self.assertIn("Root independently repeats all acceptance checks", producer)
+        self.assertIn("campaign.py packet", protocol)
+        self.assertIn("Do not inspect or accept `producer-work`", protocol)
+        self.assertIn("never trust the producer receipt", protocol)
+        self.assertIn("def command_packet", self.campaign)
 
     def test_exhaustive_requires_medium_tier_producers(self):
         entrypoint = " ".join(self.entrypoint.split())

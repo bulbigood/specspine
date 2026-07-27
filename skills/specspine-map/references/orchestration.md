@@ -63,6 +63,10 @@ python3 <map-skill-root>/scripts/bundle_skill.py \
   <map-skill-root> <run-root>/producer-instructions.md
 ```
 
+Use `<map-skill-root>/scripts/producer_finalize.py` as the immutable preflight
+helper. Pass its exact path to every producer; producers invoke neither
+`campaign.py` nor Doctor.
+
 ## Generate the source frontier
 
 Inspect the deterministic inventory if useful:
@@ -110,24 +114,41 @@ python3 <map-skill-root>/scripts/campaign.py todo <campaign>
 
 For every available slot:
 
-1. start a medium-capability producer in a fresh isolated session; for Codex
-   use `agent_type: medium` and `fork_turns: none`; pass the immutable bundle
-   and one task packet including all evidence-stratum samples;
-2. after the handle exists, assign it:
+1. allocate unique absent sibling work and handoff paths:
+   `<run-root>/producer-work/<task-id>-<attempt>` and
+   `<run-root>/handoffs/<task-id>-<attempt>`; create only work's `staging/`:
+
+```text
+python3 <map-skill-root>/scripts/campaign.py packet \
+  <campaign> <task-id> \
+  --output <run-root>/packets/<task-id>-<attempt>.json
+```
+
+2. start a medium-capability producer in a fresh isolated session; for Codex
+   use `agent_type: medium` and `fork_turns: none`; pass only the immutable
+   bundle, packet path, repository and live Spine roots, work and absent
+   handoff package paths, and exact `producer_finalize.py` path;
+3. after the handle exists, assign it immediately:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py assign \
   <campaign> <task-id> --owner <fresh-agent-path>
 ```
 
-3. accept its single checkpoint:
+Only a successfully renamed handoff package is ready. Accept its single
+checkpoint:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py accept \
-  <campaign> <task-id> <checkpoint.json> \
-  <private-staging-root> <spine-root> \
+  <campaign> <task-id> <handoff-package>/checkpoint.json \
+  <handoff-package>/staging <spine-root> \
   --owner <fresh-agent-path>
 ```
+
+Do not inspect or accept `producer-work`. A missing handoff after producer
+termination is a failed attempt: preserve the work package for diagnosis,
+release the task, and use a fresh producer. Root must still rerun candidate and
+post-publication checks; never trust the producer receipt as acceptance proof.
 
 `draft` is transactionally published and waits for root integration. `covered`
 also waits for root integration; acceptance checks every evidence stratum,

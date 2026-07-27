@@ -1001,6 +1001,27 @@ def command_ready(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def command_packet(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    task = require_task(ledger, args.id)
+    if task["state"] != "todo":
+        raise CampaignError(f"packet requires todo state: {args.id}")
+    packet = {
+        "campaign_id": ledger["campaign_id"],
+        "task": task_definition(task),
+    }
+    if args.output is None:
+        return packet
+    if args.output.exists():
+        raise CampaignError(f"packet output already exists: {args.output}")
+    atomic_write(args.output, packet)
+    return {
+        "status": "written",
+        "task": task["id"],
+        "packet": str(args.output.resolve()),
+    }
+
+
 def command_assign(args: argparse.Namespace) -> dict[str, Any]:
     with locked_ledger(args.ledger) as ledger:
         task = require_task(ledger, args.id)
@@ -1915,6 +1936,11 @@ def parser() -> argparse.ArgumentParser:
     ready = sub.add_parser("ready")
     ready.add_argument("ledger", type=Path)
 
+    packet = sub.add_parser("packet")
+    packet.add_argument("ledger", type=Path)
+    packet.add_argument("id")
+    packet.add_argument("--output", type=Path)
+
     assign = sub.add_parser("assign")
     assign.add_argument("ledger", type=Path)
     assign.add_argument("id")
@@ -1974,6 +2000,7 @@ def main() -> int:
         "todo-add": command_todo_add,
         "todo": command_todo,
         "ready": command_ready,
+        "packet": command_packet,
         "assign": command_assign,
         "release": command_release,
         "accept": command_accept,

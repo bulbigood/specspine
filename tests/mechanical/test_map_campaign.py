@@ -403,6 +403,19 @@ class MapCampaignTests(unittest.TestCase):
         self.assertIn("README.md", task["documents"])
         self.assertEqual("todo", task["state"])
         self.assertIn(task_id, self.cli("ready", str(self.ledger))["ready"])
+        packet = self.cli("packet", str(self.ledger), task_id)
+        self.assertEqual(task_id, packet["task"]["id"])
+        self.assertTrue(packet["task"]["evidence_strata"])
+        packet_path = self.run / "packets" / f"{task_id}.json"
+        receipt = self.cli(
+            "packet",
+            str(self.ledger),
+            task_id,
+            "--output",
+            str(packet_path),
+        )
+        self.assertEqual("written", receipt["status"])
+        self.assertEqual(task_id, json.loads(packet_path.read_text())["task"]["id"])
 
     def test_existing_spine_requires_documentation_seed(self):
         ledger = self.run / "existing.json"

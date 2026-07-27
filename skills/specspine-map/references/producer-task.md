@@ -1,13 +1,47 @@
 # SpecSpine Map one-shot producer contract
 
-Handle exactly one bounded ToDo, write one checkpoint, and terminate. Inspect
-at least one concrete file from every provided evidence stratum, then read only
-enough additional evidence to establish responsibility, interfaces, lifecycle,
-owned state, dependencies, significant failures, and boundaries.
+Handle exactly one bounded ToDo, write one checkpoint, and terminate only after
+internally revising it to a checked atomic handoff. Inspect every concrete
+`sample` in the task packet, then read only enough additional evidence to
+establish responsibility, interfaces, lifecycle, owned state, dependencies,
+significant failures, and boundaries.
 
-Write Markdown only under the assigned private staging root. Do not edit the
-live Spine, repository source, tests, README, or campaign state. Do not continue
-to another unit or integrate navigation.
+Write incomplete Markdown only under the assigned durable private
+`<work-package>/staging` root. Write the candidate checkpoint to
+`<work-package>/checkpoint.json`. Do not edit the live Spine, repository source,
+tests, README, or campaign state, write directly to handoff, continue to another
+unit, or integrate navigation.
+
+## Mandatory preflight and handoff
+
+Before handoff, reread every candidate as a coherent architectural
+specification and verify:
+
+- one canonical responsibility without duplicated neighboring ownership;
+- observations remain `OBS`, with concrete inspected evidence;
+- supported relevant boundaries, interfaces, state, lifecycle, failures, and
+  relationships are present;
+- semantic IDs are stable and links use the required complete labels;
+- implementation inventory and unsupported intent are absent;
+- every direction is a genuine unanswered architectural question.
+
+Revise the private result until this review is clean. Then run exactly:
+
+```text
+python3 <producer-finalize-script> \
+  <task-packet.json> <work-package> <handoff-package> \
+  <repository-root> <spine-root>
+```
+
+The helper validates checkpoint shape and evidence samples, checks candidates
+against the live Spine overlay, and atomically renames the entire work package.
+If it reports findings, keep work private, fix every candidate-caused finding,
+and rerun it. Never claim success or ask root to accept private work.
+
+If available evidence cannot establish a clean result, remove draft Markdown
+and return `retry` naming missing evidence. Use `blocked` only for a concrete
+external dependency, not a draft defect. Root independently repeats all
+acceptance checks; preflight never grants publication authority.
 
 ## Result
 
@@ -21,10 +55,7 @@ Existing owner:
 ```json
 {
   "outcome": "covered",
-  "evidence": [
-    "pkg/services/caching/cache.go",
-    "pkg/services/caching/service.go"
-  ],
+  "evidence": ["pkg/services/caching/cache.go", "pkg/services/caching/service.go"],
   "summary": "The existing claims cover ownership, invalidation and fallback.",
   "owner": {
     "document": "caching.md",
@@ -45,19 +76,17 @@ Missing observation:
 }
 ```
 
-For `draft`, stage one or more publish-ready Markdown files. Do not describe
-their paths or create/replace operations in JSON; `campaign.py` derives both
-from staging and the live Spine.
+For `draft`, place one or more publish-ready Markdown files under the work
+package's `staging/` directory. Do not describe their paths or create/replace
+operations in JSON; the preflight and `campaign.py` derive both from staging
+and the live Spine.
 
 Supporting implementation with no durable responsibility:
 
 ```json
 {
   "outcome": "supporting",
-  "evidence": [
-    "pkg/cache/adapters/wire.go",
-    "pkg/cache/adapters/options.go"
-  ],
+  "evidence": ["pkg/cache/adapters/wire.go", "pkg/cache/adapters/options.go"],
   "summary": "The unit only wires options into the existing cache lifecycle.",
   "reason": "It introduces no owner, state, interface, lifecycle, or failure policy.",
   "directions": []
