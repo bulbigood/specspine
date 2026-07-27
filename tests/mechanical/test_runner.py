@@ -21,7 +21,7 @@ SPEC.loader.exec_module(RUNNER)
 class RunnerTests(unittest.TestCase):
     def test_runner_supports_three_extract_benchmark_profiles(self):
         self.assertEqual(
-            {"extract", "fallback", "no-extract"},
+            {"extract", "fallback", "no-extract", "source-search"},
             RUNNER.EXECUTION_PROFILES,
         )
 
@@ -975,6 +975,26 @@ class RunnerTests(unittest.TestCase):
             self.assertFalse((workspace / ".eval/skill").exists())
 
         self.assertNotIn(".eval/skill/", prompt)
+        self.assertTrue(prompt.endswith(case["prompt"] + "\n"))
+
+    def test_source_search_prompt_and_fixture_exclude_specspine_skill(self):
+        case = {
+            "id": "source-search-sentinel",
+            "scenario": "tests/scenarios/initialize-project.md",
+            "skill": "skills/specspine-extract",
+            "prompt": "REQUEST_SENTINEL_source_search",
+            "initial_files": {"main.go": "package main\n"},
+            "assertions": [],
+            "_execution_profile": "source-search",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            RUNNER.write_fixture(case, workspace)
+            prompt = RUNNER.build_prompt(case)
+            self.assertFalse((workspace / ".eval/skill").exists())
+
+        self.assertNotIn(".eval/skill/", prompt)
+        self.assertIn("Search the project source tree directly", prompt)
         self.assertTrue(prompt.endswith(case["prompt"] + "\n"))
 
     def test_profile_specific_assertions_are_selected(self):
