@@ -261,25 +261,28 @@ excerpt. Judge time and tokens are reported separately and excluded from all
 
 ### Large external Grafana Extract benchmark
 
-The opt-in Grafana benchmark compares direct navigation and accelerated Extract on
-the complete SpecSpine from a local Grafana checkout. It copies only
-`AGENTS.md` and `specspine/` into an immutable temporary fixture; the normal
-eval inventory and CI remain hermetic.
+The opt-in Grafana benchmark compares direct navigation and accelerated Extract
+on seven cross-document scenarios over the complete SpecSpine from a local
+Grafana checkout. It copies only `AGENTS.md` and `specspine/` into an immutable
+temporary fixture; the normal eval inventory and CI remain hermetic. One sample
+runs every scenario once in each arm; report metrics are averaged across all
+scenario/sample results.
 
 ```bash
 report_dir=$(mktemp -d -t specspine-extract-grafana.XXXXXX)
 python3 tests/eval/benchmark_extract_grafana.py \
   --grafana-root ~/projects/grafana \
-  --output-dir "$report_dir" --samples 3 --jobs 3
+  --output-dir "$report_dir" --samples 1 --jobs 3
 ```
 
 The fallback arm remains commented out in `benchmark_extract_grafana.py`.
-The scenario asks for the cross-document migration boundary spanning
-dual-write cutover, migration-log fallback, and the served-version guard. Its
-hard negative is repository provisioning's unrelated interactive dual
-read/write path. Raw reports and `comparison.md` use the same quality and cost
-metrics as the representative-corpora benchmark. They also split wall time
-into pre-retrieval, production retrieval, and post-retrieval phases and report
+The scenarios cover resource migration, plugin backend requests, alert
+evaluation and delivery, frontend API boundaries, session authorization,
+resource schema publication, and folder cascade deletion. Each has explicit
+required, supporting, and hard-negative documents. Raw reports and
+`comparison.md` use the same quality and cost metrics as the
+representative-corpora benchmark. They also split wall time into pre-retrieval,
+production retrieval, and post-retrieval phases and report
 post-retrieval source reads, including whether each read repeats a file
 returned by retrieval or opens a file outside that result.
 Current Codex JSONL exposes only cumulative token usage for the

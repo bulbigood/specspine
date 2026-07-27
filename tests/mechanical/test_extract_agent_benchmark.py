@@ -21,19 +21,30 @@ GRAFANA_SPEC.loader.exec_module(GRAFANA_BENCHMARK)
 
 
 class ExtractAgentBenchmarkTests(unittest.TestCase):
-    def test_grafana_case_uses_large_external_fixture_and_fixed_arms(self):
+    def test_grafana_cases_use_large_external_fixture_and_fixed_arms(self):
         fixture = Path("/fixtures/grafana")
-        case = GRAFANA_BENCHMARK.grafana_case(fixture, "extract")
-        self.assertEqual(str(fixture), case["initial_tree"])
-        self.assertEqual("expensive", case["category"])
+        cases = [
+            GRAFANA_BENCHMARK.grafana_case(fixture, "extract", scenario)
+            for scenario in GRAFANA_BENCHMARK.SCENARIOS
+        ]
+        self.assertEqual(7, len(cases))
+        self.assertEqual(7, len({case["id"] for case in cases}))
+        self.assertTrue(all(case["initial_tree"] == str(fixture) for case in cases))
+        self.assertTrue(all(case["category"] == "expensive" for case in cases))
         self.assertIn(
             "specspine/resource-dualwrite-lifecycle.md",
-            case["handoff_judgments"]["required"],
+            cases[0]["handoff_judgments"]["required"],
         )
         self.assertIn(
             "specspine/resource-provisioning-reconciliation.md",
-            case["handoff_judgments"]["hard_negatives"],
+            cases[0]["handoff_judgments"]["hard_negatives"],
         )
+        for case in cases:
+            self.assertEqual(
+                case["handoff_judgments"]["relevant"],
+                case["handoff_judgments"]["required"]
+                + case["handoff_judgments"]["supporting"],
+            )
         self.assertEqual(
             ["no-extract", "accelerated"],
             [label for label, *_ in GRAFANA_BENCHMARK.ARMS],

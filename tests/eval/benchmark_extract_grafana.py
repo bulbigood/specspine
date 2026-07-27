@@ -39,7 +39,87 @@ ARMS = (
     # ("fallback", "fallback", "fallback"),
     ("accelerated", "extract", "accelerated"),
 )
-CASE_ID = "extract-grafana-large"
+SCENARIOS = (
+    {
+        "id": "extract-grafana-resource-migration",
+        "scenario": "tests/eval/extract-grafana-resource-migration.md",
+        "required": [
+            "specspine/resource-dualwrite-lifecycle.md",
+            "specspine/resource-api-contracts.md",
+            "specspine/unified-storage-search.md",
+        ],
+        "supporting": [
+            "specspine/persistence-resource-platform.md",
+            "specspine/resource-api-evolution-intent.md",
+        ],
+        "hard_negatives": ["specspine/resource-provisioning-reconciliation.md"],
+    },
+    {
+        "id": "extract-grafana-plugin-backend-request",
+        "scenario": "tests/eval/extract-grafana-plugin-backend-request.md",
+        "required": [
+            "specspine/plugin-backend-protocol.md",
+            "specspine/plugin-request-status-classification.md",
+            "specspine/plugin-host-environment.md",
+        ],
+        "supporting": ["specspine/plugin-runtime.md"],
+        "hard_negatives": ["specspine/plugin-resource-http-response-adapter.md"],
+    },
+    {
+        "id": "extract-grafana-alert-evaluation-delivery",
+        "scenario": "tests/eval/extract-grafana-alert-evaluation-delivery.md",
+        "required": [
+            "specspine/alert-rules-evaluation-state.md",
+            "specspine/alert-notification-delivery.md",
+        ],
+        "supporting": ["specspine/alerting.md"],
+        "hard_negatives": ["specspine/alerting-notifications-app-api-adapter.md"],
+    },
+    {
+        "id": "extract-grafana-frontend-api-boundary",
+        "scenario": "tests/eval/extract-grafana-frontend-api-boundary.md",
+        "required": [
+            "specspine/frontend-api-clients.md",
+            "specspine/frontend-runtime-api.md",
+            "specspine/frontend-state-platform.md",
+        ],
+        "supporting": ["specspine/frontend-platform.md"],
+        "hard_negatives": ["specspine/sql-datasource-frontend-contract.md"],
+    },
+    {
+        "id": "extract-grafana-session-authorization",
+        "scenario": "tests/eval/extract-grafana-session-authorization.md",
+        "required": [
+            "specspine/authentication-sessions.md",
+            "specspine/authorization-policy-engine.md",
+        ],
+        "supporting": ["specspine/identity-access.md"],
+        "hard_negatives": ["specspine/anonymous-device-management.md"],
+    },
+    {
+        "id": "extract-grafana-resource-schema-publication",
+        "scenario": "tests/eval/extract-grafana-resource-schema-publication.md",
+        "required": [
+            "specspine/core-kind-schema-generation.md",
+            "specspine/kubernetes-api-code-generation.md",
+            "specspine/openapi-spec-publication.md",
+            "specspine/resource-schema-installation.md",
+        ],
+        "supporting": ["specspine/grafana-schema-contract.md"],
+        "hard_negatives": ["specspine/plugin-cue-schema-generation.md"],
+    },
+    {
+        "id": "extract-grafana-folder-deletion",
+        "scenario": "tests/eval/extract-grafana-folder-deletion.md",
+        "required": [
+            "specspine/folder-cascade-deletion.md",
+            "specspine/content-dashboard-lifecycle.md",
+            "specspine/content-browse.md",
+        ],
+        "supporting": ["specspine/content-management.md"],
+        "hard_negatives": ["specspine/library-panel-resource-transition.md"],
+    },
+)
 
 
 def materialize_fixture(grafana_root: Path, target: Path) -> Path:
@@ -57,10 +137,15 @@ def materialize_fixture(grafana_root: Path, target: Path) -> Path:
     return target
 
 
-def grafana_case(fixture: Path, profile: str) -> dict[str, Any]:
+def grafana_case(
+    fixture: Path, profile: str, scenario: dict[str, Any] = SCENARIOS[0]
+) -> dict[str, Any]:
+    required = list(scenario["required"])
+    supporting = list(scenario["supporting"])
+    hard_negatives = list(scenario["hard_negatives"])
     return {
-        "id": CASE_ID,
-        "scenario": "tests/eval/extract-grafana-large.md",
+        "id": scenario["id"],
+        "scenario": scenario["scenario"],
         "skill": "skills/specspine-extract",
         "status": "executable",
         "category": "expensive",
@@ -68,25 +153,10 @@ def grafana_case(fixture: Path, profile: str) -> dict[str, Any]:
         "initial_tree": str(fixture),
         "_execution_profile": profile,
         "handoff_judgments": {
-            "required": [
-                "specspine/resource-dualwrite-lifecycle.md",
-                "specspine/resource-api-contracts.md",
-                "specspine/unified-storage-search.md",
-            ],
-            "supporting": [
-                "specspine/persistence-resource-platform.md",
-                "specspine/resource-api-evolution-intent.md",
-            ],
-            "relevant": [
-                "specspine/persistence-resource-platform.md",
-                "specspine/resource-api-contracts.md",
-                "specspine/resource-api-evolution-intent.md",
-                "specspine/resource-dualwrite-lifecycle.md",
-                "specspine/unified-storage-search.md",
-            ],
-            "hard_negatives": [
-                "specspine/resource-provisioning-reconciliation.md",
-            ],
+            "required": required,
+            "supporting": supporting,
+            "relevant": required + supporting,
+            "hard_negatives": hard_negatives,
         },
         "assertions": [
             {"type": "max_changed_files", "max": 0},
@@ -109,15 +179,11 @@ def grafana_case(fixture: Path, profile: str) -> dict[str, Any]:
             },
             {
                 "type": "response_contains",
-                "values": [
-                    "specspine/resource-dualwrite-lifecycle.md",
-                    "specspine/resource-api-contracts.md",
-                    "specspine/unified-storage-search.md",
-                ],
+                "values": required,
             },
             {
                 "type": "response_not_contains",
-                "value": "specspine/resource-provisioning-reconciliation.md",
+                "values": hard_negatives,
             },
             {"type": "response_word_budget", "max": 700},
         ],
@@ -159,7 +225,9 @@ def run_arm(
     reasoning_effort: str,
     timestamp: str,
 ) -> tuple[dict[str, Any], bool]:
-    case = grafana_case(fixture, execution_profile)
+    cases = [
+        grafana_case(fixture, execution_profile, scenario) for scenario in SCENARIOS
+    ]
     command = adapter_command(
         retrieval_profile,
         model,
@@ -168,7 +236,7 @@ def run_arm(
     )
     queued = __import__("time").monotonic()
     reports = []
-    with ThreadPoolExecutor(max_workers=min(jobs, samples)) as executor:
+    with ThreadPoolExecutor(max_workers=min(jobs, samples * len(cases))) as executor:
         futures = [
             executor.submit(
                 RUNNER.run_case_captured,
@@ -178,6 +246,7 @@ def run_arm(
                 sample,
                 queued,
             )
+            for case in cases
             for sample in range(1, samples + 1)
         ]
         for future in as_completed(futures):
@@ -191,7 +260,7 @@ def run_arm(
         label,
         shlex.join(command),
         reports,
-        [case],
+        cases,
         samples,
         jobs,
         run_id=f"extract-grafana-{timestamp}-{label}",
@@ -211,7 +280,7 @@ def main() -> int:
         help="Grafana checkout containing AGENTS.md and specspine/ (default: %(default)s)",
     )
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--samples", type=int, default=3)
+    parser.add_argument("--samples", type=int, default=1)
     parser.add_argument("--jobs", type=int, default=3)
     parser.add_argument("--model", default="gpt-5.6-luna")
     parser.add_argument("--reasoning-effort", default="medium")
