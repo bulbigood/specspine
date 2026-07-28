@@ -197,7 +197,6 @@ class MapExhaustiveContractTests(unittest.TestCase):
             protocol,
         )
         self.assertIn("Do not read SKILL.md or any other Map reference", protocol)
-        self.assertNotIn("legacy generated instruction artifact", protocol)
         self.assertIn("targeted `rg` and narrow excerpts", producer)
         self.assertIn("at most 10,000 output tokens per call", producer)
 
@@ -232,12 +231,6 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("without refill", protocol)
         self.assertIn("batch acceptance", protocol)
         self.assertNotIn("fill every available producer slot", protocol)
-
-    def test_exhaustive_runtime_does_not_use_the_reference_bundler(self):
-        runtime = "\n".join((self.entrypoint, self.protocol, self.producer))
-        self.assertNotIn("bundle_skill.py", runtime)
-        self.assertNotIn("producer-instructions.md", runtime)
-        self.assertNotIn("immutable bundle", runtime)
 
     def test_producers_cannot_write_shared_navigation(self):
         normalized = " ".join(self.producer.split())

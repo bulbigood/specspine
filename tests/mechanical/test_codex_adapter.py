@@ -245,8 +245,8 @@ class CodexAdapterTests(unittest.TestCase):
     def test_parses_commands_reads_and_agent_messages(self):
         stdout = "\n".join(
             [
-                '{"item":{"type":"command_execution","command":"sed -n 1,80p src/users/model.js"}}',
-                '{"item":{"type":"agent_message","text":"Finished"}}',
+                '{"type":"item.completed","item":{"type":"command_execution","command":"sed -n 1,80p src/users/model.js"}}',
+                '{"type":"item.completed","item":{"type":"agent_message","text":"Finished"}}',
             ]
         )
         reads, commands, messages = ADAPTER.parse_events(stdout, ["src/users/model.js", "src/billing.js"])

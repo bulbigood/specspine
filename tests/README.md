@@ -73,15 +73,6 @@ python3 tests/eval/benchmark_extract_agents.py \
   --samples 3 --jobs 4
 ```
 
-Compare repeated bounded Map saturation with parallel and sequential exhaustive
-Map on an identical controlled six-area repository:
-
-```text
-python3 tests/eval/benchmark_map_modes.py \
-  --output-dir /tmp/specspine-map-mode-benchmark \
-  --samples 1
-```
-
 Codex currently reports cumulative tokens and wall time for the complete agent
 tree. It does not expose exact orchestrator-only or per-subagent counters.
 

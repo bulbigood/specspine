@@ -18,7 +18,6 @@ PACKAGES = (
 IGNORED_NAMES = {
     ".DS_Store",
     "__pycache__",
-    ".generated-by-specspine-adapter-generator.json",
 }
 SKILL_REFERENCES = {
     "specspine-grow": {

@@ -2,27 +2,26 @@
 
 ## Current inventory
 
-The repository has thirty-five prose behavioral scenarios. Every scenario is
+The repository has twenty-nine prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
 | Area | Documented scenarios | Executable fixtures |
 |---|---:|---:|
 | `specspine-grow` | 9 | 7 |
-| `specspine-map` | 13 | 7 |
-| `specspine-extract` | 5 | 5 |
+| `specspine-map` | 8 | 4 |
+| `specspine-extract` | 4 | 4 |
 | `specspine-doctor` | 7 | 6 |
 | package generator tooling | 1 | 0 |
-| Total | 35 | 25 |
+| Total | 29 | 21 |
 
 `traceable-rule` is assigned to `specspine-map` because its expected result
 includes repository-backed observations.
 
 ### Map coverage
 
-Executable `specspine-map` coverage currently consists of seven to fifteen
-agent calls across five cases, depending on when the comparative benchmark
-reaches its unchanged terminal invocation:
+Executable `specspine-map` coverage currently consists of six agent calls
+across four cases:
 
 - `lifecycle-survey-deepen`: a shallow initial survey followed by bounded
   deepening without reopening unrelated source;
@@ -32,45 +31,6 @@ reaches its unchanged terminal invocation:
   references;
 - `map-staged-producer`: one bounded producer writes a publish-ready candidate
   to a private output root while the live Spine remains read-only.
-- `map-sequential-saturation-small`: repeatedly performs one Map step on the same
-  controlled six-area repository used by `map-deep-waves-small` until an
-  unchanged terminal invocation, enabling a paired saturation-quality/cost
-  benchmark.
-
-`map-deep-waves-small` provides one controlled executable exhaustive-mode case.
-One top-level invocation receives a production-like whole-repository request,
-builds a deterministic source frontier, and dispatches strict waves of three
-producers across more ready ToDo entries than slots. Every ToDo receives a fresh producer;
-Codex JSONL collaboration events verify spawning and reject producer
-continuation or reuse.
-Both benchmark arms copy the same 21-file
-`map-modes-six-area` fixture tree, including six source/test/config evidence
-slices, require the same terminal evidence coverage, and stop only after the
-requested production units have integrated producer checkpoints and all derived
-ToDo is resolved. Generated artifacts verify material coverage through their
-evidence. The runtime trace pins the orchestrator and producers to
-Terra/medium. Producers receive the compact one-shot contract directly and
-must not load unrelated Map references.
-For this controlled fixture, collaboration assertions require three-producer
-wave barriers without refill, no more than three simultaneously active
-producers, a bounded launch ramp, multiple total spawns, zero resumptions, and
-wave-level read-only early harvest without shell-delimited task records.
-A persistent campaign ledger owns
-the deterministic inventory, verification ToDo, producer results, and
-root integration passes. Final assertions verify
-move-based publication, source protection, disposable run-root cleanup, and
-mechanical Spine validity. Document length is observed, not bounded. The
-benchmark adds one blind holistic two-way documentation-quality judgment per
-aligned sample. The judge is an independent bounded task and therefore defaults
-to Terra/medium; its cost is excluded from all arms. This case normally costs one
-Terra/medium orchestrator plus several Terra/medium producer sessions and belongs
-in the explicit `expensive` category.
-
-`map-deep-repository-no-subagents` runs the same six-area fixture with
-`agents.enabled=false`. It verifies that root still generates the verification
-frontier, persists unresolved work, leaves the live Spine unchanged, and
-reports exhaustive mapping blocked because it cannot launch a fresh producer.
-It must not silently replace the missing producer role with root-side mapping.
 
 Remaining distinct behavioral gaps are:
 
@@ -92,17 +52,9 @@ The executable set is divided by resource cost and necessity:
 
 | Category | Manifests | Top-level agent calls | Purpose |
 |---|---:|---:|---|
-| `core` | 8 | 8 | Minimum behavioral regression set, including atomic staged Map output |
+| `core` | 7 | 7 | Minimum behavioral regression set, including atomic staged Map output |
 | `extended` | 14 | 21 | Lifecycle, root-first connection, language detection, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
-| `expensive` | 3 | 4–12 per sample | Two-arm Map benchmark plus missing-producer failure behavior |
-| `planned` | 10 | 0 | Documentation and future redesign only |
-
-The table counts top-level agent invocations. The sequential Map arm uses 2–10
-invocations, stopping at the first unchanged terminal result; each exhaustive arm
-uses one top-level invocation, and only the producer-capable arm creates producer
-sessions.
-The separate category prevents ordinary `core` or `extended` runs from
-selecting either expensive arm.
+| `planned` | 8 | 0 | Documentation and future redesign only |
 
 Core and extended cases currently cover:
 
@@ -115,7 +67,6 @@ Core and extended cases currently cover:
 - production multi-slice Extract handoffs for backend and CLI projects
   in English, a mobile project in Russian, and a data pipeline in Chinese,
   with hidden owner/support/relevance judgments;
-- legacy repository accelerator configuration cannot suppress local retrieval;
 - semantic-ID references and representative repository evidence;
 - semantic Doctor diagnosis and bounded mechanical repair without runtime companions;
 - recursive Doctor link and marker-bounded semantic-ID validation across

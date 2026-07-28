@@ -12,10 +12,9 @@ Use only requested operations:
 - `check` — read-only review of the whole Spine, an area, or a problem;
 - `repair` — check and apply approved bounded corrections.
 
-Normalize legacy `setup`, `reconnect`, and `reconfigure` to `connect`, and
-`audit` and `diagnose` to `check`. If no operation is clear, briefly explain
-these four read/write boundaries and ask which one to run. Finish explicit
-connection work before health work. Never add semantic review implicitly.
+If no operation is clear, briefly explain these four read/write boundaries and
+ask which one to run. Finish explicit connection work before health work. Never
+add semantic review implicitly.
 
 ## Resources
 

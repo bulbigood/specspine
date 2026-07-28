@@ -95,16 +95,6 @@ Owns an unreachable architectural responsibility.
         self.assertNotEqual(0, result.returncode)
         self.assertIn("UNREACHABLE_SPEC area/orphan.md", result.stdout)
 
-    def test_spec_format_uses_the_agents_documentation_language(self):
-        spec_format = (
-            PROJECT_ROOT / "shared/references/spec-format.md"
-        ).read_text(encoding="utf-8")
-        self.assertIn(
-            "`SpecSpine documentation language` declared in the project's "
-            "`AGENTS.md`",
-            spec_format,
-        )
-
     def test_shared_references_are_symlinks_and_private_references_are_local(self):
         shared = {
             PROJECT_ROOT / "skills" / skill / relative
@@ -133,11 +123,6 @@ Owns an unreachable architectural responsibility.
         for name in GENERATOR.PACKAGES:
             files = GENERATOR.package_files(skills_root, name)
             self.assertEqual([], GENERATOR.check_word_budgets(name, files), name)
-
-    def test_canonical_skills_do_not_claim_to_be_generated(self):
-        legacy_manifest = ".generated-by-specspine-adapter-generator.json"
-        for name in GENERATOR.PACKAGES:
-            self.assertFalse((PROJECT_ROOT / "skills" / name / legacy_manifest).exists())
 
     def test_generator_does_not_manage_private_mapping_protocols(self):
         self.assertNotIn(
@@ -288,15 +273,6 @@ Owns an unreachable architectural responsibility.
                 self.assertIn(mode, skill)
         self.assertIn("read-only review", skill)
         self.assertIn("approved bounded corrections", skill)
-        self.assertIn(
-            "`setup`, `reconnect`, and `reconfigure` to `connect`",
-            skill,
-        )
-        self.assertIn(
-            "`audit` and `diagnose` to `check`",
-            skill,
-        )
-
     def test_doctor_reviews_flat_layout_as_navigation_not_hierarchy(self):
         source = PROJECT_ROOT / "skills/specspine-doctor"
         skill = (source / "SKILL.md").read_text(encoding="utf-8")

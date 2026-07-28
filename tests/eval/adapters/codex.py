@@ -262,7 +262,7 @@ def parse_events(stdout: str, candidates: list[str]) -> tuple[set[str], list[str
         except json.JSONDecodeError:
             continue
         event_type = event.get("type")
-        if event_type not in {None, "item.completed"}:
+        if event_type != "item.completed":
             continue
         item = event.get("item", {})
         item_id = item.get("id")
@@ -290,7 +290,7 @@ def parse_activity(stdout: str) -> list[dict[str, object]]:
         except json.JSONDecodeError:
             continue
         event_type = event.get("type")
-        if event_type not in {None, "item.started", "item.completed"}:
+        if event_type not in {"item.started", "item.completed"}:
             continue
         item = event.get("item", {})
         if not isinstance(item, dict):
@@ -298,7 +298,7 @@ def parse_activity(stdout: str) -> list[dict[str, object]]:
         item_id = item.get("id")
         if item_id is not None:
             item_id = str(item_id)
-            identity = (str(event_type or "legacy"), item_id)
+            identity = (str(event_type), item_id)
             if identity in recorded_items:
                 continue
             recorded_items.add(identity)
@@ -765,7 +765,7 @@ def parse_agent_telemetry(
                 if agent["first_observed_seconds"] is None:
                     agent["first_observed_seconds"] = observed
             continue
-        if event_type not in {None, "item.completed"}:
+        if event_type != "item.completed":
             continue
 
         started = call_starts.get(item_id)
@@ -924,7 +924,7 @@ def parse_event_metrics(stdout: str, candidates: list[str]) -> dict[str, object]
         event_counts[event_type] = event_counts.get(event_type, 0) + 1
         if event_type == "turn.completed":
             turn_count += 1
-        if event.get("type") not in {None, "item.completed"}:
+        if event.get("type") != "item.completed":
             continue
         item = event.get("item", {})
         if not isinstance(item, dict):
@@ -1280,7 +1280,7 @@ def parse_retrieval_attempts(stdout: str) -> list[dict[str, object]]:
             event = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if event.get("type") not in {None, "item.completed"}:
+        if event.get("type") != "item.completed":
             continue
         item = event.get("item", {})
         item_id = item.get("id")
@@ -1526,9 +1526,9 @@ def retrieval_phase_metrics(
         if is_retrieval_command(command):
             if event.get("type") == "item.started" and retrieval_started is None:
                 retrieval_started = observed
-            if event.get("type") in {None, "item.completed"}:
+            if event.get("type") == "item.completed":
                 retrieval_completed = observed
-        elif event.get("type") in {None, "item.completed"}:
+        elif event.get("type") == "item.completed":
             completed_commands.append((observed, command))
     production_seconds = sum(
         float(attempt.get("timings", {}).get("total_seconds", 0.0))
@@ -1751,7 +1751,7 @@ def environment_errors(stdout: str, stderr: str = "") -> list[str]:
             event = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if event.get("type") not in {None, "item.completed"}:
+        if event.get("type") != "item.completed":
             continue
         item = event.get("item", {})
         if item.get("type") != "command_execution":
