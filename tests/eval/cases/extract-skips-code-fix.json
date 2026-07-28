@@ -1,0 +1,21 @@
+{
+  "id": "extract-skips-code-fix",
+  "scenario": "tests/scenarios/extract-skips-code-fix.md",
+  "skill": "tests/eval/skills/specspine-routing",
+  "companion_skills": ["skills/specspine-extract"],
+  "status": "executable",
+  "category": "core",
+  "runs": 1,
+  "initial_files": {
+    "AGENTS.md": "<!-- specspine:begin -->\n## SpecSpine documentation\n\n- SpecSpine index: `specspine/README.md`\n- SpecSpine documentation language: `English`\n\nSpecSpine is the primary source of project architecture intent. Whenever a user asks what the project documentation says or searches for documented project behavior or architecture, use installed `specspine-extract` even if the request does not mention SpecSpine.\n<!-- specspine:end -->\n",
+    "specspine/README.md": "# Architecture\n\n- [Orders](orders.md)\n",
+    "specspine/orders.md": "# Orders\n\nOwns the intended order lifecycle.\n",
+    "src/orders/cancel.js": "export function cancelOrder(order) {\n  order.status = \"cancelled\";\n  return order;\n}\n"
+  },
+  "assertions": [
+    {"type": "command_excludes", "value": "search_spine.py"},
+    {"type": "file_contains", "path": "src/orders/cancel.js", "value": "order.status === \"cancelled\""},
+    {"type": "unchanged", "paths": ["AGENTS.md", "specspine/**"]},
+    {"type": "changed_only", "paths": ["src/orders/cancel.js"]}
+  ]
+}

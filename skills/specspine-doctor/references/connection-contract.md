@@ -152,7 +152,9 @@ Keep the managed block small enough for every turn. It contains only:
 
 1. the resolved index path;
 2. the resolved SpecSpine documentation language;
-3. when to use `specspine-extract`;
+3. that SpecSpine is the primary source of project architecture intent and
+   `specspine-extract` must be used for implicit project-architecture
+   documentation lookups as well as architecture-relevant downstream work;
 4. direct index-and-link fallback when extraction is unavailable;
 5. compact authority and conflict semantics.
 
@@ -171,8 +173,9 @@ value using the exact label accepted by the operator.
 
 Do not include framework commands, directory maps, copied architecture,
 bindings, adapters, or downstream workflow instructions. Naming
-`specspine-extract` as the framework-neutral retrieval route is part of this
-contract, not workflow adaptation.
+`specspine-extract` as the framework-neutral retrieval route, including when
+the user asks what project architecture documentation says without naming
+SpecSpine, is part of this contract, not workflow adaptation.
 
 Do not copy a general explanation of SpecSpine into either the managed block or
 the project index. The managed block answers where and when agents retrieve
