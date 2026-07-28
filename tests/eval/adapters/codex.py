@@ -51,18 +51,23 @@ TERMINAL_AGENT_STATUSES = {
 
 
 def retrieval_script(root: Path) -> Path:
-    scripts = root / ".eval" / "skill" / "scripts"
-    skill = root / ".eval" / "skill" / "SKILL.md"
-    if skill.is_file():
+    skill_roots = [
+        root / ".eval" / "skill",
+        root / ".eval" / "companions" / "specspine-extract",
+    ]
+    for skill_root in skill_roots:
+        skill = skill_root / "SKILL.md"
+        if not skill.is_file():
+            continue
         content = skill.read_text(encoding="utf-8")
         if f"python3 <skill-root>/scripts/{RETRIEVAL_SCRIPT_NAME}" in content:
-            candidate = scripts / RETRIEVAL_SCRIPT_NAME
+            candidate = skill_root / "scripts" / RETRIEVAL_SCRIPT_NAME
             if not candidate.is_file():
                 raise RuntimeError(
                     f"staged retrieval script is missing: {candidate}"
                 )
             return candidate
-    return scripts / RETRIEVAL_SCRIPT_NAME
+    return skill_roots[0] / "scripts" / RETRIEVAL_SCRIPT_NAME
 
 
 def is_retrieval_command(command: str) -> bool:
@@ -2195,8 +2200,8 @@ def build_codex_command(
 
 def enable_retrieval_telemetry(root: Path, level: str) -> None:
     """Observe the disposable staged script without changing agent instructions."""
-    skill = root / ".eval" / "skill" / "SKILL.md"
     production = retrieval_script(root)
+    skill = production.parent.parent / "SKILL.md"
     marker = f"python3 <skill-root>/scripts/{production.name}"
     content = skill.read_text(encoding="utf-8")
     if content.count(marker) != 1:

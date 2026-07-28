@@ -80,6 +80,48 @@ class CodexAdapterTests(unittest.TestCase):
             )
             self.assertEqual("search_spine.py", ADAPTER.retrieval_script(root).name)
 
+    def test_retrieval_entrypoint_can_come_from_extract_companion(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            grow = root / ".eval" / "skill"
+            extract = root / ".eval" / "companions" / "specspine-extract"
+            grow.mkdir(parents=True)
+            (extract / "scripts").mkdir(parents=True)
+            (grow / "SKILL.md").write_text("# Grow\n", encoding="utf-8")
+            (extract / "SKILL.md").write_text(
+                "python3 <skill-root>/scripts/search_spine.py\n",
+                encoding="utf-8",
+            )
+            expected = extract / "scripts" / "search_spine.py"
+            expected.write_text("# production\n", encoding="utf-8")
+            self.assertEqual(expected, ADAPTER.retrieval_script(root))
+
+    def test_enables_retrieval_telemetry_for_extract_companion(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            grow = root / ".eval" / "skill"
+            extract = root / ".eval" / "companions" / "specspine-extract"
+            grow.mkdir(parents=True)
+            (extract / "scripts").mkdir(parents=True)
+            (grow / "SKILL.md").write_text("# Grow\n", encoding="utf-8")
+            extract_skill = extract / "SKILL.md"
+            extract_skill.write_text(
+                "python3 <skill-root>/scripts/search_spine.py\n",
+                encoding="utf-8",
+            )
+            production = extract / "scripts" / "search_spine.py"
+            production.write_text("# production\n", encoding="utf-8")
+            production.with_name("check_spine.py").write_text(
+                "# checker\n", encoding="utf-8"
+            )
+            with mock.patch.object(ADAPTER.shutil, "copy2") as copy:
+                ADAPTER.enable_retrieval_telemetry(root, "minimal")
+            self.assertEqual(
+                "python3 <skill-root>/scripts/search_spine.py\n",
+                extract_skill.read_text(encoding="utf-8"),
+            )
+            self.assertEqual(production, copy.call_args_list[-1].args[1])
+
     def test_classifies_search_as_retrieval(self):
         self.assertEqual(
             "retrieval",

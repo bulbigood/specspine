@@ -48,15 +48,17 @@ SCENARIOS = (
         "id": "extract-grafana-resource-migration",
         "scenario": "tests/eval/extract-grafana-resource-migration.md",
         "required": [
-            "specspine/resource-dualwrite-lifecycle.md",
-            "specspine/resource-api-contracts.md",
-            "specspine/unified-storage-search.md",
+            "specspine/persistence/resource-dualwrite-lifecycle.md",
+            "specspine/persistence/resource-api-contracts.md",
+            "specspine/persistence/unified-storage-search.md",
         ],
         "supporting": [
-            "specspine/persistence-resource-platform.md",
-            "specspine/resource-api-evolution-intent.md",
+            "specspine/persistence/persistence-resource-platform.md",
+            "specspine/resources/resource-api-evolution-intent.md",
         ],
-        "hard_negatives": ["specspine/resource-provisioning-reconciliation.md"],
+        "hard_negatives": [
+            "specspine/operations/resource-provisioning-reconciliation.md"
+        ],
         "source_required_groups": [
             ["pkg/storage/legacysql/dualwrite/storage_service.go"],
             [
@@ -77,12 +79,14 @@ SCENARIOS = (
         "id": "extract-grafana-plugin-backend-request",
         "scenario": "tests/eval/extract-grafana-plugin-backend-request.md",
         "required": [
-            "specspine/plugin-backend-protocol.md",
-            "specspine/plugin-request-status-classification.md",
-            "specspine/plugin-host-environment.md",
+            "specspine/plugins/plugin-backend-protocol.md",
+            "specspine/plugins/plugin-request-status-classification.md",
+            "specspine/plugins/plugin-host-environment.md",
         ],
-        "supporting": ["specspine/plugin-runtime.md"],
-        "hard_negatives": ["specspine/plugin-resource-http-response-adapter.md"],
+        "supporting": ["specspine/plugins/plugin-runtime.md"],
+        "hard_negatives": [
+            "specspine/plugins/plugin-resource-http-response-adapter.md"
+        ],
         "source_required_groups": [
             [
                 "pkg/plugins/backendplugin/grpcplugin/client.go",
@@ -106,11 +110,13 @@ SCENARIOS = (
         "id": "extract-grafana-alert-evaluation-delivery",
         "scenario": "tests/eval/extract-grafana-alert-evaluation-delivery.md",
         "required": [
-            "specspine/alert-rules-evaluation-state.md",
-            "specspine/alert-notification-delivery.md",
+            "specspine/alerting/alert-rules-evaluation-state.md",
+            "specspine/alerting/alert-notification-delivery.md",
         ],
-        "supporting": ["specspine/alerting.md"],
-        "hard_negatives": ["specspine/alerting-notifications-app-api-adapter.md"],
+        "supporting": ["specspine/alerting/alerting.md"],
+        "hard_negatives": [
+            "specspine/alerting/alerting-notifications-app-api-adapter.md"
+        ],
         "source_required_groups": [
             [
                 "pkg/services/ngalert/state/state.go",
@@ -133,12 +139,14 @@ SCENARIOS = (
         "id": "extract-grafana-frontend-api-boundary",
         "scenario": "tests/eval/extract-grafana-frontend-api-boundary.md",
         "required": [
-            "specspine/frontend-api-clients.md",
-            "specspine/frontend-runtime-api.md",
-            "specspine/frontend-state-platform.md",
+            "specspine/frontend/frontend-api-clients.md",
+            "specspine/frontend/frontend-runtime-api.md",
+            "specspine/frontend/frontend-state-platform.md",
         ],
-        "supporting": ["specspine/frontend-platform.md"],
-        "hard_negatives": ["specspine/sql-datasource-frontend-contract.md"],
+        "supporting": ["specspine/frontend/frontend-platform.md"],
+        "hard_negatives": [
+            "specspine/querying/sql-datasource-frontend-contract.md"
+        ],
         "source_required_groups": [
             [
                 "packages/grafana-api-clients/src/clients/rtkq/createBaseQuery.ts",
@@ -163,11 +171,13 @@ SCENARIOS = (
         "id": "extract-grafana-session-authorization",
         "scenario": "tests/eval/extract-grafana-session-authorization.md",
         "required": [
-            "specspine/authentication-sessions.md",
-            "specspine/authorization-policy-engine.md",
+            "specspine/identity-access/authentication-sessions.md",
+            "specspine/identity-access/authorization-policy-engine.md",
         ],
-        "supporting": ["specspine/identity-access.md"],
-        "hard_negatives": ["specspine/anonymous-device-management.md"],
+        "supporting": ["specspine/identity-access/identity-access.md"],
+        "hard_negatives": [
+            "specspine/identity-access/anonymous-device-management.md"
+        ],
         "source_required_groups": [
             [
                 "pkg/services/authn/clients/session.go",
@@ -188,13 +198,13 @@ SCENARIOS = (
         "id": "extract-grafana-resource-schema-publication",
         "scenario": "tests/eval/extract-grafana-resource-schema-publication.md",
         "required": [
-            "specspine/core-kind-schema-generation.md",
-            "specspine/kubernetes-api-code-generation.md",
-            "specspine/openapi-spec-publication.md",
-            "specspine/resource-schema-installation.md",
+            "specspine/resources/core-kind-schema-generation.md",
+            "specspine/resources/kubernetes-api-code-generation.md",
+            "specspine/resources/openapi-spec-publication.md",
+            "specspine/persistence/resource-schema-installation.md",
         ],
-        "supporting": ["specspine/grafana-schema-contract.md"],
-        "hard_negatives": ["specspine/plugin-cue-schema-generation.md"],
+        "supporting": ["specspine/resources/grafana-schema-contract.md"],
+        "hard_negatives": ["specspine/plugins/plugin-cue-schema-generation.md"],
         "source_required_groups": [
             ["kinds/gen.go"],
             ["hack/update-codegen.sh"],
@@ -217,12 +227,14 @@ SCENARIOS = (
         "id": "extract-grafana-folder-deletion",
         "scenario": "tests/eval/extract-grafana-folder-deletion.md",
         "required": [
-            "specspine/folder-cascade-deletion.md",
-            "specspine/content-dashboard-lifecycle.md",
-            "specspine/content-browse.md",
+            "specspine/content/folder-cascade-deletion.md",
+            "specspine/content/content-dashboard-lifecycle.md",
+            "specspine/content/content-browse.md",
         ],
-        "supporting": ["specspine/content-management.md"],
-        "hard_negatives": ["specspine/library-panel-resource-transition.md"],
+        "supporting": ["specspine/content/content-management.md"],
+        "hard_negatives": [
+            "specspine/content/library-panel-resource-transition.md"
+        ],
         "source_required_groups": [
             [
                 "pkg/registry/apis/folders/cascade_delete.go",

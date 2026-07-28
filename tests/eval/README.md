@@ -229,6 +229,44 @@ repeated samples are release-level evidence. Successful reports include only
 the explicitly requested `specspine/**/*.md` snapshots needed by the blind
 judge.
 
+### Extract → Grow Grafana A/B benchmark
+
+`benchmark_extract_grow_grafana.py` extends the external Grafana benchmark with
+a mutation outcome. Both arms load production Grow, receive the same Grafana
+SpecSpine snapshot and scenario, use the same model settings, and may change
+exactly one preselected canonical specification. The treatment arm also
+installs Extract as a companion skill; the baseline navigates SpecSpine
+directly. No Grafana source files are present in either workspace.
+
+The three scenarios deepen plugin capability compatibility, session recovery,
+and folder-cascade failure semantics. Each prompt fixes the owner, accepted
+decisions, affected boundaries, and exclusions so retrieval strategy—not
+architecture invention or document decomposition—drives runtime variance.
+
+```bash
+report_dir=$(mktemp -d -t specspine-extract-grow-grafana.XXXXXX)
+python3 tests/eval/benchmark_extract_grow_grafana.py \
+  --grafana-root ~/projects/grafana \
+  --output-dir "$report_dir" --samples 1 --jobs 2
+```
+
+The run writes raw reports, `comparison.md`, an anonymized `blind-review/`
+directory, and `blind-review-key.json`. Give only `blind-review/` to a judge in
+a new session. The judge protocol requires `gpt-5.6-terra` with medium
+reasoning. Keep the key hidden until the judge returns `judgments.json`, then
+merge blind quality into the comparison:
+
+```bash
+python3 tests/eval/benchmark_extract_grow_grafana.py \
+  --output-dir "$report_dir" \
+  --judgments /path/to/judgments.json
+```
+
+Use `--scenario <id>` for focused calibration. Use one sample while authoring;
+use at least three independent samples per scenario for comparative evidence.
+The comparison reports wall time, token counters, tool cycles, files read,
+retrieval attempts, deterministic validity, and blind quality.
+
 Each case gets a clean temporary workspace. Cases run with concurrency 8 by
 default; change it with `--jobs N`. Workspaces default to
 `~/.cache/specspine-eval/workspaces`; override with

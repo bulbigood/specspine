@@ -20,6 +20,16 @@ GRAFANA_BENCHMARK = importlib.util.module_from_spec(GRAFANA_SPEC)
 assert GRAFANA_SPEC.loader is not None
 GRAFANA_SPEC.loader.exec_module(GRAFANA_BENCHMARK)
 
+GROW_GRAFANA_SCRIPT = (
+    Path(__file__).parents[1] / "eval" / "benchmark_extract_grow_grafana.py"
+)
+GROW_GRAFANA_SPEC = importlib.util.spec_from_file_location(
+    "benchmark_extract_grow_grafana", GROW_GRAFANA_SCRIPT
+)
+GROW_GRAFANA_BENCHMARK = importlib.util.module_from_spec(GROW_GRAFANA_SPEC)
+assert GROW_GRAFANA_SPEC.loader is not None
+GROW_GRAFANA_SPEC.loader.exec_module(GROW_GRAFANA_BENCHMARK)
+
 
 class ExtractAgentBenchmarkTests(unittest.TestCase):
     def test_grafana_cases_use_large_external_fixture_and_fixed_arms(self):
@@ -33,11 +43,11 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
         self.assertTrue(all(case["initial_tree"] == str(fixture) for case in cases))
         self.assertTrue(all(case["category"] == "expensive" for case in cases))
         self.assertIn(
-            "specspine/resource-dualwrite-lifecycle.md",
+            "specspine/persistence/resource-dualwrite-lifecycle.md",
             cases[0]["handoff_judgments"]["required"],
         )
         self.assertIn(
-            "specspine/resource-provisioning-reconciliation.md",
+            "specspine/operations/resource-provisioning-reconciliation.md",
             cases[0]["handoff_judgments"]["hard_negatives"],
         )
         for case in cases:
@@ -140,6 +150,99 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
             ["extract-grafana-frontend-api-boundary"],
             [scenario["id"] for scenario in selected],
         )
+
+    def test_grow_grafana_ab_has_two_arms_and_three_fixed_scenarios(self):
+        self.assertEqual(
+            [("without-extract", False), ("with-extract", True)],
+            list(GROW_GRAFANA_BENCHMARK.ARMS),
+        )
+        self.assertEqual(3, len(GROW_GRAFANA_BENCHMARK.SCENARIOS))
+        self.assertEqual(
+            3,
+            len(
+                {
+                    scenario["target"]
+                    for scenario in GROW_GRAFANA_BENCHMARK.SCENARIOS
+                }
+            ),
+        )
+
+    def test_grow_grafana_treatment_changes_only_extract_availability(self):
+        fixture = Path("/fixtures/grafana")
+        scenario = GROW_GRAFANA_BENCHMARK.SCENARIOS[0]
+        baseline = GROW_GRAFANA_BENCHMARK.grow_case(fixture, False, scenario)
+        treatment = GROW_GRAFANA_BENCHMARK.grow_case(fixture, True, scenario)
+        self.assertEqual([], baseline["companion_skills"])
+        self.assertEqual(
+            ["skills/specspine-extract"], treatment["companion_skills"]
+        )
+        self.assertEqual(baseline["skill"], treatment["skill"])
+        self.assertEqual(baseline["scenario"], treatment["scenario"])
+        self.assertEqual([scenario["target"]], baseline["report_artifacts"])
+        self.assertEqual("command_excludes", baseline["assertions"][-1]["type"])
+        self.assertEqual("command_includes", treatment["assertions"][-2]["type"])
+
+    def test_grow_grafana_blind_package_scores_hidden_arms(self):
+        scenario = GROW_GRAFANA_BENCHMARK.SCENARIOS[0]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            grafana = root / "grafana"
+            target = grafana / scenario["target"]
+            target.parent.mkdir(parents=True)
+            target.write_text("# Initial\n", encoding="utf-8")
+            reports = {}
+            for label, _ in GROW_GRAFANA_BENCHMARK.ARMS:
+                reports[label] = {
+                    "samples": [{
+                        "case_id": scenario["id"],
+                        "sample_number": 1,
+                        "artifacts": {
+                            scenario["target"]: f"# Final {label}\n"
+                        },
+                    }]
+                }
+            GROW_GRAFANA_BENCHMARK.write_blind_package(
+                root,
+                reports,
+                grafana,
+                (scenario,),
+                "timestamp",
+            )
+            cases = json.loads(
+                (root / "blind-review" / "cases.json").read_text(
+                    encoding="utf-8"
+                )
+            )["cases"]
+            candidates = list(cases[0]["candidates"])
+            judgments = {
+                "judgments": [{
+                    "pair_id": cases[0]["pair_id"],
+                    "scores": {
+                        candidate: {
+                            field: 4 if index == 0 else 3
+                            for field in GROW_GRAFANA_BENCHMARK.RUBRIC_FIELDS
+                        }
+                        for index, candidate in enumerate(candidates)
+                    },
+                    "preferred_candidate": candidates[0],
+                    "rationale": "candidate one is more complete",
+                }]
+            }
+            judgment_path = root / "judgments.json"
+            judgment_path.write_text(
+                json.dumps(judgments), encoding="utf-8"
+            )
+            scores = GROW_GRAFANA_BENCHMARK.score_judgments(
+                root, judgment_path
+            )
+            self.assertEqual(
+                {20.0, 15.0},
+                {
+                    values["mean_blind_quality_0_20"]
+                    for values in scores.values()
+                },
+            )
+            self.assertEqual(1, sum(values["blind_wins"] for values in scores.values()))
 
     def test_three_fixed_arms_use_current_extract_cases(self):
         self.assertEqual(
