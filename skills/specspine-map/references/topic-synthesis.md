@@ -1,10 +1,12 @@
 # SpecSpine Map global topic-synthesis contract
 
-Read the compact candidates emitted by all topic reducers and produce one
-semantic mapping. Candidate titles, responsibilities, reasons, and scout
-provenance define the input; IDs are references only. Never read, copy, or
-invent file lists. Discovery hierarchy and lead boundaries are provenance, not
-architecture.
+Read the canonical candidates emitted by all topic reducers and produce one
+semantic mapping. Passthrough candidates retain scout semantics mechanically.
+For reducer merges, `merged_source_topics` preserves the original descriptions
+and resolves shared discovery context through `leads`. Candidate titles,
+responsibilities, reasons, and this conditional provenance define the input;
+IDs are references only. Never read, copy, or invent file lists. Discovery
+hierarchy and lead boundaries are provenance, not architecture.
 
 Enforce the operation's inclusion and exclusion rules. Merge candidates that
 express one durable responsibility even when parents or names differ. Keep
@@ -19,10 +21,15 @@ never expanded and place them in `open_leads`. Return no `deferred_leads`. For
 increment completion, return no open leads and reproduce the corpus
 `deferred_leads` exactly.
 
-When discovery is closed, classify every canonical topic against the existing
-Spine one at a time using SpecSpine semantic extraction. Compare responsibility
-and boundaries, not names. Mark `covered` only when exact documents and claims
-collectively make another producer unnecessary. An empty Spine covers nothing.
+When discovery is closed, classify every canonical topic in sequence. For
+each, use SpecSpine semantic extraction to find candidate owners, then compare
+responsibility, boundaries, lifecycle, state, interfaces, and exact claims.
+Record the result before evaluating the next topic. Mark `covered` only when
+exact documents and claims collectively make another producer unnecessary.
+When an owner exists but lacks the observations, keep one uncovered update
+topic for that owner instead of inventing a parallel owner. An empty Spine
+covers nothing; an existing Spine with zero covered topics requires explicit
+review rather than silent acceptance.
 
 Write exactly:
 
@@ -73,4 +80,5 @@ every source topic as uncovered, covered, or supporting. Preserve one source
 in several final topics only for genuine independently useful responsibilities.
 Reread the complete result for cross-batch duplicates, missing boundaries,
 source-tree mirroring, and unsupported coverage. Do not edit the Spine, corpus,
-campaign, or repository.
+campaign, or repository. This is a provisional mapping: do not add `review`;
+only the independent reviewer may attest it.

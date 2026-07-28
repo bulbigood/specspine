@@ -93,6 +93,7 @@ class MapOperationContractTests(unittest.TestCase):
             self.assertIn(command, text)
 
     def test_discovery_and_synthesis_close_the_selected_frontier(self):
+        entrypoint = self.compact(self.entrypoint)
         protocol = self.compact(self.protocol)
         discovery = self.compact(self.discovery)
         curator = self.compact(self.curator)
@@ -112,9 +113,22 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("`open_leads`", synthesis)
         self.assertIn("`deferred_leads`", synthesis)
         self.assertIn("Disposition every input `source_id` exactly once", self.reduction)
+        self.assertIn("`passthrough`", self.reduction)
+        self.assertIn("`merged`", self.reduction)
         self.assertIn("Do not copy or invent file paths", self.review)
+        review = self.compact(self.review)
+        self.assertIn("existing_coverage_checked", review)
+        self.assertIn("rejects an unreviewed synthesizer result", review)
+        self.assertIn('"decision": "accept"', review)
         self.assertIn("source_topic_ids", synthesis)
+        self.assertIn("merged_source_topics", synthesis)
         self.assertIn("source_topics(corpus", self.synthesis_script)
+        self.assertIn("publish_validated_plan", self.synthesis_script)
+        self.assertIn("zero-existing-coverage", self.synthesis_script)
+        self.assertIn("fresh strong-tier synthesizer", protocol)
+        self.assertIn("strong-tier global synthesizer", entrypoint)
+        self.assertIn("medium-tier topic reducers", protocol)
+        self.assertIn("fresh medium-tier reviewer", protocol)
 
     def test_scout_parallelism_is_adaptive_and_wave_checked(self):
         protocol = self.compact(self.protocol)
@@ -126,7 +140,7 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("discovery_finalize.py", protocol)
         self.assertIn("discovery-validate", protocol)
         self.assertIn("exact result path", protocol)
-        self.assertIn("Do not write `lead_id`, `status`, or `inspected`", self.discovery)
+        self.assertIn("Do not write topic IDs, search-query logs", self.discovery)
         self.assertIn("Never write or edit the result directly", self.discovery)
         self.assertIn("discovery_finalize.py", self.entrypoint)
         self.assertIn("weak-tier scouts", entrypoint)
@@ -205,13 +219,13 @@ class MapOperationContractTests(unittest.TestCase):
     def test_prompt_files_stay_small(self):
         limits = {
             "entrypoint": (self.entrypoint, 100),
-            "protocol": (self.protocol, 290),
+            "protocol": (self.protocol, 300),
             "method": (self.method, 110),
             "discovery": (self.discovery, 105),
             "curator": (self.curator, 85),
             "synthesis": (self.synthesis, 100),
             "reduction": (self.reduction, 50),
-            "review": (self.review, 40),
+            "review": (self.review, 50),
             "producer": (self.producer, 135),
             "integration": (self.integration, 175),
         }

@@ -1405,7 +1405,8 @@ class MapCampaignTests(unittest.TestCase):
             "Creates and validates application sessions.",
             source["responsibility"],
         )
-        self.assertIn("lead", source)
+        self.assertIn("lead_id", source)
+        self.assertIn(source["lead_id"], packet["leads"])
         self.assertNotIn("files", source)
 
         results = self.run / "synthesis-results"
@@ -1414,17 +1415,8 @@ class MapCampaignTests(unittest.TestCase):
             json.dumps(
                 {
                     "batch_id": packet["batch_id"],
-                    "candidates": [
-                        {
-                            "id": "session-lifecycle",
-                            "title": "Session lifecycle",
-                            "responsibility": (
-                                "Creates and validates application sessions."
-                            ),
-                            "reason": "One durable session responsibility.",
-                            "source_topic_ids": [source["source_id"]],
-                        }
-                    ],
+                    "passthrough": [source["source_id"]],
+                    "merged": [],
                 }
             ),
             encoding="utf-8",
@@ -1443,8 +1435,10 @@ class MapCampaignTests(unittest.TestCase):
         self.assertNotIn("files", compact["candidates"][0])
         self.assertEqual(
             source["responsibility"],
-            compact["source_topics"][0]["responsibility"],
+            compact["candidates"][0]["responsibility"],
         )
+        self.assertEqual([], compact["merged_source_topics"])
+        self.assertEqual({}, compact["leads"])
 
         mapping = self.run / "semantic-mapping.json"
         mapping.write_text(
@@ -1459,11 +1453,28 @@ class MapCampaignTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        reviewer = self.run / "reviewer-result.json"
+        reviewer.write_text(
+            json.dumps(
+                {
+                    "decision": "accept",
+                    "review": {
+                        "existing_coverage_checked": True,
+                        "cross_batch_duplicates_checked": True,
+                        "granularity_checked": True,
+                        "notes": "One source forms one fixture responsibility.",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
         plan = self.run / "materialized-topic-plan.json"
+        plan.write_text("stale plan", encoding="utf-8")
         materialized = self.cli(
             "materialize",
             str(corpus),
             str(mapping),
+            str(reviewer),
             str(plan),
             script=SYNTHESIS,
         )
@@ -1489,7 +1500,8 @@ class MapCampaignTests(unittest.TestCase):
             json.dumps(
                 {
                     "batch_id": packet["batch_id"],
-                    "candidates": [
+                    "passthrough": [],
+                    "merged": [
                         {
                             "id": "unrelated",
                             "title": "Unrelated",
@@ -1513,6 +1525,71 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertIn("unknown source topics", failed["error"])
 
+    def test_synthesis_preserves_originals_only_for_reducer_merges(self):
+        corpus_path = self.semantic_discovery_corpus_path()
+        corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
+        original = corpus["leads"][0]["topics"][0]
+        second = original | {
+            "id": "session-renewal",
+            "title": "Session renewal",
+            "responsibility": "Renews active application sessions.",
+            "reason": "The same owner extends the session lifecycle.",
+        }
+        corpus["leads"][0]["topics"].append(second)
+        corpus["topics"].append(second)
+        corpus["digest"] = CAMPAIGN_MODULE.digest_json(
+            {key: value for key, value in corpus.items() if key != "digest"}
+        )
+        corpus_path.write_text(json.dumps(corpus), encoding="utf-8")
+
+        packets = self.run / "merge-packets"
+        prepared = self.cli(
+            "prepare",
+            str(corpus_path),
+            str(packets),
+            script=SYNTHESIS,
+        )
+        packet_path = Path(prepared["packets"][0])
+        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+        source_ids = [value["source_id"] for value in packet["source_topics"]]
+        results = self.run / "merge-results"
+        results.mkdir()
+        (results / packet_path.name).write_text(
+            json.dumps(
+                {
+                    "batch_id": packet["batch_id"],
+                    "passthrough": [],
+                    "merged": [
+                        {
+                            "id": "session-lifecycle",
+                            "title": "Session lifecycle",
+                            "responsibility": (
+                                "Creates, validates, and renews application sessions."
+                            ),
+                            "reason": "Both sources describe one session owner.",
+                            "source_topic_ids": source_ids,
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        global_packet = self.run / "merged-global.json"
+        self.cli(
+            "merge",
+            str(corpus_path),
+            str(packets),
+            str(results),
+            str(global_packet),
+            script=SYNTHESIS,
+        )
+        value = json.loads(global_packet.read_text(encoding="utf-8"))
+        self.assertEqual(2, len(value["merged_source_topics"]))
+        self.assertEqual(
+            {packet["source_topics"][0]["lead_id"]},
+            set(value["leads"]),
+        )
+
     def test_synthesis_materializer_rejects_undispositioned_source(self):
         corpus = self.semantic_discovery_corpus_path()
         mapping = self.run / "semantic-mapping.json"
@@ -1528,15 +1605,171 @@ class MapCampaignTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        reviewer = self.run / "reviewer-result.json"
+        reviewer.write_text(
+            json.dumps(
+                {
+                    "decision": "accept",
+                    "review": {
+                        "existing_coverage_checked": True,
+                        "cross_batch_duplicates_checked": True,
+                        "granularity_checked": True,
+                        "notes": "Fixture intentionally leaves the source undispositioned.",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
         failed = self.cli(
             "materialize",
             str(corpus),
             str(mapping),
+            str(reviewer),
             str(self.run / "plan.json"),
             script=SYNTHESIS,
             expected=2,
         )
         self.assertIn("does not disposition every source topic", failed["error"])
+
+    def test_synthesis_materializer_rejects_unreviewed_mapping(self):
+        corpus = self.semantic_discovery_corpus_path()
+        mapping = self.run / "unreviewed-mapping.json"
+        mapping.write_text(
+            json.dumps(
+                {
+                    "topics": [],
+                    "covered": [],
+                    "supporting": [],
+                    "open_leads": [],
+                    "deferred_leads": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        plan = self.run / "topic-plan.json"
+        plan.write_text("preserved plan", encoding="utf-8")
+        reviewer = self.run / "reviewer-result.json"
+        reviewer.write_text("{}", encoding="utf-8")
+        failed = self.cli(
+            "materialize",
+            str(corpus),
+            str(mapping),
+            str(reviewer),
+            str(plan),
+            script=SYNTHESIS,
+            expected=2,
+        )
+        self.assertIn("decision must be accept or replace", failed["error"])
+        self.assertEqual("preserved plan", plan.read_text(encoding="utf-8"))
+
+    def test_synthesis_reviewer_can_replace_provisional_mapping(self):
+        corpus = self.semantic_discovery_corpus_path()
+        packets = self.run / "replace-packets"
+        prepared = self.cli(
+            "prepare",
+            str(corpus),
+            str(packets),
+            script=SYNTHESIS,
+        )
+        packet = json.loads(
+            Path(prepared["packets"][0]).read_text(encoding="utf-8")
+        )
+        source_id = packet["source_topics"][0]["source_id"]
+        mapping = self.run / "provisional-mapping.json"
+        mapping.write_text(
+            json.dumps(
+                {
+                    "topics": [
+                        {
+                            "id": "session-lifecycle",
+                            "title": "Session lifecycle",
+                            "responsibility": "Owns sessions.",
+                            "reason": "Provisional classification.",
+                            "source_topic_ids": [source_id],
+                        }
+                    ],
+                    "covered": [],
+                    "supporting": [],
+                    "open_leads": [],
+                    "deferred_leads": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        reviewer = self.run / "replacement-review.json"
+        reviewer.write_text(
+            json.dumps(
+                {
+                    "decision": "replace",
+                    "mapping": {
+                        "topics": [],
+                        "covered": [],
+                        "supporting": [
+                            {
+                                "reason": "No independent architectural owner.",
+                                "source_topic_ids": [source_id],
+                            }
+                        ],
+                        "open_leads": [],
+                        "deferred_leads": [],
+                    },
+                    "review": {
+                        "existing_coverage_checked": True,
+                        "cross_batch_duplicates_checked": True,
+                        "granularity_checked": True,
+                        "notes": "The provisional topic is supporting evidence.",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        plan = self.run / "replacement-topic-plan.json"
+        receipt = self.cli(
+            "materialize",
+            str(corpus),
+            str(mapping),
+            str(reviewer),
+            str(plan),
+            script=SYNTHESIS,
+        )
+        self.assertEqual("replace", receipt["review_decision"])
+        self.assertEqual(
+            [],
+            json.loads(plan.read_text(encoding="utf-8"))["topics"],
+        )
+
+    def test_synthesis_diagnostics_flag_suspicious_semantic_result(self):
+        self.add_spine_candidate(
+            "sessions.md",
+            "sessions",
+            "src/identity/session.py",
+        )
+        specification = importlib.util.spec_from_file_location(
+            "map_synthesis_diagnostics",
+            SYNTHESIS,
+        )
+        assert specification is not None and specification.loader is not None
+        module = importlib.util.module_from_spec(specification)
+        with mock.patch.dict(sys.modules, {"campaign": CAMPAIGN_MODULE}):
+            specification.loader.exec_module(module)
+        semantic_values = [
+            {"source_topic_ids": [f"lead/topic-{index:02d}"]}
+            for index in range(20)
+        ]
+        diagnostics = module.synthesis_diagnostics(
+            corpus={"spine_root": str(self.spine)},
+            source_count=20,
+            semantic_values=semantic_values,
+            covered_count=0,
+        )
+        self.assertEqual(
+            {
+                "zero-existing-coverage",
+                "high-singleton-ratio",
+                "low-semantic-reduction",
+            },
+            {value["code"] for value in diagnostics},
+        )
 
     def test_synthesis_accepts_empty_semantic_frontier(self):
         corpus = self.discovery_corpus_path()

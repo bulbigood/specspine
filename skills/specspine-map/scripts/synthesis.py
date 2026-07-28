@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -13,14 +16,31 @@ import campaign
 
 
 DEFAULT_BATCH_SIZE = 25
-SYNTHESIS_CONTRACT_VERSION = 1
+SYNTHESIS_CONTRACT_VERSION = 2
+REVIEW_KEYS = {
+    "existing_coverage_checked",
+    "cross_batch_duplicates_checked",
+    "granularity_checked",
+    "notes",
+}
 
 
-def source_topics(corpus: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, list[str]]]:
+def source_topics(
+    corpus: dict[str, Any],
+) -> tuple[
+    list[dict[str, Any]],
+    dict[str, list[str]],
+    dict[str, dict[str, str]],
+]:
     topics: list[dict[str, Any]] = []
     files: dict[str, list[str]] = {}
+    leads: dict[str, dict[str, str]] = {}
     for result in corpus["leads"]:
         lead = result["lead"]
+        leads[lead["id"]] = {
+            key: lead[key]
+            for key in ("title", "question", "reason")
+        }
         seen: set[str] = set()
         for topic in result["topics"]:
             topic_id = topic["id"]
@@ -41,17 +61,14 @@ def source_topics(corpus: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[st
                     "title": topic["title"],
                     "responsibility": topic["responsibility"],
                     "reason": topic["reason"],
-                    "lead": {
-                        key: lead[key]
-                        for key in ("id", "title", "question", "reason")
-                    },
+                    "lead_id": lead["id"],
                 }
             )
     if len(topics) != len(corpus["topics"]):
         raise campaign.CampaignError(
             "discovery corpus flattened topics differ from lead topics"
         )
-    return topics, files
+    return topics, files, leads
 
 
 def load_corpus(path: Path) -> dict[str, Any]:
@@ -116,7 +133,7 @@ def normalize_candidate(
 
 def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
     corpus = load_corpus(args.corpus)
-    topics, _ = source_topics(corpus)
+    topics, _, leads = source_topics(corpus)
     if args.output_dir.exists():
         raise campaign.CampaignError(
             f"synthesis packet directory already exists: {args.output_dir}"
@@ -126,6 +143,7 @@ def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
     for offset in range(0, len(topics), args.batch_size):
         batch = topics[offset : offset + args.batch_size]
         batch_id = f"batch-{offset // args.batch_size + 1:04d}"
+        batch_lead_ids = {value["lead_id"] for value in batch}
         path = args.output_dir / f"{batch_id}.json"
         campaign.atomic_write(
             path,
@@ -133,6 +151,10 @@ def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
                 "synthesis_contract_version": SYNTHESIS_CONTRACT_VERSION,
                 "corpus_digest": corpus["digest"],
                 "batch_id": batch_id,
+                "leads": {
+                    lead_id: leads[lead_id]
+                    for lead_id in sorted(batch_lead_ids)
+                },
                 "source_topics": batch,
             },
         )
@@ -149,31 +171,47 @@ def normalize_reducer_result(
     raw: Any,
     packet: dict[str, Any],
 ) -> dict[str, Any]:
-    if not isinstance(raw, dict) or set(raw) != {"batch_id", "candidates"}:
+    if not isinstance(raw, dict) or set(raw) != {
+        "batch_id",
+        "passthrough",
+        "merged",
+    }:
         raise campaign.CampaignError(
-            "reducer result needs exactly batch_id and candidates"
+            "reducer result needs exactly batch_id, passthrough, and merged"
         )
     if raw["batch_id"] != packet["batch_id"]:
         raise campaign.CampaignError("reducer batch_id differs from packet")
     known = {value["source_id"] for value in packet["source_topics"]}
-    if not isinstance(raw["candidates"], list) or not raw["candidates"]:
-        raise campaign.CampaignError("reducer candidates must be nonempty")
-    candidates = [
+    if not isinstance(raw["passthrough"], list):
+        raise campaign.CampaignError("reducer passthrough must be a list")
+    passthrough = source_ids(
+        raw["passthrough"],
+        known,
+        "reducer passthrough",
+    ) if raw["passthrough"] else []
+    if not isinstance(raw["merged"], list):
+        raise campaign.CampaignError("reducer merged must be a list")
+    merged = [
         normalize_candidate(
             value,
             known,
-            field=f"reducer candidate {index}",
+            field=f"reducer merged candidate {index}",
         )
-        for index, value in enumerate(raw["candidates"], start=1)
+        for index, value in enumerate(raw["merged"], start=1)
     ]
-    ids = [value["id"] for value in candidates]
+    for value in merged:
+        if len(value["source_topic_ids"]) < 2:
+            raise campaign.CampaignError(
+                f"reducer merged candidate {value['id']} needs at least two sources"
+            )
+    ids = [value["id"] for value in merged]
     if len(ids) != len(set(ids)):
-        raise campaign.CampaignError("reducer repeats candidate ids")
+        raise campaign.CampaignError("reducer repeats merged candidate ids")
     dispositioned = [
         source_id
-        for value in candidates
+        for value in merged
         for source_id in value["source_topic_ids"]
-    ]
+    ] + passthrough
     if len(dispositioned) != len(set(dispositioned)):
         raise campaign.CampaignError(
             "reducer assigns a source topic to multiple candidates"
@@ -184,12 +222,39 @@ def normalize_reducer_result(
             f"missing={sorted(known - set(dispositioned))}, "
             f"unknown={sorted(set(dispositioned) - known)}"
         )
-    return {"batch_id": raw["batch_id"], "candidates": candidates}
+    source_index = {
+        value["source_id"]: value
+        for value in packet["source_topics"]
+    }
+    candidates = [
+        {
+            "id": (
+                "source-"
+                + hashlib.sha256(source_id.encode()).hexdigest()[:16]
+            ),
+            "title": source_index[source_id]["title"],
+            "responsibility": source_index[source_id]["responsibility"],
+            "reason": source_index[source_id]["reason"],
+            "source_topic_ids": [source_id],
+        }
+        for source_id in passthrough
+    ] + merged
+    return {
+        "batch_id": raw["batch_id"],
+        "candidates": candidates,
+        "merged_source_ids": sorted(
+            {
+                source_id
+                for value in merged
+                for source_id in value["source_topic_ids"]
+            }
+        ),
+    }
 
 
 def command_merge(args: argparse.Namespace) -> dict[str, Any]:
     corpus = load_corpus(args.corpus)
-    topics, _ = source_topics(corpus)
+    topics, _, leads = source_topics(corpus)
     known = {value["source_id"] for value in topics}
     packets = sorted(args.packets_dir.glob("batch-*.json"))
     if not packets and known:
@@ -202,6 +267,7 @@ def command_merge(args: argparse.Namespace) -> dict[str, Any]:
             or packet.get("synthesis_contract_version")
             != SYNTHESIS_CONTRACT_VERSION
             or packet.get("corpus_digest") != corpus["digest"]
+            or not isinstance(packet.get("leads"), dict)
         ):
             raise campaign.CampaignError(
                 f"invalid synthesis reducer packet: {packet_path}"
@@ -217,6 +283,11 @@ def command_merge(args: argparse.Namespace) -> dict[str, Any]:
         for result in results
         for value in result["candidates"]
     ]
+    candidate_ids = [value["id"] for value in candidates]
+    if len(candidate_ids) != len(set(candidate_ids)):
+        raise campaign.CampaignError(
+            "reducer wave repeats candidate ids across batches"
+        )
     dispositioned = {
         source_id
         for value in candidates
@@ -226,6 +297,16 @@ def command_merge(args: argparse.Namespace) -> dict[str, Any]:
         raise campaign.CampaignError(
             "reducer wave does not cover the complete synthesis source"
         )
+    merged_source_ids = {
+        source_id
+        for result in results
+        for source_id in result["merged_source_ids"]
+    }
+    topic_index = {value["source_id"]: value for value in topics}
+    relevant_lead_ids = {
+        topic_index[source_id]["lead_id"]
+        for source_id in merged_source_ids
+    }
     campaign.atomic_write(
         args.output,
         {
@@ -234,7 +315,14 @@ def command_merge(args: argparse.Namespace) -> dict[str, Any]:
             "operation": corpus["operation"],
             "spine_root": corpus["spine_root"],
             "source_topic_count": len(topics),
-            "source_topics": topics,
+            "leads": {
+                lead_id: leads[lead_id]
+                for lead_id in sorted(relevant_lead_ids)
+            },
+            "merged_source_topics": [
+                topic_index[source_id]
+                for source_id in sorted(merged_source_ids)
+            ],
             "candidates": candidates,
         },
     )
@@ -355,25 +443,166 @@ def normalize_coverage(
     return reason, sorted(normalized, key=lambda item: item["document"])
 
 
-def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
-    corpus = load_corpus(args.corpus)
-    topics, file_map = source_topics(corpus)
-    known = set(file_map)
-    raw = campaign.read_json(args.mapping)
-    expected = {
-        "topics",
-        "covered",
-        "supporting",
-        "open_leads",
-        "deferred_leads",
-    }
-    if not isinstance(raw, dict) or set(raw) != expected:
+def normalize_review(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != REVIEW_KEYS:
         raise campaign.CampaignError(
-            "semantic mapping needs exactly topics, covered, supporting, "
+            "review needs existing_coverage_checked, "
+            "cross_batch_duplicates_checked, granularity_checked, and notes"
+        )
+    for field in REVIEW_KEYS - {"notes"}:
+        if value[field] is not True:
+            raise campaign.CampaignError(f"review {field} must be true")
+    return {
+        "existing_coverage_checked": True,
+        "cross_batch_duplicates_checked": True,
+        "granularity_checked": True,
+        "notes": clean_text(value["notes"], "review notes"),
+    }
+
+
+def synthesis_diagnostics(
+    *,
+    corpus: dict[str, Any],
+    source_count: int,
+    semantic_values: list[dict[str, Any]],
+    covered_count: int,
+) -> list[dict[str, str]]:
+    diagnostics: list[dict[str, str]] = []
+    existing_documents = [
+        path
+        for path in Path(corpus["spine_root"]).rglob("*.md")
+        if path.name != "README.md"
+    ]
+    if source_count and existing_documents and covered_count == 0:
+        diagnostics.append(
+            {
+                "code": "zero-existing-coverage",
+                "message": (
+                    "Existing SpecSpine documents were present but no topic was "
+                    "classified as covered; recheck owner responsibilities."
+                ),
+            }
+        )
+    singleton_count = sum(
+        len(value["source_topic_ids"]) == 1 for value in semantic_values
+    )
+    if source_count >= 20 and singleton_count / source_count >= 0.8:
+        diagnostics.append(
+            {
+                "code": "high-singleton-ratio",
+                "message": (
+                    "At least 80% of source topics passed through as singleton "
+                    "semantic topics; recheck cross-batch ownership and granularity."
+                ),
+            }
+        )
+    if source_count >= 20 and len(semantic_values) / source_count >= 0.9:
+        diagnostics.append(
+            {
+                "code": "low-semantic-reduction",
+                "message": (
+                    "Final semantic topic count is at least 90% of source topic "
+                    "count; recheck directory-shaped or aspect-shaped decomposition."
+                ),
+            }
+        )
+    return diagnostics
+
+
+def publish_validated_plan(
+    output: Path,
+    plan: dict[str, Any],
+    *,
+    corpus: dict[str, Any],
+) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{output.name}.",
+        suffix=".tmp",
+        dir=output.parent,
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    try:
+        campaign.atomic_write(temporary, plan)
+        campaign.validate_topic_plan(
+            temporary,
+            corpus["evidence_files"],
+            Path(corpus["spine_root"]),
+            corpus["operation"],
+            corpus["deferred_leads"],
+        )
+        os.replace(temporary, output)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+MAPPING_KEYS = {
+    "topics",
+    "covered",
+    "supporting",
+    "open_leads",
+    "deferred_leads",
+}
+
+
+def normalize_mapping(value: Any, *, field: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != MAPPING_KEYS:
+        raise campaign.CampaignError(
+            f"{field} needs exactly topics, covered, supporting, "
             "open_leads, and deferred_leads"
         )
-    if not all(isinstance(raw[key], list) for key in expected):
-        raise campaign.CampaignError("semantic mapping collections must be lists")
+    if not all(isinstance(value[key], list) for key in MAPPING_KEYS):
+        raise campaign.CampaignError(f"{field} collections must be lists")
+    return value
+
+
+def reviewed_mapping(
+    mapping_path: Path,
+    review_path: Path,
+) -> tuple[dict[str, Any], dict[str, Any], str]:
+    provisional = normalize_mapping(
+        campaign.read_json(mapping_path),
+        field="provisional semantic mapping",
+    )
+    raw_review = campaign.read_json(review_path)
+    if not isinstance(raw_review, dict) or raw_review.get("decision") not in {
+        "accept",
+        "replace",
+    }:
+        raise campaign.CampaignError(
+            "reviewer result decision must be accept or replace"
+        )
+    decision = raw_review["decision"]
+    expected = (
+        {"decision", "review"}
+        if decision == "accept"
+        else {"decision", "mapping", "review"}
+    )
+    if set(raw_review) != expected:
+        raise campaign.CampaignError(
+            f"reviewer {decision} result has invalid shape"
+        )
+    review = normalize_review(raw_review["review"])
+    mapping = (
+        provisional
+        if decision == "accept"
+        else normalize_mapping(
+            raw_review["mapping"],
+            field="reviewer replacement mapping",
+        )
+    )
+    return mapping, review, decision
+
+
+def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
+    corpus = load_corpus(args.corpus)
+    topics, file_map, _ = source_topics(corpus)
+    known = set(file_map)
+    raw, review, review_decision = reviewed_mapping(
+        args.mapping,
+        args.review,
+    )
     final_topics: list[dict[str, Any]] = []
     final_covered: list[dict[str, Any]] = []
     final_ids: set[str] = set()
@@ -528,33 +757,31 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
         "deferred_leads": raw["deferred_leads"],
     }
     if not open_leads:
-        campaign.validate_topic_plan(
-            _write_plan(args.output, plan),
-            corpus["evidence_files"],
-            Path(corpus["spine_root"]),
-            corpus["operation"],
-            corpus["deferred_leads"],
-        )
+        publish_validated_plan(args.output, plan, corpus=corpus)
     else:
         campaign.atomic_write(args.output, plan)
+    semantic_values = raw["topics"] + raw["covered"]
     singleton_passthrough = sum(
         len(value["source_topic_ids"]) == 1
-        for value in raw["topics"] + raw["covered"]
+        for value in semantic_values
     )
-    campaign.atomic_write(args.output, plan)
+    diagnostics = synthesis_diagnostics(
+        corpus=corpus,
+        source_count=len(topics),
+        semantic_values=semantic_values,
+        covered_count=len(final_covered),
+    )
     return {
         "status": "written",
         "source_topics": len(topics),
         "final_topics": len(final_topics) + len(final_covered),
         "singleton_topics": singleton_passthrough,
         "open_leads": len(open_leads),
+        "review_decision": review_decision,
+        "review": review,
+        "diagnostics": diagnostics,
         "output": str(args.output.resolve()),
     }
-
-
-def _write_plan(path: Path, value: dict[str, Any]) -> Path:
-    campaign.atomic_write(path, value)
-    return path
 
 
 def positive_int(value: str) -> int:
@@ -583,6 +810,7 @@ def parser() -> argparse.ArgumentParser:
     materialize = sub.add_parser("materialize")
     materialize.add_argument("corpus", type=Path)
     materialize.add_argument("mapping", type=Path)
+    materialize.add_argument("review", type=Path)
     materialize.add_argument("output", type=Path)
     return result
 

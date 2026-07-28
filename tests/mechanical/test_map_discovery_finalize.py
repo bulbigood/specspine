@@ -81,10 +81,8 @@ class DiscoveryFinalizeTests(unittest.TestCase):
         return {
             "disposition": "mapped",
             "reason": "The session runtime exposes persistence and recovery.",
-            "queries": ["session", "session", "recovery"],
             "topics": [
                 {
-                    "id": "session-lifecycle",
                     "title": "Session lifecycle",
                     "responsibility": "Owns session creation and recovery.",
                     "reason": "Session code exposes a durable boundary.",
@@ -158,10 +156,8 @@ class DiscoveryFinalizeTests(unittest.TestCase):
         self.assertEqual("ready", receipt["status"])
         self.assertEqual("identity-runtime", result["lead_id"])
         self.assertEqual("unresolved", result["status"])
-        self.assertEqual(
-            ["session", "recovery"],
-            result["inspected"]["queries"],
-        )
+        self.assertEqual([], result["inspected"]["queries"])
+        self.assertEqual("session-lifecycle", result["topics"][0]["id"])
         self.assertEqual(
             [
                 "pyproject.toml",
@@ -187,7 +183,6 @@ class DiscoveryFinalizeTests(unittest.TestCase):
         )
         self.assertEqual(
             {
-                "duplicate_queries": 1,
                 "duplicate_topic_files": 1,
                 "duplicate_supporting_files": 3,
                 "duplicate_unresolved_seed_files": 2,

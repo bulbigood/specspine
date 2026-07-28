@@ -175,22 +175,31 @@ python3 <skill>/scripts/synthesis.py merge \
   <global-packet.json>
 ```
 
-Give the global packet to one fresh medium-tier synthesizer under
+Give the global packet to one fresh strong-tier synthesizer under
 `topic-synthesis.md`. It writes a semantic mapping containing exactly
 `topics`, `covered`, `supporting`, `open_leads`, and `deferred_leads`, with
 `source_topic_ids` instead of files.
 
 Give that mapping and the same global packet to one fresh medium-tier reviewer
-under `topic-review.md`. The reviewer emits a corrected final mapping. Then
-materialize all file lists mechanically from the immutable corpus:
+under `topic-review.md`. The reviewer returns compact `accept` or a complete
+`replace`, both with the required review attestation. Materialize the
+provisional mapping plus reviewer result directly to the campaign's sole
+canonical `topic-plan.json`; never create `fixed`, `repaired`, or alternate
+plans:
 
 ```text
 python3 <skill>/scripts/synthesis.py materialize \
-  <discovery-corpus.json> <reviewed-mapping.json> <topic-plan.json>
+  <discovery-corpus.json> <provisional-mapping.json> <reviewer-result.json> \
+  <campaign>/topic-plan.json
 ```
 
 Never handwrite or repair `topic-plan.json`. Repair reducer or semantic mapping
-artifacts and rerun the deterministic commands.
+artifacts and rerun the deterministic commands. Closed materialization
+validates a private temporary plan before atomically replacing the canonical
+path; a plan containing open leads is only an atomic input to discovery reopen.
+Inspect diagnostics before `source-pass`: `zero-existing-coverage`,
+`high-singleton-ratio`, or `low-semantic-reduction` requires a focused reviewer
+recheck, not mechanical topic deletion.
 
 - Increment reproduces the corpus `deferred_leads` exactly and returns no
   `open_leads`.

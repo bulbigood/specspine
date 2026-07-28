@@ -6,6 +6,13 @@ shape. Correct residual duplicates, accidental mega-topics, mixed ownership,
 framework categories, unsupported coverage, and source topics incorrectly
 classified as supporting.
 
+Re-evaluate every canonical topic against existing SpecSpine owners and exact
+claims. Zero covered topics is suspicious whenever non-index documents exist:
+accept it only after checking every candidate owner. Prefer one update topic
+for an incomplete existing owner over a parallel document. Recheck topics that
+share lifecycle, contracts, state, data ownership, failure behavior, or
+consumers even when their names differ.
+
 Preserve every `source_topic_id`; merge by placing several sources in one
 topic. A source may appear in several topics only when its described
 responsibility genuinely participates in several independently useful
@@ -16,6 +23,24 @@ For exhaustive work, return uncovered discovery gaps in `open_leads` and no
 `deferred_leads`. For increment work, preserve the supplied deferred leads
 exactly and return no open leads.
 
-Write the final mapping in the exact schema defined by
-`topic-synthesis.md`. Terminate without editing the corpus, Spine, campaign, or
-repository.
+If the provisional mapping needs no correction, avoid repeating it:
+
+```json
+{
+  "decision": "accept",
+  "review": {
+    "existing_coverage_checked": true,
+    "cross_batch_duplicates_checked": true,
+    "granularity_checked": true,
+    "notes": "Concise explanation of coverage and granularity checks."
+  }
+}
+```
+
+If correction is necessary, write `decision: replace`, the complete corrected
+mapping under `mapping`, and the same `review` object. Do not emit a patch or
+repeat the provisional mapping for `accept`.
+
+Set an attestation only after completing that check. The materializer rejects
+an unreviewed synthesizer result. Terminate without editing the corpus, Spine,
+campaign, or repository.

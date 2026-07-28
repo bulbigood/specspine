@@ -71,9 +71,9 @@ atomically publishes canonical discovery results.
 Use a flat production-file inventory only as a neutral accelerator for
 repository scope. It grants no grouping, ownership, coverage, or completion.
 
-For exhaustive work, use fresh isolated weak-tier scouts and medium-tier
-curators, topic reducers, synthesizer, reviewer, and one-shot producers. Scout
-subwaves contain at most
+For exhaustive work, use fresh isolated weak-tier scouts, medium-tier
+curators, topic reducers, reviewers, and one-shot producers, and one fresh
+strong-tier global synthesizer. Scout subwaves contain at most
 ten and must also fit the runtime's available subagent slots; reserve the root
 slot when capacity includes it. Producer waves contain at most five. Never
 refill a settled strict wave. An increment may execute the same contracts
@@ -91,6 +91,8 @@ one private workspace, run the v3 checker, then publish the workspace and
 ledger transition atomically. Do not invoke Doctor inside Map.
 
 Synthesis agents operate on scout descriptions and provenance IDs, never on
-bulk file lists. `synthesis.py` alone validates reducer coverage, resolves IDs
-back to corpus evidence, removes mechanical duplication, and writes the final
-topic plan.
+bulk file lists. `synthesis.py` alone copies singleton semantics, validates
+reducer coverage, exposes original descriptions only for reducer merges,
+resolves IDs back to corpus evidence, requires independent review attestation,
+reports suspicious coverage or granularity, and atomically writes the sole
+canonical topic plan.

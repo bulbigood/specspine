@@ -42,17 +42,16 @@ observations only.
 
 Write only the supplied private draft. `mapped` means the lead produced a
 classification; use `duplicate` or `out_of_scope` only as a terminal semantic
-refusal. Do not write `lead_id`, `status`, or `inspected`; the finalizer derives
-them.
+refusal. Do not write topic IDs, search-query logs, `lead_id`, `status`, or
+`inspected`; the finalizer derives stable provisional IDs and canonical
+metadata. Keep each reason to one discriminating sentence.
 
 ```json
 {
   "disposition": "mapped",
   "reason": "Consumer registration exposes recovery and offset ownership.",
-  "queries": ["consumer group", "CommitMessages", "retry"],
   "topics": [
     {
-      "id": "provisional-consumer-lifecycle",
       "title": "Kafka consumer lifecycle",
       "responsibility": "Starts, stops, and recovers grouped event consumers.",
       "reason": "Registration and shutdown paths establish one runtime boundary.",

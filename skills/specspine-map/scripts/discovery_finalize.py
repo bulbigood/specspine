@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -15,7 +17,6 @@ import campaign
 DRAFT_FIELDS = {
     "disposition",
     "reason",
-    "queries",
     "topics",
     "supporting",
     "unresolved_leads",
@@ -46,23 +47,39 @@ def normalize_topics(
     topics: list[dict[str, Any]] = []
     files: set[str] = set()
     removed = 0
+    ids: set[str] = set()
     for index, value in enumerate(
         object_list(values, "discovery draft topics"),
         start=1,
     ):
-        expected = {"id", "title", "responsibility", "reason", "files"}
+        expected = {"title", "responsibility", "reason", "files"}
         if set(value) != expected:
             raise campaign.CampaignError(
                 f"discovery draft topic {index} needs "
-                "id, title, responsibility, reason, and files"
+                "title, responsibility, reason, and files"
             )
+        title = value["title"]
+        if not isinstance(title, str) or not title.strip():
+            raise campaign.CampaignError(
+                f"discovery draft topic {index} title must be nonempty text"
+            )
+        base = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+        if not base:
+            digest = hashlib.sha256(title.strip().encode()).hexdigest()[:12]
+            base = f"topic-{digest}"
+        topic_id = base
+        suffix = 2
+        while topic_id in ids:
+            topic_id = f"{base}-{suffix}"
+            suffix += 1
+        ids.add(topic_id)
         normalized_files, duplicates = deduplicated_paths(
             value["files"],
             f"discovery draft topic {index} files",
         )
         removed += duplicates
         topic = campaign.normalize_candidate_topic(
-            value | {"files": normalized_files},
+            value | {"id": topic_id, "files": normalized_files},
             field=f"discovery draft topic {index}",
         )
         topics.append(topic)
@@ -159,8 +176,8 @@ def canonical_result(
 ) -> tuple[dict[str, Any], dict[str, int]]:
     if set(draft) != DRAFT_FIELDS:
         raise campaign.CampaignError(
-            "discovery draft needs exactly disposition, reason, queries, "
-            "topics, supporting, and unresolved_leads"
+            "discovery draft needs exactly disposition, reason, topics, "
+            "supporting, and unresolved_leads"
         )
     disposition = draft["disposition"]
     if disposition not in DRAFT_DISPOSITIONS:
@@ -170,11 +187,6 @@ def canonical_result(
     reason = draft["reason"]
     if not isinstance(reason, str) or not reason.strip():
         raise campaign.CampaignError("discovery draft needs a reason")
-    raw_queries = campaign.string_list(
-        draft["queries"],
-        "discovery draft queries",
-    )
-    queries = list(dict.fromkeys(raw_queries))
     topics, topic_files, topic_duplicates = normalize_topics(draft["topics"])
     (
         supporting,
@@ -205,7 +217,7 @@ def canonical_result(
         "reason": reason.strip(),
         "inspected": {
             "files": sorted(topic_files | supporting_files | unresolved_files),
-            "queries": queries,
+            "queries": [],
         },
         "topics": topics,
         "supporting": supporting,
@@ -226,7 +238,6 @@ def canonical_result(
         "unresolved_leads": normalized["unresolved_leads"],
     }
     return result, {
-        "duplicate_queries": len(raw_queries) - len(queries),
         "duplicate_topic_files": topic_duplicates,
         "duplicate_supporting_files": supporting_duplicates,
         "duplicate_unresolved_seed_files": unresolved_duplicates,
