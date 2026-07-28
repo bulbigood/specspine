@@ -1,4 +1,4 @@
-# Scenario: diagnose mechanical SpecSpine defects
+# Scenario: check mechanical SpecSpine defects
 
 ## Existing SpecSpine
 

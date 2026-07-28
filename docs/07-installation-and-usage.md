@@ -4,8 +4,8 @@
 
 SpecSpine is delivered as four coordinated skills:
 
-- `specspine-doctor` connects a Spine to project agents and diagnoses or
-  repairs specification health.
+- `specspine-doctor` connects or disconnects a Spine and checks or repairs
+  specification health.
 - `specspine-extract` retrieves the smallest task-specific architecture
   closure.
 - `specspine-grow` creates and evolves accepted intended architecture.
@@ -155,7 +155,7 @@ projection for a downstream feature, SDD, review, or coding workflow. That
 workflow remains responsible for requirements, acceptance criteria, planning,
 implementation, tests, and delivery.
 
-## Diagnose a Spine
+## Check a Spine
 
 Ask Doctor:
 
@@ -164,9 +164,9 @@ Check this SpecSpine for mechanical and semantic problems.
 ```
 
 Doctor reports deterministic mechanical findings separately from advisory
-semantic risks. Diagnosis is read-only. Repairs require approval and never
+semantic risks. Check is read-only. Repairs require approval and never
 guess architectural intent. Repository drift analysis belongs to Map.
 
-For handoff-specific diagnosis, Doctor may invoke Extract directly. Extract is
+For a handoff-specific check, Doctor may invoke Extract directly. Extract is
 the preferred downstream retrieval gateway, not a mandatory intermediary for
 every Grow, Map, or Doctor operation.

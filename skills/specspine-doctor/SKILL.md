@@ -1,19 +1,21 @@
 ---
 name: specspine-doctor
-description: Set up, connect, reconfigure, disconnect, audit, or repair a SpecSpine. Use for first-time project-agent integration, root and documentation-language configuration, managed bootstrap maintenance, mechanical defects, reachability, semantic IDs, missing relationships, conflicting ownership or claims, poor decomposition, hidden uncertainty, implementation-detail leakage, and handoff quality. Use specspine-map for repository comparison.
+description: Connect, disconnect, check, or repair a SpecSpine. Use for agent connection, bootstrap, integrity, semantics, decomposition, uncertainty, implementation-detail leakage, and handoffs. Use specspine-map for repository comparison.
 ---
 
 # SpecSpine Doctor
 
-Select only operation modes explicitly requested: connection administration
-(`setup`, `connect`, `reconfigure`, or `disconnect`) and/or Spine health
-(`audit`, `diagnose`, or `repair`). Treat `audit` as diagnosis-only. When both
-are explicit, finish connection and its mechanical check before health work.
-Never add a semantic audit implicitly.
+Use only requested operations:
 
-When invoked without an operation, read
-[references/operation-modes.md](references/operation-modes.md), briefly explain
-every choice and its read/write boundary, then ask which one to run.
+- `connect` — idempotently ensure the requested managed connection;
+- `disconnect` — idempotently remove only its managed instruction block;
+- `check` — read-only review of the whole Spine, an area, or a problem;
+- `repair` — check and apply approved bounded corrections.
+
+Normalize legacy `setup`, `reconnect`, and `reconfigure` to `connect`, and
+`audit` and `diagnose` to `check`. If no operation is clear, briefly explain
+these four read/write boundaries and ask which one to run. Finish explicit
+connection work before health work. Never add semantic review implicitly.
 
 ## Resources
 
@@ -39,19 +41,17 @@ prove validity, completeness, or code conformance.
 
 ## Connection administration
 
-Follow the connection contract exactly. Its first-setup sequence chooses the
-root before inspecting it, derives the proposed documentation language from an
-existing root index, and persists the accepted configuration in one managed
-project-instruction block.
+Follow the connection contract exactly. `connect` idempotently creates,
+refreshes, or changes the requested connection from observed state. Preserve
+recognized settings not explicitly changed.
 
-Setup or reconfiguration may modify only that managed block and may create the
-configured `<spine-root>/README.md` when absent. Render a new index's
-natural-language text in the accepted documentation language while preserving
-the template's minimal structure. Preserve an existing index and all
-surrounding project instructions. Disconnect removes only the managed block;
-it never removes the Spine or its instruction file.
+Connect may modify only that managed block and may create the configured
+`<spine-root>/README.md` when absent. Render a new index in the accepted
+language with the template's minimal structure. Preserve existing indexes and
+surrounding project instructions. Disconnect removes only the managed block,
+never the Spine or instruction file. A satisfied target state causes no write.
 
-After successful setup or reconfiguration, run the mechanical checker once and
+After a successful connection change, run the mechanical checker once and
 report its findings separately. Do not repair findings or begin semantic review
 unless the request independently authorizes that work.
 
@@ -59,7 +59,7 @@ unless the request independently authorizes that work.
 
 Resolve `<spine-root>` from the request, project instructions, an existing
 managed bootstrap, or the default `specspine`; require its `README.md`.
-Diagnosis is read-only. Doctor may repair files under `<spine-root>` after the
+Check is read-only. Doctor may repair files under `<spine-root>` after the
 operator approves the proposed repair; an explicit request that already names
 the defect and requested correction is approval for that correction.
 
@@ -72,7 +72,7 @@ reported by the checker, and use the coverage procedure in
 `references/review-method.md`. For a selected area, inspect its direct
 neighborhood and expand only where ownership or conflicts cross the boundary.
 
-## Diagnose health
+## Check health
 
 1. Run the checker.
 2. Verify source locations before recommending a structural change.
@@ -110,7 +110,8 @@ or infer architecture from repository evidence without a user decision.
 
 Modify only files under `<spine-root>`, preserve unrelated content, rerun the
 affected checks, report the result, then resume the progressive review until
-the requested scope is covered.
+the requested scope is covered. If the approved target state is already
+satisfied, report it and write nothing.
 
 ## Boundaries
 

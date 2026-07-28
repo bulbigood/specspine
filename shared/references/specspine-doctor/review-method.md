@@ -84,7 +84,7 @@ stated purpose and the loaded stopping rules require it.
 
 ## Progressive coverage
 
-For a whole-Spine audit, build the coverage set from all Markdown
+For a whole-Spine check, build the coverage set from all Markdown
 specifications under `<spine-root>`, not only reachable documents. Start with
 `README.md`, then inspect bounded graph-neighborhood batches so ownership and
 relationships remain visible. Track each path as pending or inspected in the

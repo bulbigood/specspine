@@ -222,27 +222,27 @@ class AdapterGeneratorTests(unittest.TestCase):
     def test_doctor_explains_modes_before_requesting_a_selection(self):
         source = PROJECT_ROOT / "skills/specspine-doctor"
         skill = (source / "SKILL.md").read_text(encoding="utf-8")
-        modes = (source / "references/operation-modes.md").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("When invoked without an operation", skill)
-        self.assertIn("references/operation-modes.md", skill)
+        self.assertFalse((source / "references/operation-modes.md").exists())
         self.assertIn("briefly explain", skill)
-        self.assertIn("read/write boundary", skill)
-        for mode in (
-            "`setup` —",
-            "`connect` —",
-            "`reconfigure` —",
-            "`disconnect` —",
-            "`audit` —",
-            "`diagnose` —",
-            "`repair` —",
-        ):
+        self.assertIn("read/write boundaries", skill)
+        public_modes = re.findall(r"^- `([^`]+)` —", skill, re.MULTILINE)
+        self.assertEqual(
+            ["connect", "disconnect", "check", "repair"],
+            public_modes,
+        )
+        for mode in ("`connect` —", "`disconnect` —", "`check` —", "`repair` —"):
             with self.subTest(mode=mode):
-                self.assertIn(mode, modes)
-        self.assertIn("read-only integrity review", modes)
-        self.assertIn("read-only investigation", modes)
-        self.assertIn("after required approval", modes)
+                self.assertIn(mode, skill)
+        self.assertIn("read-only review", skill)
+        self.assertIn("approved bounded corrections", skill)
+        self.assertIn(
+            "`setup`, `reconnect`, and `reconfigure` to `connect`",
+            skill,
+        )
+        self.assertIn(
+            "`audit` and `diagnose` to `check`",
+            skill,
+        )
 
     def test_doctor_reviews_flat_layout_as_navigation_not_hierarchy(self):
         source = PROJECT_ROOT / "skills/specspine-doctor"
@@ -295,7 +295,9 @@ class AdapterGeneratorTests(unittest.TestCase):
         ):
             with self.subTest(state=state):
                 self.assertIn(state, contract)
-        self.assertIn("Reconnect means validate and idempotently refresh", contract)
+        self.assertIn("Connect means idempotently ensure", contract)
+        self.assertIn("Preserve every recognized existing setting", contract)
+        self.assertIn("requested state is already satisfied", contract)
         self.assertIn("Disconnect requires an exact selected instruction file", contract)
         self.assertIn("do not delete an otherwise empty instruction file", contract)
         self.assertIn("disconnect reports already disconnected and creates nothing", contract)

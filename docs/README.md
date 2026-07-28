@@ -21,7 +21,7 @@ large design document.
    derived data, component responsibilities, migration, acceptance criteria,
    and delivery boundaries.
 7. [Installation and usage](07-installation-and-usage.md) — runtime skills,
-   installation, connection, mapping, growth, retrieval, and diagnosis.
+   installation, connection, mapping, growth, retrieval, and health checks.
 8. [Development and maintenance](08-development.md) — repository organization,
    local validation, evaluation, integrations, and contribution guidance.
 

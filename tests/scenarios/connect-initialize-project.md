@@ -5,9 +5,9 @@
 A root `AGENTS.md` contains user-authored instructions. No SpecSpine directory
 or managed connection block exists.
 
-## Stage 1: request setup
+## Stage 1: request connection
 
-The user asks to set up SpecSpine without supplying configuration.
+The user asks to connect SpecSpine without supplying configuration.
 
 The skill should ask only for the SpecSpine root, defaulting to `specspine`.
 It must not inspect that path or ask for a language before the operator selects
@@ -26,7 +26,8 @@ The second stage must not change project files.
 
 ## Stage 3: accept remaining defaults
 
-The user accepts all offered defaults and asks the skill to complete setup.
+The user accepts all offered defaults and asks the skill to complete the
+connection.
 
 The skill should:
 

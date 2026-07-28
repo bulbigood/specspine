@@ -1,4 +1,4 @@
-# Scenario: reconnect an already integrated generic agent
+# Scenario: repeat connect for an already integrated generic agent
 
 ## Initial project
 
