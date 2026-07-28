@@ -32,8 +32,9 @@ Both completion policies use the same artifacts and state machine:
 
 - increment settles one initial discovery layer, preserves adjacent work in
   `deferred_leads`, forbids derived ToDo, and ends at `increment_verified`;
-- exhaustive recursively closes every in-scope lead, forbids deferral, and
-  ends at `scope_verified`.
+- exhaustive scouts close their assigned semantic boundaries internally,
+  dispatch only justified unresolved fallback, forbid deferral, and end at
+  `scope_verified`.
 
 Neither terminal claims that no conceivable architectural concept exists.
 `increment_verified` never claims scope completeness.
@@ -51,7 +52,9 @@ Neither terminal claims that no conceivable architectural concept exists.
 - Give isolated workers only their phase contract:
   [discovery-task.md](references/discovery-task.md),
   [frontier-curation.md](references/frontier-curation.md),
-  [topic-synthesis.md](references/topic-synthesis.md), or
+  [topic-reduction.md](references/topic-reduction.md),
+  [topic-synthesis.md](references/topic-synthesis.md),
+  [topic-review.md](references/topic-review.md), or
   [producer-task.md](references/producer-task.md).
 - Read [integration-pass.md](references/integration-pass.md) before publishing.
 - Start new files from `assets/templates/`; omit empty sections.
@@ -69,7 +72,8 @@ Use a flat production-file inventory only as a neutral accelerator for
 repository scope. It grants no grouping, ownership, coverage, or completion.
 
 For exhaustive work, use fresh isolated weak-tier scouts and medium-tier
-curators, synthesizer, and one-shot producers. Scout subwaves contain at most
+curators, topic reducers, synthesizer, reviewer, and one-shot producers. Scout
+subwaves contain at most
 ten and must also fit the runtime's available subagent slots; reserve the root
 slot when capacity includes it. Producer waves contain at most five. Never
 refill a settled strict wave. An increment may execute the same contracts
@@ -85,3 +89,8 @@ a valid atomic handoff; never restart accepted or harvestable work.
 Producer acceptance never edits the live Spine. Integrate accepted handoffs in
 one private workspace, run the v3 checker, then publish the workspace and
 ledger transition atomically. Do not invoke Doctor inside Map.
+
+Synthesis agents operate on scout descriptions and provenance IDs, never on
+bulk file lists. `synthesis.py` alone validates reducer coverage, resolves IDs
+back to corpus evidence, removes mechanical duplication, and writes the final
+topic plan.

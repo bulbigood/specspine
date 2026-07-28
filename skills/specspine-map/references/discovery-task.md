@@ -6,19 +6,33 @@ orientation, then inspect the lead's seed files and search the repository for
 directly related responsibilities, registrations, callers, dependencies,
 interfaces, state, failures, deployment, operations, schemas, and tests.
 
-The lead is one semantic expansion step, not a future specification or a path
+The lead is a semantic search boundary, not a future specification or path
 group. Follow evidence outside its seed files when it remains inside the
 inclusion rule. Do not cross the exclusion rule merely because two components
 share infrastructure. Do not edit the repository, Spine, campaign, packet, or
 another result.
 
 Classify inspected files into provisional architectural topics or `supporting`.
-Propose a child lead only for an in-scope responsibility or boundary that needs
-another focused expansion. Its question must name the unresolved facet; never
-repeat a provisional topic as its own child. A child is discovery work, not a
-producer task. Never suppress a child merely because a broad existing Spine
-document mentions its parent; coverage is decided only after the complete
-corpus is synthesized.
+
+For exhaustive completion, maintain a private queue of every directly exposed
+in-scope responsibility, owner, interface, state, lifecycle, failure,
+deployment, and operational question. Search and classify each item before
+finishing. Add newly exposed questions to the same queue and continue until it
+is empty. Return all durable fine-grained topics found across this local
+closure, not only the first expansion level.
+
+Use `unresolved_leads` only as fallback when a remaining question needs an
+independent large investigation, cannot fit safely in the current context, or
+crosses into a separately owned semantic boundary. Name the exact unresolved
+facet and explain why the current scout could not close it. Never return a
+question merely to avoid another local search, repeat a provisional topic, or
+represent ordinary navigation.
+
+For increment completion, inspect only the packet's initial semantic layer and
+place every directly exposed continuation in `unresolved_leads`; the curator
+will defer it. An unresolved lead is discovery work, not a producer task.
+Never suppress one merely because a broad existing Spine document mentions its
+parent; coverage is decided after synthesis.
 
 Use durable responsibilities, capabilities, runtimes, integrations, data
 ownership, or project-specific cross-cutting contracts. Do not mirror
@@ -51,12 +65,13 @@ them.
       "files": ["services/alerts/events.go"]
     }
   ],
-  "child_leads": [
+  "unresolved_leads": [
     {
       "id": "offset-recovery",
       "title": "Offset recovery",
       "question": "Which component owns offset recovery after handler failure?",
       "reason": "The consumer delegates failure recovery outside inspected code.",
+      "fallback_kind": "separate_owner",
       "seed_files": ["pkg/kafka/consumer.go"]
     }
   ]
@@ -64,9 +79,15 @@ them.
 ```
 
 Every packet seed file must occur in a topic or supporting entry.
-`duplicate` and `out_of_scope` require empty topics, supporting, and child
-leads. Reread the draft for unsupported intent, missing seed files,
-source-shaped topics, and unjustified scope expansion.
+`duplicate` and `out_of_scope` require empty topics, supporting, and unresolved
+leads. Before returning exhaustive fallback, search its obvious symbols,
+callers, registrations, and owner once more. Reread the draft for unsupported
+intent, missing seed files, source-shaped topics, and unjustified scope
+expansion.
+
+`fallback_kind` is `independent_investigation`, `context_limit`, or
+`separate_owner` for exhaustive work, and `increment_continuation` for an
+increment.
 
 Run:
 

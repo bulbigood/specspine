@@ -83,7 +83,9 @@ python3 <skill>/scripts/campaign.py discovery-start \
 
 Add `--inventory-accelerator` only for repository scope. The root packet and
 neutral inventory pages form the initial discovery layer. Keep the default
-page size; a page may never exceed the mechanical limit. The repository
+page size of 40 seed files; a scout packet or unresolved fallback may never
+exceed that limit. This limit does not cap files found while closing the
+packet's semantic boundary. The repository
 accelerator currently caps this test slice at 1,000 production files and
 reports both `inventory_total_files` and `inventory_truncated`.
 
@@ -117,22 +119,29 @@ python3 <skill>/scripts/campaign.py discovery-validate \
 ```
 
 Any failure invalidates the subwave; repair or rerun it before continuing.
-After all subwaves in a layer validate, give one fresh medium-tier curator the
-operation, results, and compact lead registry under `frontier-curation.md`.
+After the complete initial wave validates, read the receipt's
+`unresolved_leads` count. If it is zero, collect the corpus immediately.
+Otherwise give
+one fresh medium-tier curator the operation, unresolved proposals, and compact
+lead registry under `frontier-curation.md`.
 
 - Increment: disposition every unique in-scope continuation as `defer`; queue
   nothing.
 - Exhaustive: queue every unique in-scope continuation; defer nothing.
 
-Persist its decision and, for exhaustive work, execute the next layer:
+Persist its decision and, for exhaustive work, execute only the targeted
+fallback packets:
 
 ```text
 python3 <skill>/scripts/campaign.py discovery-packets \
   <discovery-seed> <frontier.json> <discovery>/wave-NNNN
 ```
 
-Use the same adaptive scout limit, exact result paths, barrier, and validation
-for every later layer. Safety limits establish blockage, never closure.
+Every fallback scout follows the same local exhaustive-closure contract. Use
+the same adaptive limit, exact result paths, barrier, and validation. Curate
+and dispatch another fallback wave only if these scouts still report justified
+`unresolved_leads`. Never create mandatory breadth-first depth waves. Safety
+limits establish blockage, never closure.
 
 When the frontier is settled:
 
@@ -144,9 +153,44 @@ python3 <skill>/scripts/campaign.py discovery-collect \
 
 ## Synthesize
 
-Give the complete corpus to one fresh medium-tier synthesizer under
-`topic-synthesis.md`. It writes exactly `topics`, `covered`, `supporting`,
-`open_leads`, and `deferred_leads`.
+Prepare compact batches from the complete corpus:
+
+```text
+python3 <skill>/scripts/synthesis.py prepare \
+  <discovery-corpus.json> <synthesis-packets>
+```
+
+Create fresh medium-tier topic reducers, at most five per strict wave. Give
+each reducer only `topic-reduction.md`, one packet, and its exact private result
+path. Reducers compare scout `title`, `responsibility`, `reason`, and lead
+context; IDs are references, not semantic input. They never receive or copy
+file lists. Wait for the complete wave without refill.
+
+After every packet has a result, validate and combine them into the compact
+global packet:
+
+```text
+python3 <skill>/scripts/synthesis.py merge \
+  <discovery-corpus.json> <synthesis-packets> <reducer-results> \
+  <global-packet.json>
+```
+
+Give the global packet to one fresh medium-tier synthesizer under
+`topic-synthesis.md`. It writes a semantic mapping containing exactly
+`topics`, `covered`, `supporting`, `open_leads`, and `deferred_leads`, with
+`source_topic_ids` instead of files.
+
+Give that mapping and the same global packet to one fresh medium-tier reviewer
+under `topic-review.md`. The reviewer emits a corrected final mapping. Then
+materialize all file lists mechanically from the immutable corpus:
+
+```text
+python3 <skill>/scripts/synthesis.py materialize \
+  <discovery-corpus.json> <reviewed-mapping.json> <topic-plan.json>
+```
+
+Never handwrite or repair `topic-plan.json`. Repair reducer or semantic mapping
+artifacts and rerun the deterministic commands.
 
 - Increment reproduces the corpus `deferred_leads` exactly and returns no
   `open_leads`.
@@ -159,7 +203,7 @@ python3 <skill>/scripts/campaign.py discovery-reopen \
   <discovery>/wave-NNNN
 ```
 
-When synthesis is closed:
+When the materialized synthesis is closed:
 
 ```text
 python3 <skill>/scripts/campaign.py source-pass \

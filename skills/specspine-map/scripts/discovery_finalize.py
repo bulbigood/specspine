@@ -18,7 +18,7 @@ DRAFT_FIELDS = {
     "queries",
     "topics",
     "supporting",
-    "child_leads",
+    "unresolved_leads",
 }
 DRAFT_DISPOSITIONS = {"mapped", "duplicate", "out_of_scope"}
 
@@ -119,31 +119,38 @@ def normalize_supporting(
     )
 
 
-def normalize_child_leads(
+def normalize_unresolved_leads(
     values: Any,
 ) -> tuple[list[dict[str, Any]], set[str], int]:
-    children: list[dict[str, Any]] = []
+    unresolved: list[dict[str, Any]] = []
     files: set[str] = set()
     removed = 0
-    expected = {"id", "title", "question", "reason", "seed_files"}
+    expected = {
+        "id",
+        "title",
+        "question",
+        "reason",
+        "seed_files",
+        "fallback_kind",
+    }
     for index, value in enumerate(
-        object_list(values, "discovery draft child_leads"),
+        object_list(values, "discovery draft unresolved_leads"),
         start=1,
     ):
         if set(value) != expected:
             raise campaign.CampaignError(
-                f"discovery draft child lead {index} needs "
-                "id, title, question, reason, and seed_files"
+                f"discovery draft unresolved lead {index} needs "
+                "id, title, question, reason, seed_files, and fallback_kind"
             )
         seed_files, duplicates = deduplicated_paths(
             value["seed_files"],
-            f"discovery draft child lead {index} seed_files",
+            f"discovery draft unresolved lead {index} seed_files",
         )
         removed += duplicates
-        child = value | {"seed_files": seed_files}
-        children.append(child)
+        lead = value | {"seed_files": seed_files}
+        unresolved.append(lead)
         files.update(seed_files)
-    return children, files, removed
+    return unresolved, files, removed
 
 
 def canonical_result(
@@ -153,7 +160,7 @@ def canonical_result(
     if set(draft) != DRAFT_FIELDS:
         raise campaign.CampaignError(
             "discovery draft needs exactly disposition, reason, queries, "
-            "topics, supporting, and child_leads"
+            "topics, supporting, and unresolved_leads"
         )
     disposition = draft["disposition"]
     if disposition not in DRAFT_DISPOSITIONS:
@@ -175,18 +182,18 @@ def canonical_result(
         supporting_duplicates,
         topic_supporting_overlap,
     ) = normalize_supporting(draft["supporting"], topic_files)
-    children, child_files, child_duplicates = normalize_child_leads(
-        draft["child_leads"]
+    unresolved, unresolved_files, unresolved_duplicates = normalize_unresolved_leads(
+        draft["unresolved_leads"]
     )
-    if disposition != "mapped" and (topics or supporting or children):
+    if disposition != "mapped" and (topics or supporting or unresolved):
         raise campaign.CampaignError(
             f"discovery draft disposition {disposition} "
-            "cannot publish topics, supporting files, or child leads"
+            "cannot publish topics, supporting files, or unresolved leads"
         )
     status = (
         disposition
         if disposition != "mapped"
-        else ("expanded" if children else "leaf")
+        else ("unresolved" if unresolved else "closed")
     )
     lead = campaign.normalize_discovery_lead(
         packet.get("lead"),
@@ -197,12 +204,12 @@ def canonical_result(
         "status": status,
         "reason": reason.strip(),
         "inspected": {
-            "files": sorted(topic_files | supporting_files | child_files),
+            "files": sorted(topic_files | supporting_files | unresolved_files),
             "queries": queries,
         },
         "topics": topics,
         "supporting": supporting,
-        "child_leads": children,
+        "unresolved_leads": unresolved,
     }
     normalized = campaign.validate_discovery_result(
         packet,
@@ -216,13 +223,13 @@ def canonical_result(
         "inspected": normalized["inspected"],
         "topics": normalized["topics"],
         "supporting": normalized["supporting"],
-        "child_leads": normalized["child_leads"],
+        "unresolved_leads": normalized["unresolved_leads"],
     }
     return result, {
         "duplicate_queries": len(raw_queries) - len(queries),
         "duplicate_topic_files": topic_duplicates,
         "duplicate_supporting_files": supporting_duplicates,
-        "duplicate_child_seed_files": child_duplicates,
+        "duplicate_unresolved_seed_files": unresolved_duplicates,
         "topic_supporting_overlaps": topic_supporting_overlap,
     }
 

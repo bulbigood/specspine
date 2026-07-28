@@ -53,13 +53,16 @@ specifications and source areas, preserve accepted intent, and record
 unresolved disagreement.
 
 An increment settles one initial discovery layer and defers directly exposed
-continuations. Exhaustive work expands every in-scope lead by one semantic
-level until the frontier closes. A flat file inventory may seed repository
+continuations. An exhaustive scout recursively closes its assigned semantic
+search boundary inside one run. A flat file inventory may seed repository
 scope but never defines topics.
 
-Each scout proposes only directly exposed child questions. Synthesis merges
-the complete corpus by responsibility, checks each topic against existing
-canonical SpecSpine claims, and accounts for every evidence file. A path match,
+An exhaustive scout returns an unresolved question only when it needs an
+independent large investigation, exceeds safe context, or crosses into a
+separately owned boundary. Curate and dispatch those questions as targeted
+fallback, not as mandatory breadth-first levels. Synthesis merges the complete
+corpus by responsibility, checks each topic against existing canonical
+SpecSpine claims, and accounts for every evidence file. A path match,
 navigation entry, or broad neighboring owner is not coverage.
 
 One topic does not imply one document. Several topics may converge on one
@@ -67,9 +70,9 @@ canonical owner; one topic may expose multiple independent owners. Producers
 verify assigned topics and may suggest narrower questions, but root decides
 final ownership.
 
-Dispatch source topics breadth-first: establish runtimes, manifests,
-composition, command entry points, and peer families before leaf depth. Do not
-let alphabetical path order or one large subtree define the system skeleton.
+Within each exhaustive packet, establish runtimes, manifests, composition,
+command entry points, and peer families before local detail. Do not let
+alphabetical path order or one large subtree define the system skeleton.
 
 ## Preserve evidence semantics
 

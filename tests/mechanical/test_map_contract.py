@@ -19,9 +19,12 @@ class MapOperationContractTests(unittest.TestCase):
         cls.discovery = read("references/discovery-task.md")
         cls.curator = read("references/frontier-curation.md")
         cls.synthesis = read("references/topic-synthesis.md")
+        cls.reduction = read("references/topic-reduction.md")
+        cls.review = read("references/topic-review.md")
         cls.producer = read("references/producer-task.md")
         cls.integration = read("references/integration-pass.md")
         cls.campaign = read("scripts/campaign.py")
+        cls.synthesis_script = read("scripts/synthesis.py")
 
     @staticmethod
     def compact(value):
@@ -73,6 +76,9 @@ class MapOperationContractTests(unittest.TestCase):
             "discovery_finalize.py",
             "discovery-collect",
             "discovery-reopen",
+            "synthesis.py prepare",
+            "synthesis.py merge",
+            "synthesis.py materialize",
             "source-pass",
             "ready",
             "packet",
@@ -92,19 +98,29 @@ class MapOperationContractTests(unittest.TestCase):
         curator = self.compact(self.curator)
         synthesis = self.compact(self.synthesis)
         self.assertIn("Every packet seed file", discovery)
+        self.assertIn("private queue", discovery)
+        self.assertIn("until it is empty", discovery)
+        self.assertIn("Use `unresolved_leads` only as fallback", discovery)
+        self.assertIn("fallback_kind", discovery)
+        self.assertIn("targeted fallback", self.compact(self.method))
+        self.assertIn("Never create mandatory breadth-first", protocol)
         self.assertIn("Disposition every proposal exactly once", curator)
         self.assertIn("Increment", protocol)
         self.assertIn("Exhaustive", protocol)
-        self.assertIn("process every semantic topic one at a time", synthesis)
-        self.assertIn("semantic discovery/extraction workflow", synthesis)
-        self.assertIn("Only `topics` becomes the producer", synthesis)
+        self.assertIn("classify every canonical topic", synthesis)
+        self.assertIn("SpecSpine semantic extraction", synthesis)
         self.assertIn("`open_leads`", synthesis)
         self.assertIn("`deferred_leads`", synthesis)
+        self.assertIn("Disposition every input `source_id` exactly once", self.reduction)
+        self.assertIn("Do not copy or invent file paths", self.review)
+        self.assertIn("source_topic_ids", synthesis)
+        self.assertIn("source_topics(corpus", self.synthesis_script)
 
     def test_scout_parallelism_is_adaptive_and_wave_checked(self):
         protocol = self.compact(self.protocol)
         entrypoint = self.compact(self.entrypoint)
         self.assertIn("smaller of ten and the runtime's available subagent slots", protocol)
+        self.assertIn("default page size of 40 seed files", protocol)
         self.assertIn("reserve one slot", protocol)
         self.assertIn("fresh weak-tier scouts", protocol)
         self.assertIn("discovery_finalize.py", protocol)
@@ -116,6 +132,8 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("weak-tier scouts", entrypoint)
         self.assertIn("at most ten", entrypoint)
         self.assertIn("Producer waves contain at most five", entrypoint)
+        self.assertIn("MAX_SCOUT_SEED_FILES = 40", self.campaign)
+        self.assertIn("MAX_UNIT_FILES = 80", self.campaign)
 
     def test_mapping_method_prefers_responsibility_over_source_shape(self):
         text = self.compact(self.method)
@@ -186,12 +204,14 @@ class MapOperationContractTests(unittest.TestCase):
 
     def test_prompt_files_stay_small(self):
         limits = {
-            "entrypoint": (self.entrypoint, 90),
-            "protocol": (self.protocol, 245),
+            "entrypoint": (self.entrypoint, 100),
+            "protocol": (self.protocol, 290),
             "method": (self.method, 110),
-            "discovery": (self.discovery, 90),
-            "curator": (self.curator, 80),
+            "discovery": (self.discovery, 105),
+            "curator": (self.curator, 85),
             "synthesis": (self.synthesis, 100),
+            "reduction": (self.reduction, 50),
+            "review": (self.review, 40),
             "producer": (self.producer, 135),
             "integration": (self.integration, 175),
         }

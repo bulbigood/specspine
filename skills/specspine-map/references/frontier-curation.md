@@ -1,8 +1,8 @@
 # SpecSpine Map frontier-curation contract
 
-In one fresh isolated context, compare every child-lead proposal from the
-settled discovery level with the compact registry of already queued and
-completed leads. Apply the operator scope's inclusion and exclusion rules.
+In one fresh isolated context, compare every fallback `unresolved_lead` from a
+settled scout wave with the compact registry of already queued and completed
+leads. Apply the operator scope's inclusion and exclusion rules.
 Do not inspect source deeply, classify coverage, create producer topics, or edit
 the repository, Spine, campaign, results, or prior packets.
 
@@ -12,6 +12,13 @@ parent IDs in the one canonical queued lead. Mark a proposal `duplicate` only
 when an existing or newly queued lead will perform the same investigation.
 Mark it `out_of_scope` only with a concrete scope-rule reason. Do not use page,
 directory, framework-layer, or hierarchy names as semantic identity.
+
+For exhaustive work, require each queued fallback to name an exact unresolved
+facet and a reason the scout could not close it locally. A large independent
+investigation, safe-context boundary, or separately owned semantic boundary is
+valid. Ordinary navigation, a directly searchable symbol, or a restatement of
+an emitted topic is not a new fallback; disposition it as a duplicate of the
+already completed lead or topic investigation.
 
 Apply the packet completion policy:
 

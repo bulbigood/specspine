@@ -14,6 +14,7 @@ from unittest import mock
 
 ROOT = Path(__file__).parents[2]
 CAMPAIGN = ROOT / "skills/specspine-map/scripts/campaign.py"
+SYNTHESIS = ROOT / "skills/specspine-map/scripts/synthesis.py"
 FINALIZE = ROOT / "skills/specspine-map/scripts/finalize_run.py"
 CAMPAIGN_SPEC = importlib.util.spec_from_file_location("map_campaign", CAMPAIGN)
 assert CAMPAIGN_SPEC is not None and CAMPAIGN_SPEC.loader is not None
@@ -276,7 +277,7 @@ class MapCampaignTests(unittest.TestCase):
                 json.dumps(
                     {
                         "lead_id": lead["id"],
-                        "status": "leaf",
+                        "status": "closed",
                         "reason": "Fixture discovery leaf.",
                         "inspected": {
                             "files": lead["seed_files"],
@@ -293,7 +294,7 @@ class MapCampaignTests(unittest.TestCase):
                             if lead["seed_files"]
                             else []
                         ),
-                        "child_leads": [],
+                        "unresolved_leads": [],
                     }
                 ),
                 encoding="utf-8",
@@ -307,6 +308,32 @@ class MapCampaignTests(unittest.TestCase):
             str(corpus),
         )
         return corpus
+
+    def semantic_discovery_corpus_path(self):
+        path = self.discovery_corpus_path()
+        corpus = json.loads(path.read_text(encoding="utf-8"))
+        evidence = "pyproject.toml"
+        for group in list(corpus["supporting"]):
+            if evidence not in group["files"]:
+                continue
+            group["files"].remove(evidence)
+            if not group["files"]:
+                corpus["supporting"].remove(group)
+            break
+        topic = {
+            "id": "session-runtime",
+            "title": "Session runtime",
+            "responsibility": "Creates and validates application sessions.",
+            "reason": "The project manifest selects the session runtime boundary.",
+            "files": [evidence],
+        }
+        corpus["topics"].append(topic)
+        corpus["leads"][0]["topics"].append(topic)
+        corpus["digest"] = CAMPAIGN_MODULE.digest_json(
+            {key: value for key, value in corpus.items() if key != "digest"}
+        )
+        path.write_text(json.dumps(corpus), encoding="utf-8")
+        return path
 
     def source_pass(self, *, expected=0):
         plan = self.topic_plan_path()
@@ -645,7 +672,7 @@ class MapCampaignTests(unittest.TestCase):
             json.dumps(
                 {
                     "lead_id": "scope-root",
-                    "status": "leaf",
+                    "status": "closed",
                     "reason": "The directly exposed responsibility is classified.",
                     "inspected": {
                         "files": ["src/identity/session.py"],
@@ -653,7 +680,7 @@ class MapCampaignTests(unittest.TestCase):
                     },
                     "topics": [topic],
                     "supporting": [],
-                    "child_leads": [],
+                    "unresolved_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -766,7 +793,7 @@ class MapCampaignTests(unittest.TestCase):
                     error["error"],
                 )
 
-    def test_increment_defers_child_frontier_and_finishes_without_scope_claim(self):
+    def test_increment_defers_unresolved_frontier_and_finishes_without_scope_claim(self):
         self.set_semantic_operation(completion="increment", intent="deepen")
         discovery = self.run / "increment-discovery"
         self.cli(
@@ -784,7 +811,7 @@ class MapCampaignTests(unittest.TestCase):
             json.dumps(
                 {
                     "lead_id": "scope-root",
-                    "status": "expanded",
+                    "status": "unresolved",
                     "reason": "Session storage is adjacent to the requested lifecycle.",
                     "inspected": {
                         "files": ["src/identity/session.py"],
@@ -800,12 +827,13 @@ class MapCampaignTests(unittest.TestCase):
                         }
                     ],
                     "supporting": [],
-                    "child_leads": [
+                    "unresolved_leads": [
                         {
                             "id": "session-storage",
                             "title": "Session storage",
                             "question": "Who persists sessions?",
                             "reason": "Persistence is an adjacent responsibility.",
+                            "fallback_kind": "increment_continuation",
                             "seed_files": ["src/identity/session.py"],
                         }
                     ],
@@ -990,7 +1018,7 @@ class MapCampaignTests(unittest.TestCase):
             str(discovery),
             "--inventory-accelerator",
             "--page-size",
-            "80",
+            str(CAMPAIGN_MODULE.MAX_SCOUT_SEED_FILES),
         )
         packets = [json.loads(Path(path).read_text()) for path in receipt["packets"]]
         inventory = self.inventory()
@@ -1069,12 +1097,12 @@ class MapCampaignTests(unittest.TestCase):
             str(discovery),
             "--inventory-accelerator",
             "--page-size",
-            str(CAMPAIGN_MODULE.MAX_UNIT_FILES + 1),
+            str(CAMPAIGN_MODULE.MAX_SCOUT_SEED_FILES + 1),
             expected=2,
         )
 
         self.assertIn(
-            f"page size exceeds {CAMPAIGN_MODULE.MAX_UNIT_FILES}",
+            f"page size exceeds {CAMPAIGN_MODULE.MAX_SCOUT_SEED_FILES}",
             error["error"],
         )
         self.assertFalse(discovery.exists())
@@ -1098,7 +1126,7 @@ class MapCampaignTests(unittest.TestCase):
             json.dumps(
                 {
                     "lead_id": "scope-root",
-                    "status": "leaf",
+                    "status": "closed",
                     "reason": "The session responsibility is classified.",
                     "inspected": {
                         "files": ["src/identity/session.py"],
@@ -1114,7 +1142,7 @@ class MapCampaignTests(unittest.TestCase):
                         }
                     ],
                     "supporting": [],
-                    "child_leads": [],
+                    "unresolved_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -1143,6 +1171,7 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertEqual("valid", validated["status"])
         self.assertEqual(1, validated["count"])
+        self.assertEqual(0, validated["unresolved_leads"])
         self.assertEqual("scope-root", validated["validated"][0]["lead_id"])
 
     def test_topic_discovery_starts_without_repository_inventory(self):
@@ -1179,7 +1208,7 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertIn("missing discovery result", error["error"])
 
-    def test_discovery_collect_rejects_unclosed_child_frontier(self):
+    def test_discovery_collect_rejects_unclosed_unresolved_frontier(self):
         self.set_semantic_operation()
         discovery = self.run / "discovery"
         self.cli(
@@ -1197,7 +1226,7 @@ class MapCampaignTests(unittest.TestCase):
             json.dumps(
                 {
                     "lead_id": "scope-root",
-                    "status": "expanded",
+                    "status": "unresolved",
                     "reason": "A child responsibility was exposed.",
                     "inspected": {
                         "files": ["src/identity/session.py"],
@@ -1213,12 +1242,13 @@ class MapCampaignTests(unittest.TestCase):
                         }
                     ],
                     "supporting": [],
-                    "child_leads": [
+                    "unresolved_leads": [
                         {
                             "id": "session-storage",
                             "title": "Session storage",
                             "question": "Who stores sessions?",
                             "reason": "The lifecycle references durable state.",
+                            "fallback_kind": "independent_investigation",
                             "seed_files": ["src/identity/session.py"],
                         }
                     ],
@@ -1237,7 +1267,7 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertIn("frontier is not closed", error["error"])
 
-    def test_topic_discovery_closes_recursive_semantic_frontier(self):
+    def test_topic_discovery_closes_targeted_fallback_frontier(self):
         self.set_semantic_operation()
         discovery = self.run / "discovery"
         self.cli(
@@ -1255,7 +1285,7 @@ class MapCampaignTests(unittest.TestCase):
             json.dumps(
                 {
                     "lead_id": "scope-root",
-                    "status": "expanded",
+                    "status": "unresolved",
                     "reason": "Session persistence needs one deeper pass.",
                     "inspected": {
                         "files": [
@@ -1274,12 +1304,13 @@ class MapCampaignTests(unittest.TestCase):
                         }
                     ],
                     "supporting": [],
-                    "child_leads": [
+                    "unresolved_leads": [
                         {
                             "id": "runtime-manifest",
                             "title": "Session runtime manifest",
                             "question": "How is the session runtime composed?",
                             "reason": "The runtime dependency remains unclassified.",
+                            "fallback_kind": "separate_owner",
                             "seed_files": ["pyproject.toml"],
                         }
                     ],
@@ -1316,14 +1347,14 @@ class MapCampaignTests(unittest.TestCase):
             str(frontier),
             str(wave),
         )
-        child_packet = Path(receipt["packets"][0])
-        child_result = results / child_packet.relative_to(discovery.resolve())
-        child_result.parent.mkdir(parents=True)
-        child_result.write_text(
+        unresolved_packet = Path(receipt["packets"][0])
+        unresolved_result = results / unresolved_packet.relative_to(discovery.resolve())
+        unresolved_result.parent.mkdir(parents=True)
+        unresolved_result.write_text(
             json.dumps(
                 {
                     "lead_id": "session-runtime-manifest",
-                    "status": "leaf",
+                    "status": "closed",
                     "reason": "The manifest is supporting composition evidence.",
                     "inspected": {
                         "files": ["pyproject.toml"],
@@ -1336,7 +1367,7 @@ class MapCampaignTests(unittest.TestCase):
                             "files": ["pyproject.toml"],
                         }
                     ],
-                    "child_leads": [],
+                    "unresolved_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -1353,6 +1384,185 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual("semantic", collected["scope_kind"])
         self.assertEqual(2, collected["leads"])
         self.assertEqual(2, collected["evidence_files"])
+
+    def test_hierarchical_synthesis_uses_descriptions_and_materializes_files(self):
+        corpus = self.semantic_discovery_corpus_path()
+        packets = self.run / "synthesis-packets"
+        receipt = self.cli(
+            "prepare",
+            str(corpus),
+            str(packets),
+            "--batch-size",
+            "1",
+            script=SYNTHESIS,
+        )
+        self.assertEqual(1, receipt["source_topics"])
+        packet_path = Path(receipt["packets"][0])
+        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+        source = packet["source_topics"][0]
+        self.assertEqual("Session runtime", source["title"])
+        self.assertEqual(
+            "Creates and validates application sessions.",
+            source["responsibility"],
+        )
+        self.assertIn("lead", source)
+        self.assertNotIn("files", source)
+
+        results = self.run / "synthesis-results"
+        results.mkdir()
+        (results / packet_path.name).write_text(
+            json.dumps(
+                {
+                    "batch_id": packet["batch_id"],
+                    "candidates": [
+                        {
+                            "id": "session-lifecycle",
+                            "title": "Session lifecycle",
+                            "responsibility": (
+                                "Creates and validates application sessions."
+                            ),
+                            "reason": "One durable session responsibility.",
+                            "source_topic_ids": [source["source_id"]],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        global_packet = self.run / "global-synthesis.json"
+        merged = self.cli(
+            "merge",
+            str(corpus),
+            str(packets),
+            str(results),
+            str(global_packet),
+            script=SYNTHESIS,
+        )
+        self.assertEqual(1, merged["reduced_candidates"])
+        compact = json.loads(global_packet.read_text(encoding="utf-8"))
+        self.assertNotIn("files", compact["candidates"][0])
+        self.assertEqual(
+            source["responsibility"],
+            compact["source_topics"][0]["responsibility"],
+        )
+
+        mapping = self.run / "semantic-mapping.json"
+        mapping.write_text(
+            json.dumps(
+                {
+                    "topics": compact["candidates"],
+                    "covered": [],
+                    "supporting": [],
+                    "open_leads": [],
+                    "deferred_leads": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        plan = self.run / "materialized-topic-plan.json"
+        materialized = self.cli(
+            "materialize",
+            str(corpus),
+            str(mapping),
+            str(plan),
+            script=SYNTHESIS,
+        )
+        self.assertEqual(1, materialized["final_topics"])
+        value = json.loads(plan.read_text(encoding="utf-8"))
+        self.assertEqual(["pyproject.toml"], value["topics"][0]["files"])
+        self.assertNotIn("source_topic_ids", value["topics"][0])
+
+    def test_synthesis_reducer_rejects_unknown_source(self):
+        corpus = self.semantic_discovery_corpus_path()
+        packets = self.run / "synthesis-packets"
+        receipt = self.cli(
+            "prepare",
+            str(corpus),
+            str(packets),
+            script=SYNTHESIS,
+        )
+        packet_path = Path(receipt["packets"][0])
+        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+        results = self.run / "synthesis-results"
+        results.mkdir()
+        (results / packet_path.name).write_text(
+            json.dumps(
+                {
+                    "batch_id": packet["batch_id"],
+                    "candidates": [
+                        {
+                            "id": "unrelated",
+                            "title": "Unrelated",
+                            "responsibility": "Does unrelated work.",
+                            "reason": "Invalid fixture intentionally loses provenance.",
+                            "source_topic_ids": ["unknown/source"],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        failed = self.cli(
+            "merge",
+            str(corpus),
+            str(packets),
+            str(results),
+            str(self.run / "global.json"),
+            script=SYNTHESIS,
+            expected=2,
+        )
+        self.assertIn("unknown source topics", failed["error"])
+
+    def test_synthesis_materializer_rejects_undispositioned_source(self):
+        corpus = self.semantic_discovery_corpus_path()
+        mapping = self.run / "semantic-mapping.json"
+        mapping.write_text(
+            json.dumps(
+                {
+                    "topics": [],
+                    "covered": [],
+                    "supporting": [],
+                    "open_leads": [],
+                    "deferred_leads": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        failed = self.cli(
+            "materialize",
+            str(corpus),
+            str(mapping),
+            str(self.run / "plan.json"),
+            script=SYNTHESIS,
+            expected=2,
+        )
+        self.assertIn("does not disposition every source topic", failed["error"])
+
+    def test_synthesis_accepts_empty_semantic_frontier(self):
+        corpus = self.discovery_corpus_path()
+        packets = self.run / "empty-synthesis-packets"
+        prepared = self.cli(
+            "prepare",
+            str(corpus),
+            str(packets),
+            script=SYNTHESIS,
+        )
+        self.assertEqual(0, prepared["source_topics"])
+        self.assertEqual(0, prepared["batches"])
+        global_packet = self.run / "empty-global.json"
+        merged = self.cli(
+            "merge",
+            str(corpus),
+            str(packets),
+            str(self.run / "empty-results"),
+            str(global_packet),
+            script=SYNTHESIS,
+        )
+        self.assertEqual(0, merged["reduced_candidates"])
+        self.assertEqual(
+            [],
+            json.loads(global_packet.read_text(encoding="utf-8"))["candidates"],
+        )
 
     def test_synthesis_open_leads_reopen_discovery_and_block_source_pass(self):
         plan = self.run / "open-topic-plan.json"

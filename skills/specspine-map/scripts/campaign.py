@@ -33,15 +33,22 @@ from typing import Any, Iterator
 
 SCHEMA_VERSION = 12
 PRODUCER_CONTRACT_VERSION = 5
-DISCOVERY_CONTRACT_VERSION = 2
+DISCOVERY_CONTRACT_VERSION = 3
 MAX_UNIT_FILES = 80
+MAX_SCOUT_SEED_FILES = 40
 REPOSITORY_DISCOVERY_FILE_LIMIT = 1000
 MAX_CANDIDATE_DOCUMENTS = 12
 DISCOVERY_TERMINAL_STATUSES = {
-    "expanded",
-    "leaf",
+    "unresolved",
+    "closed",
     "duplicate",
     "out_of_scope",
+}
+UNRESOLVED_FALLBACK_KINDS = {
+    "independent_investigation",
+    "context_limit",
+    "separate_owner",
+    "increment_continuation",
 }
 TASK_STATES = {"todo", "assigned", "review", "published", "complete", "blocked"}
 CHECKPOINT_STATUSES = {
@@ -1128,9 +1135,9 @@ def normalize_discovery_lead(value: Any, *, field: str) -> dict[str, Any]:
         raise CampaignError(f"{field} {lead_id} repeats parent_ids")
     if len(seed_files) != len(set(seed_files)):
         raise CampaignError(f"{field} {lead_id} repeats seed_files")
-    if len(seed_files) > MAX_UNIT_FILES:
+    if len(seed_files) > MAX_SCOUT_SEED_FILES:
         raise CampaignError(
-            f"{field} {lead_id} exceeds {MAX_UNIT_FILES} seed files"
+            f"{field} {lead_id} exceeds {MAX_SCOUT_SEED_FILES} seed files"
         )
     return {
         "id": lead_id,
@@ -1163,9 +1170,9 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         raise CampaignError(
             f"discovery output directory already exists: {args.output_dir}"
         )
-    if args.page_size > MAX_UNIT_FILES:
+    if args.page_size > MAX_SCOUT_SEED_FILES:
         raise CampaignError(
-            f"discovery page size exceeds {MAX_UNIT_FILES} files"
+            f"discovery page size exceeds {MAX_SCOUT_SEED_FILES} files"
         )
     repository_root = args.repository_root.resolve()
     spine_root = args.spine_root.resolve()
@@ -1377,7 +1384,7 @@ def command_discovery_packets(args: argparse.Namespace) -> dict[str, Any]:
     if completion_kind == "increment" and any(
         value["disposition"] == "queue" for value in decisions
     ):
-        raise CampaignError("increment discovery cannot expand child leads")
+        raise CampaignError("increment discovery cannot expand unresolved leads")
     seen_sources: set[str] = set()
     queued_ids: set[str] = set()
     for decision in decisions:
@@ -1489,10 +1496,10 @@ def command_discovery_reopen(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(
                 f"open discovery lead {lead_id} repeats seed_files"
             )
-        if len(seed_files) > MAX_UNIT_FILES:
+        if len(seed_files) > MAX_SCOUT_SEED_FILES:
             raise CampaignError(
                 f"open discovery lead {lead_id} exceeds "
-                f"{MAX_UNIT_FILES} seed files"
+                f"{MAX_SCOUT_SEED_FILES} seed files"
             )
         validate_repository_files(
             Path(seed["repository_root"]),
@@ -1613,12 +1620,12 @@ def validate_discovery_result(
         "inspected",
         "topics",
         "supporting",
-        "child_leads",
+        "unresolved_leads",
     }
     if not isinstance(raw, dict) or set(raw) != expected:
         raise CampaignError(
             "discovery result needs exactly lead_id, status, reason, inspected, "
-            "topics, supporting, and child_leads"
+            "topics, supporting, and unresolved_leads"
         )
     lead = normalize_discovery_lead(packet.get("lead"), field="discovery packet lead")
     if raw["lead_id"] != lead["id"]:
@@ -1724,87 +1731,112 @@ def validate_discovery_result(
             f"discovery result {lead['id']} leaves seed files unclassified: "
             f"{sorted(missing_seed)}"
         )
-    child_leads: list[dict[str, Any]] = []
-    if not isinstance(raw["child_leads"], list):
+    unresolved_leads: list[dict[str, Any]] = []
+    if not isinstance(raw["unresolved_leads"], list):
         raise CampaignError(
-            f"discovery result {lead['id']} child_leads must be a list"
+            f"discovery result {lead['id']} unresolved_leads must be a list"
         )
-    child_ids: set[str] = set()
-    for value in raw["child_leads"]:
+    unresolved_ids: set[str] = set()
+    for value in raw["unresolved_leads"]:
         if not isinstance(value, dict) or set(value) != {
             "id",
             "title",
             "question",
             "reason",
             "seed_files",
+            "fallback_kind",
         }:
             raise CampaignError(
-                f"discovery result {lead['id']} child lead is invalid"
+                f"discovery result {lead['id']} unresolved lead is invalid"
             )
-        child_id = validate_id(value["id"])
-        if child_id in child_ids:
+        unresolved_id = validate_id(value["id"])
+        if unresolved_id in unresolved_ids:
             raise CampaignError(
-                f"discovery result {lead['id']} repeats child lead {child_id}"
+                f"discovery result {lead['id']} repeats unresolved lead {unresolved_id}"
             )
-        child_ids.add(child_id)
+        unresolved_ids.add(unresolved_id)
         texts = (value["title"], value["question"], value["reason"])
         if any(not isinstance(text, str) or not text.strip() for text in texts):
             raise CampaignError(
-                f"discovery result {lead['id']} child lead {child_id} has empty text"
+                f"discovery result {lead['id']} unresolved lead {unresolved_id} has empty text"
             )
         seed_files = [
             validate_relative_path(item)
             for item in string_list(
                 value["seed_files"],
-                f"discovery result {lead['id']} child lead {child_id} seed_files",
+                f"discovery result {lead['id']} unresolved lead {unresolved_id} seed_files",
             )
         ]
         validate_repository_files(
             repository_root,
             seed_files,
             field=(
-                f"discovery result {lead['id']} child lead {child_id} seed file"
+                f"discovery result {lead['id']} unresolved lead {unresolved_id} seed file"
             ),
         )
         unknown_seed = set(seed_files) - set(inspected_files)
         if unknown_seed:
             raise CampaignError(
-                f"discovery result {lead['id']} child lead {child_id} uses "
+                f"discovery result {lead['id']} unresolved lead {unresolved_id} uses "
                 f"uninspected seed files: {sorted(unknown_seed)}"
             )
         if len(seed_files) != len(set(seed_files)):
             raise CampaignError(
-                f"discovery result {lead['id']} child lead {child_id} "
+                f"discovery result {lead['id']} unresolved lead {unresolved_id} "
                 "repeats seed files"
             )
-        if len(seed_files) > MAX_UNIT_FILES:
+        if len(seed_files) > MAX_SCOUT_SEED_FILES:
             raise CampaignError(
-                f"discovery result {lead['id']} child lead {child_id} "
-                f"exceeds {MAX_UNIT_FILES} seed files"
+                f"discovery result {lead['id']} unresolved lead {unresolved_id} "
+                f"exceeds {MAX_SCOUT_SEED_FILES} seed files"
             )
-        child_leads.append(
+        fallback_kind = value["fallback_kind"]
+        if fallback_kind not in UNRESOLVED_FALLBACK_KINDS:
+            raise CampaignError(
+                f"discovery result {lead['id']} unresolved lead {unresolved_id} "
+                f"has invalid fallback_kind: {fallback_kind!r}"
+            )
+        completion_kind = packet["operation"]["completion"]["kind"]
+        if (
+            completion_kind == "increment"
+            and fallback_kind != "increment_continuation"
+        ):
+            raise CampaignError(
+                f"increment unresolved lead {unresolved_id} must use "
+                "fallback_kind increment_continuation"
+            )
+        if (
+            completion_kind == "exhaustive"
+            and fallback_kind == "increment_continuation"
+        ):
+            raise CampaignError(
+                f"exhaustive unresolved lead {unresolved_id} cannot use "
+                "fallback_kind increment_continuation"
+            )
+        unresolved_leads.append(
             {
-                "id": child_id,
+                "id": unresolved_id,
                 "title": value["title"].strip(),
                 "question": value["question"].strip(),
                 "reason": value["reason"].strip(),
                 "seed_files": sorted(set(seed_files)),
+                "fallback_kind": fallback_kind,
             }
         )
     if raw["status"] in {"duplicate", "out_of_scope"} and (
-        topics or supporting or child_leads
+        topics or supporting or unresolved_leads
     ):
         raise CampaignError(
             f"discovery result {lead['id']} status {raw['status']} "
-            "cannot publish topics, supporting files, or child leads"
+            "cannot publish topics, supporting files, or unresolved leads"
         )
-    if raw["status"] == "expanded" and not child_leads:
+    if raw["status"] == "unresolved" and not unresolved_leads:
         raise CampaignError(
-            f"discovery result {lead['id']} expanded without child leads"
+            f"discovery result {lead['id']} unresolved without unresolved leads"
         )
-    if raw["status"] == "leaf" and child_leads:
+    if raw["status"] == "closed" and unresolved_leads:
         raise CampaignError(
-            f"discovery result {lead['id']} leaf cannot have child leads"
+            f"discovery result {lead['id']} closed cannot have unresolved leads"
         )
     return {
         "lead": lead,
@@ -1817,7 +1849,7 @@ def validate_discovery_result(
         },
         "topics": topics,
         "supporting": supporting,
-        "child_leads": child_leads,
+        "unresolved_leads": unresolved_leads,
     }
 
 
@@ -1896,12 +1928,16 @@ def command_discovery_validate(args: argparse.Namespace) -> dict[str, Any]:
                 "lead_id": result["lead"]["id"],
                 "packet": str(packet_path),
                 "result": str(result_path),
+                "unresolved_leads": len(result["unresolved_leads"]),
             }
         )
     return {
         "status": "valid",
         "validated": validated,
         "count": len(validated),
+        "unresolved_leads": sum(
+            value["unresolved_leads"] for value in validated
+        ),
     }
 
 
@@ -1952,9 +1988,9 @@ def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
         raise CampaignError(f"discovery results have unknown packets: {extra}")
 
     proposals = {
-        f"{lead_id}/{child['id']}"
+        f"{lead_id}/{unresolved['id']}"
         for lead_id, result in results.items()
-        for child in result["child_leads"]
+        for unresolved in result["unresolved_leads"]
     }
     for gaps_path in sorted(args.packets_root.rglob("_synthesis-gaps.json")):
         raw = read_json(gaps_path)
@@ -1996,7 +2032,7 @@ def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
     if operation["completion"]["kind"] == "increment" and any(
         value["disposition"] == "queue" for value in decisions
     ):
-        raise CampaignError("increment discovery cannot contain queued child leads")
+        raise CampaignError("increment discovery cannot contain queued unresolved leads")
     queued: dict[str, set[str]] = {}
     for decision in decisions:
         if decision["disposition"] == "queue":
@@ -4779,7 +4815,7 @@ def parser() -> argparse.ArgumentParser:
     discovery_start.add_argument(
         "--page-size",
         type=positive_int,
-        default=MAX_UNIT_FILES,
+        default=MAX_SCOUT_SEED_FILES,
     )
 
     discovery_packets = sub.add_parser("discovery-packets")

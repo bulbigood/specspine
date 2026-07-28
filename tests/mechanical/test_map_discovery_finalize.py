@@ -109,12 +109,13 @@ class DiscoveryFinalizeTests(unittest.TestCase):
                     "files": ["pyproject.toml"],
                 },
             ],
-            "child_leads": [
+            "unresolved_leads": [
                 {
                     "id": "session-recovery",
                     "title": "Session recovery",
                     "question": "Who recovers failed sessions?",
                     "reason": "Recovery crosses the inspected boundary.",
+                    "fallback_kind": "separate_owner",
                     "seed_files": [
                         "src/identity/session.py",
                         "src/identity/session.py",
@@ -156,7 +157,7 @@ class DiscoveryFinalizeTests(unittest.TestCase):
         result = json.loads(self.result.read_text(encoding="utf-8"))
         self.assertEqual("ready", receipt["status"])
         self.assertEqual("identity-runtime", result["lead_id"])
-        self.assertEqual("expanded", result["status"])
+        self.assertEqual("unresolved", result["status"])
         self.assertEqual(
             ["session", "recovery"],
             result["inspected"]["queries"],
@@ -182,14 +183,14 @@ class DiscoveryFinalizeTests(unittest.TestCase):
                 "src/identity/recovery.py",
                 "src/identity/session.py",
             ],
-            result["child_leads"][0]["seed_files"],
+            result["unresolved_leads"][0]["seed_files"],
         )
         self.assertEqual(
             {
                 "duplicate_queries": 1,
                 "duplicate_topic_files": 1,
                 "duplicate_supporting_files": 3,
-                "duplicate_child_seed_files": 2,
+                "duplicate_unresolved_seed_files": 2,
                 "topic_supporting_overlaps": 1,
             },
             receipt["normalization"],
@@ -214,6 +215,21 @@ class DiscoveryFinalizeTests(unittest.TestCase):
         error = self.execute(expected=2)
 
         self.assertIn("does not exist", error["error"])
+        self.assertFalse(self.result.exists())
+
+    def test_exhaustive_rejects_increment_continuation_fallback(self):
+        value = self.draft_value()
+        value["unresolved_leads"][0][
+            "fallback_kind"
+        ] = "increment_continuation"
+        self.draft.write_text(json.dumps(value), encoding="utf-8")
+
+        error = self.execute(expected=2)
+
+        self.assertIn(
+            "cannot use fallback_kind increment_continuation",
+            error["error"],
+        )
         self.assertFalse(self.result.exists())
 
     def test_terminal_refusal_cannot_hide_classification(self):

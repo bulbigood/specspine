@@ -1,46 +1,30 @@
-# SpecSpine Map topic-synthesis contract
+# SpecSpine Map global topic-synthesis contract
 
-In one fresh isolated context, read the complete validated discovery corpus and
-produce the sole semantic producer frontier. The discovery hierarchy, inventory
-pages, and lead boundaries are provenance, not architecture.
+Read the compact candidates emitted by all topic reducers and produce one
+semantic mapping. Candidate titles, responsibilities, reasons, and scout
+provenance define the input; IDs are references only. Never read, copy, or
+invent file lists. Discovery hierarchy and lead boundaries are provenance, not
+architecture.
 
-First enforce the declared inclusion and exclusion rules. Merge provisional
-topics that express one durable responsibility even when files, parents, or
-names differ. Split topics that combine independently evolving
-responsibilities. Remove directory-shaped `models`, `utils`, `services`, file,
-framework, and tooling categories unless repository evidence establishes a
-project-specific architectural contract. Resolve overlaps by responsibility,
-interfaces, lifecycle, state, data ownership, failures, and consumers. Inspect
-targeted repository evidence when candidate descriptions are insufficient.
+Enforce the operation's inclusion and exclusion rules. Merge candidates that
+express one durable responsibility even when parents or names differ. Keep
+independently evolving responsibilities separate. Remove directory-shaped,
+framework, tooling, `models`, `utils`, and `services` categories unless the
+descriptions establish a project-specific architectural contract. Resolve
+overlap by responsibility, interfaces, lifecycle, state, data ownership,
+failures, and consumers.
 
-Before coverage classification, apply the completion policy. For exhaustive
-completion, check the whole corpus for a responsibility,
-cross-topic reference, or boundary that discovery exposed but never expanded.
-Put each such gap in `open_leads`; do not compensate by creating a vague topic.
-When `open_leads` is nonempty, the orchestrator must return them to discovery
-and rerun synthesis after the frontier closes.
+For exhaustive completion, detect responsibilities or boundaries exposed but
+never expanded and place them in `open_leads`. Return no `deferred_leads`. For
+increment completion, return no open leads and reproduce the corpus
+`deferred_leads` exactly.
 
-For increment completion, do not reopen discovery. Reproduce the corpus
-`deferred_leads` exactly and keep any additional adjacent direction inside that
-set only when it was dispositioned by frontier curation. `open_leads` must be
-empty. Do not turn a deferred lead into a producer topic.
+When discovery is closed, classify every canonical topic against the existing
+Spine one at a time using SpecSpine semantic extraction. Compare responsibility
+and boundaries, not names. Mark `covered` only when exact documents and claims
+collectively make another producer unnecessary. An empty Spine covers nothing.
 
-When discovery is closed, process every semantic topic one at a time. Retrieve
-relevant context from the existing `<spine-root>` using the available
-SpecSpine semantic discovery/extraction workflow. Compare responsibility and
-boundaries, not names alone. A topic is `covered` only when existing canonical
-documents and their semantic claims collectively describe that responsibility
-well enough that another producer would create no missing architectural
-observation. Record exact documents and claim IDs. Otherwise keep it in
-`topics`. Never treat navigation text, a filename match, a broad neighboring
-owner, or an unsupported claim as coverage.
-
-Repository evidence cannot create normative intent. A file may occur in
-multiple final topics when it genuinely participates in multiple
-responsibilities. Put a file in `supporting` only when no final topic needs it.
-Every evidence file from the corpus must remain accounted for.
-
-Write `topic-plan.json` with exactly:
+Write exactly:
 
 ```json
 {
@@ -48,9 +32,12 @@ Write `topic-plan.json` with exactly:
     {
       "id": "session-lifecycle",
       "title": "Session lifecycle",
-      "responsibility": "Creates, validates, renews, and revokes application sessions.",
-      "reason": "This boundary owns externally significant state transitions and persistence.",
-      "files": ["src/session/service.go", "src/session/store.go"]
+      "responsibility": "Creates, validates, renews, and revokes sessions.",
+      "reason": "These sources describe one durable stateful lifecycle.",
+      "source_topic_ids": [
+        "session-runtime/session-creation",
+        "session-storage/session-revocation"
+      ]
     }
   ],
   "covered": [
@@ -58,9 +45,9 @@ Write `topic-plan.json` with exactly:
       "id": "audit-retention",
       "title": "Audit retention",
       "responsibility": "Retains and expires security audit events.",
-      "reason": "This boundary owns a durable security lifecycle.",
-      "files": ["src/audit/store.go"],
-      "coverage_reason": "The canonical audit owner already specifies retention and expiry.",
+      "reason": "This source owns one durable security lifecycle.",
+      "source_topic_ids": ["audit-storage/audit-retention"],
+      "coverage_reason": "The canonical audit owner specifies this lifecycle.",
       "coverage": [
         {
           "document": "security/audit.md",
@@ -72,7 +59,7 @@ Write `topic-plan.json` with exactly:
   "supporting": [
     {
       "reason": "Local adapters without an independent durable contract.",
-      "files": ["src/session/format.go"]
+      "source_topic_ids": ["session-runtime/session-formatting"]
     }
   ],
   "open_leads": [],
@@ -80,12 +67,10 @@ Write `topic-plan.json` with exactly:
 }
 ```
 
-An open lead uses exactly `id`, `title`, `question`, `reason`, and
-`seed_files`. Final IDs are stable lowercase kebab-case and semantic, never
-page, shard, hierarchy, or path identifiers. Each topic contains at most 80
-files; split only at a real responsibility boundary. Reread the entire result
-once to merge duplicates, detect missing cross-lead concepts, remove source-tree
-mirroring, verify every candidate received a Spine coverage decision, and
-verify complete evidence disposition. Only `topics` becomes the producer
-frontier; `covered` remains auditable evidence. Do not edit the Spine or
-campaign.
+An open lead contains exactly `id`, `title`, `question`, `reason`, and
+`seed_files`. Final IDs are stable semantic lowercase kebab-case. Disposition
+every source topic as uncovered, covered, or supporting. Preserve one source
+in several final topics only for genuine independently useful responsibilities.
+Reread the complete result for cross-batch duplicates, missing boundaries,
+source-tree mirroring, and unsupported coverage. Do not edit the Spine, corpus,
+campaign, or repository.
