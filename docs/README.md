@@ -1,6 +1,6 @@
-# SpecSpine v2 documentation
+# SpecSpine v3 documentation
 
-This directory contains the normative SpecSpine v2 storage and retrieval
+This directory contains the normative SpecSpine v3 storage and retrieval
 contract. The documents are split by stable responsibility so readers and
 agents can load only the relevant part without reconstructing rules from one
 large design document.
@@ -15,15 +15,17 @@ large design document.
    provenance, uncertainty, accepted intent, observations, and divergences.
 4. [Retrieval contract](04-retrieval-contract.md) — task closure, query input,
    graph traversal, budgets, statuses, and handoff output.
-5. [Coverage, validation, and views](05-coverage-validation-views.md) —
-   coverage, mechanical checks, semantic review, diagrams, and degradation.
-6. [Tooling, migration, and acceptance](06-tooling-migration-acceptance.md) —
-   derived data, component responsibilities, migration, acceptance criteria,
-   and delivery boundaries.
+5. [Completeness, validation, and views](05-completeness-validation-views.md) —
+   manifest facets, checks, semantic review, views, and degradation.
+6. [Tooling and acceptance](06-tooling-and-acceptance.md) — derived data,
+   component responsibilities, acceptance criteria, and delivery boundaries.
 7. [Installation and usage](07-installation-and-usage.md) — runtime skills,
    installation, connection, mapping, growth, retrieval, and health checks.
 8. [Development and maintenance](08-development.md) — repository organization,
    local validation, evaluation, integrations, and contribution guidance.
+9. [Reconstruction specifications](09-reconstruction-specifications.md) —
+   normative closure, specification assets, readiness, promotion, and blind
+   reconstruction evaluation.
 
 ## Normative language
 
@@ -33,6 +35,6 @@ explicit reason.
 
 The documents in this directory define the contract together. If overview text
 in the repository conflicts with these documents, this contract takes
-precedence. Canonical Markdown inside a project remains the source of that
-project's accepted architectural intent; generated indexes, graphs, reports,
-and handoffs are derived artifacts.
+precedence. Canonical Markdown and its owned machine-readable contract assets
+remain the source of a project's accepted durable system specification;
+generated indexes, graphs, reports, and handoffs are derived artifacts.

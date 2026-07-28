@@ -1,5 +1,6 @@
 import importlib.util
 import io
+import json
 import os
 import sys
 import tempfile
@@ -112,10 +113,7 @@ class LifecycleRunnerTests(unittest.TestCase):
             (workspace / "specspine/README.md").write_text(
                 "# Architecture\n\n**ID:** `project-architecture` · **Kind:** `index`\n\n"
                 "Architecture.\n\n## Architecture map\n\n"
-                "- [Payments](domains/payments/payment-processing.md) — owns payments.\n\n"
-                "## Coverage\n\n### Mapped\n\n"
-                "- [Payments](domains/payments/payment-processing.md) — mapped.\n\n"
-                "### Partially mapped\n\n- Reporting.\n\n### Unmapped\n\n- Forecasting.\n",
+                "- [Payments](domains/payments/payment-processing.md) — owns payments.\n",
                 encoding="utf-8",
             )
             (nested / "payment-processing.md").write_text(
@@ -123,6 +121,25 @@ class LifecycleRunnerTests(unittest.TestCase):
                 "Owns payments.\n\n## Responsibility\n\n- owns payment processing.\n",
                 encoding="utf-8",
             )
+            (workspace / "specspine/specspine.json").write_text(json.dumps({
+                "specspine": 3,
+                "project": "test",
+                "implementation_freedom": "contract-equivalent",
+                "areas": [{
+                    "owner": "payment-processing",
+                    "facets": {
+                        "architecture": "complete",
+                        "behavior": "complete",
+                        "interfaces": "not-applicable",
+                        "data": "not-applicable",
+                        "failure": "complete",
+                        "quality": "not-applicable",
+                        "verification": "partial",
+                    },
+                    "blockers": [],
+                }],
+                "assets": [],
+            }), encoding="utf-8")
             clean = RUNNER.evaluate_assertion(
                 {"type": "spine_mechanical_valid"}, workspace, {}, {}, "", None
             )

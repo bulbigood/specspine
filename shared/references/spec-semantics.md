@@ -1,21 +1,26 @@
 # SpecSpine semantics
 
-SpecSpine is an architectural context and memory layer. It maintains a
-long-lived network of architectural specifications. The network may contain
-intended architecture, repository observations, unconfirmed interpretations, and
-unresolved uncertainty without claiming exact conformance between
-specifications and code.
+SpecSpine is a long-lived system specification and architectural memory layer.
+It maintains a linked network of normative architecture, durable product and
+behavior contracts, repository observations, unconfirmed interpretations, and
+unresolved uncertainty. A sufficiently specified area can be reconstructed as
+an independently implemented, contract-equivalent system without claiming
+source-text identity or exact conformance of the current code.
 
-SpecSpine is the source of truth only for accepted long-lived architectural
-intent. An accepted SDD owns the delta of a particular change; source code owns
-implementation reality; tests and runtime evidence own observed behavior; an
-external workflow owns backlog and delivery state. Drafts, inferences, and
-existing code cannot create or rewrite accepted decisions or constraints.
+SpecSpine is the source of truth for accepted durable system intent:
+architecture, requirements, guarantees, invariants, quality constraints, and
+verification contracts. An SDD owns a proposed change delta until acceptance;
+its durable accepted meaning is then promoted into canonical SpecSpine owners.
+Source code owns implementation reality; tests and runtime evidence establish
+observed behavior and may verify conformance; an external workflow owns backlog
+and delivery state. Drafts, inferences, existing code, and passing tests cannot
+create or rewrite normative claims without acceptance.
 
 ## Contents
 
 - [Statement kinds](#statement-kinds)
 - [Conflict semantics](#conflict-semantics)
+- [Reconstruction semantics](#reconstruction-semantics)
 - [Statement identity](#statement-identity)
 - [Architecture versus feature artifacts](#architecture-versus-feature-artifacts)
 
@@ -50,6 +55,32 @@ Example:
 External provider credentials must not be used as application session tokens.
 ```
 
+### Requirement
+
+An accepted durable capability or behavior the system must provide.
+Requirements state externally meaningful outcomes, not implementation tasks.
+
+### Guarantee
+
+An accepted observable promise made to a user, caller, consumer, or neighboring
+component, including success, failure, ordering, compatibility, and recovery.
+
+### Invariant
+
+A truth that must hold across valid states or transitions, commonly protecting
+identity, data ownership, security, lifecycle, or consistency.
+
+### Quality constraint
+
+An accepted and verifiable restriction on qualities such as availability,
+latency, privacy, accessibility, resource use, or portability.
+
+### Verification
+
+A durable black-box check or conformance criterion that distinguishes a
+satisfying implementation from a violating one. It does not own temporary
+delivery acceptance criteria or implementation-specific unit tests.
+
 ### Observed
 
 A fact directly supported by current repository evidence. Observations describe
@@ -70,11 +101,12 @@ silently.
 
 ## Conflict semantics
 
-- Decisions and constraints describe intended architecture.
+- Decisions, constraints, requirements, guarantees, invariants, quality
+  constraints, and verification claims describe accepted normative intent.
 - Observations describe current repository evidence.
 - Inferences describe interpretations that remain unconfirmed.
-- Observations do not override decisions or constraints.
-- Decisions and constraints do not imply that code currently implements them.
+- Observations do not override normative claims.
+- Normative claims do not imply that code currently implements them.
 - Preserve disagreements between intended and observed architecture explicitly
   until the user or a downstream workflow resolves them.
 - SpecSpine does not prove or guarantee conformance between specifications and
@@ -88,19 +120,45 @@ A confirmed conflict is stored once under `Known divergences`:
 | [CON-idempotency](payments.md) | [OBS-no-deduplication](payments.md) | Duplicate transition is possible |
 ```
 
-The first side references `DEC` or `CON`, the second references
-repository-backed `OBS`. Preserve the row until evidence is rechecked; never
-silently resolve it by preferring code or intent.
+The first side references a normative statement (`DEC`, `CON`, `REQ`, `GUA`,
+`INV`, `QLT`, or `VER`), and the second references repository-backed `OBS`.
+Preserve the row until evidence is rechecked; never silently resolve it by
+preferring code or intent.
+
+## Reconstruction semantics
+
+Reconstruction means creating an independent implementation that satisfies the
+selected normative closure and its machine-readable contracts. It never means
+reproducing original source text, private identifiers, incidental file layout,
+or unrecorded implementation choices.
+
+An area is reconstructable only when:
+
+- responsibility and neighboring ownership are closed;
+- applicable normative claims and public contracts are retrievable;
+- significant interfaces, data/state invariants, failure behavior, quality
+  constraints, configuration, and external dependencies are specified where
+  relevant;
+- durable verification can detect violations of important guarantees; and
+- no applicable blocking open question requires the implementation agent to
+  invent product, security, compatibility, or operational policy.
+
+Repository observations may orient a reconstruction but are not requirements.
+When behavior must be preserved, accept it explicitly as a normative claim.
+Machine-readable contracts, scenarios, and fixtures may live inside the
+SpecSpine bundle; implementation source, delivery plans, and implementation-
+specific tests do not.
 
 ## Retrieval contract
 
 Structured script-only extraction resolves document IDs, semantic IDs, paths,
 literal synonym groups, task facets, and a token budget. It selects a canonical
 owner, follows typed edges according to their semantics, includes incoming
-impact, coverage, applicable intent, divergences, and blocking questions, and
-returns one machine-readable status: `complete`, `partial`, `no-match`,
-`truncated`, or `invalid`. `complete` is allowed only for a `Mapped` area and
-means closure from documented architecture, not code/spec conformance.
+impact, manifest completeness and blockers, normative claims,
+registered assets, divergences, and blocking questions. It returns one status
+object whose code is `ready`, `incomplete`, `blocked`, `no-match`, `truncated`,
+or `invalid`. `ready` requires complete applicable facets and no blocker; it
+never proves current-code conformance.
 
 C4 is an optional generated topology view, arc42 is a review lens for missing
 concerns, and ICOM is a functional diagnostic lens. None is a canonical storage
@@ -123,17 +181,24 @@ Keep an artifact in SpecSpine when it:
 
 - defines a stable responsibility or ownership boundary;
 - describes a relationship between architectural concepts;
-- records a long-lived decision or constraint;
+- records a long-lived decision, requirement, guarantee, invariant, constraint,
+  or verification contract;
+- defines a durable public or cross-component contract;
+- supplies a machine-readable schema, conformance scenario, or fixture needed
+  to implement and verify that durable contract;
 - is expected to remain useful across multiple changes;
 - helps a future agent determine where to look.
 
 Leave an artifact to a downstream feature or implementation workflow when it:
 
 - describes a specific delta or temporary scope;
-- defines acceptance criteria or test scenarios for one change;
+- defines acceptance criteria or test scenarios useful only for one change;
 - decomposes implementation tasks;
 - tracks implementation, release, or review status;
 - exists primarily for one feature, release, or pull request.
+
+After a change is accepted, promote only its durable normative meaning and
+implementation-independent verification into canonical SpecSpine owners.
 
 Examples:
 

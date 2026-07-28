@@ -43,30 +43,3 @@ The API stores accepted intent before enqueueing external work. Workers use the
 same tenant-scoped database but do not reuse request transactions. Carrier,
 payment, and webhook calls share operational libraries while their owning
 documents define separate business semantics.
-
-## Coverage
-
-### Mapped
-
-- [HTTP request pipeline](http-request-pipeline.md) — bundled fixture is mapped.
-- [Authentication](authentication.md) — bundled fixture is mapped.
-- [Authorization](authorization.md) — bundled fixture is mapped.
-- [Rate limits](rate-limits.md) — bundled fixture is mapped.
-- [Order lifecycle](order-lifecycle.md) — bundled fixture is mapped.
-- [Payment processing](payment-processing.md) — bundled fixture is mapped.
-- [Carrier integration](carrier-integration.md) — bundled fixture is mapped.
-- [Retry policy](retry-policy.md) — bundled fixture is mapped.
-- [Background jobs](background-jobs.md) — bundled fixture is mapped.
-- [Webhook delivery](webhook-delivery.md) — bundled fixture is mapped.
-- [Persistence](persistence.md) — bundled fixture is mapped.
-- [Configuration](configuration.md) — bundled fixture is mapped.
-- [Observability](observability.md) — bundled fixture is mapped.
-- [Incident response](incident-response.md) — bundled fixture is mapped.
-
-### Partially mapped
-
-- No partially mapped bundled areas.
-
-### Unmapped
-
-- No known unmapped bundled areas.

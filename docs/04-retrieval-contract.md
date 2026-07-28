@@ -2,214 +2,84 @@
 
 ## Goal
 
-Retrieval returns the smallest task-closed architectural context, not the
-largest set of lexical matches:
+Extract returns the smallest deterministic specification closure for a task.
+It reads only the SpecSpine root and requires no model or source-code access.
 
 ```text
-Task
-→ direct candidates
-→ canonical owner
-→ typed graph closure
-→ relevant sections and statements
-→ machine result
-→ optional Markdown handoff
+query → candidates → canonical owner → typed closure → claims/assets → result
 ```
 
-For a structured request, script-only extraction MUST be deterministic, MUST
-NOT require an AI model, and MUST NOT read source code.
-
-## Structured input
-
-The input MUST support:
-
-- document IDs;
-- semantic IDs;
-- repository-relative Markdown paths;
-- literal terms;
-- synonym groups;
-- task facets;
-- a token budget.
+## Input
 
 ```json
 {
   "id": "payment-retry-change",
   "targets": ["payment-processing"],
-  "terms": [
-    ["retry", "repeated attempt"],
-    ["provider event", "provider notification"]
-  ],
-  "facets": ["behavior", "failure", "data-mutation"],
+  "semantic_ids": [],
+  "paths": [],
+  "terms": [["retry", "repeated attempt"]],
+  "facets": ["failure", "data-mutation"],
   "token_budget": 8000
 }
 ```
 
-A user, calling agent, or query planner may translate natural language into this
-input. The deterministic extractor is not required to understand unrestricted
-natural language.
+Exact semantic ID, document ID, and path outrank title, alias, responsibility,
+summary, and body matches. Query terms use the configured documentation
+language. Exact project terms are never translated.
 
-Natural-language query terms MUST use the SpecSpine documentation language
-configured in project instructions. Query planners MUST NOT generate translated
-or cross-language synonyms. Exact paths, semantic IDs, API names, identifiers,
-and established foreign-language terms already used by the SpecSpine are
-preserved as written.
+## Closure
 
-## Candidate and owner selection
+- Always follow `superseded-by` and applicable `constrained-by`.
+- Follow data relations for state or mutation work.
+- Follow `exposes` for contracts and `consumes`/`publishes` for integrations.
+- Use composition relations for selective zoom.
+- Report incoming consumers and weak relations as potentially affected unless
+  a stronger rule makes them required.
 
-Strong direct signals are evaluated in this order:
+The result includes the primary owner, required and potentially affected
+owners, applicable normative claims, registered assets, divergences, blockers,
+omissions, and complete source files when budget permits.
 
-1. exact semantic ID;
-2. exact document ID;
-3. exact path;
-4. exact title;
-5. exact alias;
-6. summary;
-7. responsibility;
-8. relationship meaning;
-9. divergence consequence;
-10. heading;
-11. body.
+## One status object
 
-A high lexical score does not prove ownership. The owner is confirmed through
-Responsibility, Kind, typed and incoming relationships, the architecture map,
-semantic ownership, coverage, and applicable divergences. A body-only mention
-is a weak owner signal.
-
-Independently owned query concerns SHOULD be separate slices. Unrelated owners
-MUST NOT be forced into one required lexical match.
-
-## Typed closure
-
-Traversal follows relation semantics:
-
-- `superseded-by` is always followed.
-- `constrained-by` normally makes its target required.
-- `owns-data` is required for state, mutation, lifecycle, persistence, and
-  consistency changes.
-- `exposes` is required for external contract changes.
-- `consumes` and `publishes` are required for event and integration changes.
-- `reads-from` and `writes-to` are required for data flow, consistency, and
-  mutation-authority changes.
-- `contains` and `decomposes-into` provide selective structural or functional
-  zoom; not every child is loaded.
-- `performs` is followed when the task touches its outcome, interface,
-  lifecycle, or constraint.
-- `depends-on` is followed when vocabulary, meaning, failure behavior, or a
-  boundary risk makes the target relevant.
-- `implemented-by` returns the component or location without loading source.
-- `has-evidence` returns a citation without loading evidence content.
-- `related-to` is only potentially affected unless stronger signals exist.
-
-Incoming edges support impact analysis but are not automatically required.
-Consumers become potentially affected when a task changes an interface, event,
-data ownership, accepted constraint, or externally visible behavior.
-
-Traversal SHOULD have a safety depth, such as two, but completeness MUST NOT be
-defined only by depth. Stop after required relation semantics, owner,
-boundaries, applicable intent, coverage, divergences, and blocking questions are
-closed, or when the budget requires explicit truncation.
-
-## Projection
-
-The primary projection includes identity, summary, responsibility, boundaries,
-relevant behavior/interfaces/data/lifecycle/failure behavior, relevant
-relationships, applicable intent, evidence semantics, questions, divergences,
-and coverage.
-
-A required neighbor includes identity, summary, responsibility, the relevant
-relationship row, referenced statements, and directly relevant sections.
-
-A potentially affected neighbor includes path, ID, title, summary,
-relationship, and impact reason.
-
-## Budget
-
-Budgets SHOULD use tokens; bytes MAY be a fallback. Inclusion priority is:
-
-1. primary identity and responsibility;
-2. coverage;
-3. blocking questions;
-4. known divergences;
-5. constraints;
-6. decisions;
-7. boundaries;
-8. referenced statements;
-9. required relationships;
-10. failure, lifecycle, data, and interface sections;
-11. observations;
-12. potentially affected neighbors.
-
-Truncation MUST NOT be silent. The result identifies what was omitted, why,
-how to retrieve it, and whether closure is complete.
-
-## Machine result
-
-The result MUST have exactly one `closure_status`:
-
-- `complete` — required closure was collected within `Mapped` scope;
-- `partial` — useful information exists, but coverage, relationships, or
-  required information is incomplete;
-- `no-match` — no primary owner was found;
-- `truncated` — required information exceeded the budget;
-- `invalid` — the request or Spine is mechanically invalid.
-
-`Partially mapped` and `Unmapped` MUST NOT return `complete`. `complete` means
-closure from documented architecture, never code/spec conformance.
-
-The result MUST contain primary owner, required and potentially affected
-specifications, applicable decisions and constraints, divergences, blocking
-questions, coverage, omitted information, source paths, status, and reason.
-`concatenated_source_paths` MUST list files returned in full in
-`concatenated_files`. `concatenated_files_omitted_paths` MUST list the exact
-source files whose full content was omitted by the token budget. Consumers
-needing direct Markdown fallback MUST read only the latter and MUST NOT reread
-files in `concatenated_source_paths`.
+The result has exactly one top-level `status` object:
 
 ```json
 {
-  "concatenated_files": "...",
-  "concatenated_source_paths": ["README.md", "payments.md"],
-  "concatenated_files_omitted_paths": [],
-  "closure_status": "complete",
-  "reason": "mapped_task_closure_satisfied",
-  "coverage": "mapped",
-  "primary": "payment-processing",
-  "required": [],
-  "potentially_affected": [],
-  "decisions": [],
-  "constraints": [],
-  "known_divergences": [],
-  "blocking_questions": [],
-  "omitted": [],
-  "sources": []
+  "status": {
+    "code": "incomplete",
+    "reason": "specification_facets_incomplete",
+    "facets": {
+      "architecture": "complete",
+      "behavior": "complete",
+      "interfaces": "partial",
+      "data": "not-applicable",
+      "failure": "complete",
+      "quality": "partial",
+      "verification": "missing"
+    },
+    "blockers": []
+  }
 }
 ```
 
-On incomplete results, the extractor MUST state the specific cause, missing
-targets, sections, or relationships, and whether direct Markdown navigation or
-code investigation may help. It MUST NOT fill gaps with assumptions.
+Codes are `ready`, `incomplete`, `blocked`, `no-match`, `truncated`, and
+`invalid`. The first three are computed from the selected manifest area.
+Retrieval failures replace the computed area state. Status is never inferred
+from prose labels.
 
-## Human-readable handoff
+A truncated result preserves the computed value as `status.area_code` and
+preserves blocking IDs even when lower-priority details must be omitted.
 
-A Markdown handoff MAY be generated from the machine result and selected
-canonical fragments:
+## Output
 
-```markdown
-# Architecture context handoff
+The result contains `status`, `primary`, `required`, `potentially_affected`,
+all normative claim groups, `assets`, `known_divergences`,
+`blocking_questions`, `omitted`, and `sources`.
 
-## Change intent
-## Primary specification
-## Required specifications
-## Potentially affected specifications
-## Architectural decisions and constraints
-## Known divergences
-## Coverage and confidence
-## Relevant behavior and failure boundaries
-## Relevant observations
-## Unconfirmed inferences
-## Blocking questions
-## Expected architectural outcome
-## Sources
-```
+`concatenated_source_paths` names files returned in full.
+`concatenated_files_omitted_paths` names exact files omitted by the budget.
+Consumers do not reread returned files.
 
-The handoff is a temporary projection and MUST NOT become a canonical
-specification.
+Truncation is explicit and never cuts a Markdown file inside the concatenated
+payload. Missing information is reported rather than invented.

@@ -205,6 +205,13 @@ class RunnerTests(unittest.TestCase):
                 "<!-- specspine:semantic-ids:end -->\n",
                 encoding="utf-8",
             )
+            (spine / "specspine.json").write_text(json.dumps({
+                "specspine": 3,
+                "project": "test",
+                "implementation_freedom": "contract-equivalent",
+                "areas": [],
+                "assets": [],
+            }), encoding="utf-8")
             (spine / "consumer.md").write_text(
                 "# Consumer\n\n"
                 "Preserve [CON-retry-limit](owner.md).\n", encoding="utf-8"
@@ -297,11 +304,16 @@ class RunnerTests(unittest.TestCase):
             spine.mkdir()
             (spine / "README.md").write_text(
                 "# Architecture\n\n**ID:** `project-architecture` · **Kind:** `index`\n\n"
-                "Architecture.\n\n## Coverage\n\n### Mapped\n\n- None.\n\n"
-                "### Partially mapped\n\n- Repository.\n\n### Unmapped\n\n- Unknown.\n\n"
-                "## Empty\n",
+                "Architecture.\n\n## Architecture map\n\nNo areas.\n\n## Empty\n",
                 encoding="utf-8",
             )
+            (spine / "specspine.json").write_text(json.dumps({
+                "specspine": 3,
+                "project": "test",
+                "implementation_freedom": "contract-equivalent",
+                "areas": [],
+                "assets": [],
+            }), encoding="utf-8")
             default = RUNNER.evaluate_assertion(
                 {"type": "spine_mechanical_valid"}, workspace, {}, {}, "", None
             )

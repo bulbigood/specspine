@@ -286,13 +286,19 @@ def string_list(
 
 
 def document_hashes(spine_root: Path) -> dict[str, str]:
-    return {
+    files = {
         path.relative_to(spine_root).as_posix(): hashlib.sha256(
             path.read_bytes()
         ).hexdigest()
         for path in sorted(spine_root.rglob("*.md"))
         if path.is_file()
     }
+    manifest = spine_root / "specspine.json"
+    if manifest.is_file():
+        files["specspine.json"] = hashlib.sha256(
+            manifest.read_bytes()
+        ).hexdigest()
+    return files
 
 
 def spine_changes(
@@ -348,8 +354,10 @@ def validate_reported_spine_changes(
                 "each changed document needs path and created/changed/deleted operation"
             )
         path = validate_relative_path(value["path"])
-        if Path(path).suffix.lower() != ".md":
-            raise CampaignError(f"changed document must be Markdown: {path}")
+        if Path(path).suffix.lower() != ".md" and path != "specspine.json":
+            raise CampaignError(
+                f"changed document must be Markdown or specspine.json: {path}"
+            )
         if path in seen:
             raise CampaignError(f"duplicate changed document: {path}")
         seen.add(path)

@@ -2,10 +2,10 @@
 
 ## Purpose
 
-SpecSpine is a human-readable, long-lived architectural memory layer for people
-and AI agents. It stores responsibilities, boundaries, important behavior,
-accepted decisions, constraints, uncertainty, and relationships without
-duplicating source code.
+SpecSpine is a human-readable, long-lived system specification and
+architectural memory layer for people and AI agents. It stores responsibilities,
+durable behavior, contracts, accepted normative claims, uncertainty, and
+relationships without duplicating implementation source.
 
 Its primary success criterion is:
 
@@ -14,32 +14,39 @@ Its primary success criterion is:
 > architectural risks faster and at lower context cost than by exploring the
 > codebase from scratch.
 
+For an area whose computed status is `ready`, an agent using only the SpecSpine bundle
+and standard toolchains can create an independent contract-equivalent
+implementation that passes the owned conformance surface without inventing
+unresolved policy.
+
 SpecSpine MUST:
 
-- remain useful as plain Markdown without a CLI, database, generator, schema
-  registry, renderer, or external service;
+- remain understandable as plain Markdown without a CLI, database, renderer,
+  or external service;
 - form a connected typed graph;
 - preserve accepted intent, evidence provenance, and unresolved uncertainty;
 - support deterministic script-only extraction of task-specific context;
 - avoid reproducing implementation detail already represented more clearly by
-  code.
+  code;
+- permit owned machine-readable contracts and implementation-independent
+  verification where exact reconstruction semantics require them.
 
 ## Authority boundaries
 
-SpecSpine is the source of truth only for accepted, long-lived architectural
-intent.
+SpecSpine is the source of truth for accepted, durable system intent.
 
 | Knowledge | Canonical source |
 |---|---|
-| Long-lived responsibilities, boundaries, decisions, and constraints | SpecSpine |
-| Delta of a particular accepted change | Accepted SDD or change specification |
+| Long-lived architecture, requirements, contracts, and verification | SpecSpine |
+| Proposed delta of a change | SDD or change specification until acceptance |
 | Current implementation | Source code |
 | Current observed behavior | Code, tests, and runtime evidence |
 | Backlog, delivery, and release status | External workflow system |
 
 A draft, an agent inference, or existing code MUST NOT create or rewrite an
-accepted Decision or Constraint. Approval belongs to a human or an explicitly
-designated external workflow.
+accepted normative claim. Approval belongs to a human or an explicitly
+designated external workflow. Durable accepted SDD meaning MUST be promoted
+into canonical SpecSpine owners.
 
 Code does not automatically invalidate architectural intent. Architectural
 intent does not prove that code conforms to it. A material disagreement MUST be
@@ -50,7 +57,7 @@ preserved explicitly until an authorized decision resolves it.
 The data direction is:
 
 ```text
-Canonical Markdown
+Canonical Markdown and owned contract assets
     → parser
     → disposable index and typed graph
     → reports, views, and context handoffs
@@ -70,11 +77,13 @@ backlinks, impact reports, and diagram edges are derived.
 
 ## File organization
 
-Every Spine MUST have a root `README.md`. A flat structure is the default:
+Every Spine MUST have `README.md` and `specspine.json`. A flat structure is the
+default:
 
 ```text
 <spine-root>/
 ├── README.md
+├── specspine.json
 ├── authentication.md
 ├── session-management.md
 └── payment-processing.md
@@ -95,12 +104,15 @@ Include information that:
 - defines stable responsibility or ownership;
 - describes an architectural relationship;
 - records accepted long-lived intent;
+- defines durable requirements, guarantees, interfaces, invariants, quality
+  constraints, or implementation-independent verification;
 - preserves architecture-significant uncertainty or divergence;
 - remains useful across multiple changes.
 
-Keep feature deltas, acceptance criteria, implementation tasks, delivery state,
-release scope, pull-request details, temporary runtime metrics, and source-level
-walkthroughs in their owning downstream systems.
+Keep proposed feature deltas, temporary delivery acceptance, implementation
+tasks, delivery state, release scope, pull-request details, temporary runtime
+metrics, and source-level walkthroughs in downstream systems. Promote accepted
+durable behavior and reusable black-box verification into SpecSpine.
 
 ## Non-goals
 
@@ -111,5 +123,6 @@ SpecSpine is not:
 - an automatic proof of code/spec conformance;
 - a node-per-file, class, function, test, or telemetry knowledge graph;
 - an implementation planner, task manager, or release tracker;
-- a replacement for source exploration or human architectural judgment;
-- a mandatory YAML, embedding, C4, arc42, ICOM, SQLite, or SaaS runtime.
+- a guarantee of source-text identity or a replacement for human product
+  judgment;
+- a YAML, embedding, C4, arc42, ICOM, SQLite, or SaaS runtime.

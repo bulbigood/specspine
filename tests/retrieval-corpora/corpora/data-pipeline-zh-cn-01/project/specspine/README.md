@@ -41,30 +41,3 @@ Describes the canonical architecture of this bundled fixture.
 
 接入层先验证 envelope，再把不可变事件写入日志。处理器以 event time 计算结果，
 通过 checkpoint 对齐状态与输入位置。所有外部写入遵循各 sink 自己的提交协议。
-
-## Coverage
-
-### Mapped
-
-- [事件接入](event-ingestion.md) — bundled fixture is mapped.
-- [模式注册中心](schema-registry.md) — bundled fixture is mapped.
-- [运行配置](runtime-configuration.md) — bundled fixture is mapped.
-- [事件时间](event-time.md) — bundled fixture is mapped.
-- [窗口聚合](window-aggregation.md) — bundled fixture is mapped.
-- [检查点恢复](checkpoint-recovery.md) — bundled fixture is mapped.
-- [精确一次写入](exactly-once-sinks.md) — bundled fixture is mapped.
-- [批量回填](backfill.md) — bundled fixture is mapped.
-- [隐私脱敏](privacy-masking.md) — bundled fixture is mapped.
-- [数据质量](data-quality.md) — bundled fixture is mapped.
-- [数据保留](data-retention.md) — bundled fixture is mapped.
-- [可观测性](observability.md) — bundled fixture is mapped.
-- [容量管理](capacity-planning.md) — bundled fixture is mapped.
-- [故障处置](incident-response.md) — bundled fixture is mapped.
-
-### Partially mapped
-
-- No partially mapped bundled areas.
-
-### Unmapped
-
-- No known unmapped bundled areas.

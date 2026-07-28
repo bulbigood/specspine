@@ -788,7 +788,7 @@ class CodexAdapterTests(unittest.TestCase):
                         '{"concatenated_files":"complete files",'
                         '"concatenated_source_paths":["README.md","owner.md"],'
                         '"concatenated_files_omitted_paths":["policy.md"],'
-                        '"closure_status":"complete","coverage":"mapped",'
+                        '"status":{"code":"ready","reason":"specification_complete"},'
                         '"sources":["README.md","owner.md"]}\n'
                     ),
                 },

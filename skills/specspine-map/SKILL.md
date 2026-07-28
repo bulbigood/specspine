@@ -7,8 +7,8 @@ description: "Map observed brownfield repository architecture into a linked Mark
 
 All published nodes use stable document IDs and core or `x-*` kinds. Publish
 architectural edges only through canonical `Relation | Target | Meaning`
-tables; ordinary links remain navigation. Maintain qualitative
-`Mapped / Partially mapped / Unmapped` coverage. Repository facts are `OBS`,
+tables; ordinary links remain navigation. Maintain evidence-backed manifest
+facets for every published owner. Repository facts are `OBS`,
 not accepted intent. Record a confirmed intent/code conflict as an evidence-
 backed observation plus one `Known divergences` row; never infer or silently
 resolve accepted intent. Use arc42 and ICOM only as diagnostic lenses.
@@ -39,21 +39,21 @@ Select one execution mode before project discovery:
   before starting or resuming an exhaustive campaign in a new session.
 - Start new files from `assets/templates/` and omit empty sections.
 
-If the live root lacks `README.md` and no separate output root exists, create a
-minimal v2 index from the architecture-index template before discovery.
+If the live root lacks `README.md` and no separate output root exists, create
+the index and `specspine.json` from their templates before discovery.
 Otherwise keep the live root read-only and stop for setup.
-
 ## Bounded mode
-
 Perform exactly one bounded mapping operation and stop at its reported
 continuation or terminal refusal. Do not load exhaustive orchestration
 instructions, create a frontier ledger, or start producers.
 
 ## Exhaustive mode
-
 Explicit exhaustive intent approves repeated documentation writes and final
 navigation normalization. It does not authorize changing accepted intent or
 choosing among materially different canonical owners.
+
+Map records each owner's supported and missing manifest facets. Evidence
+cannot create normative claims or produce `ready` status.
 
 Read [references/orchestration.md](references/orchestration.md) completely
 before discovery. Exhaustive mode requires fresh producer handles: one producer

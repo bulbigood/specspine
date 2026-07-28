@@ -13,13 +13,15 @@ The index MUST contain:
   long-lived architectural intent and architecture-relevant repository
   observations;
 - a short project purpose and architectural context;
-- a compact `Architecture map`;
-- qualitative `Coverage` with `Mapped`, `Partially mapped`, and `Unmapped`
-  groups.
+- a compact `Architecture map`.
 
 It SHOULD also contain the main external boundaries, system-wide decisions and
 constraints, and architecture-significant open questions. It MUST NOT become a
 catalog of every document.
+
+The root MUST also contain `specspine.json` with the exact schema defined by the
+shared format contract. Completeness, blockers, and assets MUST NOT be
+duplicated in Markdown.
 
 ## Specification node
 
@@ -65,8 +67,11 @@ Core kinds are:
 
 ```text
 index system subsystem component capability behavior interface data policy
-invariant decision deployment concept
+deployment concept
 ```
+
+Requirements, guarantees, invariants, decisions, quality constraints, and
+verification are statement kinds rather than document kinds.
 
 Project extensions use `x-<project-kind>`. Unknown core-like kinds SHOULD
 produce a warning; valid `x-*` kinds MUST be preserved.
@@ -93,9 +98,13 @@ Use the following sections only for their stated responsibility:
 - `Edge cases` — only architecture-significant exceptions.
 - `Quality attributes` — durable security, privacy, consistency, availability,
   latency, scalability, or maintainability properties.
+- `Requirements`, `Guarantees`, `Invariants`, `Quality constraints`, and
+  `Verification` — accepted durable normative claims.
 - `Decisions`, `Constraints`, `Observed`, `Inferred`, and `Open questions` —
-  statements with the semantics defined in
+  statements with the remaining semantics defined in
   [Semantics and evidence](03-semantics-and-evidence.md).
+- `Configuration contract` and `Compatibility` — durable settings,
+  precedence, versioning, migration, and interoperability guarantees.
 - `Implementation` — representative repository-relative source areas and entry
   points, written as inline code rather than required links.
 - `Terminology` — local domain terms.
@@ -138,6 +147,12 @@ Core relations are:
 | `has-evidence` | References a separate durable evidence document |
 | `superseded-by` | Has a new canonical replacement |
 | `related-to` | Weak relationship when no precise type is justified |
+| `refines` | Adds more precise normative meaning |
+| `satisfies` | Claims responsibility for satisfying a normative owner |
+| `verified-by` | Points to a verification owner |
+| `specified-by` | Points to an exact contract owner |
+| `compatible-with` | Declares a compatibility dependency |
+| `migrates-from` | Declares a supported migration predecessor |
 
 Extensions use `x-<project-relation>`. An unknown relation without `x-` SHOULD
 produce a warning but MUST NOT be destroyed or rewritten automatically.
@@ -153,6 +168,11 @@ an exact statement:
 ```text
 DEC — accepted decision
 CON — accepted constraint
+REQ — accepted durable requirement
+GUA — accepted observable guarantee
+INV — accepted invariant
+QLT — accepted quality constraint
+VER — durable conformance verification
 OBS — repository-backed observation
 INF — unconfirmed inference
 OQ  — open question
@@ -161,7 +181,7 @@ OQ  — open question
 IDs MUST match:
 
 ```regex
-^(DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$
+^(DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$
 ```
 
 Definitions use bold IDs inside at most one balanced region:

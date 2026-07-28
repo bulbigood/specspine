@@ -1,0 +1,1 @@
+../../../shared/scripts/check_spine.py

@@ -43,30 +43,3 @@ locks, loads optional plugins, and renders stable machine-readable output.
 The CLI parses intent before the SDK resolves configuration. Planning is
 side-effect free; application acquires a renewable lease. Plugins may add
 commands and migration readers but cannot replace locking or credential rules.
-
-## Coverage
-
-### Mapped
-
-- [Command dispatch](command-dispatch.md) — bundled fixture is mapped.
-- [Configuration resolution](configuration-resolution.md) — bundled fixture is mapped.
-- [Profile inheritance](profile-inheritance.md) — bundled fixture is mapped.
-- [Credential store](credential-store.md) — bundled fixture is mapped.
-- [Migration planning](migration-planning.md) — bundled fixture is mapped.
-- [Migration locking](migration-locking.md) — bundled fixture is mapped.
-- [Rollback policy](rollback-policy.md) — bundled fixture is mapped.
-- [Local cache](local-cache.md) — bundled fixture is mapped.
-- [Plugin API](plugin-api.md) — bundled fixture is mapped.
-- [Output rendering](output-rendering.md) — bundled fixture is mapped.
-- [Error contract](error-contract.md) — bundled fixture is mapped.
-- [Release compatibility](release-compatibility.md) — bundled fixture is mapped.
-- [Telemetry](telemetry.md) — bundled fixture is mapped.
-- [Testing strategy](testing-strategy.md) — bundled fixture is mapped.
-
-### Partially mapped
-
-- No partially mapped bundled areas.
-
-### Unmapped
-
-- No known unmapped bundled areas.

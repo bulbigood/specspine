@@ -12,9 +12,9 @@ Use only requested operations:
 - `check` — read-only review of the whole Spine, an area, or a problem;
 - `repair` — check and apply approved bounded corrections.
 
-If no operation is clear, briefly explain these four read/write boundaries and
-ask which one to run. Finish explicit connection work before health work. Never
-add semantic review implicitly.
+If unclear, briefly explain these read/write boundaries and ask which operation
+to run. Finish connection work before health work; never add semantic review
+implicitly.
 
 ## Resources
 
@@ -32,11 +32,8 @@ add semantic review implicitly.
   review criteria and repair boundaries.
 - Read [references/spec-format.md](references/spec-format.md) only when a
   finding or repair depends on format, semantic-ID syntax, or stopping rules.
-- For handoff review, use `specspine-extract` rather than reproducing its
-  extraction procedure.
-
 The checker owns mechanical findings. Semantic review is advisory and cannot
-prove validity, completeness, or code conformance.
+prove validity, reconstruction completeness, or code conformance.
 
 ## Connection administration
 
@@ -45,10 +42,11 @@ refreshes, or changes the requested connection from observed state. Preserve
 recognized settings not explicitly changed.
 
 Connect may modify only that managed block and may create the configured
-`<spine-root>/README.md` when absent. Render a new index in the accepted
-language with the template's minimal structure. Preserve existing indexes and
-surrounding project instructions. Disconnect removes only the managed block,
-never the Spine or instruction file. A satisfied target state causes no write.
+`<spine-root>/README.md` and `specspine.json` together when absent. Render both
+from their templates and use the accepted language for the index. Preserve
+existing roots and surrounding project instructions. Disconnect removes only
+the managed block, never the Spine or instruction file. A satisfied target
+state causes no write.
 
 After a successful connection change, run the mechanical checker once and
 report its findings separately. Do not repair findings or begin semantic review
@@ -84,6 +82,9 @@ neighborhood and expand only where ownership or conflicts cross the boundary.
    specification's placement from documented responsibilities and the
    directory's navigation purpose. Directories aid navigation; they are not
    architectural hierarchy.
+   Verify every manifest facet against supporting content and assets, every
+   blocker against its `OQ-*`, and every computed `ready` status against
+   durable verification.
 4. Report reproducible checker findings separately from semantic risks. Include
    locations, evidence, impact, and a useful next action. State what was and was
    not inspected.

@@ -1,0 +1,22 @@
+{
+  "specspine": 3,
+  "project": "mobile-app-ru-01",
+  "implementation_freedom": "contract-equivalent",
+  "areas": [
+    {"owner":"accessibility","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+    {"owner":"analytics","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+    {"owner":"authentication","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+    {"owner":"configuration","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+    {"owner":"deep-links","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+    {"owner":"feature-flags","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+    {"owner":"image-cache","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+    {"owner":"incident-playbook","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+    {"owner":"local-storage","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+    {"owner":"navigation","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+    {"owner":"offline-sync","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+    {"owner":"payments","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+    {"owner":"push-notifications","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+    {"owner":"release-process","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]}
+  ],
+  "assets": []
+}

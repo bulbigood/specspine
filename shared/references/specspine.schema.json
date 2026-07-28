@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:specspine:manifest:v3",
+  "title": "SpecSpine v3 manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "specspine",
+    "project",
+    "implementation_freedom",
+    "areas",
+    "assets"
+  ],
+  "properties": {
+    "specspine": {"const": 3},
+    "project": {"type": "string", "minLength": 1},
+    "implementation_freedom": {
+      "enum": [
+        "contract-equivalent",
+        "architecture-constrained",
+        "exact"
+      ]
+    },
+    "areas": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/area"}
+    },
+    "assets": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/asset"}
+    }
+  },
+  "$defs": {
+    "facet": {
+      "enum": ["complete", "partial", "missing", "not-applicable"]
+    },
+    "facets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "architecture",
+        "behavior",
+        "interfaces",
+        "data",
+        "failure",
+        "quality",
+        "verification"
+      ],
+      "properties": {
+        "architecture": {"$ref": "#/$defs/facet"},
+        "behavior": {"$ref": "#/$defs/facet"},
+        "interfaces": {"$ref": "#/$defs/facet"},
+        "data": {"$ref": "#/$defs/facet"},
+        "failure": {"$ref": "#/$defs/facet"},
+        "quality": {"$ref": "#/$defs/facet"},
+        "verification": {"$ref": "#/$defs/facet"}
+      }
+    },
+    "area": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner", "facets", "blockers"],
+      "properties": {
+        "owner": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "facets": {"$ref": "#/$defs/facets"},
+        "blockers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^OQ-[a-z0-9]+(?:-[a-z0-9]+)*$"
+          }
+        }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "owner",
+        "role",
+        "format",
+        "normative",
+        "verifies"
+      ],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "owner": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "role": {
+          "enum": [
+            "interface-contract",
+            "data-schema",
+            "scenario",
+            "fixture",
+            "verification"
+          ]
+        },
+        "format": {"type": "string", "minLength": 1},
+        "normative": {"type": "boolean"},
+        "verifies": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^VER-[a-z0-9]+(?:-[a-z0-9]+)*$"
+          }
+        }
+      }
+    }
+  }
+}

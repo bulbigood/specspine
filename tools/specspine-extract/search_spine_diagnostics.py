@@ -75,17 +75,20 @@ def main() -> int:
     result = production.build_closure(args.spine_root, query)
     elapsed = time.perf_counter() - started
     production_output = json.dumps(result, ensure_ascii=False) + "\n"
+    status = result.get("status", {})
+    status_code = status.get("code") if isinstance(status, dict) else None
     telemetry = {
         "schema_version": 1,
         "mode": "closure",
-        "exit_code": 1 if result.get("closure_status") == "invalid" else 0,
+        "exit_code": 1 if status_code == "invalid" else 0,
         "query_sha256": hashlib.sha256(
             args.query_json.encode("utf-8")
         ).hexdigest(),
-        "reason_code": result.get("reason"),
+        "reason_code": (
+            status.get("reason") if isinstance(status, dict) else None
+        ),
         "documents": len(result.get("sources", [])),
-        "closure_status": result.get("closure_status"),
-        "coverage": result.get("coverage"),
+        "status": status_code,
         "production_output_utf8_bytes": len(production_output.encode("utf-8")),
         "timings": {"total_seconds": round(elapsed, 6)},
         "telemetry_level": args.telemetry,

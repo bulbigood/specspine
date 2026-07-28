@@ -1206,8 +1206,9 @@ def parse_retrieval_protocol(
             closure = json.loads(raw_output)
         except json.JSONDecodeError:
             return None
-        if not isinstance(closure, dict) or not isinstance(
-            closure.get("closure_status"), str
+        status = closure.get("status") if isinstance(closure, dict) else None
+        if not isinstance(closure, dict) or not isinstance(status, dict) or not isinstance(
+            status.get("code"), str
         ):
             return None
         primary = closure.get("primary")
@@ -1262,8 +1263,8 @@ def parse_retrieval_protocol(
             "ranking_system": None,
             "graph_depth": None,
             "graph_limit": None,
-            "reason_code": closure.get("reason"),
-            "truncated": closure.get("closure_status") == "truncated",
+            "reason_code": status.get("reason"),
+            "truncated": status.get("code") == "truncated",
             "slices": [],
             "direct_matches": direct_matches,
             "graph_neighbors": graph_neighbors,

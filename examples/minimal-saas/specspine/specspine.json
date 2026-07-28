@@ -1,0 +1,5 @@
+{"specspine":3,"project":"minimal-saas","implementation_freedom":"contract-equivalent","areas":[
+{"owner":"application","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+{"owner":"billing","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+{"owner":"identity","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
+{"owner":"operations","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]}],"assets":[]}

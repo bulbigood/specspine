@@ -1,0 +1,4 @@
+interface:
+  display_name: "SpecSpine Verify"
+  short_description: "Check implementation conformance and reconstruction"
+  default_prompt: "Use $specspine-verify to verify this implementation against its SpecSpine."

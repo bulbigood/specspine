@@ -1,498 +1,369 @@
-# SpecSpine specification format
+# SpecSpine v3 format
 
-This document defines the self-contained Markdown artifacts produced by a
-SpecSpine workflow. It is the canonical instruction for what belongs in those
-artifacts; workflow skills should only route here.
+This document is the canonical storage contract for SpecSpine v3.
 
-It is a strict Markdown graph profile, not a schema language. It uses no
-frontmatter, but identity, typed relationships, selectively addressable
-statements, coverage, and evidence provenance form the mandatory interoperable
-subset. Include only useful optional sections.
+SpecSpine is a human-readable specification graph plus a small deterministic
+manifest. Markdown owns meaning. `specspine.json` owns completeness,
+reconstruction blockers, and exact non-Markdown assets. Derived indexes,
+embeddings, and databases are disposable.
 
-Keep each durable architectural concept in its own document. Do not embed
-feature specifications, acceptance criteria, plans, tasks, implementation
-status, or downstream workflow state. Downstream workflows may consume or link
-these ordinary Markdown documents without owning their format.
+## Spine root
 
-## Contents
+Resolve `<spine-root>` once:
 
-- [File organization](#file-organization)
-- [Architecture index](#architecture-index)
-- [Specification node](#specification-node)
-- [Section guidance](#section-guidance)
-- [Extension sections](#extension-sections)
-- [Quality and compression](#quality-and-compression)
-- [Addressable statements](#addressable-statements)
-- [Visual representations](#visual-representations)
-- [Canonical ownership](#canonical-ownership)
-- [Decomposition](#decomposition)
-- [Terminal detail](#terminal-detail)
-- [Reachability](#reachability)
+1. use the path explicitly supplied by the user or project instructions;
+2. otherwise use a path explicitly named by project configuration;
+3. otherwise use `specspine` below the working directory.
 
-## File organization
-
-Resolve `<spine-root>` once before reading or writing specifications:
-
-1. Use the root explicitly supplied by the user or project instructions.
-2. Otherwise use a SpecSpine root explicitly named by project configuration;
-   do not infer one by searching for `README.md` files or from the repository
-   root itself.
-3. Otherwise use the literal `specspine` directory relative to the current
-   working directory. A repository-root `README.md` does not make the
-   repository root a SpecSpine root.
-
-Keep this value stable for the operation. Start with a flat directory:
-
-Write all natural-language content in every SpecSpine document in the
-`SpecSpine documentation language`.
-Preserve paths, semantic IDs, API names, code identifiers, and other exact
-identifiers without translation.
+A valid root contains:
 
 ```text
 <spine-root>/
 ├── README.md
+├── specspine.json
 ├── authentication.md
-├── account-linking.md
 ├── session-management.md
-└── users.md
+├── contracts/
+├── schemas/
+├── scenarios/
+├── fixtures/
+└── verification/
 ```
 
-Prefer lowercase kebab-case filenames and, when present, directory names based
-on stable concepts. Preserve established names when renaming would add churn
-without improving navigation.
+Only `README.md` and `specspine.json` have reserved paths. Use lowercase
+kebab-case paths for specifications. Organize by stable concepts, not source
+directories, features, tickets, or delivery phases.
 
-Prefer:
+Write natural language in the configured SpecSpine documentation language.
+Never translate paths, semantic IDs, API names, code identifiers, or other
+exact identifiers.
+
+## Manifest
+
+`<spine-root>/specspine.json` is mandatory UTF-8 JSON. Its portable structural
+schema is [specspine.schema.json](specspine.schema.json):
+
+```json
+{
+  "specspine": 3,
+  "project": "example",
+  "implementation_freedom": "contract-equivalent",
+  "areas": [
+    {
+      "owner": "session-management",
+      "facets": {
+        "architecture": "complete",
+        "behavior": "complete",
+        "interfaces": "complete",
+        "data": "complete",
+        "failure": "complete",
+        "quality": "partial",
+        "verification": "complete"
+      },
+      "blockers": []
+    }
+  ],
+  "assets": [
+    {
+      "path": "contracts/sessions.openapi.yaml",
+      "owner": "session-management",
+      "role": "interface-contract",
+      "format": "openapi-3.1",
+      "normative": true,
+      "verifies": []
+    }
+  ]
+}
+```
+
+The root object has exactly these fields:
+
+- `specspine`: integer `3`;
+- `project`: nonempty stable project name;
+- `implementation_freedom`: `contract-equivalent`,
+  `architecture-constrained`, or `exact`;
+- `areas`: one completeness profile for every non-index document;
+- `assets`: the complete registry of non-Markdown files in the Spine.
+
+`implementation_freedom` defines what reconstruction means:
+
+- `contract-equivalent` permits any internals satisfying all normative
+  behavior, interfaces, data rules, qualities, and verification;
+- `architecture-constrained` additionally requires the specified component
+  boundaries and interactions;
+- `exact` requires implementation choices explicitly declared exact by the
+  specifications. It does not turn undocumented source details into intent.
+
+### Areas and computed status
+
+Every non-index document ID occurs exactly once as an area `owner`. `facets`
+contains exactly:
 
 ```text
-authentication.md
-external-identity.md
-notification-delivery.md
+architecture behavior interfaces data failure quality verification
 ```
 
-Avoid:
+Each value is `complete`, `partial`, `missing`, or `not-applicable`.
+`not-applicable` is a semantic claim and requires review; it is not a shortcut
+for unknown content.
 
-```text
-add-google-login.md
-feature-017.md
-fix-auth-flow.md
-```
+The document kind determines facets that cannot be `not-applicable`:
 
-Specifications form a graph through relative Markdown links. Add directories
-only when the flat list has become hard to navigate and several specifications
-form a stable cohesive area. Prefer a few broad namespaces such as `client/`,
-`server/`, and selected server capabilities. Do not mirror source directories
-or recursively classify every concept. Directory nesting organizes files but
-does not define ownership or architectural hierarchy.
+| Kind | Required facets |
+|---|---|
+| `system`, `subsystem`, `component`, `capability` | architecture, behavior, failure, verification |
+| `behavior` | architecture, behavior, failure, verification |
+| `interface` | architecture, interfaces, failure, verification |
+| `data` | architecture, data, failure, verification |
+| `policy` | architecture, behavior, verification |
+| `deployment` | architecture, failure, quality, verification |
+| `concept`, `x-*` | architecture |
 
-## Architecture index
+Status is never stored:
 
-Every SpecSpine has a `<spine-root>/README.md` entry point with one H1,
-`**ID:** \`project-architecture\` · **Kind:** \`index\``, a summary,
-`Architecture map`, and qualitative `Coverage`.
+- `blocked` when `blockers` is nonempty;
+- `ready` when blockers are empty and every facet is `complete` or
+  `not-applicable`;
+- `incomplete` otherwise.
 
-It is a curated architecture map, not the semantic parent of every
-specification.
+A `complete` verification facet requires at least one owned `VER-*` claim, an
+owned verification asset, or a `verified-by` relation to a document that owns
+`VER-*` claims.
 
-A newly created index starts its natural-language introduction with this scope
-statement, translated into the configured documentation language when needed:
+Each blocker is the globally unique `OQ-*` ID of an unresolved choice that a
+reconstruction agent MUST NOT invent. Non-blocking questions remain in
+Markdown but are absent from `blockers`.
+
+### Asset registry
+
+Every non-Markdown file except `specspine.json` has exactly one asset record.
+Each record has exactly:
+
+- `path`: unique root-relative path;
+- `owner`: non-index document ID;
+- `role`: `interface-contract`, `data-schema`, `scenario`, `fixture`, or
+  `verification`;
+- `format`: nonempty precise format identifier;
+- `normative`: whether conformance depends on the asset;
+- `verifies`: zero or more globally unique `VER-*` IDs.
+
+The file MUST exist and its owner MUST link to it using a relative Markdown
+link. Registration establishes identity and machine retrieval; the owner
+explains purpose, scope, versioning, and authority.
+
+## Root index
+
+`README.md` is the only entry point. It contains:
+
+1. exactly one H1;
+2. `**ID:** \`project-architecture\` · **Kind:** \`index\``;
+3. a short project and scope summary;
+4. `Architecture map`, containing useful entry points.
+
+Use this scope statement when creating an index, translated when needed:
 
 > This directory contains the project's long-lived architectural intent and
 > architecture-relevant repository observations.
 
-Follow it with the project-specific purpose and architectural context. The
-scope statement is not a framework tutorial and does not replace the project
-summary.
+The index is a curated map, not a list of every document and not the semantic
+parent of the graph. Detailed nodes only need to be reachable through links.
+Project-wide normative statements, divergences, and questions may live here.
 
-Use the architecture-index template routed from `SKILL.md` when creating it.
-Coverage has exactly the reader-facing groups `Mapped`, `Partially mapped`,
-and `Unmapped`. It measures sufficiency of architecture memory, never delivery
-or implementation completion. A linked bullet starts with the canonical owner;
-an unmapped area may have no owner yet.
-
-Keep the architecture map small enough to be useful. It may link directly to
-top-level concepts and let those specifications link to more detailed concepts.
+Completeness does not live in Markdown. Readers and tools obtain it from
+`specspine.json`.
 
 ## Specification node
 
-Use the specification template routed from `SKILL.md` when creating a node.
-Every specification node has exactly one H1, then:
+Every non-index Markdown document has:
 
 ```markdown
-**ID:** `stable-kebab-case-id` · **Kind:** `subsystem`
+# Session management
 
-One-to-three sentence summary.
-```
+**ID:** `session-management` · **Kind:** `subsystem`
+**Aliases:** Application sessions
 
-An optional `**Aliases:** Name, code term` line may follow identity. Non-index
-nodes require a nonempty `Responsibility`. IDs are globally unique, stable
-across rename/move, never encode paths, and are never reused. Core kinds are
-`index`, `system`, `subsystem`, `component`, `capability`, `behavior`,
-`interface`, `data`, `policy`, `invariant`, `decision`, `deployment`, and
-`concept`; project extensions use `x-*`.
-
-The document must remain understandable outside the producing skill. Use
-ordinary Markdown and relative links. Do not require custom frontmatter,
-directives, generated indexes, or tool-specific parsers for its meaning.
-
-## Section guidance
-
-### Summary
-
-The first paragraph should explain the concept in one or two sentences.
-
-A new agent should understand why the specification exists without reading the
-rest of the file. Summarize the responsibility and architectural significance;
-do not inventory files, paraphrase functions, or compress code line by line.
-
-### Responsibility
-
-Describe what the concept owns.
-
-Prefer stable responsibilities over implementation descriptions.
-
-Good:
-
-```text
 Creates and maintains provider-independent application sessions.
+
+## Responsibility
+
+Owns session lifecycle and session state.
 ```
 
-Avoid:
+There is exactly one H1. The summary immediately follows identity and optional
+aliases. `Responsibility` is mandatory and nonempty.
+
+Document IDs match:
+
+```regex
+^[a-z0-9]+(?:-[a-z0-9]+)*$
+```
+
+They are globally unique, stable across rename or move, independent of paths,
+never reused, and preserved by tombstones when ownership moves.
+
+Core kinds are:
 
 ```text
-Contains SessionService, TokenRepository, and the refreshToken handler.
+index system subsystem component capability behavior interface data policy
+deployment concept
 ```
 
-### Boundaries
+Kinds classify architectural ownership. Requirements, guarantees, invariants,
+decisions, quality constraints, and verification are addressable statements,
+not document kinds. Project-specific kinds use `x-*`.
 
-State what belongs elsewhere when confusion is likely.
+## Canonical sections
 
-Use links to canonical specifications:
+Use only sections that carry durable information:
+
+- `Responsibility` — canonical ownership;
+- `Boundaries` — what is inside, outside, or owned elsewhere;
+- `Behavior` — externally significant outcomes and coordination;
+- `Interfaces` — APIs, commands, events, ports, and exact asset links;
+- `Information model` — durable entities, values, and relationships;
+- `Data ownership` — creation, mutation, reading, and consistency authority;
+- `Lifecycle and invariants` — states, transitions, and durable truths;
+- `Failure behavior` — errors, retry, degradation, compensation, and recovery;
+- `Edge cases` — only architecture-significant boundaries;
+- `Configuration contract` — settings, defaults, precedence, invalid
+  combinations, and reload behavior;
+- `Compatibility` — versioning, interoperability, deprecation, and supported
+  data or protocol evolution;
+- `Requirements` — accepted durable outcomes;
+- `Guarantees` — accepted externally observable promises;
+- `Invariants` — truths across all valid states and transitions;
+- `Quality constraints` — measurable non-functional requirements;
+- `Verification` — implementation-independent conformance criteria;
+- `Decisions` and `Constraints` — accepted intent;
+- `Observed` — repository-backed facts;
+- `Inferred` — explicitly unconfirmed interpretation;
+- `Open questions` — unresolved choices;
+- `Known divergences` — confirmed differences between intent and reality;
+- `Implementation` — representative repository-relative evidence paths;
+- `Terminology`, `Risks`, and `Rationale and trade-offs` when durable.
+
+Do not store plans, tasks, delivery acceptance, progress, changelogs, generated
+source walkthroughs, or temporary feature deltas. Promote accepted durable
+meaning into its canonical owner.
+
+## Normative statements
+
+Use RFC 2119-style `MUST`, `SHOULD`, and `MAY` only for accepted intent.
+Observations and inferences never create normative meaning.
+
+Create a semantic ID only when another statement, asset, or workflow needs an
+exact address. Definitions are bullets inside at most one marker region:
 
 ```markdown
-Password validation belongs to
-[Password authentication](password-authentication.md).
+<!-- specspine:semantic-ids:begin -->
+## Guarantees
+
+- **GUA-session-revocation** — A revoked session MUST fail all subsequent
+  authorization checks.
+
+## Verification
+
+- **VER-session-revocation** — After revocation, every protected request made
+  with the session returns the documented unauthenticated result.
+<!-- specspine:semantic-ids:end -->
 ```
 
-### Behavior
+IDs match:
 
-Describe significant behavior visible to users, other subsystems, or the
-architecture.
+```regex
+^(DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$
+```
 
-Do not document every branch of local control flow.
-
-### Relationships
-
-Typed relationships use the canonical table:
+Definitions use bold IDs. References use the complete ID as a Markdown link
+label and target the owning document:
 
 ```markdown
-| Relation | Target | Meaning |
-|---|---|---|
-| `constrained-by` | [CON-session-boundary](sessions.md) | Prevents provider tokens from becoming application sessions |
+[GUA-session-revocation](session-management.md)
 ```
 
-Each row contains one relative link and nonempty meaning. Its identity is
-source document ID + relation + target document ID + optional target statement
-ID. Store a directed edge once; backlinks are derived. Core relations are
-`contains`, `decomposes-into`, `performs`, `depends-on`, `exposes`, `consumes`,
-`publishes`, `reads-from`, `writes-to`, `owns-data`, `constrained-by`,
-`implemented-by`, `has-evidence`, `superseded-by`, and `related-to`. Extensions
-use `x-*`. Markdown links outside this table are navigation or references and
-never become typed edges implicitly.
+Do not add a URL fragment. Semantic IDs are globally unique in v3. A replaced
+statement retains a tombstone linked to its successor.
 
-### Decisions
+Canonical headings determine prefixes: `Decisions`/`DEC`,
+`Constraints`/`CON`, `Requirements`/`REQ`, `Guarantees`/`GUA`,
+`Invariants`/`INV`, `Quality constraints`/`QLT`, `Verification`/`VER`,
+`Observed`/`OBS`, `Inferred`/`INF`, and `Open questions`/`OQ`.
+Translated headings preserve the same meaning; semantic review confirms them
+when a dependency-free checker cannot.
 
-Record accepted choices that constrain future implementation.
+## Evidence and divergences
 
-Examples:
-
-- application sessions are independent of identity providers;
-- external provider access tokens are not persisted;
-- background jobs use at-least-once delivery semantics.
-
-Do not store unresolved assumptions here.
-
-### Constraints
-
-Record accepted restrictions on acceptable architecture or implementation.
-Constraints describe intended architecture but do not imply that the current
-code satisfies them.
-
-### Observed and inferred
-
-Use these sections only when repository evidence matters. Record direct
-evidence under `Observed` and unconfirmed interpretation under `Inferred`.
-Neither overrides accepted decisions or constraints.
-
-When a document contains repository-backed observations, record one invisible
-evidence baseline near its first `Observed` section:
+A document containing repository observations records one evidence baseline
+near its first `Observed` section:
 
 ```markdown
 <!-- specspine:evidence-baseline source=commit-abc1234; inspected=2026-07-21 -->
 ```
 
-Use a commit, a branch plus dirty-state note, or another concise source. For
-evidence explicitly supplied outside a repository, use `user-supplied`. The
-baseline records freshness and provenance, not conformance. Update it only when
-the observations are rechecked.
-
-When an observation needs traceability, add representative repository-relative
-evidence without claiming exhaustive coverage. Write repository paths as inline
-code rather than Markdown links:
+Use representative repository-relative inline-code paths:
 
 ```markdown
-- **OBS-worker-retries** — Failed jobs are retried by the worker.
+- **OBS-worker-retries** — Failed jobs are retried.
   Evidence: `src/worker.ts`, `tests/job-retry.test.ts`.
 ```
 
-### Open questions
-
-Use this section for uncertainty that remains relevant.
-
-A useful question explains what decision is missing and why it matters:
+Confirmed conflict is recorded once:
 
 ```markdown
-- Should existing accounts be linked automatically by verified email?
-  This affects account takeover risk and the external identity flow.
+## Known divergences
+
+| Intended | Observed | Consequence |
+|---|---|---|
+| [CON-retry-limit](jobs.md) | [OBS-unbounded-retry](jobs.md) | A job can consume unbounded capacity |
 ```
 
-Remove or convert questions when the user accepts a decision.
+`Intended` references a normative ID, `Observed` references an `OBS-*` ID, and
+`Consequence` states architectural or user-visible impact.
 
-## Extension sections
+## Typed relationships
 
-The standard sections are a common vocabulary, not a closed schema. Add a
-project-specific section only when it describes a durable architectural aspect,
-is understandable without a special parser, and does not duplicate a canonical
-specification or downstream feature artifact.
-
-Useful optional sections include:
-
-- `Interfaces` — architectural inputs, outputs, commands, events, and external
-  contracts;
-- `Information model` — durable entities, value sets, relationships, and
-  ownership without reproducing physical schemas;
-- `Data ownership` — owned data and mutation authority;
-- `Lifecycle and invariants` — significant states, transitions, and durable
-  truths that constrain behavior;
-- `Failure behavior` — retries, degradation, recovery, and failure boundaries;
-- `Edge cases` — architecturally significant boundary conditions that change
-  externally visible behavior, ownership, safety, or recovery;
-- `Quality attributes` — security, privacy, consistency, availability, latency,
-  and similar architectural properties;
-- `Terminology` — local domain language when a project-wide glossary is
-  unnecessary;
-- `Rationale and trade-offs` — reasoning that remains useful after a decision;
-- `Evidence` — shared sources supporting several observations.
-
-Do not add an `Assumptions` section. Put unconfirmed interpretation under
-`Inferred` and unresolved choices under `Open questions`.
-
-Do not copy feature-SDD structure into the Spine. Feature requirements,
-acceptance criteria, user journeys, exhaustive endpoint matrices, example
-payloads, delivery status, and changelogs belong to downstream workflows unless
-they express a durable architectural contract owned by this concept.
-
-## Quality and compression
-
-Judge a specification by the architectural work it saves, not by its length.
-A useful mapped scope has:
-
-- **ownership coverage** — each relevant production area has a canonical
-  architectural owner, or was classified during discovery as generated,
-  vendored, test-only, or without durable architectural value;
-- **orientation** — a reader can explain the area's purpose, responsibility,
-  boundaries, and significant behavior without reconstructing it file by file;
-- **information gain** — the document captures non-local facts such as
-  interactions, data or control flow, invariants, failure and edge behavior,
-  decisions, constraints, or unresolved questions when they matter;
-- **change utility** — a coding agent can identify the owning specification,
-  neighboring responsibilities, important contracts, and likely risk surfaces;
-- **non-duplication** — prose does not mirror functions, classes, directories,
-  or local algorithms that are clearer in source.
-
-Coverage is not a requirement to mention every source file in published
-Markdown. During exhaustive brownfield discovery, source paths may be grouped
-under one responsibility when they share an owner and behavior.
-
-For unusually large mapping campaigns, a summary-to-source ratio near `1:10`
-may be used as an advisory compression signal. Count only production source;
-exclude tests, fixtures, snapshots, generated code, vendored dependencies, and
-build outputs. Treat a large deviation as a prompt to review missing coverage
-or source duplication, never as a word quota or pass/fail rule. Architectural
-information beyond the summary—edge cases, diagrams, contracts, constraints,
-decisions, and questions—earns its place through information gain and need not
-fit that ratio.
-
-## Addressable statements
-
-Use a short semantic identifier only when another specification or downstream
-artifact needs to reference a particular statement.
-Do not identify every paragraph or bullet.
-
-An addressable definition is an unordered-list item whose first element is a
-bold identifier, followed by an em dash and the statement:
+Typed edges use:
 
 ```markdown
-<!-- specspine:semantic-ids:begin -->
-## Decisions
+## Relationships
 
-- **DEC-provider-independent-sessions** — Application sessions are independent
-  of authentication providers.
-<!-- specspine:semantic-ids:end -->
+| Relation | Target | Meaning |
+|---|---|---|
+| `constrained-by` | [CON-retry-limit](jobs.md) | Applies the system retry ceiling |
 ```
 
-Include one balanced semantic-ID region only when a document defines IDs. Keep
-all ID definitions inside it and ordinary prose outside when practical. The
-comments are invisible when rendered and give dependency-free tools a precise
-parsing boundary; they do not affect statement meaning.
+Each row has one canonical relation token, one relative link, and nonempty
+meaning. Store a directed edge once; derive backlinks.
 
-The one region may span several semantic sections. Do not close it after
-`Observed` and open another for `Inferred`, `Decisions`, `Constraints`, or
-`Open questions`:
-
-```markdown
-<!-- specspine:semantic-ids:begin -->
-## Observed
-
-- **OBS-worker-retries** — Failed jobs are retried by the worker.
-
-## Inferred
-
-- **INF-worker-backoff** — Retry delays appear to use bounded backoff.
-<!-- specspine:semantic-ids:end -->
-```
-
-Use this identifier grammar:
+Core relations are:
 
 ```text
-^(DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$
+contains decomposes-into performs depends-on exposes consumes publishes
+reads-from writes-to owns-data constrained-by implemented-by has-evidence
+superseded-by related-to refines satisfies verified-by specified-by
+compatible-with migrates-from
 ```
 
-Match the prefix to the statement kind expressed by the owning section. The
-canonical English headings are `Decisions` for `DEC`, `Constraints` for `CON`,
-`Observed` for `OBS`, `Inferred` for `INF`, and `Open questions` for `OQ`.
-Equivalent translated headings may express the same kinds. Define an ID only
-once within a specification. IDs are local to their canonical specification,
-so an address is the resolved specification path plus the ID. An identifier
-adds addressability, not authority or proof.
+Extensions use `x-*`. Ordinary Markdown links remain navigation or references;
+they do not become typed edges.
 
-In the architecture index, `System-wide decisions` and `System-wide
-constraints` are the corresponding owners of `DEC` and `CON` identifiers.
-When documentation headings are translated, a dependency-free checker may
-report section compatibility as unverified rather than treating the translated
-heading as an error. Semantic review remains responsible for confirming the
-translated statement kind.
+`contains` and `decomposes-into` MUST be acyclic. Use `related-to` only when no
+more precise relation is justified.
 
-A reference is an ordinary Markdown link whose complete visible label is the
-target ID and whose destination is the target specification:
+## Decomposition and reachability
 
-```markdown
-- Job processing must preserve
-  [CON-retry-limit](job-processing.md).
-```
+Split a node when a concern has independent ownership, lifecycle, contracts,
+constraints, consumers, or evolution. Do not split merely because a document
+is long. Do not mirror classes or directories.
 
-This binds the path and ID in one Markdown AST node. A checker can recognize a
-reference by the ID-shaped link label and resolve it without interpreting
-adjacent prose. Keep human context outside the link when useful.
+Every Markdown specification MUST be reachable from `README.md` through
+relative links. Every registered asset is reached from its canonical owner.
+Generated views and external links do not establish reachability.
 
-Definitions use bold IDs; references use linked IDs. Do not define addressable
-statements in tables or diagrams. Do not invent a URL fragment such as
-`job-processing.md#CON-retry-limit`; the ID does not create a Markdown anchor.
+## Reconstruction invariant
 
-Once referenced externally, keep the identifier stable across wording changes.
-If its meaning is replaced, retain a short tombstone that points to the
-replacement instead of silently reusing or deleting the identifier:
-
-```markdown
-- **DEC-legacy-session-model** — Superseded by
-  [DEC-provider-independent-sessions](session-management.md).
-```
-
-When ownership moves to another specification, leave the same kind of
-tombstone in the old canonical location and link its replacement by ID.
-
-## Visual representations
-
-Choose the smallest representation that makes the relationship easier to read:
-
-- unordered lists for responsibilities, boundaries, rules, and dependencies;
-- ordered lists for protocols and ordered lifecycles;
-- Markdown tables for comparisons, ownership matrices, interface mappings, and
-  repeated fields;
-- Mermaid `flowchart` for components, dependencies, and data flow;
-- Mermaid `sequenceDiagram` for multi-party interactions;
-- Mermaid `stateDiagram-v2` for states and transitions;
-- Mermaid `erDiagram` for conceptual data relationships;
-- Mermaid `classDiagram` for architectural types and contracts;
-- Mermaid `mindmap` for a compact area overview when the target renderer
-  supports it reliably.
-
-Use a focused diagram when prose would otherwise make the reader reconstruct a
-non-trivial topology, interaction, lifecycle, or data relationship. In
-particular, an overview connecting three or more independently owned
-components normally needs a flowchart; a multi-party protocol normally needs a
-sequence diagram; a meaningful lifecycle normally needs a state diagram; and
-several durable data relationships may need an ER diagram. Omit a diagram when
-the relationship is genuinely clearer as a short list or table. Do not add a
-decorative diagram merely to satisfy a count.
-
-Never use ASCII diagrams. They render inconsistently and break under wrapping
-or automated editing.
-
-A diagram must not be the only source of meaning. State its important
-conclusion in nearby prose, a list, or a table. Keep one diagram focused on one
-question, avoid file- or function-level detail, and do not maintain duplicate
-copies of the same topology in several specifications.
-
-## Canonical ownership
-
-Each important concept should have one canonical specification.
-
-Small summaries may appear elsewhere for context, but detailed definitions and
-decisions should link back to the canonical home.
-
-When two specifications contain competing definitions:
-
-1. Choose the clearer canonical home.
-2. Move the full definition there.
-3. Replace the duplicate with a short summary and link.
-
-## Decomposition
-
-Create a separate specification when a concept:
-
-- has an independent responsibility;
-- contains several meaningful decisions;
-- has its own behavior or boundary;
-- is referenced by multiple other specifications;
-- can evolve independently.
-
-Do not split based only on line count.
-
-After a split, keep the broader specification as a concise overview and
-navigation point.
-
-## Terminal detail
-
-Refine a specification until an implementation agent can understand:
-
-- responsibility;
-- boundaries;
-- significant behavior;
-- dependencies;
-- important interfaces, data ownership, and lifecycle where relevant;
-- architecturally significant failure and edge behavior;
-- accepted decisions;
-- important constraints.
-
-Stop when the quality and compression criteria are satisfied and additional
-prose would mostly reproduce source code, framework boilerplate, function
-calls, local algorithms, or exhaustive input matrices.
-
-## Reachability
-
-Every specification should be reachable from:
-
-- `<spine-root>/README.md`; or
-- another reachable specification.
-
-The purpose is practical navigation, not formal graph validation.
+An area is `ready` only when a capable agent can implement it without source
+access or policy invention, using the selected closure, registered assets, and
+verification criteria. `ready` claims contract or architecture equivalence
+according to `implementation_freedom`; it never claims source-code identity
+unless exact choices are themselves specified.

@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 SEARCH_PATH = ROOT / "skills/specspine-extract/scripts/search_spine.py"
-SPEC = importlib.util.spec_from_file_location("specspine_v2_extract", SEARCH_PATH)
+SPEC = importlib.util.spec_from_file_location("specspine_v3_extract", SEARCH_PATH)
 assert SPEC and SPEC.loader
 SEARCH = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = SEARCH
@@ -26,19 +26,6 @@ Example project.
 
 - [Payments](payments.md) — payments owner.
 
-## Coverage
-
-### Mapped
-
-- [Payments](payments.md) — sufficiently mapped.
-
-### Partially mapped
-
-- Reporting — incomplete.
-
-### Unmapped
-
-- Forecasting.
 """
 
 PAYMENTS = """# Payments
@@ -83,6 +70,10 @@ Defines the bounded retry policy.
 ## Constraints
 
 - **CON-policy-bound** — Retries are bounded.
+
+## Verification
+
+- **VER-policy-bound** — A retry sequence stops at its configured bound.
 <!-- specspine:semantic-ids:end -->
 """
 
@@ -94,6 +85,7 @@ class ExtractTests(unittest.TestCase):
         (self.spine / "README.md").write_text(INDEX, encoding="utf-8")
         (self.spine / "payments.md").write_text(PAYMENTS, encoding="utf-8")
         (self.spine / "policy.md").write_text(POLICY, encoding="utf-8")
+        self.write_manifest()
 
     def tearDown(self):
         self.temporary.cleanup()
@@ -106,14 +98,142 @@ class ExtractTests(unittest.TestCase):
         payload.update(overrides)
         return SEARCH.build_closure(self.spine, payload)
 
+    def write_manifest(self, payment_status="partial", assets=None):
+        facets = [
+            "architecture", "behavior", "interfaces", "data", "failure",
+            "quality", "verification",
+        ]
+        payload = {
+            "specspine": 3,
+            "project": "test",
+            "implementation_freedom": "contract-equivalent",
+            "areas": [
+                {
+                    "owner": "payment-processing",
+                    "facets": {
+                        facet: (
+                            payment_status
+                            if facet in {
+                                "architecture", "behavior", "failure",
+                                "verification",
+                            }
+                            else "not-applicable"
+                        )
+                        for facet in facets
+                    },
+                    "blockers": [],
+                },
+                {
+                    "owner": "retry-policy",
+                    "facets": {
+                        facet: (
+                            "complete"
+                            if facet in {"architecture", "behavior", "verification"}
+                            else "not-applicable"
+                        )
+                        for facet in facets
+                    },
+                    "blockers": [],
+                },
+            ],
+            "assets": assets or [],
+        }
+        (self.spine / "specspine.json").write_text(
+            json.dumps(payload), encoding="utf-8"
+        )
+
     def test_exact_id_owner_and_typed_closure(self):
         result = self.query()
-        self.assertEqual("complete", result["closure_status"])
+        self.assertEqual("incomplete", result["status"]["code"])
         self.assertEqual("payment-processing", result["primary"]["id"])
         self.assertEqual(["retry-policy"], [item["id"] for item in result["required"]])
         self.assertEqual(["CON-payment-idempotency", "CON-policy-bound"], [
             item["id"] for item in result["constraints"]
         ])
+        self.assertEqual("partial", result["status"]["facets"]["architecture"])
+
+    def test_returns_v3_normative_claims_and_computed_status(self):
+        self.write_manifest(payment_status="complete")
+        (self.spine / "payments.md").write_text(
+            PAYMENTS.replace(
+                "## Constraints",
+                """## Requirements
+
+- **REQ-payment-result** — Payment MUST expose a terminal result.
+
+## Guarantees
+
+- **GUA-payment-idempotency** — Duplicate results MUST be harmless.
+
+## Invariants
+
+- **INV-payment-identity** — Payment identity MUST remain stable.
+
+## Quality constraints
+
+- **QLT-payment-latency** — Result SHOULD be visible within one second.
+
+## Verification
+
+- **VER-payment-duplicate** — Replaying a result leaves one transition.
+
+## Constraints""",
+            ),
+            encoding="utf-8",
+        )
+        result = self.query()
+        self.assertEqual("ready", result["status"]["code"])
+        self.assertEqual(["REQ-payment-result"], [
+            item["id"] for item in result["requirements"]
+        ])
+        self.assertEqual(["GUA-payment-idempotency"], [
+            item["id"] for item in result["guarantees"]
+        ])
+        self.assertEqual(["INV-payment-identity"], [
+            item["id"] for item in result["invariants"]
+        ])
+        self.assertEqual(["QLT-payment-latency"], [
+            item["id"] for item in result["quality_constraints"]
+        ])
+        self.assertEqual(["VER-payment-duplicate", "VER-policy-bound"], [
+            item["id"] for item in result["verification"]
+        ])
+
+    def test_returns_owned_machine_readable_contract_assets(self):
+        contracts = self.spine / "contracts"
+        contracts.mkdir()
+        (contracts / "payments.openapi.yaml").write_text(
+            "openapi: 3.1.0\n", encoding="utf-8"
+        )
+        (self.spine / "payments.md").write_text(
+            PAYMENTS
+            + "\n## Interfaces\n\n"
+            + "[Payment API](contracts/payments.openapi.yaml) is normative.\n",
+            encoding="utf-8",
+        )
+        self.write_manifest(assets=[{
+            "path": "contracts/payments.openapi.yaml",
+            "owner": "payment-processing",
+            "role": "interface-contract",
+            "format": "openapi-3.1",
+            "normative": True,
+            "verifies": [],
+        }])
+        result = self.query()
+        self.assertEqual(
+            ["contracts/payments.openapi.yaml"],
+            [item["path"] for item in result["assets"]],
+        )
+
+    def test_manifest_blocker_controls_status(self):
+        manifest = json.loads((self.spine / "specspine.json").read_text())
+        manifest["areas"][0]["blockers"] = ["OQ-retry-limit"]
+        (self.spine / "specspine.json").write_text(json.dumps(manifest))
+
+        result = self.query()
+
+        self.assertEqual("blocked", result["status"]["code"])
+        self.assertEqual(["OQ-retry-limit"], result["status"]["blockers"])
 
     def test_spine_relative_query_path_selects_spine_document(self):
         result = self.query(
@@ -136,6 +256,22 @@ Defines the system retry ceiling.
 - owns the system retry ceiling.
 """
         (self.spine / "base.md").write_text(base, encoding="utf-8")
+        manifest = json.loads((self.spine / "specspine.json").read_text())
+        manifest["areas"].append({
+            "owner": "base-policy",
+            "facets": {
+                facet: (
+                    "complete"
+                    if facet in {"architecture", "behavior"}
+                    else "partial"
+                    if facet == "verification"
+                    else "not-applicable"
+                )
+                for facet in SEARCH.CHECKER.FACET_NAMES
+            },
+            "blockers": [],
+        })
+        (self.spine / "specspine.json").write_text(json.dumps(manifest))
         (self.spine / "policy.md").write_text(
             POLICY + """
 
@@ -200,7 +336,7 @@ Defines the system retry ceiling.
         source_paths = ["small.md", "large.md"]
         result = SEARCH._attach_concatenated_files(
             self.spine.resolve(),
-            {"closure_status": "complete", "sources": source_paths},
+            {"status": {"code": "ready"}, "sources": source_paths},
             source_paths,
             256,
         )
@@ -371,15 +507,11 @@ Defines the system retry ceiling.
 
     def test_no_match_is_explicit(self):
         result = self.query(targets=[], terms=[["absent"]])
-        self.assertEqual("no-match", result["closure_status"])
+        self.assertEqual("no-match", result["status"]["code"])
 
-    def test_partial_coverage_cannot_be_complete(self):
-        (self.spine / "README.md").write_text(
-            INDEX.replace("### Mapped\n\n- [Payments]", "### Mapped\n\n- Other\n\n### Partially mapped\n\n- [Payments]"),
-            encoding="utf-8",
-        )
+    def test_incomplete_facets_cannot_be_ready(self):
         result = self.query()
-        self.assertEqual("partial", result["closure_status"])
+        self.assertEqual("incomplete", result["status"]["code"])
 
     def test_truncation_is_explicit(self):
         (self.spine / "payments.md").write_text(
@@ -390,14 +522,15 @@ Defines the system retry ceiling.
             encoding="utf-8",
         )
         result = self.query(token_budget=128)
-        self.assertEqual("truncated", result["closure_status"])
+        self.assertEqual("truncated", result["status"]["code"])
+        self.assertEqual("incomplete", result["status"]["area_code"])
         self.assertTrue(result["omitted"])
         self.assertLessEqual(SEARCH._estimated_tokens(result), 128)
 
     def test_invalid_query_and_invalid_spine(self):
-        self.assertEqual("invalid", SEARCH.build_closure(self.spine, {"unknown": 1})["closure_status"])
-        (self.spine / "payments.md").write_text("# Legacy\n", encoding="utf-8")
-        self.assertEqual("invalid", self.query()["closure_status"])
+        self.assertEqual("invalid", SEARCH.build_closure(self.spine, {"unknown": 1})["status"]["code"])
+        (self.spine / "payments.md").write_text("# Invalid\n", encoding="utf-8")
+        self.assertEqual("invalid", self.query()["status"]["code"])
 
     def test_mechanical_error_makes_closure_invalid(self):
         (self.spine / "payments.md").write_text(
@@ -405,11 +538,11 @@ Defines the system retry ceiling.
             encoding="utf-8",
         )
         result = self.query()
-        self.assertEqual("invalid", result["closure_status"])
-        self.assertEqual("invalid_spine", result["reason"])
+        self.assertEqual("invalid", result["status"]["code"])
+        self.assertEqual("invalid_spine", result["status"]["reason"])
         self.assertIn("BROKEN_LINK", [item.get("code") for item in result["omitted"]])
 
-    def test_coverage_uses_full_relative_target_not_basename(self):
+    def test_manifest_status_uses_document_id_not_basename(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "client").mkdir()
@@ -426,19 +559,6 @@ Example project.
 - [Client auth](client/auth.md) — client owner.
 - [Server auth](server/auth.md) — server owner.
 
-## Coverage
-
-### Mapped
-
-- [Client auth](client/auth.md) — sufficiently mapped.
-
-### Partially mapped
-
-- None.
-
-### Unmapped
-
-- [Server auth](server/auth.md) — server failure behavior is unknown.
 """,
                 encoding="utf-8",
             )
@@ -456,14 +576,40 @@ Owns {area} authentication.
 """,
                     encoding="utf-8",
                 )
+            facets = {
+                name: (
+                    "not-applicable"
+                    if name in {"interfaces", "data", "quality"}
+                    else "missing"
+                )
+                for name in SEARCH.CHECKER.FACET_NAMES
+            }
+            (root / "specspine.json").write_text(json.dumps({
+                "specspine": 3,
+                "project": "test",
+                "implementation_freedom": "contract-equivalent",
+                "areas": [
+                    {
+                        "owner": "client-auth",
+                        "facets": {**facets, "architecture": "complete"},
+                        "blockers": [],
+                    },
+                    {
+                        "owner": "server-auth",
+                        "facets": {**facets, "architecture": "missing"},
+                        "blockers": [],
+                    },
+                ],
+                "assets": [],
+            }), encoding="utf-8")
             result = SEARCH.build_closure(root, {
                 "targets": ["server-auth"],
                 "terms": [],
                 "facets": [],
                 "token_budget": 8000,
             })
-            self.assertEqual("partial", result["closure_status"])
-            self.assertEqual("unmapped", result["coverage"])
+            self.assertEqual("incomplete", result["status"]["code"])
+            self.assertEqual("missing", result["status"]["facets"]["architecture"])
 
     def test_cli_is_deterministic_machine_json(self):
         payload = {"targets": ["payment-processing"], "terms": [], "facets": [], "token_budget": 8000}
@@ -472,7 +618,7 @@ Owns {area} authentication.
         second = subprocess.run(command, text=True, capture_output=True, check=False)
         self.assertEqual(0, first.returncode, first.stderr)
         self.assertEqual(first.stdout, second.stdout)
-        self.assertEqual("complete", json.loads(first.stdout)["closure_status"])
+        self.assertEqual("incomplete", json.loads(first.stdout)["status"]["code"])
 
 
 if __name__ == "__main__":

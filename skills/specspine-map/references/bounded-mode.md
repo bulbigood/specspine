@@ -20,17 +20,18 @@ Do not:
 - invent or evolve intended architecture; use `specspine-grow`;
 - perform a general Spine integrity review; use `specspine-doctor`;
 - extract downstream task context; use `specspine-extract`;
-- modify production code or create requirements, plans, tasks, or
-  implementation status;
+- modify production code or create normative requirements, plans, tasks, or
+  implementation status from repository evidence;
 - prove code/spec conformance or complete coverage.
 
 ## Workflow
 
 1. Resolve `<spine-root>` using `spec-format.md`. If its `README.md` is absent
-   and live writes are authorized, create a minimal v2 index from
-   `assets/templates/architecture-index.md` before discovery, with the whole
-   project `Unmapped`. If a separate output root was supplied, keep the live
-   root read-only and stop for setup. Then read the index, relevant
+   and live writes are authorized, create a minimal v3-compatible index from
+   `assets/templates/architecture-index.md` plus mandatory `specspine.json`
+   before discovery. Start with no invented area owners. If a separate output
+   root was supplied, keep the live root read-only and stop for setup. Then read
+   the index, relevant
    specifications, and only repository documentation or architecture records
    needed to understand existing intent.
 2. Perform one shallowest useful mapping step for the requested scope. A step

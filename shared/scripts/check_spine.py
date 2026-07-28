@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check deterministic integrity rules for a SpecSpine Markdown graph."""
+"""Check deterministic integrity rules for a SpecSpine v3 bundle."""
 
 from __future__ import annotations
 
@@ -14,7 +14,9 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 
-ID_RE = re.compile(r"^(DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$")
+ID_RE = re.compile(
+    r"^(DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$"
+)
 DOCUMENT_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 IDENTITY_RE = re.compile(
     r"^\*\*ID:\*\*\s+`([^`]+)`\s+·\s+\*\*Kind:\*\*\s+`([^`]+)`\s*$"
@@ -32,24 +34,61 @@ SECTION_PREFIXES = {
     "System-wide decisions": "DEC",
     "Constraints": "CON",
     "System-wide constraints": "CON",
+    "Requirements": "REQ",
+    "System-wide requirements": "REQ",
+    "Guarantees": "GUA",
+    "System-wide guarantees": "GUA",
+    "Invariants": "INV",
+    "System-wide invariants": "INV",
+    "Quality constraints": "QLT",
+    "System-wide quality constraints": "QLT",
+    "Verification": "VER",
     "Observed": "OBS",
     "Inferred": "INF",
     "Open questions": "OQ",
 }
 CORE_KINDS = {
     "index", "system", "subsystem", "component", "capability", "behavior",
-    "interface", "data", "policy", "invariant", "decision", "deployment",
-    "concept",
+    "interface", "data", "policy", "deployment", "concept",
 }
 CORE_RELATIONS = {
     "contains", "decomposes-into", "performs", "depends-on", "exposes",
     "consumes", "publishes", "reads-from", "writes-to", "owns-data",
     "constrained-by", "implemented-by", "has-evidence", "superseded-by",
-    "related-to",
+    "related-to", "refines", "satisfies", "verified-by", "specified-by",
+    "compatible-with", "migrates-from",
 }
 RELATION_HEADER = ("Relation", "Target", "Meaning")
 DIVERGENCE_HEADER = ("Intended", "Observed", "Consequence")
-COVERAGE_STATUSES = ("Mapped", "Partially mapped", "Unmapped")
+MANIFEST_NAME = "specspine.json"
+MANIFEST_KEYS = {
+    "specspine", "project", "implementation_freedom", "areas", "assets",
+}
+AREA_KEYS = {"owner", "facets", "blockers"}
+FACET_NAMES = (
+    "architecture", "behavior", "interfaces", "data", "failure", "quality",
+    "verification",
+)
+FACET_NAME_SET = set(FACET_NAMES)
+FACET_VALUES = {"complete", "partial", "missing", "not-applicable"}
+ASSET_KEYS = {"path", "owner", "role", "format", "normative", "verifies"}
+ASSET_ROLES = {
+    "interface-contract", "data-schema", "scenario", "fixture",
+    "verification",
+}
+KIND_REQUIRED_FACETS = {
+    "system": {"architecture", "behavior", "failure", "verification"},
+    "subsystem": {"architecture", "behavior", "failure", "verification"},
+    "component": {"architecture", "behavior", "failure", "verification"},
+    "capability": {"architecture", "behavior", "failure", "verification"},
+    "behavior": {"architecture", "behavior", "failure", "verification"},
+    "interface": {"architecture", "interfaces", "failure", "verification"},
+    "data": {"architecture", "data", "failure", "verification"},
+    "policy": {"architecture", "behavior", "verification"},
+    "deployment": {"architecture", "failure", "quality", "verification"},
+    "concept": {"architecture"},
+}
+NORMATIVE_PREFIXES = ("DEC-", "CON-", "REQ-", "GUA-", "INV-", "QLT-", "VER-")
 
 
 @dataclass(frozen=True)
@@ -305,7 +344,7 @@ def _table_rows(lines: list[str], start: int) -> tuple[tuple[str, ...], list[tup
     return header, [(number, cells(value)) for number, value in visible[2:]]
 
 
-def _parse_v2_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
+def _parse_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeError) as error:
@@ -450,17 +489,76 @@ def _parse_v2_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
     return node
 
 
+def _load_manifest(root: Path, findings: list[Finding]) -> dict[str, object] | None:
+    path = root / MANIFEST_NAME
+    if not path.is_file() or path.is_symlink():
+        add(
+            findings, "error", "MANIFEST_MISSING", path, root,
+            f"root {MANIFEST_NAME} is required",
+        )
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        add(findings, "error", "MANIFEST_INVALID", path, root, str(error))
+        return None
+    if not isinstance(value, dict):
+        add(
+            findings, "error", "MANIFEST_INVALID", path, root,
+            "manifest root must be an object",
+        )
+        return None
+    unknown = set(value) - MANIFEST_KEYS
+    missing = MANIFEST_KEYS - set(value)
+    if unknown:
+        add(
+            findings, "error", "MANIFEST_UNKNOWN_KEY", path, root,
+            f"unknown manifest key: {sorted(unknown)[0]}",
+        )
+    if missing:
+        add(
+            findings, "error", "MANIFEST_MISSING_KEY", path, root,
+            f"missing manifest key: {sorted(missing)[0]}",
+        )
+    if value.get("specspine") != 3:
+        add(
+            findings, "error", "MANIFEST_VERSION", path, root,
+            "specspine must be the integer 3",
+        )
+    if not isinstance(value.get("project"), str) or not value.get("project", "").strip():
+        add(
+            findings, "error", "MANIFEST_PROJECT", path, root,
+            "project must be a nonempty string",
+        )
+    if value.get("implementation_freedom") not in {
+        "contract-equivalent", "architecture-constrained", "exact",
+    }:
+        add(
+            findings, "error", "MANIFEST_IMPLEMENTATION_FREEDOM", path, root,
+            "implementation_freedom must be contract-equivalent, "
+            "architecture-constrained, or exact",
+        )
+    for key in ("areas", "assets"):
+        if not isinstance(value.get(key), list):
+            add(
+                findings, "error", "MANIFEST_INVALID", path, root,
+                f"{key} must be an array",
+            )
+    return value
+
+
 def check(root: Path) -> list[Finding]:
-    """Validate the canonical Markdown graph."""
+    """Validate the canonical v3 specification graph and manifest."""
     root = root.resolve()
     findings: list[Finding] = []
     if not root.is_dir():
         return [Finding("error", "ROOT_MISSING", ".", None, f"SpecSpine root does not exist: {root}")]
+    manifest = _load_manifest(root, findings)
     files = sorted(path for path in root.rglob("*.md") if path.is_file() and not path.is_symlink())
     index = root / "README.md"
     if not index.is_file():
         add(findings, "error", "INDEX_MISSING", index, root, "root README.md is required")
-    nodes = [_parse_v2_node(path, root, findings) for path in files]
+    nodes = [_parse_node(path, root, findings) for path in files]
     by_path = {node.path.resolve(): node for node in nodes}
     by_id: dict[str, _Node] = {}
     global_statements: dict[str, tuple[_Node, str, int]] = {}
@@ -479,6 +577,7 @@ def check(root: Path) -> list[Finding]:
     edges: list[tuple[_Node, str, _Node, str, int]] = []
     edge_keys: set[tuple[str, str, str, str]] = set()
     graph: dict[Path, set[Path]] = {node.path.resolve(): set() for node in nodes}
+    linked_assets: dict[Path, set[str]] = {}
     for node in nodes:
         for number, link in node.links or []:
             if not link.target:
@@ -493,6 +592,10 @@ def check(root: Path) -> list[Finding]:
                     graph[node.path.resolve()].add(target.resolve())
                     if ID_RE.fullmatch(link.label) and link.label not in (by_path[target.resolve()].statements or {}):
                         add(findings, "error", "UNRESOLVED_ID", node.path, root, f"target does not define {link.label}", number)
+                elif target.is_file():
+                    linked_assets.setdefault(target.resolve(), set()).add(
+                        node.document_id
+                    )
             if ID_RE.fullmatch(link.label) and "#" in link.target:
                 add(findings, "error", "ID_FRAGMENT", node.path, root, "semantic-ID reference must not use a fragment", number)
 
@@ -528,24 +631,157 @@ def check(root: Path) -> list[Finding]:
                 edge_keys.add(key)
                 edges.append((node, relation, target_node, statement, number))
 
+    registered_assets: set[Path] = set()
+    area_owners: set[str] = set()
+    area_facets: dict[str, dict[str, str]] = {}
+    verification_support: set[str] = {
+        node.document_id
+        for node in nodes
+        if any(identifier.startswith("VER-") for identifier in (node.statements or {}))
+    }
+    if manifest is not None:
+        areas = manifest.get("areas", [])
+        if isinstance(areas, list):
+            for position, area in enumerate(areas):
+                label = f"areas[{position}]"
+                if not isinstance(area, dict):
+                    add(findings, "error", "MANIFEST_AREA", root / MANIFEST_NAME, root, f"{label} must be an object")
+                    continue
+                unknown = set(area) - AREA_KEYS
+                missing = AREA_KEYS - set(area)
+                if unknown or missing:
+                    detail = (
+                        f"unknown key {sorted(unknown)[0]}"
+                        if unknown else f"missing key {sorted(missing)[0]}"
+                    )
+                    add(findings, "error", "MANIFEST_AREA", root / MANIFEST_NAME, root, f"{label}: {detail}")
+                owner = area.get("owner")
+                if not isinstance(owner, str) or owner not in by_id or by_id[owner].kind == "index":
+                    add(findings, "error", "MANIFEST_AREA_OWNER", root / MANIFEST_NAME, root, f"{label} has unknown non-index owner")
+                    continue
+                if owner in area_owners:
+                    add(findings, "error", "MANIFEST_DUPLICATE_AREA", root / MANIFEST_NAME, root, f"duplicate area owner: {owner}")
+                area_owners.add(owner)
+                facets = area.get("facets")
+                if not isinstance(facets, dict) or set(facets) != FACET_NAME_SET:
+                    add(findings, "error", "MANIFEST_FACETS", root / MANIFEST_NAME, root, f"{label}.facets must contain exactly {', '.join(sorted(FACET_NAMES))}")
+                else:
+                    area_facets[owner] = dict(facets)
+                    for facet, status in facets.items():
+                        if status not in FACET_VALUES:
+                            add(findings, "error", "MANIFEST_FACET_VALUE", root / MANIFEST_NAME, root, f"{label}.facets.{facet} has invalid value: {status}")
+                    for facet in KIND_REQUIRED_FACETS.get(by_id[owner].kind, {"architecture"}):
+                        if facets.get(facet) == "not-applicable":
+                            add(findings, "error", "MANIFEST_REQUIRED_FACET", root / MANIFEST_NAME, root, f"{owner} kind {by_id[owner].kind} requires facet {facet}")
+                blockers = area.get("blockers")
+                if not isinstance(blockers, list) or not all(isinstance(item, str) for item in blockers):
+                    add(findings, "error", "MANIFEST_BLOCKERS", root / MANIFEST_NAME, root, f"{label}.blockers must be an array of OQ IDs")
+                else:
+                    if len(blockers) != len(set(blockers)):
+                        add(findings, "error", "MANIFEST_DUPLICATE_BLOCKER", root / MANIFEST_NAME, root, f"{label}.blockers contains duplicates")
+                    for blocker in blockers:
+                        statement = global_statements.get(blocker)
+                        if statement is None or not blocker.startswith("OQ-"):
+                            add(findings, "error", "MANIFEST_BLOCKER", root / MANIFEST_NAME, root, f"{label} references unknown blocking question: {blocker}")
+
+        assets = manifest.get("assets", [])
+        if isinstance(assets, list):
+            for position, asset in enumerate(assets):
+                label = f"assets[{position}]"
+                if not isinstance(asset, dict):
+                    add(findings, "error", "MANIFEST_ASSET", root / MANIFEST_NAME, root, f"{label} must be an object")
+                    continue
+                unknown = set(asset) - ASSET_KEYS
+                missing = ASSET_KEYS - set(asset)
+                if unknown or missing:
+                    detail = (
+                        f"unknown key {sorted(unknown)[0]}"
+                        if unknown else f"missing key {sorted(missing)[0]}"
+                    )
+                    add(findings, "error", "MANIFEST_ASSET", root / MANIFEST_NAME, root, f"{label}: {detail}")
+                relative = asset.get("path")
+                owner = asset.get("owner")
+                if not isinstance(relative, str) or not relative or Path(relative).is_absolute():
+                    add(findings, "error", "MANIFEST_ASSET_PATH", root / MANIFEST_NAME, root, f"{label}.path must be a relative path")
+                    continue
+                if Path(relative).suffix.casefold() == ".md":
+                    add(findings, "error", "MANIFEST_ASSET_PATH", root / MANIFEST_NAME, root, f"{label}.path must name a non-Markdown file")
+                    continue
+                target = (root / relative).resolve()
+                if not within(target, root) or target == (root / MANIFEST_NAME).resolve():
+                    add(findings, "error", "MANIFEST_ASSET_PATH", root / MANIFEST_NAME, root, f"{label}.path escapes the Spine or names the manifest")
+                    continue
+                if target in registered_assets:
+                    add(findings, "error", "MANIFEST_DUPLICATE_ASSET", root / MANIFEST_NAME, root, f"duplicate asset path: {relative}")
+                registered_assets.add(target)
+                if not target.is_file() or target.is_symlink():
+                    add(findings, "error", "MANIFEST_ASSET_MISSING", root / MANIFEST_NAME, root, f"registered asset does not exist: {relative}")
+                if not isinstance(owner, str) or owner not in by_id or by_id[owner].kind == "index":
+                    add(findings, "error", "MANIFEST_ASSET_OWNER", root / MANIFEST_NAME, root, f"{label} has unknown non-index owner")
+                elif owner not in linked_assets.get(target, set()):
+                    add(findings, "error", "MANIFEST_ASSET_LINK", root / MANIFEST_NAME, root, f"{relative} must be linked from its owner {owner}")
+                if asset.get("role") not in ASSET_ROLES:
+                    add(findings, "error", "MANIFEST_ASSET_ROLE", root / MANIFEST_NAME, root, f"{label}.role is invalid")
+                if not isinstance(asset.get("format"), str) or not asset.get("format", "").strip():
+                    add(findings, "error", "MANIFEST_ASSET_FORMAT", root / MANIFEST_NAME, root, f"{label}.format must be nonempty")
+                if not isinstance(asset.get("normative"), bool):
+                    add(findings, "error", "MANIFEST_ASSET_NORMATIVE", root / MANIFEST_NAME, root, f"{label}.normative must be boolean")
+                verifies = asset.get("verifies")
+                if not isinstance(verifies, list) or not all(isinstance(item, str) for item in verifies):
+                    add(findings, "error", "MANIFEST_ASSET_VERIFIES", root / MANIFEST_NAME, root, f"{label}.verifies must be an array of VER IDs")
+                else:
+                    if len(verifies) != len(set(verifies)):
+                        add(findings, "error", "MANIFEST_DUPLICATE_VERIFICATION", root / MANIFEST_NAME, root, f"{label}.verifies contains duplicates")
+                    for identifier in verifies:
+                        if identifier not in global_statements or not identifier.startswith("VER-"):
+                            add(findings, "error", "MANIFEST_ASSET_VERIFICATION", root / MANIFEST_NAME, root, f"{label} references unknown verification: {identifier}")
+                if (
+                    isinstance(owner, str)
+                    and (
+                        asset.get("role") == "verification"
+                        or isinstance(verifies, list) and bool(verifies)
+                    )
+                ):
+                    verification_support.add(owner)
+
+    changed = True
+    while changed:
+        changed = False
+        for source, relation, target, _, _ in edges:
+            if (
+                relation == "verified-by"
+                and target.document_id in verification_support
+                and source.document_id not in verification_support
+            ):
+                verification_support.add(source.document_id)
+                changed = True
+    for owner, facets in area_facets.items():
+        if facets.get("verification") == "complete" and owner not in verification_support:
+            add(
+                findings, "error", "MANIFEST_VERIFICATION_UNSUPPORTED",
+                root / MANIFEST_NAME, root,
+                f"{owner} marks verification complete without VER claims, "
+                "a verification asset, or a verified-by owner",
+            )
+
+    for node in nodes:
+        if node.kind != "index" and node.document_id not in area_owners:
+            add(findings, "error", "MANIFEST_AREA_MISSING", node.path, root, "every non-index specification requires exactly one manifest area")
+    physical_assets = {
+        path.resolve()
+        for path in root.rglob("*")
+        if path.is_file()
+        and not path.is_symlink()
+        and path.suffix.casefold() != ".md"
+        and path.name != MANIFEST_NAME
+    }
+    for asset in sorted(physical_assets - registered_assets):
+        add(findings, "error", "UNREGISTERED_SPEC_ASSET", asset, root, "every non-Markdown specification asset must be registered in specspine.json")
+
     if index in [node.path for node in nodes]:
         index_node = by_path[index.resolve()]
         if index_node.kind != "index":
             add(findings, "error", "INDEX_KIND", index, root, "root README.md must use Kind `index`", index_node.identity_line)
-        coverage = (index_node.sections or {}).get("Coverage")
-        if coverage is None:
-            add(findings, "error", "MISSING_COVERAGE", index, root, "root README.md must contain Coverage")
-        else:
-            subsection_titles: set[str] = set()
-            for number, line in enumerate(index_node.lines, 1):
-                match = ATX_HEADING_RE.match(line)
-                if match and len(match.group(1)) == 3 and number > coverage[0]:
-                    subsection_titles.add(
-                        re.sub(r"[ \t]+#+[ \t]*$", "", match.group(2) or "").strip()
-                    )
-            for status in COVERAGE_STATUSES:
-                if status not in subsection_titles:
-                    add(findings, "error", "MISSING_COVERAGE_STATUS", index, root, f"Coverage lacks '{status}'", coverage[0])
 
     for node in nodes:
         divergence = (node.sections or {}).get("Known divergences")
@@ -564,8 +800,8 @@ def check(root: Path) -> list[Finding]:
                 add(findings, "error", "MALFORMED_DIVERGENCE", node.path, root, "Intended and Observed must each contain one semantic link", number)
                 continue
             intended_id, observed_id = intended[0].label, observed[0].label
-            if not intended_id.startswith(("DEC-", "CON-")):
-                add(findings, "error", "DIVERGENCE_INTENDED_KIND", node.path, root, "Intended must reference DEC or CON", number)
+            if not intended_id.startswith(NORMATIVE_PREFIXES):
+                add(findings, "error", "DIVERGENCE_INTENDED_KIND", node.path, root, "Intended must reference a normative statement", number)
             if not observed_id.startswith("OBS-"):
                 add(findings, "error", "DIVERGENCE_OBSERVED_KIND", node.path, root, "Observed must reference OBS", number)
             if intended_id not in global_statements or observed_id not in global_statements:
@@ -745,12 +981,17 @@ def check_candidates(
         return findings
 
     baseline = {_finding_key(item) for item in check(spine_root)}
-    ignored_overlay_codes = {"ID_SECTION_UNVERIFIED", "UNREACHABLE_SPEC"}
+    ignored_overlay_codes = {
+        "ID_SECTION_UNVERIFIED", "UNREACHABLE_SPEC", "MANIFEST_AREA_MISSING",
+    }
     with tempfile.TemporaryDirectory(prefix="specspine-candidate-check-") as directory:
         overlay = Path(directory)
         for live in sorted(spine_root.rglob("*.md")):
             if live.is_file() and not live.is_symlink():
                 _link_or_copy(live, overlay / live.relative_to(spine_root))
+        manifest = spine_root / MANIFEST_NAME
+        if manifest.is_file() and not manifest.is_symlink():
+            _link_or_copy(manifest, overlay / MANIFEST_NAME)
         for source, relative in candidates:
             destination = overlay / relative
             if destination.exists():

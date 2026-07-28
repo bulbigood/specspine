@@ -1,6 +1,6 @@
 ---
 name: specspine-extract
-description: Use for read-only lookup and handoff from a configured SpecSpine when the user seeks project architecture documentation or context, even without naming SpecSpine. Do not use for non-architecture documentation, code-only work, or mapping code into documentation.
+description: Use for read-only lookup and handoff from a configured SpecSpine when the user seeks architecture, durable requirements, contracts, reconstruction context, or specification documentation. Do not use for code-to-documentation mapping.
 ---
 
 # SpecSpine Extract
@@ -46,6 +46,8 @@ the SpecSpine itself.
 ```
 
 In the answer, cite returned paths as `<spine-root>/<returned-path>`. Preserve
-the result status, omissions, conflicts, evidence labels, and open questions.
-Never claim code/spec conformance. Use the user's requested format; otherwise
-return a concise direct answer.
+the single status object, facets, blockers, normative claims, registered
+assets, omissions, conflicts, evidence labels, and open questions. Treat `OBS`
+as orientation rather than a requirement. Never upgrade `incomplete` or
+`blocked` by inference and never claim code/spec conformance. Use the user's
+requested format; otherwise return a concise direct answer.

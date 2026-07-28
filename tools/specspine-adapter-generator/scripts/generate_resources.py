@@ -15,6 +15,7 @@ PACKAGES = (
     "specspine-grow",
     "specspine-map",
     "specspine-doctor",
+    "specspine-verify",
 )
 IGNORED_NAMES = {
     ".DS_Store",
@@ -24,14 +25,22 @@ SKILL_REFERENCES = {
     "specspine-grow": {
         "spec-format.md": "spec-format.md",
         "spec-semantics.md": "spec-semantics.md",
+        "specspine.schema.json": "specspine.schema.json",
     },
     "specspine-map": {
         "spec-format.md": "spec-format.md",
         "spec-semantics.md": "spec-semantics.md",
+        "specspine.schema.json": "specspine.schema.json",
     },
     "specspine-doctor": {
         "spec-format.md": "spec-format.md",
         "spec-semantics.md": "spec-semantics.md",
+        "specspine.schema.json": "specspine.schema.json",
+    },
+    "specspine-verify": {
+        "spec-format.md": "spec-format.md",
+        "spec-semantics.md": "spec-semantics.md",
+        "specspine.schema.json": "specspine.schema.json",
     },
 }
 SKILL_SCRIPTS = {
@@ -46,6 +55,20 @@ SKILL_SCRIPTS = {
     },
     "specspine-doctor": {
         "check_spine.py": "check_spine.py",
+    },
+    "specspine-verify": {
+        "check_spine.py": "check_spine.py",
+    },
+}
+SKILL_ASSETS = {
+    "specspine-grow": {
+        "templates/specspine.json": "templates/specspine.json",
+    },
+    "specspine-map": {
+        "templates/specspine.json": "templates/specspine.json",
+    },
+    "specspine-doctor": {
+        "templates/specspine.json": "templates/specspine.json",
     },
 }
 WORD_BUDGETS = {
@@ -90,7 +113,11 @@ def shared_files(repo_root: Path, name: str) -> dict[str, Path]:
         f"scripts/{filename}": shared_root / "scripts" / shared_relative
         for filename, shared_relative in SKILL_SCRIPTS.get(name, {}).items()
     }
-    return references | scripts
+    assets = {
+        f"assets/{filename}": shared_root / "assets" / shared_relative
+        for filename, shared_relative in SKILL_ASSETS.get(name, {}).items()
+    }
+    return references | scripts | assets
 
 
 def expected_link(source: Path, destination: Path) -> str:

@@ -19,9 +19,9 @@ General Markdown, HTML, template, and style validation are outside this pass.
 Look for architectural risks supported by the inspected specifications:
 
 - competing canonical owners or duplicated detailed definitions;
-- contradictory decisions or constraints;
+- contradictory normative claims;
 - observations or inferences presented as accepted intent;
-- decisions without evidence of acceptance;
+- normative claims without evidence of acceptance;
 - open questions silently answered elsewhere;
 - specifications mixing independently evolving responsibilities;
 - fragmentation without independent responsibility or navigation value;
@@ -29,7 +29,7 @@ Look for architectural risks supported by the inspected specifications:
   though several documents form stable, cohesive subject areas;
 - stale overview text or links after decomposition;
 - important direct relationships hidden behind unnecessary navigation hops;
-- feature-specific scope, acceptance criteria, tasks, or status;
+- temporary feature scope, delivery acceptance, tasks, or status;
 - source-level walkthroughs and fragile implementation inventories;
 - missing architecturally significant edge or failure behavior required by the
   specification's stated responsibility;
@@ -37,6 +37,8 @@ Look for architectural risks supported by the inspected specifications:
   prose makes the reader reconstruct despite the format's visual criterion;
 - diagrams that are the only source of important meaning;
 - semantic IDs used indiscriminately or changed after external reference.
+- computed `ready` status without closed normative behavior, registered contracts,
+  verification, or resolution of applicable blocking questions.
 
 Describe each material risk with its evidence, likely impact, confidence, and a
 next action. Use framework terms when they clarify the issue, but do not force a

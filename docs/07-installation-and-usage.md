@@ -2,15 +2,18 @@
 
 ## Runtime skills
 
-SpecSpine is delivered as four coordinated skills:
+SpecSpine is delivered as five coordinated skills:
 
 - `specspine-doctor` connects or disconnects a Spine and checks or repairs
   specification health.
 - `specspine-extract` retrieves the smallest task-specific architecture
   closure.
-- `specspine-grow` creates and evolves accepted intended architecture.
+- `specspine-grow` creates and evolves accepted architecture and durable
+  system specifications.
 - `specspine-map` records observed brownfield architecture from repository
   evidence.
+- `specspine-verify` checks implementation or blind-reconstruction conformance
+  without creating intent.
 
 The skills use natural-language requests; users do not need to learn a command
 workflow.
@@ -32,6 +35,7 @@ Install another individual skill:
 ```bash
 npx skills add bulbigood/specspine --skill specspine-grow
 npx skills add bulbigood/specspine --skill specspine-map
+npx skills add bulbigood/specspine --skill specspine-verify
 ```
 
 List available skills:
@@ -47,6 +51,7 @@ npx skills add bulbigood/specspine --skill specspine-doctor
 npx skills add bulbigood/specspine --skill specspine-extract
 npx skills add bulbigood/specspine --skill specspine-grow
 npx skills add bulbigood/specspine --skill specspine-map
+npx skills add bulbigood/specspine --skill specspine-verify
 ```
 
 ## Connect a project
@@ -58,15 +63,17 @@ Expose this project's SpecSpine to agents through persistent project instruction
 ```
 
 Doctor asks for the Spine root (`specspine` by default), documentation language,
-and project instruction file (`AGENTS.md` by default). It creates a missing root
-index but does not modify an existing index or create concept specifications.
+and project instruction file (`AGENTS.md` by default). It creates a missing
+root index and `specspine.json` together but does not modify an existing root
+or create concept specifications.
 It installs one bounded managed bootstrap and runs the mechanical checker.
 
 Connection administration and health review are separate operations.
 
 The managed project-instruction block contains only the index location,
 documentation language, retrieval route, and compact authority rules. The root
-index contains only project-specific architectural context and coverage.
+index contains only project-specific architectural context; completeness lives
+in `specspine.json`.
 General explanations of the SpecSpine framework remain in this documentation
 and are not copied into either project artifact.
 
@@ -142,18 +149,20 @@ Extract identifies:
 
 - the primary owner;
 - required and potentially affected specifications;
-- applicable decisions and constraints;
-- coverage and confidence;
+- applicable normative claims and owned contracts;
+- computed status, facets, and blockers;
 - known divergences;
 - relevant observations and inferences;
 - blocking questions;
 - omitted information and sources;
-- one closure status.
+- one computed status with facets and blockers.
 
-The machine-readable closure is normative. The Markdown handoff is a temporary
-projection for a downstream feature, SDD, review, or coding workflow. That
-workflow remains responsible for requirements, acceptance criteria, planning,
-implementation, tests, and delivery.
+The machine-readable closure is deterministic. The Markdown handoff is a
+temporary projection for a downstream feature, SDD, review, reconstruction, or
+coding workflow. SpecSpine owns accepted durable requirements and reusable
+black-box verification; downstream owns proposed deltas, temporary delivery
+acceptance, planning, implementation, implementation-specific tests, and
+delivery.
 
 ## Check a Spine
 

@@ -7,14 +7,18 @@ confidence.
 
 - A **Decision** is an accepted architectural choice.
 - A **Constraint** restricts acceptable architecture or implementation.
+- A **Requirement** is an accepted durable system outcome.
+- A **Guarantee** is an accepted externally observable promise.
+- An **Invariant** must hold across valid states or transitions.
+- A **Quality constraint** is an accepted measurable non-functional limit.
+- **Verification** defines durable implementation-independent conformance.
 - **Observed** records a fact directly supported by repository evidence.
 - **Inferred** records an unconfirmed interpretation of evidence.
 - An **Open question** preserves unresolved uncertainty.
 
-Putting text under `Decisions` or `Constraints` records acceptance but MUST NOT
-be used by an agent to manufacture acceptance. An explicit user decision, an
-already accepted Spine claim, or an authorized external workflow establishes
-intent.
+Putting text under a normative section records acceptance but MUST NOT be used
+by an agent to manufacture acceptance. An explicit user decision, an already
+accepted Spine claim, or an authorized external workflow establishes intent.
 
 An observation describes what currently exists; it does not establish what
 should exist. An inference MUST NOT be presented as a decision, constraint, or
@@ -40,11 +44,11 @@ authorities for implementation reality and observed behavior.
 
 ## Conflict semantics
 
-- Decisions and constraints describe accepted intent.
+- Normative claims describe accepted intent.
 - Observations describe current evidence.
 - Inferences remain unconfirmed.
-- Observations do not override decisions or constraints.
-- Decisions and constraints do not prove implementation.
+- Observations do not override normative claims.
+- Normative claims do not prove implementation.
 - An agent MUST NOT silently choose intent or implementation when they differ.
 
 A confirmed, architecture-significant conflict is stored once:
@@ -57,7 +61,7 @@ A confirmed, architecture-significant conflict is stored once:
 | [CON-payment-idempotency](payment-invariants.md) | [OBS-provider-event-not-deduplicated](payment-processing.md) | A duplicate transition is possible |
 ```
 
-Each row MUST reference an existing `DEC` or `CON`, reference an existing
+Each row MUST reference an existing normative statement, reference an existing
 repository-backed `OBS`, and state a non-empty architectural consequence.
 
 The canonical row belongs either to the owner of the affected responsibility or
@@ -81,9 +85,9 @@ explicitly checked. A suspected but unconfirmed conflict belongs in `Inferred`.
 Before changing code, an architecture-aware agent MUST:
 
 1. identify the primary owner and document ID;
-2. obtain applicable Decisions and Constraints;
+2. obtain applicable normative claims and contracts;
 3. inspect Boundaries and typed relationships;
-4. determine coverage of the affected area;
+4. inspect manifest facets and blockers for the affected area;
 5. obtain applicable Known divergences;
 6. preserve blocking Open questions;
 7. distinguish existing intent, an accepted change delta, and implementation
@@ -93,10 +97,10 @@ The agent MUST NOT expand scope to repair unrelated drift. If drift repair is
 in scope, code may be brought into conformance. If authority or scope is
 unclear, the agent must request a decision.
 
-An accepted SDD may supersede existing intent. Its durable claims and
-relationships MUST be transferred into SpecSpine before or together with
-implementation. Implementation-only changes do not require artificial
-documentation growth. Architecture-significant accepted changes do.
+An accepted SDD may supersede existing intent. Its durable requirements,
+guarantees, invariants, verification, and relationships MUST be transferred
+into SpecSpine before or together with implementation. Implementation-only
+changes do not require artificial documentation growth.
 
 An `Observed` statement changes only after evidence is checked again. A Known
 divergence is removed only after its resolution is confirmed.

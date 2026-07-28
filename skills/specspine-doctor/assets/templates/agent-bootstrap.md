@@ -1,14 +1,11 @@
 <!-- specspine:begin -->
-## SpecSpine documentation
+## SpecSpine
 
 - SpecSpine index: `{{SPINE_ROOT}}/README.md`
-- SpecSpine documentation language: `{{DOCUMENTATION_LANGUAGE}}`
+- Documentation language: `{{DOCUMENTATION_LANGUAGE}}`
 
-SpecSpine is the primary source of project architecture intent. Whenever a user
-asks what the project architecture documentation says or searches for
-documented project architecture, use installed `specspine-extract` even if the
-request does not mention SpecSpine. Also use it for architecture-relevant planning,
-specification, implementation, or review. If it is unavailable, read the
-SpecSpine index and follow relevant links. `Decisions` and `Constraints` are
-accepted intent; preserve conflicts with `Observed`, `Inferred`, and `Open questions`.
+Use installed `specspine-extract` for architecture, specification,
+reconstruction, planning, implementation, or review context. Otherwise read
+the index and follow relevant links. Preserve normative claims, observations,
+inferences, divergences, and blocking questions without conflating them.
 <!-- specspine:end -->

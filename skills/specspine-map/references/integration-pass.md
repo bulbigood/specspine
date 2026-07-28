@@ -20,10 +20,13 @@ The root orchestrator must:
 7. Inspect every producer-discovered direction.
 8. Reread the integrated documents for narrower unanswered mechanisms,
    transitions, failures, ownership questions, and consequences.
-9. Append every accepted refinement to persistent ToDo. Do not investigate it
+9. Update `specspine.json` in the same batch: add or remove area entries with
+   their owners, set only evidence-supported facets, preserve normative facets
+   and blockers, and register no asset a producer did not publish and own.
+10. Append every accepted refinement to persistent ToDo. Do not investigate it
    during integration.
-10. Run the full live checker.
-11. After each producer document is integrated and its live checks pass, send
+11. Run the full live checker.
+12. After each producer document is integrated and its live checks pass, send
     the operator an immediate commentary update. Name the producer task, say
     what the integration established or corrected, name every affected
     Spine-relative Markdown path, and label each path `created`, `changed`, or
@@ -31,11 +34,12 @@ The root orchestrator must:
     Report one document's integration before starting the next; do not defer
     these updates until the final campaign summary. Never announce a write
     before it and its checks succeed.
-12. Repeat the cumulative path-and-operation history in every campaign progress
+13. Repeat the cumulative path-and-operation history in every campaign progress
     or final summary, even though each change was already reported immediately.
     If the pass changed no Spine files, explicitly say so.
 
-The root may edit live specifications and `README.md`. Producers may not.
+The root may edit live specifications, `README.md`, and `specspine.json`.
+Producers may not edit the index or manifest.
 
 ## Report
 

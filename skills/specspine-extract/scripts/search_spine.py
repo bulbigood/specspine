@@ -23,8 +23,14 @@ NORMALIZED_PREFIX_LENGTH = 4
 FENCE_RE = re.compile(r"^ {0,3}(?:>\s*)?(`{3,}|~{3,})")
 HEADING_RE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$")
 QUERY_TOKEN_RE = re.compile(r"[^\W_]+(?:-[^\W_]+)*", re.UNICODE)
-DEFINITION_RE = re.compile(r"^ {0,3}[-+*]\s+\*\*((?:DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*)\*\*\s+—\s+(.*)")
-ID_RE = re.compile(r"^(?:DEC|CON|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$")
+DEFINITION_RE = re.compile(
+    r"^ {0,3}[-+*]\s+\*\*((?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-"
+    r"[a-z0-9]+(?:-[a-z0-9]+)*)\*\*\s+—\s+(.*)"
+)
+ID_RE = re.compile(
+    r"^(?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-"
+    r"[a-z0-9]+(?:-[a-z0-9]+)*$"
+)
 DOCUMENT_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 IDENTITY_RE = re.compile(
     r"^\*\*ID:\*\*\s+`([^`]+)`\s+·\s+\*\*Kind:\*\*\s+`([^`]+)`\s*$"
@@ -33,7 +39,8 @@ CORE_RELATIONS = {
     "contains", "decomposes-into", "performs", "depends-on", "exposes",
     "consumes", "publishes", "reads-from", "writes-to", "owns-data",
     "constrained-by", "implemented-by", "has-evidence", "superseded-by",
-    "related-to",
+    "related-to", "refines", "satisfies", "verified-by", "specified-by",
+    "compatible-with", "migrates-from",
 }
 
 
@@ -355,6 +362,7 @@ def _canonical_documents(root: Path) -> tuple[dict[str, dict[str, object]], list
             "responsibility": sections.get("Responsibility", ""),
             "sections": sections, "section_order": section_order,
             "statements": statements, "relationships": [], "divergences": [],
+            "assets": [],
             "text": text,
         }
         paths[path.resolve()] = document_id
@@ -401,40 +409,48 @@ def _canonical_documents(root: Path) -> tuple[dict[str, dict[str, object]], list
     return documents, errors
 
 
-def _coverage(index: dict[str, object], primary: dict[str, object]) -> tuple[str, str]:
-    body = str(index["sections"].get("Coverage", ""))
-    current = ""
-    primary_id, primary_path = str(primary["id"]), str(primary["path"])
-    primary_target = (Path(str(index["root"])) / primary_path).resolve()
-    for line in body.splitlines():
-        if line.startswith("### "):
-            current = line[4:].strip().casefold()
-        elif line.lstrip().startswith(("-", "*")):
-            links = markdown_links(line)
-            linked = False
-            for link in links:
-                if not link.target:
-                    continue
-                target = local_target(
-                    Path(str(index["root"])) / str(index["path"]),
-                    link.target,
-                    Path(str(index["root"])),
-                )
-                if target is not None and target.resolve() == primary_target:
-                    linked = True
-                    break
-            id_mentioned = bool(re.search(
-                rf"(?<![a-z0-9-]){re.escape(primary_id)}(?![a-z0-9-])",
-                line,
-            ))
-            if linked or id_mentioned:
-                mapping = {
-                    "mapped": "mapped",
-                    "partially mapped": "partially-mapped",
-                    "unmapped": "unmapped",
-                }
-                return mapping.get(current, "unknown"), line.lstrip("-* ").strip()
-    return "unknown", "primary area is not classified in Coverage"
+def _manifest(root: Path) -> dict[str, object]:
+    return json.loads((root / "specspine.json").read_text(encoding="utf-8"))
+
+
+def _area_status(
+    manifest: dict[str, object], owners: set[str]
+) -> dict[str, object]:
+    selected = [
+        item
+        for item in manifest["areas"]
+        if isinstance(item, dict) and item.get("owner") in owners
+    ]
+    rank = {"not-applicable": 0, "complete": 1, "partial": 2, "missing": 3}
+    facets = {}
+    for facet in CHECKER.FACET_NAMES:
+        values = [str(area["facets"][facet]) for area in selected]
+        applicable = [value for value in values if value != "not-applicable"]
+        facets[facet] = (
+            max(applicable, key=rank.get)
+            if applicable else "not-applicable"
+        )
+    blockers = sorted({
+        blocker
+        for area in selected
+        for blocker in area["blockers"]
+    })
+    if blockers:
+        code = "blocked"
+        reason = "blocking_questions"
+    elif all(value in {"complete", "not-applicable"} for value in facets.values()):
+        code = "ready"
+        reason = "specification_complete"
+    else:
+        code = "incomplete"
+        reason = "specification_facets_incomplete"
+    return {
+        "code": code,
+        "reason": reason,
+        "owners": sorted(owners),
+        "facets": facets,
+        "blockers": blockers,
+    }
 
 
 def _attach_concatenated_files(
@@ -490,14 +506,35 @@ def _attach_concatenated_files(
         output = render()
 
     if _estimated_tokens(output) > token_budget:
+        area_status = result.get("status", {})
+        status = {
+            "code": "truncated",
+            "reason": "token_budget_exceeded",
+            **(
+                {
+                    "area_code": area_status.get(
+                        "area_code", area_status.get("code")
+                    ),
+                    "owners": area_status.get("owners", []),
+                    "blockers": area_status.get("blockers", []),
+                }
+                if isinstance(area_status, dict)
+                else {}
+            ),
+        }
         output = {
             "concatenated_files": notice,
             "concatenated_source_paths": [],
             "concatenated_files_omitted_paths": list(source_paths),
-            "closure_status": "truncated",
-            "reason": "token_budget_exceeded",
+            "status": status,
+            "assets": result.get("assets", []),
             "omitted": [{"reason": "token_budget"}],
             "sources": source_paths,
+        }
+    if _estimated_tokens(output) > token_budget:
+        output = {
+            "status": status,
+            "omitted": [{"reason": "token_budget"}],
         }
     return output
 
@@ -607,6 +644,13 @@ def _capsule_excerpt(
     query_terms = [term for group in query["terms"] for term in group]
     priorities = {
         "Boundaries": 60,
+        "Requirements": 95,
+        "Guarantees": 95,
+        "Invariants": 90,
+        "Quality constraints": 85,
+        "Verification": 85,
+        "Compatibility": 80,
+        "Configuration contract": 75,
         "Behavior": 50,
         "Lifecycle and invariants": 45,
         "Failure behavior": 40,
@@ -770,6 +814,7 @@ def _task_context(
             ),
             "matched_query_groups": matched,
             "responsibility": document["responsibility"],
+            "assets": document["assets"],
             "excerpts": _capsule_excerpt(document, query),
         })
     uncovered = sorted(all_groups - covered)
@@ -823,10 +868,22 @@ def _apply_token_budget(
     if original_tokens <= token_budget:
         return result
 
-    result["closure_status"] = "truncated"
-    result["reason"] = "token_budget_exceeded"
+    area_status = result.get("status", {})
+    result["status"] = {
+        "code": "truncated",
+        "reason": "token_budget_exceeded",
+        **(
+            {
+                "area_code": area_status.get("code"),
+                "owners": area_status.get("owners", []),
+                "facets": area_status.get("facets", {}),
+                "blockers": area_status.get("blockers", []),
+            }
+            if isinstance(area_status, dict)
+            else {}
+        ),
+    }
     result["potentially_affected"] = []
-    result.pop("coverage_detail", None)
     primary = result.get("primary")
     if isinstance(primary, dict):
         primary.pop("summary", None)
@@ -842,9 +899,7 @@ def _apply_token_budget(
         return result
 
     compact = {
-        "closure_status": "truncated",
-        "reason": "token_budget_exceeded",
-        "coverage": result.get("coverage", "unknown"),
+        "status": result["status"],
         "primary": {
             key: value
             for key, value in (primary or {}).items()
@@ -862,6 +917,12 @@ def _apply_token_budget(
         "potentially_affected": [],
         "decisions": [],
         "constraints": [],
+        "requirements": [],
+        "guarantees": [],
+        "invariants": [],
+        "quality_constraints": [],
+        "verification": [],
+        "assets": [],
         "known_divergences": [],
         "blocking_questions": [],
         "omitted": [{
@@ -879,9 +940,12 @@ def _apply_token_budget(
 
     required_count = len(compact["required"])
     minimal = {
-        "closure_status": "truncated",
-        "reason": "token_budget_exceeded",
-        "coverage": compact["coverage"],
+        "status": {
+            "code": "truncated",
+            "reason": "token_budget_exceeded",
+            "area_code": result["status"].get("area_code"),
+            "blockers": result["status"].get("blockers", []),
+        },
         "primary": (
             {"id": compact["primary"].get("id")}
             if isinstance(compact["primary"], dict)
@@ -891,6 +955,12 @@ def _apply_token_budget(
         "potentially_affected": [],
         "decisions": [],
         "constraints": [],
+        "requirements": [],
+        "guarantees": [],
+        "invariants": [],
+        "quality_constraints": [],
+        "verification": [],
+        "assets": [],
         "known_divergences": [],
         "blocking_questions": [],
         "omitted": [{
@@ -905,9 +975,12 @@ def _apply_token_budget(
 def build_closure(root: Path, payload: object) -> dict[str, object]:
     query, query_error = _validate_query(payload)
     base: dict[str, object] = {
-        "closure_status": "invalid", "reason": "invalid_query",
-        "coverage": "unknown", "primary": None, "required": [],
+        "status": {"code": "invalid", "reason": "invalid_query"},
+        "primary": None, "required": [],
         "potentially_affected": [], "decisions": [], "constraints": [],
+        "requirements": [], "guarantees": [], "invariants": [],
+        "quality_constraints": [], "verification": [],
+        "assets": [],
         "known_divergences": [], "blocking_questions": [], "omitted": [],
         "sources": [],
     }
@@ -916,7 +989,7 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
         return base
     root = root.resolve()
     if not root.is_dir():
-        base["reason"] = "spine_root_missing"
+        base["status"] = {"code": "invalid", "reason": "spine_root_missing"}
         return base
     mechanical_errors = [
         finding
@@ -924,7 +997,7 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
         if finding.severity == "error"
     ]
     if mechanical_errors:
-        base["reason"] = "invalid_spine"
+        base["status"] = {"code": "invalid", "reason": "invalid_spine"}
         base["omitted"] = [
             {
                 "reason": "mechanical_error",
@@ -936,11 +1009,23 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
         ]
         return base
     documents, errors = _canonical_documents(root)
+    manifest = _manifest(root)
+    registered_assets = [
+        dict(item)
+        for item in manifest["assets"]
+        if isinstance(item, dict)
+    ]
+    for document in documents.values():
+        document["assets"] = [
+            item
+            for item in registered_assets
+            if item.get("owner") == document["id"]
+        ]
     for document in documents.values():
         document["root"] = str(root)
     index = next((item for item in documents.values() if item["kind"] == "index" and item["path"] == "README.md"), None)
     if errors or index is None:
-        base["reason"] = "invalid_spine"
+        base["status"] = {"code": "invalid", "reason": "invalid_spine"}
         base["omitted"] = [{"reason": error} for error in errors] or [{"reason": "root index missing"}]
         return base
     candidates: dict[str, float] = {}
@@ -975,11 +1060,16 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
             candidates[document_id] = score
     candidates.pop(str(index["id"]), None)
     if not candidates:
-        base.update({"closure_status": "no-match", "reason": "primary_owner_not_found", "sources": ["README.md"]})
+        base.update({
+            "status": {
+                "code": "no-match",
+                "reason": "primary_owner_not_found",
+            },
+            "sources": ["README.md"],
+        })
         return base
     primary_id = sorted(candidates, key=lambda item: (-candidates[item], item))[0]
     primary = documents[primary_id]
-    coverage, coverage_detail = _coverage(index, primary)
     required: dict[str, set[str]] = {}
     potential: set[str] = set()
     strong_by_facet = {
@@ -1035,6 +1125,7 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
     }
     potential.update(strong_task_matches - {primary_id, *required})
     selected_ids = {primary_id, *required}
+    status = _area_status(manifest, selected_ids)
     statements = {
         identifier: (str(document["id"]), statement)
         for document in documents.values()
@@ -1042,6 +1133,11 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
     }
     decisions = []
     constraints = []
+    requirements = []
+    guarantees = []
+    invariants = []
+    quality_constraints = []
+    verification = []
     questions = []
     divergences = []
     claim_owner_ids = {str(index["id"]), *selected_ids}
@@ -1053,6 +1149,16 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
                 decisions.append(item)
             elif identifier.startswith("CON-"):
                 constraints.append(item)
+            elif identifier.startswith("REQ-"):
+                requirements.append(item)
+            elif identifier.startswith("GUA-"):
+                guarantees.append(item)
+            elif identifier.startswith("INV-"):
+                invariants.append(item)
+            elif identifier.startswith("QLT-"):
+                quality_constraints.append(item)
+            elif identifier.startswith("VER-"):
+                verification.append(item)
             elif identifier.startswith("OQ-"):
                 questions.append(item)
     for document in documents.values():
@@ -1070,6 +1176,11 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
     source_paths = [str(index["path"]), str(primary["path"])] + [
         str(documents[item]["path"]) for item in sorted(required)
     ]
+    assets = sorted((
+        dict(asset)
+        for owner_id in selected_ids
+        for asset in documents[owner_id]["assets"]
+    ), key=lambda item: str(item["path"]))
     potential_ids = sorted(
         potential - set(required) - {primary_id},
         key=lambda item: (-candidates.get(item, 0), item),
@@ -1083,10 +1194,7 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
         potential_ids,
     )
     result = {
-        "closure_status": "complete",
-        "reason": "mapped_task_closure_satisfied",
-        "coverage": coverage,
-        "coverage_detail": coverage_detail,
+        "status": status,
         "primary": {
             "id": primary_id, "path": primary["path"], "kind": primary["kind"],
             "title": primary["title"], "summary": primary["summary"],
@@ -1106,14 +1214,15 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
             for item in potential_ids
         ],
         "decisions": decisions, "constraints": constraints,
+        "requirements": requirements, "guarantees": guarantees,
+        "invariants": invariants,
+        "quality_constraints": quality_constraints,
+        "verification": verification,
+        "assets": assets,
         "known_divergences": divergences, "blocking_questions": questions,
         "task_context": task_context,
         "omitted": [], "sources": source_paths,
     }
-    if coverage != "mapped":
-        result["closure_status"] = "partial"
-        result["reason"] = "coverage_incomplete"
-        result["omitted"].append({"reason": coverage_detail})
     budgeted = _apply_token_budget(result, query["token_budget"])
     return _attach_concatenated_files(
         root,
@@ -1132,9 +1241,12 @@ def main() -> int:
         payload = json.loads(args.query_json)
     except json.JSONDecodeError as error:
         result = {
-            "closure_status": "invalid", "reason": "malformed_query",
-            "coverage": "unknown", "primary": None, "required": [],
+            "status": {"code": "invalid", "reason": "malformed_query"},
+            "primary": None, "required": [],
             "potentially_affected": [], "decisions": [], "constraints": [],
+            "requirements": [], "guarantees": [], "invariants": [],
+            "quality_constraints": [], "verification": [],
+            "assets": [],
             "known_divergences": [], "blocking_questions": [],
             "omitted": [{"reason": str(error)}], "sources": [],
         }
@@ -1142,7 +1254,8 @@ def main() -> int:
         return 1
     result = build_closure(args.spine_root, payload)
     print(json.dumps(result, ensure_ascii=False))
-    return 1 if result["closure_status"] == "invalid" else 0
+    status = result.get("status", {})
+    return 1 if isinstance(status, dict) and status.get("code") == "invalid" else 0
 
 
 if __name__ == "__main__":

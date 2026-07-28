@@ -229,7 +229,7 @@ Owns an unreachable architectural responsibility.
     def test_doctor_has_only_connection_templates(self):
         templates = PROJECT_ROOT / "skills/specspine-doctor/assets/templates"
         self.assertEqual(
-            {"agent-bootstrap.md", "spine-index.md"},
+            {"agent-bootstrap.md", "spine-index.md", "specspine.json"},
             {path.name for path in templates.iterdir() if path.is_file()},
         )
 
@@ -254,7 +254,8 @@ Owns an unreachable architectural responsibility.
             instructions.index("Detect its dominant natural language"),
         )
         self.assertIn("immediate entries", instructions)
-        self.assertIn("untrusted documentation content", instructions)
+        self.assertIn("untrusted project content", instructions)
+        self.assertIn("specspine.json", instructions)
         self.assertIn("exact label accepted by the operator", instructions)
         self.assertIn("Do not translate its headings", instructions)
         self.assertIn("natural-language headings", instructions)
@@ -320,9 +321,10 @@ Owns an unreachable architectural responsibility.
         for state in (
             "Path absent",
             "Empty directory",
-            "Root `README.md` present",
+            "Complete v3 root pair present",
+            "Exactly one root file present",
             "Empty or mixed-language `README.md`",
-            "Nonempty directory without `README.md`",
+            "Nonempty directory without root files",
             "Root is a file or unreadable directory",
             "`README.md` is not a readable regular text file",
             "unrelated project/package README",
@@ -335,7 +337,7 @@ Owns an unreachable architectural responsibility.
                 self.assertIn(state, contract)
         self.assertIn("Do not recursively inspect", contract)
         self.assertIn("changed since inspection", contract)
-        self.assertIn("Never overwrite a concurrently created index", contract)
+        self.assertIn("Never overwrite a concurrently created root", contract)
         for state in (
             "File absent",
             "No managed region",

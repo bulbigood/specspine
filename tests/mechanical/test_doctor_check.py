@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import sys
 import tempfile
 import unittest
@@ -6,7 +7,7 @@ from pathlib import Path
 
 
 MODULE_PATH = Path(__file__).parents[2] / "shared/scripts/check_spine.py"
-SPEC = importlib.util.spec_from_file_location("specspine_v2_check", MODULE_PATH)
+SPEC = importlib.util.spec_from_file_location("specspine_v3_check", MODULE_PATH)
 assert SPEC and SPEC.loader
 CHECKER = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = CHECKER
@@ -23,19 +24,6 @@ Project architecture.
 
 - [Payments](payments.md) — owns payments.
 
-## Coverage
-
-### Mapped
-
-- [Payments](payments.md) — sufficiently mapped.
-
-### Partially mapped
-
-- Reporting — failure behavior is unknown.
-
-### Unmapped
-
-- Forecasting.
 """
 
 PAYMENTS = """# Payments
@@ -69,24 +57,59 @@ Owns payment attempts and results.
 """
 
 
-class DoctorCheckerV2Tests(unittest.TestCase):
-    def spine(self, payment=PAYMENTS, index=INDEX, extra=None):
+class DoctorCheckerV3Tests(unittest.TestCase):
+    def spine(self, payment=PAYMENTS, index=INDEX, extra=None, manifest=None):
         temporary = tempfile.TemporaryDirectory()
         root = Path(temporary.name)
         (root / "README.md").write_text(index, encoding="utf-8")
         (root / "payments.md").write_text(payment, encoding="utf-8")
         for name, content in (extra or {}).items():
             (root / name).write_text(content, encoding="utf-8")
+        if manifest is None:
+            owners = ["payments"]
+            if extra:
+                owners.extend(
+                    match.group(1)
+                    for content in extra.values()
+                    for line in content.splitlines()
+                    if (match := CHECKER.IDENTITY_RE.fullmatch(line))
+                )
+            manifest = {
+                "specspine": 3,
+                "project": "test",
+                "implementation_freedom": "contract-equivalent",
+                "areas": [
+                    {
+                        "owner": owner,
+                        "facets": {
+                            name: (
+                                "complete"
+                                if name in {"architecture", "behavior", "failure"}
+                                else "partial"
+                                if name == "verification"
+                                else "not-applicable"
+                            )
+                            for name in CHECKER.FACET_NAMES
+                        },
+                        "blockers": [],
+                    }
+                    for owner in owners
+                ],
+                "assets": [],
+            }
+        (root / "specspine.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
         self.addCleanup(temporary.cleanup)
         return root
 
     def codes(self, root):
         return {item.code for item in CHECKER.check(root)}
 
-    def test_accepts_complete_v2_spine(self):
+    def test_accepts_strict_v3_spine(self):
         self.assertEqual([], [item for item in CHECKER.check(self.spine()) if item.severity == "error"])
 
-    def test_doctor_index_template_is_valid_v2(self):
+    def test_doctor_index_template_is_valid(self):
         template = (
             Path(__file__).parents[2]
             / "skills/specspine-doctor/assets/templates/spine-index.md"
@@ -99,9 +122,32 @@ class DoctorCheckerV2Tests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name)
         (root / "README.md").write_text(template, encoding="utf-8")
+        manifest = (
+            Path(__file__).parents[2]
+            / "skills/specspine-doctor/assets/templates/specspine.json"
+        ).read_text(encoding="utf-8")
+        (root / "specspine.json").write_text(manifest, encoding="utf-8")
         self.assertEqual(
             [],
             [item for item in CHECKER.check(root) if item.severity == "error"],
+        )
+
+    def test_manifest_schema_matches_checker_vocabulary(self):
+        schema = json.loads(
+            (
+                Path(__file__).parents[2]
+                / "shared/references/specspine.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        definitions = schema["$defs"]
+        self.assertEqual(CHECKER.FACET_VALUES, set(definitions["facet"]["enum"]))
+        self.assertEqual(
+            CHECKER.FACET_NAME_SET,
+            set(definitions["facets"]["properties"]),
+        )
+        self.assertEqual(
+            CHECKER.ASSET_ROLES,
+            set(definitions["asset"]["properties"]["role"]["enum"]),
         )
 
     def test_ignores_links_and_semantic_ids_in_fenced_examples(self):
@@ -159,9 +205,10 @@ class DoctorCheckerV2Tests(unittest.TestCase):
         root = self.spine(payment=PAYMENTS + relationship)
         self.assertIn("UNKNOWN_RELATION_STATEMENT", self.codes(root))
 
-    def test_requires_all_coverage_groups(self):
-        root = self.spine(index=INDEX.replace("### Unmapped", "### Unknown"))
-        self.assertIn("MISSING_COVERAGE_STATUS", self.codes(root))
+    def test_requires_manifest(self):
+        root = self.spine()
+        (root / "specspine.json").unlink()
+        self.assertIn("MANIFEST_MISSING", self.codes(root))
 
     def test_validates_divergence_statement_kinds(self):
         root = self.spine(payment=PAYMENTS.replace(
@@ -170,6 +217,86 @@ class DoctorCheckerV2Tests(unittest.TestCase):
             1,
         ))
         self.assertIn("DIVERGENCE_INTENDED_KIND", self.codes(root))
+
+    def test_accepts_v3_normative_claims_and_relations(self):
+        normative = PAYMENTS.replace(
+            "## Constraints",
+            """## Requirements
+
+- **REQ-payment-result** — A payment MUST expose its terminal result.
+
+## Guarantees
+
+- **GUA-payment-idempotency** — Duplicate results MUST be harmless.
+
+## Invariants
+
+- **INV-payment-identity** — Payment identity MUST remain stable.
+
+## Quality constraints
+
+- **QLT-payment-latency** — A result SHOULD be visible within one second.
+
+## Verification
+
+- **VER-payment-duplicate** — Replaying a result leaves one transition.
+
+## Constraints""",
+        )
+        self.assertEqual(
+            [],
+            [
+                item
+                for item in CHECKER.check(self.spine(payment=normative))
+                if item.severity == "error"
+            ],
+        )
+
+    def test_validates_manifest_facets_and_blockers(self):
+        root = self.spine()
+        manifest = json.loads((root / "specspine.json").read_text())
+        del manifest["areas"][0]["facets"]["failure"]
+        (root / "specspine.json").write_text(json.dumps(manifest))
+        self.assertIn("MANIFEST_FACETS", self.codes(root))
+
+        root = self.spine()
+        manifest = json.loads((root / "specspine.json").read_text())
+        manifest["areas"][0]["blockers"] = ["OQ-missing"]
+        (root / "specspine.json").write_text(json.dumps(manifest))
+        self.assertIn("MANIFEST_BLOCKER", self.codes(root))
+
+    def test_complete_verification_requires_machine_resolvable_support(self):
+        root = self.spine()
+        manifest = json.loads((root / "specspine.json").read_text())
+        manifest["areas"][0]["facets"]["verification"] = "complete"
+        (root / "specspine.json").write_text(json.dumps(manifest))
+
+        self.assertIn("MANIFEST_VERIFICATION_UNSUPPORTED", self.codes(root))
+
+    def test_requires_markdown_owner_for_specification_assets(self):
+        root = self.spine()
+        contracts = root / "contracts"
+        contracts.mkdir()
+        asset = contracts / "payments.openapi.yaml"
+        asset.write_text("openapi: 3.1.0\n", encoding="utf-8")
+        self.assertIn("UNREGISTERED_SPEC_ASSET", self.codes(root))
+        (root / "payments.md").write_text(
+            PAYMENTS
+            + "\n## Interfaces\n\n"
+            + "[Payment API](contracts/payments.openapi.yaml) is normative.\n",
+            encoding="utf-8",
+        )
+        manifest = json.loads((root / "specspine.json").read_text())
+        manifest["assets"].append({
+            "path": "contracts/payments.openapi.yaml",
+            "owner": "payments",
+            "role": "interface-contract",
+            "format": "openapi-3.1",
+            "normative": True,
+            "verifies": [],
+        })
+        (root / "specspine.json").write_text(json.dumps(manifest))
+        self.assertNotIn("UNREGISTERED_SPEC_ASSET", self.codes(root))
 
     def test_unreachable_node_is_error(self):
         other = PAYMENTS.replace("# Payments", "# Other").replace(

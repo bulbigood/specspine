@@ -1,15 +1,16 @@
 ---
 name: specspine-grow
-description: Create or evolve intended architecture in a linked Markdown SpecSpine from explicit user intent and existing specifications. Use for greenfield initialization, accepted architectural changes, impact analysis, and specification splitting, merging, renaming, or linking. Do not use for repository discovery (specspine-map), integrity review (specspine-doctor), context extraction, implementation, or code/spec conformance.
+description: Create or evolve accepted architecture and durable system specifications in a linked SpecSpine from explicit user intent and existing specifications. Use for greenfield initialization, accepted requirements and contracts, architectural changes, SDD promotion, impact analysis, and specification restructuring. Do not use for repository discovery, implementation, or code/spec conformance.
 ---
 
 # SpecSpine Grow
 
-Maintain a lightweight network of architectural specifications. Record stable
-responsibilities, boundaries, relationships, decisions, constraints, and
-relevant uncertainty without turning the Spine into a feature or implementation
-workflow. This file owns Grow's authority and editing procedure; the linked
-format and semantics references own document structure and claim meaning.
+Maintain a linked network of architecture and durable system specifications.
+Record stable responsibilities, requirements, guarantees, invariants,
+interfaces, quality constraints, verification contracts, and uncertainty
+without turning the Spine into a delivery or implementation workflow. This file
+owns Grow's authority and editing procedure; the linked format and semantics
+references own document structure and claim meaning.
 
 ## Resources
 
@@ -23,7 +24,8 @@ format and semantics references own document structure and claim meaning.
 - Read [references/grow-examples.md](references/grow-examples.md) when the right
   specification boundary is unclear.
 - When creating files, start from the templates under `assets/templates/` and
-  omit empty sections.
+  omit empty sections. Create and maintain mandatory `specspine.json` from its
+  template in the same write batch.
 - Run `scripts/check_spine.py <spine-root>` after every write batch. It is the
   mandatory whole-Spine mechanical gate.
 
@@ -47,8 +49,14 @@ It does not:
 
 - discover repository architecture or verify code/spec conformance;
 - implement source changes;
-- create feature requirements, acceptance criteria, plans, tasks, or status;
+- create temporary feature scope, delivery acceptance, plans, tasks, or status;
+- manufacture normative behavior from observations or unaccepted drafts;
 - decide product or architecture choices for the user.
+
+Grow may promote explicitly accepted SDD meaning into canonical owners,
+including durable `REQ`, `GUA`, `INV`, `QLT`, and `VER` claims and owned
+machine-readable contracts. Keep implementation-specific tests and source out
+of the Spine.
 
 Use `specspine-map` for repository discovery and drift, `specspine-doctor` for
 health review, and `specspine-extract` for a downstream context handoff. Grow
@@ -70,19 +78,19 @@ starting a second navigation pass.
    explicit user or project configuration, this is exactly `specspine`
    relative to the current working directory, never the repository root.
    Test for its `README.md` without listing the project. If present, read it
-   and follow only relevant links, unless a complete non-truncated Extract
-   result already supplied it as described above. If absent, immediately
-   initialize from the request; do not run any other project discovery or read
-   any other project path.
-2. Classify the operation: initialize, refine, split, merge, rename, or link.
-   Identify the canonical owner, specifications whose architectural meaning or
-   boundaries change, and context needed only for understanding.
+   and follow only relevant links, unless a non-truncated Extract result
+   already supplied it as described above. If absent, immediately initialize
+   `README.md` and `specspine.json` together from the request; do not run any
+   other project discovery or read any other project path.
+2. Classify the operation: initialize, refine, promote, split, merge, rename,
+   or link. Identify the canonical owner, specifications whose normative or
+   architectural meaning changes, and context needed only for understanding.
    For refinement, perform the terminal-depth check immediately after reading
    the index and relevant specification. Compare the requested material with
    the terminal-detail boundary in `references/spec-format.md`. If the request
-   adds no architectural meaning within Grow's scope and only asks for material
-   beyond that boundary, stop without editing or seeking implementation
-   evidence; explain that it belongs in a downstream workflow.
+   adds no durable normative or architectural meaning within Grow's scope and
+   only asks for implementation mechanics, stop without editing or seeking
+   implementation evidence.
 3. Choose owners and decomposition using `references/spec-format.md`. Reuse an
    existing owner when possible; do not create a specification merely because a
    file is long or a feature is new.
@@ -97,9 +105,9 @@ starting a second navigation pass.
    canonical ownership, identity, relationships, navigation, and reachability.
    Preserve unrelated content. Update the index only when top-level navigation
    or system-wide intent changes.
-   Store newly accepted but implementation-unverified behavior as Decisions or
-   Constraints. Do not also restate it as unqualified current Behavior unless
-   the request supplies evidence that establishes it as current behavior.
+   Store newly accepted but implementation-unverified behavior under its
+   normative claim kind. Do not restate it as current observed behavior unless
+   the request supplies evidence that establishes it.
 6. After every write batch, run the bundled checker against the whole resolved
    Spine. If it reports an error, correct only defects caused by the approved
    operation and rerun it. If an error is pre-existing or needs new
@@ -127,6 +135,14 @@ does not by itself change its specification. Modify a related owner only when
 the request supplies new durable architectural intent belonging there; report
 implementation prerequisites and speculative questions instead.
 
+### Promote
+
+Promote only durable accepted meaning from an SDD or explicit user decision.
+Move requirements, guarantees, invariants, quality constraints, and reusable
+verification into their canonical owners. Leave temporary scope, tasks,
+delivery acceptance, status, and implementation-specific tests downstream.
+Update manifest facets and blockers only when every change is supported.
+
 ### Split, merge, rename, or link
 
 Apply the canonical ownership, identity-preservation, replacement, and
@@ -147,7 +163,8 @@ relationship.
   `references/spec-format.md`.
 - Never imply that documented intent is implemented or conformant.
 - Never silently resolve uncertainty, conflicts, or ownership ambiguity.
-- Keep specifications architectural, linked, concise, and independent of a
-  custom parser or implementation workflow.
+- Keep specifications linked, source-independent, and concise at their chosen
+  reconstruction profile. Exact durable contracts may use the machine-readable
+  assets allowed by the canonical format.
 - Never omit the final mechanical gate after a write, including initialization,
   rename, merge, split, and deletion.

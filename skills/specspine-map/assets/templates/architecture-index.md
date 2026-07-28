@@ -15,22 +15,9 @@ it solves.
 Add only useful entry points into the mapped architecture. More detailed
 concepts may be reachable through other specifications.
 
-## Coverage
-
-### Mapped
-
-- [Concept](concept.md) — responsibility, boundaries, and significant behavior
-  are sufficiently mapped for architectural retrieval.
-
-### Partially mapped
-
-- [Area](area.md) — state exactly which architectural knowledge is missing.
-
-### Unmapped
-
-- Area — no canonical owner or sufficient architecture memory is known yet.
-
-Keep coverage qualitative; it measures documentation sufficiency, not
-implementation completion. Add `System-wide decisions`, `System-wide
-constraints`, `Known divergences`, and `Open questions` only with real content.
-Never infer accepted intent from repository evidence.
+Record every created node in `specspine.json`. Map may only mark facets
+supported by repository evidence as `complete`; all others remain `partial`,
+`missing`, or `not-applicable`. Mapping observations never closes normative
+behavior or verification.
+Add system-wide normative claims, `Known divergences`, and `Open questions`
+only with real content. Never infer accepted intent from repository evidence.
