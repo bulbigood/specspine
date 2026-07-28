@@ -122,7 +122,24 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
         self.assertEqual(baseline["scenario"], treatment["scenario"])
         self.assertEqual([scenario["target"]], baseline["report_artifacts"])
         self.assertEqual("command_excludes", baseline["assertions"][-1]["type"])
-        self.assertEqual("command_includes", treatment["assertions"][-2]["type"])
+        self.assertIn(
+            {
+                "type": "command_includes",
+                "value": (
+                    ".eval/companions/specspine-extract/scripts/"
+                    "search_spine.py"
+                ),
+            },
+            treatment["assertions"],
+        )
+        self.assertIn(
+            {
+                "type": "retrieval_attempt_valid",
+                "count": 1,
+                "min_output_bytes": 256,
+            },
+            treatment["assertions"],
+        )
 
     def test_grow_grafana_blind_package_scores_hidden_arms(self):
         scenario = GROW_GRAFANA_BENCHMARK.SCENARIOS[0]
@@ -219,6 +236,31 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
         self.assertEqual(
             1,
             GROW_GRAFANA_BENCHMARK.navigation_file_count(sample),
+        )
+
+    def test_grow_grafana_valid_extract_sample_rejects_fallback(self):
+        valid = {
+            "agent_runs": [{
+                "retrieval_attempts": [{
+                    "exit_code": 0,
+                    "failure_kind": None,
+                    "mode": "closure",
+                    "production_output_utf8_bytes": 2048,
+                    "query_slices": [{"id": "change"}],
+                }]
+            }]
+        }
+        fallback = json.loads(json.dumps(valid))
+        fallback["agent_runs"][0]["retrieval_attempts"][0].update(
+            failure_kind="malformed_output",
+            mode="unknown",
+            production_output_utf8_bytes=27,
+        )
+        self.assertTrue(
+            GROW_GRAFANA_BENCHMARK.valid_extract_sample(valid)
+        )
+        self.assertFalse(
+            GROW_GRAFANA_BENCHMARK.valid_extract_sample(fallback)
         )
 
     def test_three_fixed_arms_use_current_extract_cases(self):

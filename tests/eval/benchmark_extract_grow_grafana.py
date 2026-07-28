@@ -10,6 +10,7 @@ import importlib.util
 import json
 import shlex
 import shutil
+import statistics
 import sys
 import tempfile
 import time
@@ -127,17 +128,26 @@ def grow_case(
         },
         {
             "type": "command_includes" if with_extract else "command_excludes",
-            "value": "search_spine.py",
+            "value": (
+                ".eval/companions/specspine-extract/scripts/search_spine.py"
+                if with_extract
+                else "search_spine.py"
+            ),
         },
     ]
     if with_extract:
-        assertions.append(
+        assertions.extend((
             {
                 "type": "trace_equals",
                 "field": "retrieval_attempt_count",
                 "value": 1,
-            }
-        )
+            },
+            {
+                "type": "retrieval_attempt_valid",
+                "count": 1,
+                "min_output_bytes": 256,
+            },
+        ))
     for alternatives in scenario.get("required_any", []):
         assertions.append(
             {
@@ -232,6 +242,85 @@ def run_arm(
     )
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     return payload, all(report.passed for report in reports)
+
+
+def run_paired_arms(
+    output_dir: Path,
+    fixture: Path,
+    *,
+    samples: int,
+    jobs: int,
+    model: str,
+    reasoning_effort: str,
+    timestamp: str,
+    scenarios: tuple[dict[str, Any], ...],
+) -> tuple[dict[str, dict[str, Any]], bool]:
+    """Interleave matched arms to reduce temporal and service-load bias."""
+    cases_by_label = {
+        label: [
+            grow_case(fixture, with_extract, scenario)
+            for scenario in scenarios
+        ]
+        for label, with_extract in ARMS
+    }
+    commands = {
+        label: adapter_command(
+            model, reasoning_effort, with_extract=with_extract
+        )
+        for label, with_extract in ARMS
+    }
+    started_at = datetime.datetime.now(datetime.timezone.utc)
+    queued = time.monotonic()
+    reports_by_label: dict[str, list[Any]] = {
+        label: [] for label, _ in ARMS
+    }
+    tasks = [
+        (label, case, sample)
+        for sample in range(1, samples + 1)
+        for case_index in range(len(scenarios))
+        for label, _ in (
+            ARMS if (sample + case_index) % 2 else tuple(reversed(ARMS))
+        )
+        for case in [cases_by_label[label][case_index]]
+    ]
+    with ThreadPoolExecutor(max_workers=min(jobs, len(tasks))) as executor:
+        futures = {
+            executor.submit(
+                RUNNER.run_case_captured,
+                case,
+                commands[label],
+                False,
+                sample,
+                queued,
+            ): label
+            for label, case, sample in tasks
+        }
+        for future in as_completed(futures):
+            label = futures[future]
+            report = future.result()
+            reports_by_label[label].append(report)
+            print(report.output, end="", flush=True)
+    finished_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    payloads: dict[str, dict[str, Any]] = {}
+    passed = True
+    for label, _ in ARMS:
+        report_path = output_dir / f"{label}.json"
+        reports = reports_by_label[label]
+        RUNNER.write_json_report(
+            report_path,
+            label,
+            shlex.join(commands[label]),
+            reports,
+            cases_by_label[label],
+            samples,
+            jobs,
+            run_id=f"extract-grow-grafana-{timestamp}-{label}",
+            started_at=started_at.isoformat(),
+            finished_at=finished_at,
+        )
+        payloads[label] = json.loads(report_path.read_text(encoding="utf-8"))
+        passed &= all(report.passed for report in reports)
+    return payloads, passed
 
 
 def candidate_id(pair_id: str, label: str, timestamp: str) -> str:
@@ -423,6 +512,31 @@ def navigation_file_count(sample: dict[str, Any]) -> int:
     return len(paths)
 
 
+def valid_extract_sample(sample: dict[str, Any]) -> bool:
+    runs = sample.get("agent_runs", [])
+    if len(runs) != 1:
+        return False
+    attempts = runs[0].get("retrieval_attempts", [])
+    if len(attempts) != 1 or not isinstance(attempts[0], dict):
+        return False
+    attempt = attempts[0]
+    return (
+        attempt.get("exit_code") == 0
+        and attempt.get("failure_kind") is None
+        and attempt.get("mode") != "unknown"
+        and isinstance(attempt.get("production_output_utf8_bytes"), int)
+        and attempt["production_output_utf8_bytes"] >= 256
+        and isinstance(attempt.get("query_slices"), list)
+    )
+
+
+def sample_total_tokens(sample: dict[str, Any]) -> int:
+    usage = sample.get("token_usage", {})
+    return int(usage.get("input_tokens") or 0) + int(
+        usage.get("output_tokens") or 0
+    )
+
+
 def write_comparison(
     output: Path,
     reports: dict[str, dict[str, Any]],
@@ -432,13 +546,55 @@ def write_comparison(
         label: ADAPTER_BENCHMARK.summarize(report)
         for label, report in reports.items()
     }
+    treatment_samples = reports["with-extract"]["samples"]
+    valid_pair_keys = {
+        (sample["case_id"], sample["sample_number"])
+        for sample in treatment_samples
+        if valid_extract_sample(sample)
+    }
     for label, report in reports.items():
         samples = report["samples"]
+        paired_samples = [
+            sample
+            for sample in samples
+            if (sample["case_id"], sample["sample_number"]) in valid_pair_keys
+        ]
         started = datetime.datetime.fromisoformat(report["run"]["started_at"])
         finished = datetime.datetime.fromisoformat(report["run"]["finished_at"])
         navigation_reads = [navigation_file_count(sample) for sample in samples]
+        paired_tokens = [sample_total_tokens(sample) for sample in paired_samples]
+        paired_durations = [
+            float(sample.get("agent_duration_seconds") or 0)
+            for sample in paired_samples
+        ]
+        paired_uncached = [
+            int(sample.get("token_usage", {}).get("input_tokens") or 0)
+            - int(sample.get("token_usage", {}).get("cached_input_tokens") or 0)
+            for sample in paired_samples
+        ]
         summaries[label].update(
-            total_wall_seconds=(finished - started).total_seconds(),
+            extract_valid_sample_rate=(
+                len(valid_pair_keys) / len(treatment_samples)
+                if label == "with-extract" and treatment_samples
+                else 1.0
+            ),
+            paired_valid_samples=len(paired_samples),
+            paired_mean_duration_seconds=(
+                statistics.mean(paired_durations) if paired_durations else None
+            ),
+            paired_median_duration_seconds=(
+                statistics.median(paired_durations) if paired_durations else None
+            ),
+            paired_mean_total_tokens=(
+                statistics.mean(paired_tokens) if paired_tokens else None
+            ),
+            paired_median_total_tokens=(
+                statistics.median(paired_tokens) if paired_tokens else None
+            ),
+            paired_mean_uncached_input_tokens=(
+                statistics.mean(paired_uncached) if paired_uncached else None
+            ),
+            shared_benchmark_wall_seconds=(finished - started).total_seconds(),
             total_agent_seconds=sum(
                 float(sample.get("agent_duration_seconds") or 0)
                 for sample in samples
@@ -469,7 +625,14 @@ def write_comparison(
     fields = (
         "pass_rate",
         "quality_pass_rate",
-        "total_wall_seconds",
+        "extract_valid_sample_rate",
+        "paired_valid_samples",
+        "paired_mean_duration_seconds",
+        "paired_median_duration_seconds",
+        "paired_mean_total_tokens",
+        "paired_median_total_tokens",
+        "paired_mean_uncached_input_tokens",
+        "shared_benchmark_wall_seconds",
         "total_agent_seconds",
         "total_tokens",
         "total_tool_cycles",
@@ -482,6 +645,10 @@ def write_comparison(
         "mean_files_read",
         "mean_tool_cycles",
         "mean_retrieval_attempts",
+        "mean_retrieval_bytes",
+        "mean_production_retrieval_seconds",
+        "mean_post_retrieval_seconds",
+        "mean_post_retrieval_file_reads",
     )
     labels = [label for label, _ in ARMS]
     lines = [
@@ -531,7 +698,7 @@ def main() -> int:
     )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--samples", type=int, default=1)
-    parser.add_argument("--jobs", type=int, default=2)
+    parser.add_argument("--jobs", type=int, default=6)
     parser.add_argument("--model", default="gpt-5.6-luna")
     parser.add_argument("--reasoning-effort", default="medium")
     parser.add_argument(
@@ -580,21 +747,16 @@ def main() -> int:
             )
         except ValueError as error:
             parser.error(str(error))
-        for label, with_extract in ARMS:
-            report, arm_passed = run_arm(
-                args.output_dir,
-                fixture,
-                label,
-                with_extract,
-                samples=args.samples,
-                jobs=args.jobs,
-                model=args.model,
-                reasoning_effort=args.reasoning_effort,
-                timestamp=timestamp,
-                scenarios=selected,
-            )
-            reports[label] = report
-            passed &= arm_passed
+        reports, passed = run_paired_arms(
+            args.output_dir,
+            fixture,
+            samples=args.samples,
+            jobs=args.jobs,
+            model=args.model,
+            reasoning_effort=args.reasoning_effort,
+            timestamp=timestamp,
+            scenarios=selected,
+        )
         write_blind_package(
             args.output_dir,
             reports,

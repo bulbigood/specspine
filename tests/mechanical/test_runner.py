@@ -876,6 +876,41 @@ class RunnerTests(unittest.TestCase):
         self.assertTrue(passed.passed)
         self.assertFalse(failed.passed)
 
+    def test_retrieval_attempt_valid_rejects_echo_fallback(self):
+        assertion = {
+            "type": "retrieval_attempt_valid",
+            "count": 1,
+            "min_output_bytes": 256,
+        }
+        valid = {
+            "retrieval_attempts": [{
+                "exit_code": 0,
+                "failure_kind": None,
+                "mode": "closure",
+                "production_output_utf8_bytes": 2048,
+                "query_slices": [{"id": "change"}],
+            }]
+        }
+        echo_fallback = {
+            "retrieval_attempts": [{
+                "exit_code": 0,
+                "failure_kind": "malformed_output",
+                "mode": "unknown",
+                "production_output_utf8_bytes": 27,
+                "query_slices": [{"id": "change"}],
+            }]
+        }
+        self.assertTrue(
+            RUNNER.evaluate_assertion(
+                assertion, Path("."), {}, {}, "", valid
+            ).passed
+        )
+        self.assertFalse(
+            RUNNER.evaluate_assertion(
+                assertion, Path("."), {}, {}, "", echo_fallback
+            ).passed
+        )
+
     def test_checks_structured_response_without_prose_contracts(self):
         response = (
             "# Handoff\n\n## Primary specification\n\n"
@@ -1374,7 +1409,7 @@ class RunnerTests(unittest.TestCase):
             }
             for case_id in (f"default-{number}" for number in range(9))
         ]
-        barrier = threading.Barrier(8)
+        barrier = threading.Barrier(6)
         lock = threading.Lock()
         calls = 0
         worker_counts: list[int] = []
@@ -1387,7 +1422,7 @@ class RunnerTests(unittest.TestCase):
             with lock:
                 calls += 1
                 call_number = calls
-            if call_number <= 8:
+            if call_number <= 6:
                 barrier.wait(timeout=2)
             return True
 
@@ -1405,7 +1440,7 @@ class RunnerTests(unittest.TestCase):
             patch.object(sys, "argv", argv),
         ):
             self.assertEqual(0, RUNNER.main())
-        self.assertEqual([8], worker_counts)
+        self.assertEqual([6], worker_counts)
 
     def test_one_job_runs_selected_cases_sequentially(self):
         cases = [

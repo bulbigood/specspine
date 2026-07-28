@@ -70,7 +70,7 @@ Compare direct navigation, Extract fallback, and accelerated Extract:
 ```text
 python3 tests/eval/benchmark_extract_agents.py \
   --output-dir /tmp/specspine-extract-agent-benchmark \
-  --samples 3 --jobs 4
+  --samples 3 --jobs 6
 ```
 
 Codex currently reports cumulative tokens and wall time for the complete agent

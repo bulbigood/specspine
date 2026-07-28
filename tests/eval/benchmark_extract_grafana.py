@@ -295,7 +295,7 @@ def main() -> int:
     )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--samples", type=int, default=1)
-    parser.add_argument("--jobs", type=int, default=3)
+    parser.add_argument("--jobs", type=int, default=6)
     parser.add_argument("--model", default="gpt-5.6-luna")
     parser.add_argument("--reasoning-effort", default="medium")
     parser.add_argument(

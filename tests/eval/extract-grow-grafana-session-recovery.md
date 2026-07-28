@@ -22,10 +22,9 @@
 
 Измени только указанный канонический документ. Сохрани его ID и существующие
 Observed claims; запиши решения как intended architecture, не как доказанную
-реализацию. Укажи границы с общим IAM owner, authorization policy engine и
-legacy SQL persistence. Не определяй provider-specific redirect protocol,
-account linking, cookie attributes, SQL schema, интервалы retry, rollout,
-тесты или сроки.
+реализацию. Самостоятельно найди в SpecSpine затрагиваемые архитектурные
+границы и сохрани их canonical ownership. Не вводи новые provider-specific,
+persistence, implementation или delivery decisions, тесты либо сроки.
 
 Сначала собери минимальный архитектурный контекст из SpecSpine, затем выполни
 изменение через Grow. Если в изолированном окружении доступен Extract, используй

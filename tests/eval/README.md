@@ -192,7 +192,7 @@ metrics are averaged across all scenario/sample results.
 report_dir=$(mktemp -d -t specspine-extract-grafana.XXXXXX)
 python3 tests/eval/benchmark_extract_grafana.py \
   --grafana-root ~/projects/grafana \
-  --output-dir "$report_dir" --samples 1 --jobs 3
+  --output-dir "$report_dir" --samples 1 --jobs 6
 ```
 
 The fallback arm remains commented out in `benchmark_extract_grafana.py`.
@@ -228,15 +228,16 @@ installs Extract as a companion skill; the baseline navigates SpecSpine
 directly. No Grafana source files are present in either workspace.
 
 The three scenarios deepen plugin capability compatibility, session recovery,
-and folder-cascade failure semantics. Each prompt fixes the owner, accepted
-decisions, affected boundaries, and exclusions so retrieval strategy—not
-architecture invention or document decomposition—drives runtime variance.
+and folder-cascade failure semantics. Each prompt fixes the target and accepted
+decisions but requires the agent to discover affected owners, boundaries, and
+constraints from the SpecSpine. This reflects normal refinement work while
+keeping architecture invention and document decomposition out of the result.
 
 ```bash
 report_dir=$(mktemp -d -t specspine-extract-grow-grafana.XXXXXX)
 python3 tests/eval/benchmark_extract_grow_grafana.py \
   --grafana-root ~/projects/grafana \
-  --output-dir "$report_dir" --samples 1 --jobs 2
+  --output-dir "$report_dir" --samples 1 --jobs 6
 ```
 
 The run writes raw reports, `comparison.md`, an anonymized `blind-review/`
@@ -254,10 +255,14 @@ python3 tests/eval/benchmark_extract_grow_grafana.py \
 Use `--scenario <id>` for focused calibration. Use one sample while authoring;
 use at least three independent samples per scenario for comparative evidence.
 The comparison reports wall time, token counters, tool cycles, files read,
-retrieval attempts, deterministic validity, and blind quality.
+retrieval attempts, deterministic validity, and blind quality. Matched arms are
+interleaved in one worker pool to reduce temporal service-load bias. Paired
+performance metrics include only pairs whose treatment produced exactly one
+valid Extract machine result; `extract_valid_sample_rate` reports routing or
+execution failures separately instead of silently treating them as Extract.
 
-Each case gets a clean temporary workspace. This A/B script runs with
-concurrency 2 by default; change it with `--jobs N`. Workspaces default to
+Each case gets a clean temporary workspace. Eval runners use concurrency 6 by
+default; change it with `--jobs N`. Workspaces default to
 `~/.cache/specspine-eval/workspaces`; override with
 `SPECSPINE_EVAL_WORKSPACES_DIR`. Failed workspaces are retained only with
 `--keep-workspace`.
@@ -286,7 +291,7 @@ python3 tests/eval/run.py \
   --case extract-mobile-multislice-ru \
   --case extract-pipeline-multislice-zh-cn \
   --samples 3 \
-  --jobs 4 \
+  --jobs 6 \
   --report-json "$report" \
   --agent-command 'python3 tests/eval/adapters/codex.py'
 ```
@@ -301,7 +306,7 @@ arms against the same EN/RU/ZH cases:
 ```bash
 report_dir=$(mktemp -d -t specspine-extract-agents.XXXXXX)
 python3 tests/eval/benchmark_extract_agents.py \
-  --output-dir "$report_dir" --samples 3 --jobs 4
+  --output-dir "$report_dir" --samples 3 --jobs 6
 ```
 
 The arms are direct documentation navigation without Extract, Extract with an

@@ -26,9 +26,9 @@
 
 Измени только указанный канонический документ. Сохрани его ID и существующие
 Observed claims; добавь решения как intended architecture без утверждения о
-полной реализации. Сохрани границы с dashboard lifecycle, content browse,
-Resource API и authorization policy. Не добавляй миграцию library panels,
-background job, новый API endpoint, storage schema, rollout, тесты или сроки.
+полной реализации. Самостоятельно найди в SpecSpine затрагиваемые
+архитектурные границы и сохрани их canonical ownership. Не вводи новые
+implementation, persistence или delivery decisions, тесты либо сроки.
 
 Сначала собери минимальный архитектурный контекст из SpecSpine, затем выполни
 изменение через Grow. Если в изолированном окружении доступен Extract, используй

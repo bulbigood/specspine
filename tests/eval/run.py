@@ -1033,6 +1033,40 @@ def evaluate_assertion(
         expected = assertion["value"]
         actual = trace.get(field)
         return CheckResult(actual == expected, f"trace {field}: {actual!r}, expected: {expected!r}")
+    if kind == "retrieval_attempt_valid":
+        if trace is None or not isinstance(trace.get("retrieval_attempts"), list):
+            return CheckResult(False, "agent did not produce retrieval attempts")
+        attempts = trace["retrieval_attempts"]
+        if len(attempts) != int(assertion.get("count", 1)):
+            return CheckResult(
+                False,
+                f"valid retrieval attempts expected {assertion.get('count', 1)}, observed {len(attempts)}",
+            )
+        minimum_bytes = int(assertion.get("min_output_bytes", 256))
+        failures: list[str] = []
+        for index, attempt in enumerate(attempts, 1):
+            if not isinstance(attempt, dict):
+                failures.append(f"attempt {index} is not structured")
+                continue
+            if attempt.get("exit_code") != 0:
+                failures.append(f"attempt {index} exit_code={attempt.get('exit_code')!r}")
+            if attempt.get("failure_kind") is not None:
+                failures.append(
+                    f"attempt {index} failure_kind={attempt.get('failure_kind')!r}"
+                )
+            if attempt.get("mode") == "unknown":
+                failures.append(f"attempt {index} has unknown mode")
+            output_bytes = attempt.get("production_output_utf8_bytes")
+            if not isinstance(output_bytes, int) or output_bytes < minimum_bytes:
+                failures.append(
+                    f"attempt {index} output bytes={output_bytes!r}, minimum={minimum_bytes}"
+                )
+            if not isinstance(attempt.get("query_slices"), list):
+                failures.append(f"attempt {index} has no structured query")
+        return CheckResult(
+            not failures,
+            "; ".join(failures) if failures else "retrieval machine result is valid",
+        )
     if kind == "retrieval_query_terms_include":
         if trace is None or not isinstance(trace.get("retrieval_attempts"), list):
             return CheckResult(False, "agent did not produce retrieval attempts")
@@ -2284,8 +2318,8 @@ def main() -> int:
     parser.add_argument(
         "--jobs",
         type=positive_int,
-        default=8,
-        help="maximum concurrent cases; use 1 for sequential execution (default: 8)",
+        default=6,
+        help="maximum concurrent cases; use 1 for sequential execution (default: 6)",
     )
     parser.add_argument(
         "--samples",
