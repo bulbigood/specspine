@@ -240,6 +240,94 @@ Defines the system retry ceiling.
         )
         self.assertEqual(110.0, score)
 
+    def test_query_group_normalizes_diacritics_and_symmetric_word_forms(self):
+        cases = (
+            ("cafe", "café"),
+            ("café", "cafe\u0301"),
+            ("ежик", "ёжик"),
+            ("конфликтов", "конфликт"),
+            ("retries", "retry"),
+            ("покуп", "покупка"),
+        )
+        for query, document in cases:
+            with self.subTest(query=query, document=document):
+                self.assertEqual(
+                    120.0,
+                    SEARCH._query_group_score(
+                        [query],
+                        {
+                            "title": document,
+                            "alias": "",
+                            "summary": "",
+                            "responsibility": "",
+                            "body": "",
+                        },
+                    ),
+                )
+
+    def test_query_group_rejects_infixes_and_one_character_cjk_fragments(self):
+        searchable = {
+            "title": "catalog 水位线",
+            "alias": "",
+            "summary": "",
+            "responsibility": "",
+            "body": "",
+        }
+        self.assertEqual(0.0, SEARCH._query_group_score(["log"], searchable))
+        self.assertEqual(0.0, SEARCH._query_group_score(["位"], searchable))
+        self.assertEqual(120.0, SEARCH._query_group_score(["水位线"], searchable))
+
+    def test_multilingual_corpus_prefers_owner_over_title_and_body_decoys(self):
+        spine = (
+            ROOT
+            / "tests/retrieval-corpora/corpora/mobile-app-ru-01/project/specspine"
+        )
+        cases = (
+            (
+                [
+                    ["ссылка", "URI", "redirect"],
+                    ["билет", "билета"],
+                    ["разбор", "разборщик", "нормализует"],
+                    ["внешний", "внешняя"],
+                    ["маршрут", "навигация"],
+                ],
+                "deep-links.md",
+            ),
+            (
+                [
+                    ["регистрация", "зарегистрировать"],
+                    ["устройство", "установки"],
+                    ["push-токен", "токен доставки"],
+                    ["подтверждение", "подтверждения"],
+                    ["идемпотентный", "идемпотентен"],
+                ],
+                "push-notifications.md",
+            ),
+        )
+        for terms, expected in cases:
+            with self.subTest(expected=expected):
+                result = SEARCH.build_closure(
+                    spine,
+                    {
+                        "targets": [],
+                        "semantic_ids": [],
+                        "paths": [],
+                        "terms": terms,
+                        "facets": [],
+                        "token_budget": 8000,
+                    },
+                )
+                self.assertEqual(expected, result["primary"]["path"])
+
+    def test_skill_forbids_generated_cross_language_synonyms(self):
+        instructions = (
+            ROOT / "skills/specspine-extract/SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "Do not generate translated or cross-language synonyms",
+            instructions,
+        )
+
     def test_task_context_covers_query_with_source_excerpts(self):
         result = self.query()
         context = result["task_context"]

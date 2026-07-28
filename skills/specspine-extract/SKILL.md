@@ -26,6 +26,9 @@ python3 <skill-root>/scripts/search_spine.py <spine-root> --query-json '<compact
 Use paths relative to `<spine-root>`. Preserve exact paths, semantic IDs, API
 names, and identifiers. Put synonyms for one concept in the same term group.
 Write natural-language terms in the configured SpecSpine documentation language.
+Do not generate translated or cross-language synonyms. Preserve a foreign-language
+term only when it is an exact identifier, API name, or established term used by
+the SpecSpine itself.
 
 ```json
 {

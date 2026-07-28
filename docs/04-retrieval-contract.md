@@ -47,6 +47,12 @@ A user, calling agent, or query planner may translate natural language into this
 input. The deterministic extractor is not required to understand unrestricted
 natural language.
 
+Natural-language query terms MUST use the SpecSpine documentation language
+configured in project instructions. Query planners MUST NOT generate translated
+or cross-language synonyms. Exact paths, semantic IDs, API names, identifiers,
+and established foreign-language terms already used by the SpecSpine are
+preserved as written.
+
 ## Candidate and owner selection
 
 Strong direct signals are evaluated in this order:

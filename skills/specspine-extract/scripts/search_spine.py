@@ -12,6 +12,7 @@ import re
 import sys
 import unicodedata
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -216,6 +217,7 @@ def read_selected_document(root: Path, relative: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
+@lru_cache(maxsize=4096)
 def normalized_text(value: str) -> str:
     decomposed = unicodedata.normalize("NFKD", value).casefold()
     return unicodedata.normalize(
@@ -228,6 +230,7 @@ def normalized_text(value: str) -> str:
     )
 
 
+@lru_cache(maxsize=4096)
 def expanded_tokens(value: str) -> tuple[str, ...]:
     return tuple(
         part
@@ -251,6 +254,33 @@ def morphological_token_match(query_token: str, document_token: str) -> bool:
             break
         shared += 1
     return shared >= max(NORMALIZED_PREFIX_LENGTH, math.ceil(shorter * 0.7))
+
+
+def _contains_cjk(value: str) -> bool:
+    return any(
+        "\u3400" <= character <= "\u4dbf"
+        or "\u4e00" <= character <= "\u9fff"
+        or "\uf900" <= character <= "\ufaff"
+        or "\u3040" <= character <= "\u30ff"
+        or "\uac00" <= character <= "\ud7af"
+        for character in value
+    )
+
+
+@lru_cache(maxsize=8192)
+def lexical_phrase_match(query: str, document: str) -> bool:
+    normalized_query = normalized_text(query).strip()
+    normalized_document = normalized_text(document)
+    if not normalized_query:
+        return False
+    if _contains_cjk(normalized_query):
+        significant = tuple(
+            character
+            for character in normalized_query
+            if not character.isspace()
+        )
+        return len(significant) >= 2 and normalized_query in normalized_document
+    return _morphological_phrase_match(normalized_query, normalized_document)
 
 
 def _cells(line: str) -> tuple[str, ...]:
@@ -501,16 +531,16 @@ def _query_group_score(group: list[str], searchable: dict[str, str]) -> float:
     field_scores = {
         "title": 120.0,
         "alias": 110.0,
-        "summary": 6.0,
-        "responsibility": 5.0,
-        "body": 1.0,
+        "responsibility": 100.0,
+        "summary": 60.0,
+        "body": 10.0,
     }
     return max(
         (
             score
             for term in group
             for field, score in field_scores.items()
-            if term.casefold() in searchable[field]
+            if lexical_phrase_match(term, searchable[field])
         ),
         default=0.0,
     )
@@ -557,11 +587,7 @@ def _capsule_excerpt(
 ) -> list[dict[str, str]]:
     sections = document["sections"]
     assert isinstance(sections, dict)
-    query_terms = [
-        term.casefold()
-        for group in query["terms"]
-        for term in group
-    ]
+    query_terms = [term for group in query["terms"] for term in group]
     priorities = {
         "Boundaries": 60,
         "Behavior": 50,
@@ -574,7 +600,7 @@ def _capsule_excerpt(
     for heading, body in sections.items():
         if heading == "Responsibility" or not body:
             continue
-        lexical = sum(term in body.casefold() for term in query_terms)
+        lexical = sum(lexical_phrase_match(term, body) for term in query_terms)
         ranked.append((lexical * 100 + priorities.get(heading, 0), heading, body))
     excerpts: list[dict[str, str]] = []
     remaining = TASK_CONTEXT_DOCUMENT_CHARS
@@ -910,11 +936,11 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
     for document_id, document in documents.items():
         score = 0.0
         if document_id in targets:
-            score += 130
+            score += 100_000_000
         if str(document["path"]) in paths:
-            score += 125
+            score += 10_000_000
         if semantic_ids & set(document["statements"]):
-            score += 140
+            score += 1_000_000_000
         searchable = {
             "title": str(document["title"]).casefold(),
             "alias": " ".join(document["aliases"]).casefold(),
@@ -923,7 +949,11 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
             "body": str(document["text"]).casefold(),
         }
         for group in query["terms"]:
-            score += _query_group_score(group, searchable)
+            group_score = _query_group_score(group, searchable)
+            if group_score:
+                # Covering another independently requested concept is more
+                # important than a prestigious field match for only one term.
+                score += 1_000 + group_score
         if score:
             candidates[document_id] = score
     candidates.pop(str(index["id"]), None)
