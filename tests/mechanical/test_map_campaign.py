@@ -1000,6 +1000,8 @@ class MapCampaignTests(unittest.TestCase):
             for path in packet["lead"]["seed_files"]
         ]
         self.assertEqual(inventory["production_files"], paged)
+        self.assertFalse(receipt["inventory_truncated"])
+        self.assertEqual(len(paged), receipt["inventory_total_files"])
         self.assertTrue(
             all(
                 set(packet)
@@ -1013,6 +1015,48 @@ class MapCampaignTests(unittest.TestCase):
                 }
                 for packet in packets
             )
+        )
+
+    def test_repository_discovery_caps_test_inventory_at_one_thousand_files(self):
+        bulk = self.repository / "bulk"
+        bulk.mkdir()
+        for index in range(CAMPAIGN_MODULE.REPOSITORY_DISCOVERY_FILE_LIMIT + 5):
+            (bulk / f"file_{index:04d}.ts").write_text(
+                "export const value = 1;\n",
+                encoding="utf-8",
+            )
+        discovery = self.run / "limited-discovery"
+        receipt = self.cli(
+            "discovery-start",
+            str(self.ledger),
+            str(self.repository),
+            str(self.spine),
+            str(discovery),
+            "--inventory-accelerator",
+        )
+        seed = json.loads(
+            (discovery / "discovery-seed.json").read_text(encoding="utf-8")
+        )
+        paged = [
+            path
+            for packet_path in receipt["packets"]
+            for path in json.loads(Path(packet_path).read_text(encoding="utf-8"))[
+                "lead"
+            ]["seed_files"]
+        ]
+
+        self.assertEqual(
+            CAMPAIGN_MODULE.REPOSITORY_DISCOVERY_FILE_LIMIT,
+            len(paged),
+        )
+        self.assertEqual(len(paged), receipt["seed_files"])
+        self.assertGreater(receipt["inventory_total_files"], len(paged))
+        self.assertTrue(receipt["inventory_truncated"])
+        self.assertEqual(paged, seed["accelerator"]["production_files"])
+        self.assertTrue(seed["accelerator"]["truncated"])
+        self.assertEqual(
+            receipt["inventory_total_files"],
+            seed["accelerator"]["total_production_files"],
         )
 
     def test_discovery_start_rejects_oversized_pages_before_writing(self):

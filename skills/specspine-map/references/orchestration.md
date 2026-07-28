@@ -83,7 +83,9 @@ python3 <skill>/scripts/campaign.py discovery-start \
 
 Add `--inventory-accelerator` only for repository scope. The root packet and
 neutral inventory pages form the initial discovery layer. Keep the default
-page size; a page may never exceed the mechanical limit.
+page size; a page may never exceed the mechanical limit. The repository
+accelerator currently caps this test slice at 1,000 production files and
+reports both `inventory_total_files` and `inventory_truncated`.
 
 Set the scout subwave size to the smaller of ten and the runtime's available
 subagent slots. If capacity includes root, reserve one slot. Do not assume ten

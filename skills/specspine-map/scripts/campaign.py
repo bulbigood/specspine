@@ -35,6 +35,7 @@ SCHEMA_VERSION = 12
 PRODUCER_CONTRACT_VERSION = 5
 DISCOVERY_CONTRACT_VERSION = 2
 MAX_UNIT_FILES = 80
+REPOSITORY_DISCOVERY_FILE_LIMIT = 1000
 MAX_CANDIDATE_DOCUMENTS = 12
 DISCOVERY_TERMINAL_STATUSES = {
     "expanded",
@@ -1190,11 +1191,17 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
             "flat inventory accelerator is valid only for repository scope"
         )
     inventory: dict[str, Any] | None = None
+    inventory_files: list[str] = []
+    inventory_total_files = 0
     if args.inventory_accelerator:
         inventory = repository_inventory(
             repository_root,
             spine_root=spine_root,
         )
+        inventory_total_files = len(inventory["production_files"])
+        inventory_files = inventory["production_files"][
+            :REPOSITORY_DISCOVERY_FILE_LIMIT
+        ]
     args.output_dir.mkdir(parents=True)
     packets_dir = args.output_dir / "wave-0001"
     packets_dir.mkdir()
@@ -1211,7 +1218,7 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         }
     ]
     if inventory is not None:
-        files = inventory["production_files"]
+        files = inventory_files
         for offset in range(0, len(files), args.page_size):
             index = offset // args.page_size + 1
             leads.append(
@@ -1238,7 +1245,9 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
             else {
                 "kind": "flat-production-inventory",
                 "digest": inventory["digest"],
-                "production_files": inventory["production_files"],
+                "production_files": inventory_files,
+                "total_production_files": inventory_total_files,
+                "truncated": inventory_total_files > len(inventory_files),
                 "excluded": inventory["excluded"],
                 "excluded_directories": inventory["excluded_directories"],
             }
@@ -1268,9 +1277,9 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         "scope_kind": scope["kind"],
         "completion_kind": operation["completion"]["kind"],
         "inventory_accelerator": inventory is not None,
-        "seed_files": (
-            0 if inventory is None else len(inventory["production_files"])
-        ),
+        "seed_files": len(inventory_files),
+        "inventory_total_files": inventory_total_files,
+        "inventory_truncated": inventory_total_files > len(inventory_files),
     }
 
 
