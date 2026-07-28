@@ -75,7 +75,7 @@ class CodexAdapterTests(unittest.TestCase):
 
             skill.write_text(
                 "python3 <skill-root>/scripts/search_spine.py spine "
-                "--queries-json '[]'\n",
+                "--query-json '{}'\n",
                 encoding="utf-8",
             )
             self.assertEqual("search_spine.py", ADAPTER.retrieval_script(root).name)
@@ -85,7 +85,7 @@ class CodexAdapterTests(unittest.TestCase):
             "retrieval",
             ADAPTER.command_category(
                 "python3 .eval/skill/scripts/search_spine.py specspine "
-                "--queries-json '[]'",
+                "--query-json '{}'",
                 set(),
             ),
         )
@@ -97,15 +97,12 @@ class CodexAdapterTests(unittest.TestCase):
             skill.parent.mkdir(parents=True)
             skill.write_text(
                 "python3 <skill-root>/scripts/search_spine.py spine "
-                "--queries-json '[]'\n",
+                "--query-json '{}'\n",
                 encoding="utf-8",
             )
             production = root / ".eval" / "skill" / "scripts" / "search_spine.py"
             production.parent.mkdir(parents=True)
             production.write_text("# production\n", encoding="utf-8")
-            production.with_name("ranking.py").write_text(
-                "# ranking\n", encoding="utf-8"
-            )
             production.with_name("check_spine.py").write_text(
                 "# checker\n", encoding="utf-8"
             )
@@ -114,7 +111,7 @@ class CodexAdapterTests(unittest.TestCase):
 
             self.assertEqual(
                 "python3 <skill-root>/scripts/search_spine.py spine "
-                "--queries-json '[]'\n",
+                "--query-json '{}'\n",
                 skill.read_text(encoding="utf-8"),
             )
             self.assertEqual(
@@ -124,14 +121,10 @@ class CodexAdapterTests(unittest.TestCase):
                 ),
             )
             self.assertEqual(
-                "# ranking\n",
-                (root / ".eval/tools/ranking.py").read_text(encoding="utf-8"),
-            )
-            self.assertEqual(
                 "# checker\n",
                 (root / ".eval/tools/check_spine.py").read_text(encoding="utf-8"),
             )
-            self.assertIn("minimal_telemetry", production.read_text(encoding="utf-8"))
+            self.assertIn('"mode": "closure"', production.read_text(encoding="utf-8"))
 
     def test_relative_files_excludes_eval_and_git_internals(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1360,33 +1353,6 @@ PATCH"""
         self.assertNotIn("workspace-write", rendered)
         self.assertNotIn('.agents"="read', rendered)
         self.assertNotIn('.codex"="read', rendered)
-
-    def test_codex_command_uses_private_accelerator_cache(self):
-        command = ADAPTER.build_codex_command(
-            "agent-model", "medium",
-            Path("/workspace"), Path("/runtime")
-        )
-        environment_argument = next(
-            item for item in command if item.startswith("shell_environment_policy.set=")
-        )
-
-        self.assertIn(
-            'SPECSPINE_CACHE_DIR="/runtime/accelerator-cache"',
-            environment_argument,
-        )
-
-    def test_codex_command_can_force_benchmark_fallback(self):
-        command = ADAPTER.build_codex_command(
-            "agent-model",
-            "medium",
-            Path("/workspace"),
-            Path("/runtime"),
-            force_retrieval_fallback=True,
-        )
-        environment_argument = next(
-            item for item in command if item.startswith("shell_environment_policy.set=")
-        )
-        self.assertIn('SPECSPINE_CACHE_DIR="/dev/null"', environment_argument)
 
     def test_codex_command_can_remove_subagent_capability(self):
         command = ADAPTER.build_codex_command(

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Observe the Extract production search without changing its stdout contract."""
+"""Observe Extract closure search without changing its stdout contract."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ import hashlib
 import importlib.util
 import json
 import os
-import platform
 import sys
 import time
 from pathlib import Path
@@ -25,93 +24,15 @@ LEVEL_ENV = "SPECSPINE_RETRIEVAL_TELEMETRY_LEVEL"
 
 
 def load_production(path: Path) -> ModuleType:
-    spec = importlib.util.spec_from_file_location("specspine_extract_production_search", path)
+    spec = importlib.util.spec_from_file_location(
+        "specspine_extract_production_search", path
+    )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load production search: {path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
-
-
-def rounded_timings(outcome: object) -> dict[str, float]:
-    timings = getattr(outcome, "timings", None)
-    return {
-        str(key): round(float(value), 6)
-        for key, value in (timings.items() if isinstance(timings, dict) else ())
-    }
-
-
-def routed_outcomes(outcome: object) -> tuple[object, ...]:
-    slices = getattr(outcome, "slices", ())
-    if slices:
-        return tuple(item.outcome for item in slices)
-    return (outcome,)
-
-
-def minimal_telemetry(
-    outcome: object, query: str, production_output_bytes: int
-) -> dict[str, object]:
-    routed = routed_outcomes(outcome)
-    direct_count = sum(
-        len(tuple(getattr(item, "direct_matches", ()))) for item in routed
-    )
-    graph_count = sum(
-        len(tuple(getattr(item, "graph_neighbors", ()))) for item in routed
-    )
-    return {
-        "schema_version": 1,
-        "mode": getattr(outcome, "mode"),
-        "exit_code": getattr(outcome, "exit_code"),
-        "query_sha256": hashlib.sha256(query.encode("utf-8")).hexdigest(),
-        "reason_code": getattr(outcome, "reason_code"),
-        "index_state": getattr(outcome, "index_state"),
-        "documents": getattr(outcome, "documents"),
-        "refreshed": getattr(outcome, "refreshed"),
-        "ranking_system": getattr(
-            outcome, "ranking_system", "normalized"
-        ),
-        "slice_count": len(tuple(getattr(outcome, "slices", ()))) or 1,
-        "direct_count": direct_count,
-        "graph_count": graph_count,
-        "production_output_utf8_bytes": production_output_bytes,
-        "timings": rounded_timings(outcome),
-    }
-
-
-def full_telemetry(
-    outcome: object, query: str, production_output_bytes: int, production: ModuleType
-) -> dict[str, object]:
-    payload = minimal_telemetry(outcome, query, production_output_bytes)
-    slices = tuple(getattr(outcome, "slices", ()))
-    payload.update(
-        {
-            "schema_version": 3 if slices else 2,
-            "query": query,
-            "reason": getattr(outcome, "reason"),
-            "retrieval_strategy": getattr(outcome, "retrieval_strategy", None),
-            "selection": getattr(outcome, "selection", None) or {},
-            "runtime": {
-                "python": platform.python_version(),
-                "sqlite": production.sqlite3.sqlite_version,
-                "fts5": True,
-            },
-            "direct_matches": list(getattr(outcome, "direct_matches", ())),
-            "graph_neighbors": list(getattr(outcome, "graph_neighbors", ())),
-        }
-    )
-    if slices:
-        payload["slices"] = [
-            {
-                "id": item.identifier,
-                "retrieval_strategy": item.outcome.retrieval_strategy,
-                "selection": item.outcome.selection or {},
-                "direct_matches": list(item.outcome.direct_matches),
-                "graph_neighbors": list(item.outcome.graph_neighbors),
-            }
-            for item in slices
-        ]
-    return payload
 
 
 def append_sidecar(payload: dict[str, object]) -> None:
@@ -137,73 +58,41 @@ def main() -> int:
         help=f"telemetry level; defaults to ${LEVEL_ENV}",
     )
     parser.add_argument("spine_root", type=Path)
-    query_group = parser.add_mutually_exclusive_group(required=True)
-    query_group.add_argument("--query-json")
-    query_group.add_argument("--queries-json")
-    parser.add_argument("--rebuild", action="store_true")
+    parser.add_argument("--query-json", required=True)
     args = parser.parse_args()
     if args.telemetry is None:
         parser.error(f"--telemetry or {LEVEL_ENV} is required")
+    try:
+        query = json.loads(args.query_json)
+    except json.JSONDecodeError as error:
+        parser.error(str(error))
+
     production_path = Path(
         os.environ.get(PRODUCTION_ENV, str(DEFAULT_PRODUCTION_SCRIPT))
     )
     production = load_production(production_path)
-    query = args.query_json or args.queries_json
-    if args.query_json is not None:
-        try:
-            parsed = json.loads(query)
-        except json.JSONDecodeError as error:
-            parser.error(str(error))
-        retrieval_started = time.perf_counter()
-        result = production.build_closure(args.spine_root, parsed)
-        retrieval_seconds = time.perf_counter() - retrieval_started
-        production_output = json.dumps(result, ensure_ascii=False) + "\n"
-        telemetry = {
-            "schema_version": 4,
-            "mode": "closure",
-            "exit_code": 1 if result.get("closure_status") == "invalid" else 0,
-            "query_sha256": hashlib.sha256(query.encode("utf-8")).hexdigest(),
-            "reason_code": result.get("reason"),
-            "documents": len(result.get("sources", [])),
-            "closure_status": result.get("closure_status"),
-            "coverage": result.get("coverage"),
-            "production_output_utf8_bytes": len(
-                production_output.encode("utf-8")
-            ),
-            "timings": {"total_seconds": round(retrieval_seconds, 6)},
-            "telemetry_level": args.telemetry,
-        }
-        append_sidecar(telemetry)
-        print(production_output, end="")
-        return int(telemetry["exit_code"])
-    try:
-        slices = production.RANKING.parse_query_slices(query)
-    except production.RANKING.InvalidRankingQuery as error:
-        parser.error(str(error))
-    outcome = production.execute_searches(
-        args.spine_root,
-        slices,
-        rebuild=args.rebuild,
-    )
-    production_output = production.render_batch_output(
-        args.spine_root,
-        outcome,
-    )
-    output_bytes = len(production_output.encode("utf-8"))
-    telemetry = (
-        minimal_telemetry(outcome, query, output_bytes)
-        if args.telemetry == "minimal"
-        else full_telemetry(
-            outcome,
-            query,
-            output_bytes,
-            production,
-        )
-    )
-    telemetry["telemetry_level"] = args.telemetry
+    started = time.perf_counter()
+    result = production.build_closure(args.spine_root, query)
+    elapsed = time.perf_counter() - started
+    production_output = json.dumps(result, ensure_ascii=False) + "\n"
+    telemetry = {
+        "schema_version": 1,
+        "mode": "closure",
+        "exit_code": 1 if result.get("closure_status") == "invalid" else 0,
+        "query_sha256": hashlib.sha256(
+            args.query_json.encode("utf-8")
+        ).hexdigest(),
+        "reason_code": result.get("reason"),
+        "documents": len(result.get("sources", [])),
+        "closure_status": result.get("closure_status"),
+        "coverage": result.get("coverage"),
+        "production_output_utf8_bytes": len(production_output.encode("utf-8")),
+        "timings": {"total_seconds": round(elapsed, 6)},
+        "telemetry_level": args.telemetry,
+    }
     append_sidecar(telemetry)
     print(production_output, end="")
-    return int(outcome.exit_code)
+    return int(telemetry["exit_code"])
 
 
 if __name__ == "__main__":

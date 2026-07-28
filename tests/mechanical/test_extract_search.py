@@ -87,7 +87,7 @@ Defines the bounded retry policy.
 """
 
 
-class ExtractV2Tests(unittest.TestCase):
+class ExtractTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.spine = Path(self.temporary.name)
@@ -114,15 +114,6 @@ class ExtractV2Tests(unittest.TestCase):
         self.assertEqual(["CON-payment-idempotency", "CON-policy-bound"], [
             item["id"] for item in result["constraints"]
         ])
-
-    def test_repository_relative_query_path_selects_spine_document(self):
-        result = self.query(
-            targets=[],
-            paths=["specspine/payments.md"],
-            terms=[],
-            facets=[],
-        )
-        self.assertEqual("payment-processing", result["primary"]["id"])
 
     def test_spine_relative_query_path_selects_spine_document(self):
         result = self.query(

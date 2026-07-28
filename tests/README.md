@@ -39,42 +39,15 @@ Mechanical tests must:
 - use the Python standard library unless a repository-wide decision says
   otherwise;
 - be deterministic, hermetic, and independent of network access or live AI;
-- use temporary directories and explicit disposable cache locations;
+- use temporary directories;
 - avoid writing generated or cache artifacts into the repository;
-- test optional accelerators as optional: failure must preserve the documented
-  fallback rather than fail unrelated functionality;
 - avoid changing skill wording merely to satisfy a test.
 
 Performance benchmarks must keep correctness metrics separate from timings.
 Use deterministic synthetic inputs and fixed ground truth; never turn host-time
-measurements into CI thresholds. Production Extract accepts one batched
-`queries-json` request. Each slice contains an `id`, required `must` synonym
-groups, and optional `should` groups. Stdout contains marked slice results and
-deduplicated complete documents; whole documents are omitted rather than cut
-when the internal output budget is exhausted.
-
-The production normalized ranker uses derived schema v6. Alphabetic morphology
-candidates use indexed Unicode tokens and prefixes; every non-ASCII writing
-system also gets indexed 1–3-grams with full-run verification. Incremental
-refresh updates these rows with the document index.
-
-Representative retrieval corpora live under `tests/retrieval-corpora/corpora`.
-Each immutable corpus contains a natural project fixture, fixed query slices,
-agent-level requests, graded relevance judgments, and a SHA-256 document
-inventory. Validate and run the production benchmark with:
-
-```text
-python3 tools/specspine-extract/validate_corpus.py \
-  tests/retrieval-corpora/corpora/*/manifest.json
-python3 tests/retrieval-corpora/benchmark.py
-```
-
-The benchmark JSON includes global summaries and breakdowns by documentation
-language, project type, and scenario tag. It reports direct support before
-graph expansion, incremental graph gain and precision, per-slice ranking
-quality, batch-level unique document counts, output bytes, and cold/warm
-end-to-end timings. Metrics without observations are `null`, never synthetic
-zeroes.
+measurements into CI thresholds. Production Extract accepts one structured
+`query-json` request. Stdout contains one deterministic JSON object with the
+architecture closure and complete selected documents within the token budget.
 
 Run the production skill against the representative backend, CLI, Russian
 mobile, and Chinese pipeline agent cases with:

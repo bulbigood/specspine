@@ -2080,7 +2080,6 @@ def build_codex_command(
     root: Path,
     runtime_root: Path,
     retrieval_telemetry: str | None = None,
-    force_retrieval_fallback: bool = False,
     subagents_enabled: bool = True,
     subagent_max_concurrent_threads: int | None = None,
     default_subagent_model: str | None = None,
@@ -2115,10 +2114,6 @@ def build_codex_command(
         "XDG_STATE_HOME": str(private_state),
         "ZDOTDIR": str(private_home),
     }
-    environment["SPECSPINE_CACHE_DIR"] = (
-        "/dev/null" if force_retrieval_fallback
-        else str(runtime_root / "accelerator-cache")
-    )
     if retrieval_telemetry:
         environment["SPECSPINE_PRODUCTION_SEARCH"] = str(
             root / ".eval" / "tools" / "search_spine_production.py"
@@ -2218,9 +2213,6 @@ def enable_retrieval_telemetry(root: Path, level: str) -> None:
     preserved.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(production, preserved)
     shutil.copy2(
-        production.with_name("ranking.py"), preserved.with_name("ranking.py")
-    )
-    shutil.copy2(
         production.with_name("check_spine.py"), preserved.with_name("check_spine.py")
     )
     shutil.copy2(source, production)
@@ -2310,7 +2302,6 @@ def main() -> int:
             root,
             runtime_root,
             args.retrieval_telemetry,
-            args.retrieval_profile == "fallback",
             subagents_enabled,
             subagent_max_concurrent_threads,
             subagent_model,
@@ -2466,9 +2457,6 @@ def main() -> int:
                             if args.retrieval_telemetry
                             else selected_retrieval_script
                         )
-                    ),
-                    "retrieval_ranking_sha256": optional_file_sha256(
-                        selected_retrieval_script.with_name("ranking.py")
                     ),
                     "codex_cli": codex_version,
                     "python": platform.python_version(),
