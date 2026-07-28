@@ -29,7 +29,8 @@ are the repository sources of truth.
 Shared resources appear in consuming skills as relative symbolic links.
 `tools/specspine-adapter-generator/scripts/generate_resources.py` registers and
 validates those links. A private execution protocol stays in its owning skill;
-it must not be registered as a shared resource.
+it must not be registered as a shared resource. The generator also rejects
+unshared byte-identical files across skills.
 
 The adapter generator is maintainer-only repository tooling. It may generate
 framework-specific SDD adapters, but it contains no canonical copies of runtime

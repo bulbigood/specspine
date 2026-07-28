@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import sys
 from pathlib import Path
@@ -21,7 +22,6 @@ IGNORED_NAMES = {
 }
 SKILL_REFERENCES = {
     "specspine-grow": {
-        "examples.md": "specspine-grow/examples.md",
         "spec-format.md": "spec-format.md",
         "spec-semantics.md": "spec-semantics.md",
     },
@@ -30,8 +30,6 @@ SKILL_REFERENCES = {
         "spec-semantics.md": "spec-semantics.md",
     },
     "specspine-doctor": {
-        "connection-contract.md": "specspine-doctor/connection-contract.md",
-        "review-method.md": "specspine-doctor/review-method.md",
         "spec-format.md": "spec-format.md",
         "spec-semantics.md": "spec-semantics.md",
     },
@@ -116,6 +114,39 @@ def check_shared_links(source_files: dict[str, Path], target: Path) -> list[str]
     return errors
 
 
+def check_resource_ownership(repo_root: Path) -> list[str]:
+    errors: list[str] = []
+    consumers_by_source: dict[Path, set[str]] = {}
+    for name in PACKAGES:
+        for source in shared_files(repo_root, name).values():
+            consumers_by_source.setdefault(source, set()).add(name)
+
+    for source in files_under(repo_root / "shared").values():
+        consumers = consumers_by_source.get(source, set())
+        if len(consumers) < 2:
+            relative = source.relative_to(repo_root)
+            errors.append(
+                f"{relative}: shared resource has {len(consumers)} skill consumers; "
+                "keep resources used by only one skill in that skill"
+            )
+
+    duplicates: dict[bytes, list[Path]] = {}
+    for name in PACKAGES:
+        for path in package_files(repo_root / "skills", name).values():
+            if path.is_symlink():
+                continue
+            digest = hashlib.sha256(path.read_bytes()).digest()
+            duplicates.setdefault(digest, []).append(path)
+    for paths in duplicates.values():
+        skills = {path.relative_to(repo_root / "skills").parts[0] for path in paths}
+        if len(skills) > 1:
+            rendered = ", ".join(str(path.relative_to(repo_root)) for path in sorted(paths))
+            errors.append(
+                f"duplicate regular skill resources must use a shared owner and symlinks: {rendered}"
+            )
+    return errors
+
+
 def write_links(source_files: dict[str, Path], target: Path) -> None:
     for relative, source in sorted(source_files.items()):
         destination = target / relative
@@ -143,6 +174,7 @@ def main() -> int:
     )
 
     errors: list[str] = []
+    errors.extend(check_resource_ownership(repo_root))
     for name in selected:
         source = skills_root / name
         if not (source / "SKILL.md").is_file():

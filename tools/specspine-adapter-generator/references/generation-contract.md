@@ -23,8 +23,11 @@ Each consuming skill exposes a shared reference through a relative symbolic
 link. A private reference that defines only one skill's execution remains a
 regular file in that skill and is not registered with this generator. The
 generator validates or atomically repairs only registered shared links; it
-never copies their contents. Selecting `--skill` limits validation or repair
-to that skill. Run the full check before a release.
+never copies their contents. Every file under `shared/` must have at least two
+registered skill consumers. Byte-identical regular files in different skills
+must instead have one shared owner and relative symbolic links. Selecting
+`--skill` limits link validation or repair to that skill; ownership validation
+always covers the repository. Run the full check before a release.
 
 ## Framework-adapter boundary
 

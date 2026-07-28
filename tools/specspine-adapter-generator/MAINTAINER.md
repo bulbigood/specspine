@@ -22,8 +22,8 @@ Never put SDD framework knowledge into canonical runtime skills.
 ## Workflow
 
 1. Modify skill-specific files under `skills/`.
-2. Keep reused references in `shared/references/` and private references in
-   their owning skill.
+2. Keep resources with at least two skill consumers under `shared/` and
+   private resources in their owning skill.
 3. Run `scripts/generate_resources.py` to repair links from runtime skills to
    shared references.
 4. Run `scripts/generate_resources.py --check`.

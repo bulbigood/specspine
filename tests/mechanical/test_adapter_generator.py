@@ -47,6 +47,20 @@ class AdapterGeneratorTests(unittest.TestCase):
                 consumer,
             )
 
+    def test_shared_resources_have_multiple_consumers_and_no_skill_duplicates(self):
+        self.assertEqual([], GENERATOR.check_resource_ownership(PROJECT_ROOT))
+
+        self.assertTrue(
+            (PROJECT_ROOT / "skills/specspine-grow/references/examples.md").is_file()
+        )
+        self.assertFalse(
+            (PROJECT_ROOT / "skills/specspine-grow/references/examples.md").is_symlink()
+        )
+        for name in ("connection-contract.md", "review-method.md"):
+            private = PROJECT_ROOT / "skills/specspine-doctor/references" / name
+            self.assertTrue(private.is_file())
+            self.assertFalse(private.is_symlink())
+
     def test_grow_requires_the_whole_spine_mechanical_gate_after_writes(self):
         skill = (
             PROJECT_ROOT / "skills/specspine-grow/SKILL.md"
