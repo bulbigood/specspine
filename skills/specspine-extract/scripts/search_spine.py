@@ -445,38 +445,55 @@ def _attach_concatenated_files(
 ) -> dict[str, object]:
     notice = (
         "The following content is the complete, concatenated content of "
-        "the selected SpecSpine files."
+        "the selected SpecSpine files. "
+        "concatenated_files_omitted_paths names source files omitted from "
+        "this content by the token budget."
     )
-    blocks = [notice]
+    blocks: dict[str, str] = {}
     returned: list[str] = []
-    output = {
-        "concatenated_files": notice,
-        "concatenated_source_paths": returned,
-        "concatenated_files_truncated": False,
-        **result,
-    }
+
+    def render() -> dict[str, object]:
+        returned_set = set(returned)
+        omitted = [
+            relative for relative in source_paths
+            if relative not in returned_set
+        ]
+        return {
+            "concatenated_files": "\n".join(
+                [notice, *(blocks[relative] for relative in returned)]
+            ),
+            "concatenated_source_paths": list(returned),
+            "concatenated_files_omitted_paths": omitted,
+            **result,
+        }
+
+    output = render()
     for relative in source_paths:
         block = "\n".join((
             f'<<<SPECSPINE_FILE path="{relative}">>>',
             read_selected_document(root, relative).rstrip("\n"),
             "<<<SPECSPINE_END_FILE>>>",
         ))
-        trial = {
-            **output,
-            "concatenated_files": "\n".join((*blocks, block)),
-            "concatenated_source_paths": [*returned, relative],
-        }
-        if _estimated_tokens(trial) > token_budget:
-            output["concatenated_files_truncated"] = True
-            continue
-        blocks.append(block)
+        blocks[relative] = block
         returned.append(relative)
+        trial = render()
+        if _estimated_tokens(trial) > token_budget:
+            returned.pop()
+            output = render()
+            continue
         output = trial
+
+    # Paths identifying later omissions also consume budget. If that metadata
+    # pushes the result over budget, remove complete blocks until it fits.
+    while returned and _estimated_tokens(output) > token_budget:
+        returned.pop()
+        output = render()
+
     if _estimated_tokens(output) > token_budget:
         output = {
             "concatenated_files": notice,
             "concatenated_source_paths": [],
-            "concatenated_files_truncated": True,
+            "concatenated_files_omitted_paths": list(source_paths),
             "closure_status": "truncated",
             "reason": "token_budget_exceeded",
             "omitted": [{"reason": "token_budget"}],

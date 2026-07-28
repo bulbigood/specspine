@@ -1249,6 +1249,14 @@ def parse_retrieval_protocol(
             for path in closure.get("concatenated_source_paths", [])
             if isinstance(path, str)
         ]
+        omitted_documents = [
+            {
+                "path": qualify_candidate_path(str(path), spine_root),
+                "reason": "output_budget",
+            }
+            for path in closure.get("concatenated_files_omitted_paths", [])
+            if isinstance(path, str)
+        ]
         return {
             "mode": "closure",
             "ranking_system": None,
@@ -1260,7 +1268,7 @@ def parse_retrieval_protocol(
             "direct_matches": direct_matches,
             "graph_neighbors": graph_neighbors,
             "inline_documents": inline_documents,
-            "omitted_documents": closure.get("omitted", []),
+            "omitted_documents": omitted_documents,
         }
     return {
         "mode": result.get("mode", "unknown"),

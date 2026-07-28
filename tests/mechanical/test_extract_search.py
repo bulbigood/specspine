@@ -179,6 +179,8 @@ Defines the system retry ceiling.
             result["sources"],
             result["concatenated_source_paths"],
         )
+        self.assertEqual([], result["concatenated_files_omitted_paths"])
+        self.assertNotIn("concatenated_files_truncated", result)
         for relative in result["concatenated_source_paths"]:
             self.assertIn(
                 f'<<<SPECSPINE_FILE path="{relative}">>>',
@@ -188,6 +190,30 @@ Defines the system retry ceiling.
                 (self.spine / relative).read_text(encoding="utf-8").rstrip("\n"),
                 concatenated,
             )
+
+    def test_concatenation_names_only_files_omitted_by_budget(self):
+        (self.spine / "small.md").write_text("# Small\n", encoding="utf-8")
+        (self.spine / "large.md").write_text(
+            "# Large\n\n" + ("large context " * 2000),
+            encoding="utf-8",
+        )
+        source_paths = ["small.md", "large.md"]
+        result = SEARCH._attach_concatenated_files(
+            self.spine.resolve(),
+            {"closure_status": "complete", "sources": source_paths},
+            source_paths,
+            256,
+        )
+
+        self.assertEqual(["small.md"], result["concatenated_source_paths"])
+        self.assertEqual(
+            ["large.md"],
+            result["concatenated_files_omitted_paths"],
+        )
+        self.assertIn('path="small.md"', result["concatenated_files"])
+        self.assertNotIn('path="large.md"', result["concatenated_files"])
+        self.assertNotIn("concatenated_files_truncated", result)
+        self.assertLessEqual(SEARCH._estimated_tokens(result), 256)
 
     def test_includes_system_wide_claims_and_root_divergences(self):
         root_claims = """

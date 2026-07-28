@@ -18,8 +18,11 @@ python3 <skill-root>/scripts/search_spine.py <spine-root> --query-json '<compact
 ```
 
 4. Answer directly from the returned `task_context` and
-   `concatenated_files`. Do not repeat retrieval, inspect other project files,
-   or add unsupported conclusions.
+   `concatenated_files`. `concatenated_source_paths` names the files already
+   returned in full. If `concatenated_files_omitted_paths` is non-empty, read
+   only those omitted files in one batched call when their full content is
+   needed; never reread `concatenated_source_paths`. Do not inspect other
+   project files or add unsupported conclusions.
 
 ## Query
 

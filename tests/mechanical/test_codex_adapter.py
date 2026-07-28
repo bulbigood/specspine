@@ -787,6 +787,7 @@ class CodexAdapterTests(unittest.TestCase):
                     "aggregated_output": (
                         '{"concatenated_files":"complete files",'
                         '"concatenated_source_paths":["README.md","owner.md"],'
+                        '"concatenated_files_omitted_paths":["policy.md"],'
                         '"closure_status":"complete","coverage":"mapped",'
                         '"sources":["README.md","owner.md"]}\n'
                     ),
@@ -805,6 +806,10 @@ class CodexAdapterTests(unittest.TestCase):
                 document["path"]
                 for document in attempt["inline_documents"]
             ],
+        )
+        self.assertEqual(
+            [{"path": "specspine/policy.md", "reason": "output_budget"}],
+            attempt["omitted_documents"],
         )
 
     def test_splits_agent_metrics_around_retrieval(self):

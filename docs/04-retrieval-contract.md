@@ -158,9 +158,17 @@ closure from documented architecture, never code/spec conformance.
 The result MUST contain primary owner, required and potentially affected
 specifications, applicable decisions and constraints, divergences, blocking
 questions, coverage, omitted information, source paths, status, and reason.
+`concatenated_source_paths` MUST list files returned in full in
+`concatenated_files`. `concatenated_files_omitted_paths` MUST list the exact
+source files whose full content was omitted by the token budget. Consumers
+needing direct Markdown fallback MUST read only the latter and MUST NOT reread
+files in `concatenated_source_paths`.
 
 ```json
 {
+  "concatenated_files": "...",
+  "concatenated_source_paths": ["README.md", "payments.md"],
+  "concatenated_files_omitted_paths": [],
   "closure_status": "complete",
   "reason": "mapped_task_closure_satisfied",
   "coverage": "mapped",
