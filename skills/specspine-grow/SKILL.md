@@ -54,15 +54,26 @@ Use `specspine-map` for repository discovery and drift, `specspine-doctor` for
 health review, and `specspine-extract` for a downstream context handoff. Grow
 must remain usable without those skills.
 
+When the request explicitly composes Extract with Grow, treat Extract's
+machine-selected complete files as the project-source reads required below.
+When that request requires Extract and its companion is available, invoke its
+search exactly once before directly reading project specifications; do not
+silently substitute manual navigation.
+If `task_context.complete` is true and the result is not truncated, do not
+re-read the returned index or specifications before editing. If the capsule is
+incomplete, follow Extract's reported gaps and suggested paths rather than
+starting a second navigation pass.
+
 ## Workflow
 
 1. Resolve `<spine-root>` as defined by `references/spec-format.md`; absent an
    explicit user or project configuration, this is exactly `specspine`
    relative to the current working directory, never the repository root.
    Test for its `README.md` without listing the project. If present, read it
-   and follow only relevant links. If absent, immediately initialize from the
-   request; do not run any other project discovery or read any other project
-   path.
+   and follow only relevant links, unless a complete non-truncated Extract
+   result already supplied it as described above. If absent, immediately
+   initialize from the request; do not run any other project discovery or read
+   any other project path.
 2. Classify the operation: initialize, refine, split, merge, rename, or link.
    Identify the canonical owner, specifications whose architectural meaning or
    boundaries change, and context needed only for understanding.
@@ -86,6 +97,9 @@ must remain usable without those skills.
    canonical ownership, identity, relationships, navigation, and reachability.
    Preserve unrelated content. Update the index only when top-level navigation
    or system-wide intent changes.
+   Store newly accepted but implementation-unverified behavior as Decisions or
+   Constraints. Do not also restate it as unqualified current Behavior unless
+   the request supplies evidence that establishes it as current behavior.
 6. After every write batch, run the bundled checker against the whole resolved
    Spine. If it reports an error, correct only defects caused by the approved
    operation and rerun it. If an error is pre-existing or needs new

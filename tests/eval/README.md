@@ -256,8 +256,8 @@ use at least three independent samples per scenario for comparative evidence.
 The comparison reports wall time, token counters, tool cycles, files read,
 retrieval attempts, deterministic validity, and blind quality.
 
-Each case gets a clean temporary workspace. Cases run with concurrency 8 by
-default; change it with `--jobs N`. Workspaces default to
+Each case gets a clean temporary workspace. This A/B script runs with
+concurrency 2 by default; change it with `--jobs N`. Workspaces default to
 `~/.cache/specspine-eval/workspaces`; override with
 `SPECSPINE_EVAL_WORKSPACES_DIR`. Failed workspaces are retained only with
 `--keep-workspace`.

@@ -155,6 +155,9 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
                     encoding="utf-8"
                 )
             )["cases"]
+            self.assertTrue((root / "blind-review" / "specspine").is_dir())
+            self.assertEqual("specspine", cases[0]["architecture_context_root"])
+            self.assertEqual(scenario["target"], cases[0]["target_path"])
             candidates = list(cases[0]["candidates"])
             judgments = {
                 "judgments": [{
@@ -185,6 +188,38 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
                 },
             )
             self.assertEqual(1, sum(values["blind_wins"] for values in scores.values()))
+
+    def test_grow_grafana_navigation_reads_exclude_checker_and_diff(self):
+        sample = {
+            "agent_runs": [{
+                "event_metrics": {
+                    "command_metrics": [
+                        {
+                            "command_excerpt": "sed -n 1,80p specspine/README.md",
+                            "inferred_file_paths": ["specspine/README.md"],
+                        },
+                        {
+                            "command_excerpt": (
+                                "python3 .eval/skill/scripts/check_spine.py "
+                                "specspine"
+                            ),
+                            "inferred_file_paths": [
+                                "specspine/README.md",
+                                "specspine/owner.md",
+                            ],
+                        },
+                        {
+                            "command_excerpt": "git diff -- specspine/owner.md",
+                            "inferred_file_paths": ["specspine/owner.md"],
+                        },
+                    ]
+                }
+            }]
+        }
+        self.assertEqual(
+            1,
+            GROW_GRAFANA_BENCHMARK.navigation_file_count(sample),
+        )
 
     def test_three_fixed_arms_use_current_extract_cases(self):
         self.assertEqual(

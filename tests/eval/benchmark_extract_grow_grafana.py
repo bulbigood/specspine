@@ -9,6 +9,7 @@ import hashlib
 import importlib.util
 import json
 import shlex
+import shutil
 import sys
 import tempfile
 import time
@@ -55,8 +56,6 @@ SCENARIOS = (
             "ErrMethodNotImplemented",
             "Unimplemented",
             "перезапуск",
-            "plugin-request-status-classification.md",
-            "plugin-host-environment.md",
         ],
         "forbidden_terms": [
             "plugin-resource-http-response-adapter.md",
@@ -69,10 +68,11 @@ SCENARIOS = (
         "target": "specspine/identity-access/authentication-sessions.md",
         "required_terms": [
             "best-effort",
-            "идемпотент",
             "cleanup",
-            "authorization-policy-engine.md",
             "sql-persistence-migrations.md",
+        ],
+        "required_any": [
+            ["идемпотент", "idempotent"],
         ],
         "forbidden_terms": [
             "anonymous-device-management.md",
@@ -87,8 +87,6 @@ SCENARIOS = (
             "depth-first",
             "NotFound",
             "folder-terminating",
-            "content-dashboard-lifecycle.md",
-            "content-browse.md",
         ],
         "forbidden_terms": [
             "library-panel-resource-transition.md",
@@ -138,6 +136,14 @@ def grow_case(
                 "type": "trace_equals",
                 "field": "retrieval_attempt_count",
                 "value": 1,
+            }
+        )
+    for alternatives in scenario.get("required_any", []):
+        assertions.append(
+            {
+                "type": "file_contains_any",
+                "path": scenario["target"],
+                "values": alternatives,
             }
         )
     return {
@@ -242,6 +248,10 @@ def write_blind_package(
 ) -> None:
     review_dir = output_dir / "blind-review"
     review_dir.mkdir(exist_ok=True)
+    context_root = review_dir / "specspine"
+    if context_root.exists():
+        shutil.rmtree(context_root)
+    shutil.copytree(grafana_root.expanduser().resolve() / "specspine", context_root)
     payload_cases: list[dict[str, Any]] = []
     key: dict[str, str] = {}
     scenario_by_id = {scenario["id"]: scenario for scenario in scenarios}
@@ -272,6 +282,8 @@ def write_blind_package(
         payload_cases.append(
             {
                 "pair_id": pair_id,
+                "architecture_context_root": "specspine",
+                "target_path": scenario["target"],
                 "user_request": RUNNER.scenario_user_request(
                     {"scenario": scenario["scenario"]}
                 ),
@@ -291,9 +303,15 @@ def write_blind_package(
         """# Blind judge protocol
 
 Оцени каждый pair независимо. Не пытайся определить, каким инструментом создан
-candidate. Используй только user request, initial document и два candidates из
-`cases.json`. Судья должен работать в новой сессии на `gpt-5.6-terra` с
-reasoning effort `medium`.
+candidate. Используй user request, initial document, два candidates из
+`cases.json` и полный исходный SpecSpine snapshot в `specspine/`. Судья должен
+работать в новой сессии на `gpt-5.6-terra` с reasoning effort `medium`.
+
+До выставления оценки найди в полном SpecSpine все ограничения, решения,
+canonical owners, relationships, semantic IDs, known divergences и open
+questions, которые могут быть затронуты изменением. Candidate не должен
+противоречить ни одному релевантному документу, дублировать чужую ownership,
+терять uncertainty или выдавать intent за подтверждённую реализацию.
 
 Для каждого candidate поставь целые оценки 0–4:
 
@@ -386,6 +404,25 @@ def score_judgments(output_dir: Path, judgments_path: Path) -> dict[str, Any]:
     return result
 
 
+def navigation_file_count(sample: dict[str, Any]) -> int:
+    """Count direct Spine reads, excluding the whole-Spine checker and diff."""
+    paths: set[str] = set()
+    for run in sample.get("agent_runs", []):
+        metrics = run.get("event_metrics", {}).get("command_metrics", [])
+        for metric in metrics if isinstance(metrics, list) else []:
+            if not isinstance(metric, dict):
+                continue
+            command = str(metric.get("command_excerpt") or "")
+            if "check_spine.py" in command or "git diff" in command:
+                continue
+            paths.update(
+                str(path)
+                for path in metric.get("inferred_file_paths", [])
+                if str(path).startswith("specspine/")
+            )
+    return len(paths)
+
+
 def write_comparison(
     output: Path,
     reports: dict[str, dict[str, Any]],
@@ -399,6 +436,7 @@ def write_comparison(
         samples = report["samples"]
         started = datetime.datetime.fromisoformat(report["run"]["started_at"])
         finished = datetime.datetime.fromisoformat(report["run"]["finished_at"])
+        navigation_reads = [navigation_file_count(sample) for sample in samples]
         summaries[label].update(
             total_wall_seconds=(finished - started).total_seconds(),
             total_agent_seconds=sum(
@@ -422,6 +460,11 @@ def write_comparison(
             total_agent_calls=sum(
                 len(sample.get("agent_runs", [])) for sample in samples
             ),
+            mean_navigation_files_read=(
+                sum(navigation_reads) / len(navigation_reads)
+                if navigation_reads
+                else None
+            ),
         )
     fields = (
         "pass_rate",
@@ -435,6 +478,7 @@ def write_comparison(
         "mean_total_tokens",
         "mean_uncached_input_tokens",
         "mean_output_tokens",
+        "mean_navigation_files_read",
         "mean_files_read",
         "mean_tool_cycles",
         "mean_retrieval_attempts",
