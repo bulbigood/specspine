@@ -1,4 +1,4 @@
-# SpecSpine examples
+# SpecSpine Grow examples
 
 These examples demonstrate the expected behavior of `specspine-grow`.
 
@@ -69,15 +69,18 @@ Create:
 
 Modify:
 - <spine-root>/authentication.md
-- <spine-root>/users.md
 - <spine-root>/README.md
+
+Read-only context:
+- <spine-root>/users.md, unless the request supplies new durable intent owned
+  by the user concept
 
 Reason:
 Authentication now contains several independently evolving
 responsibilities. The original authentication specification should
 become an overview and navigation point.
 
-Open decisions:
+Open questions:
 - Should matching verified email addresses trigger automatic linking?
 - Can users unlink their last authentication method?
 
@@ -116,8 +119,9 @@ The skill should:
 - identify `external-identity.md` as the primary specification;
 - update it to record Google Sign-In as an accepted external provider;
 - update session creation only if its contract changes;
-- leave unspecified configuration details and account-linking policy as open
-  questions without blocking the accepted provider change;
+- record an unresolved question only in the specification that canonically owns
+  the affected policy; otherwise report missing implementation prerequisites
+  without changing neighboring specifications;
 - avoid creating `google-sign-in.md` when Google is merely one provider inside
   a general external identity concept;
 - propose `account-linking.md` only if account linking has independent rules.
@@ -177,6 +181,10 @@ The project does not define whether users are provisioned automatically or
 must exist before first login.
 
 ### Good result
+
+Place the question in the specification that owns account provisioning. Other
+specifications may summarize the dependency and link to that owner, but must
+not repeat the question.
 
 ```markdown
 ## Open questions

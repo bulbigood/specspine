@@ -5,26 +5,22 @@ description: Create or evolve intended architecture in a linked Markdown SpecSpi
 
 # SpecSpine Grow
 
-Preserve document and externally referenced semantic IDs across rename, move,
-split, merge, and accepted SDD promotion. Store each typed edge once, update
-incoming links, use `superseded-by` for replacement, and preserve canonical
-ownership. Accepted SDD deltas may update durable intent; current code and
-unaccepted drafts may not. Keep `Known divergences` until repository evidence
-is explicitly rechecked.
-
 Maintain a lightweight network of architectural specifications. Record stable
 responsibilities, boundaries, relationships, decisions, constraints, and
 relevant uncertainty without turning the Spine into a feature or implementation
-workflow.
+workflow. This file owns Grow's authority and editing procedure; the linked
+format and semantics references own document structure and claim meaning.
 
 ## Resources
 
-- Read [references/spec-semantics.md](references/spec-semantics.md) when adding,
-  reclassifying, conflicting, or resolving an architectural claim.
-- Read [references/spec-format.md](references/spec-format.md) before creating or
-  restructuring specifications. It is the canonical guide to document content,
-  organization, semantic IDs, decomposition, and terminal detail.
-- Read [references/examples.md](references/examples.md) when the right
+- Read [references/spec-format.md](references/spec-format.md) before creating,
+  editing, or restructuring specifications. It is the canonical owner of
+  document content, organization, identity, relationships, decomposition, and
+  terminal detail.
+- Read [references/spec-semantics.md](references/spec-semantics.md) before
+  adding, reclassifying, conflicting, or resolving an architectural claim. It
+  is the canonical owner of claim kinds, authority, and conflict handling.
+- Read [references/grow-examples.md](references/grow-examples.md) when the right
   specification boundary is unclear.
 - When creating files, start from the templates under `assets/templates/` and
   omit empty sections.
@@ -39,8 +35,9 @@ format, not project facts.
 
 Do not inspect project-specific code, configuration, tests, documentation, or
 external systems unless the user explicitly authorizes them. Authorized
-external evidence remains `Observed` or `Inferred` unless the user accepts it
-as architectural intent; it never silently overrides a decision or constraint.
+external evidence must be classified according to
+`references/spec-semantics.md` and must not change accepted intent without
+explicit approval.
 For an uninitialized Spine, do not list, search, or read any existing project
 file outside `<spine-root>`, including a root README, even to seek context.
 Derive only the smallest useful starting structure from the request.
@@ -70,16 +67,14 @@ must remain usable without those skills.
    Identify the canonical owner, specifications whose architectural meaning or
    boundaries change, and context needed only for understanding.
    For refinement, perform the terminal-depth check immediately after reading
-   the index and relevant specification. If the request explicitly adds no
-   responsibility, boundary, decision, constraint, or open question and asks
-   only for function-by-function flows, internal data structures, SDK calls,
-   pseudocode, configuration fields, or similar implementation instructions,
-   stop without editing. Do not inspect implementation evidence or load
-   additional format resources merely to elaborate the refusal; explain that
-   the requested material belongs in the downstream implementation workflow.
-3. Reuse an existing owner when possible. Create or extract a specification
-   only for an independently meaningful or evolving responsibility, boundary,
-   behavior, or decision set; never because a file is long or a feature is new.
+   the index and relevant specification. Compare the requested material with
+   the terminal-detail boundary in `references/spec-format.md`. If the request
+   adds no architectural meaning within Grow's scope and only asks for material
+   beyond that boundary, stop without editing or seeking implementation
+   evidence; explain that it belongs in a downstream workflow.
+3. Choose owners and decomposition using `references/spec-format.md`. Reuse an
+   existing owner when possible; do not create a specification merely because a
+   file is long or a feature is new.
 4. Treat an explicit in-scope operation or architectural decision as approval.
    Approval does not override Grow's scope or terminal-detail boundary. Apply
    navigation, evidence-only, and clearly meaning-preserving edits directly.
@@ -87,10 +82,10 @@ must remain usable without those skills.
    a conflict or blocking question, choosing among plausible owners, or making
    an ambiguous agent-initiated restructure. State the affected files, reason,
    and unresolved choice without prescribing a rigid response format.
-5. Apply the smallest coherent change. Preserve unrelated content, useful
-   relative links, reachability from the index, and one canonical home per
-   concept. Use summaries and links instead of duplicate definitions. Update
-   the index only when top-level navigation or system-wide intent changes.
+5. Apply the smallest coherent change. Follow `references/spec-format.md` for
+   canonical ownership, identity, relationships, navigation, and reachability.
+   Preserve unrelated content. Update the index only when top-level navigation
+   or system-wide intent changes.
 6. After every write batch, run the bundled checker against the whole resolved
    Spine. If it reports an error, correct only defects caused by the approved
    operation and rerun it. If an error is pre-existing or needs new
@@ -105,9 +100,8 @@ must remain usable without those skills.
 
 Create the index and the smallest useful set of top-level concept
 specifications. Do not anticipate the full system or invent repository
-structure. Preserve important unknowns as open questions. Omit semantic IDs
-unless the request already establishes a concrete cross-document or downstream
-reference that needs one.
+structure. Represent uncertainty and addressability only as defined by the
+canonical format and semantics references.
 
 ### Refine
 
@@ -119,26 +113,24 @@ does not by itself change its specification. Modify a related owner only when
 the request supplies new durable architectural intent belonging there; report
 implementation prerequisites and speculative questions instead.
 
-Stop when the specification already captures the architectural detail defined
-by `references/spec-format.md` and the request adds no new intent. Do not add
-coding-manual material merely to make the document deeper. An explicit request
-for implementation-level content does not turn that content into architectural
-intent or authorize storing it in the Spine. Make no changes and explain which
-requested detail belongs downstream.
+### Split, merge, rename, or link
 
-### Split, merge, or rename
-
-For a split, move the independently owned content and update links; retain the
-broader document only when it remains a useful overview. For a merge, preserve
-unique meaning in the agreed canonical owner. For any move or rename, update
-incoming links and preserve externally referenced semantic IDs as required by
-`references/spec-format.md`.
+Apply the canonical ownership, identity-preservation, replacement, and
+relationship rules from `references/spec-format.md`. Use
+`references/spec-semantics.md` only when the operation changes claim meaning,
+authority, uncertainty, or conflict state. For a link operation, first classify
+the link as navigation, a statement reference, or a typed relationship; do not
+create a reciprocal typed edge unless it expresses a distinct approved
+relationship.
 
 ## Invariants
 
 - Modify only files inside `<spine-root>`.
-- Preserve the distinction between decisions, constraints, observations,
-  inferences, and open questions defined by `references/spec-semantics.md`.
+- Apply claim kinds, authority, and conflicts exclusively as defined by
+  `references/spec-semantics.md`.
+- Apply document identity, statement addressability, relationships,
+  decomposition, and terminal detail exclusively as defined by
+  `references/spec-format.md`.
 - Never imply that documented intent is implemented or conformant.
 - Never silently resolve uncertainty, conflicts, or ownership ambiguity.
 - Keep specifications architectural, linked, concise, and independent of a

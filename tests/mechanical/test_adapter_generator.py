@@ -51,10 +51,16 @@ class AdapterGeneratorTests(unittest.TestCase):
         self.assertEqual([], GENERATOR.check_resource_ownership(PROJECT_ROOT))
 
         self.assertTrue(
-            (PROJECT_ROOT / "skills/specspine-grow/references/examples.md").is_file()
+            (
+                PROJECT_ROOT
+                / "skills/specspine-grow/references/grow-examples.md"
+            ).is_file()
         )
         self.assertFalse(
-            (PROJECT_ROOT / "skills/specspine-grow/references/examples.md").is_symlink()
+            (
+                PROJECT_ROOT
+                / "skills/specspine-grow/references/grow-examples.md"
+            ).is_symlink()
         )
         for name in ("connection-contract.md", "review-method.md"):
             private = PROJECT_ROOT / "skills/specspine-doctor/references" / name
