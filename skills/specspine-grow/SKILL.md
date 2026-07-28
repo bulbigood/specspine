@@ -28,6 +28,8 @@ workflow.
   specification boundary is unclear.
 - When creating files, start from the templates under `assets/templates/` and
   omit empty sections.
+- Run `scripts/check_spine.py <spine-root>` after every write batch. It is the
+  mandatory whole-Spine mechanical gate.
 
 ## Authority and scope
 
@@ -89,8 +91,13 @@ must remain usable without those skills.
    relative links, reachability from the index, and one canonical home per
    concept. Use summaries and links instead of duplicate definitions. Update
    the index only when top-level navigation or system-wide intent changes.
-6. Report changed files, structural choices, and unresolved architectural
-   questions concisely.
+6. After every write batch, run the bundled checker against the whole resolved
+   Spine. If it reports an error, correct only defects caused by the approved
+   operation and rerun it. If an error is pre-existing or needs new
+   architectural authority, stop and report it; never claim the Grow operation
+   succeeded while the checker fails.
+7. Report changed files, structural choices, checker outcome, and unresolved
+   architectural questions concisely.
 
 ## Operation guidance
 
@@ -136,3 +143,5 @@ incoming links and preserve externally referenced semantic IDs as required by
 - Never silently resolve uncertainty, conflicts, or ownership ambiguity.
 - Keep specifications architectural, linked, concise, and independent of a
   custom parser or implementation workflow.
+- Never omit the final mechanical gate after a write, including initialization,
+  rename, merge, split, and deletion.

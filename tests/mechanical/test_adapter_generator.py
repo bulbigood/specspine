@@ -25,14 +25,19 @@ class AdapterGeneratorTests(unittest.TestCase):
             self.assertTrue((skills_root / name / "SKILL.md").is_file(), name)
             self.assertNotEqual({}, GENERATOR.package_files(skills_root, name), name)
 
-    def test_references_have_canonical_shared_sources_and_skill_symlinks(self):
+    def test_shared_resources_have_canonical_sources_and_skill_symlinks(self):
         skills_root = PROJECT_ROOT / "skills"
         files = GENERATOR.shared_files(PROJECT_ROOT, "specspine-grow")
         self.assertEqual(
             PROJECT_ROOT / "shared/references/spec-format.md",
             files["references/spec-format.md"],
         )
-        for consumer in GENERATOR.SKILL_REFERENCES:
+        self.assertEqual(
+            PROJECT_ROOT / "shared/scripts/check_spine.py",
+            files["scripts/check_spine.py"],
+        )
+        consumers = set(GENERATOR.SKILL_REFERENCES) | set(GENERATOR.SKILL_SCRIPTS)
+        for consumer in consumers:
             self.assertEqual(
                 [],
                 GENERATOR.check_shared_links(
@@ -41,6 +46,54 @@ class AdapterGeneratorTests(unittest.TestCase):
                 ),
                 consumer,
             )
+
+    def test_grow_requires_the_whole_spine_mechanical_gate_after_writes(self):
+        skill = (
+            PROJECT_ROOT / "skills/specspine-grow/SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("scripts/check_spine.py <spine-root>", skill)
+        self.assertIn("after every write batch", skill)
+        self.assertIn("whole resolved", skill)
+        self.assertIn("never claim the Grow operation", skill)
+
+    def test_grow_checker_rejects_nested_unreachable_specification(self):
+        index = (
+            PROJECT_ROOT
+            / "skills/specspine-doctor/assets/templates/spine-index.md"
+        ).read_text(encoding="utf-8")
+        orphan = """# Orphan
+
+**ID:** `orphan` · **Kind:** `component`
+
+Owns an unreachable architectural responsibility.
+
+## Responsibility
+
+- Owns the orphan responsibility.
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            spine = Path(directory) / "specspine"
+            nested = spine / "area"
+            nested.mkdir(parents=True)
+            (spine / "README.md").write_text(index, encoding="utf-8")
+            (nested / "orphan.md").write_text(orphan, encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(
+                        PROJECT_ROOT
+                        / "skills/specspine-grow/scripts/check_spine.py"
+                    ),
+                    str(spine),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("UNREACHABLE_SPEC area/orphan.md", result.stdout)
 
     def test_spec_format_uses_the_agents_documentation_language(self):
         spec_format = (

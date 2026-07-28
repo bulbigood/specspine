@@ -14,6 +14,7 @@
     {"type": "unchanged", "paths": ["README.md", "src/**"]},
     {"type": "changed_only", "paths": ["specspine/**"]},
     {"type": "markdown_links_valid", "glob": "specspine/*.md"},
-    {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+    {"type": "semantic_ids_valid", "glob": "specspine/*.md"},
+    {"type": "command_includes", "value": "check_spine.py"}
   ]
 }
