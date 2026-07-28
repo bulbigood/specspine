@@ -29,13 +29,13 @@ any other default:
    foreign technical terms do not make an otherwise clear document mixed.
 4. Ask for the remaining settings. Offer the clearly detected language as the
    documentation-language default; otherwise offer `English`. Default the
-   project instruction file to `AGENTS.md` and the accelerator to `auto`.
+   project instruction file to `AGENTS.md`.
 
 This ordering requires two user turns when neither root nor language is
 supplied: root selection, then confirmation of the root-dependent settings.
 After confirmation, create the root index only when absent and persist the same
-root, language, and accelerator policy in the managed block. Treat both writes
-as one setup operation. Create no concept specifications and never overwrite an
+root and language in the managed block. Treat both writes as one setup
+operation. Create no concept specifications and never overwrite an
 existing index. Use the bundled index template as a semantic outline and render
 its natural-language headings and placeholder prose in the accepted
 documentation language. Do not translate paths, identifiers, or managed
@@ -107,13 +107,13 @@ surrounding-content digest immediately before writing.
 ## Reconnect, reconfigure, and disconnect
 
 Reconnect means validate and idempotently refresh an existing region. Read its
-root, language, and accelerator values; inspect that root using the same state
-rules above; preserve recognized values unless the operator changes them.
-Missing or malformed required values are unresolved choices, not defaults to
-silently replace. If the selected file has no region, reconnect falls back to
-first setup after explicitly reporting that fact. If the configured root or
-its index is now absent, reconnect stops after reporting the break; creating
-either requires an explicit setup or reconfiguration request and confirmation.
+root and language values; inspect that root using the same state rules above;
+preserve recognized values unless the operator changes them. Missing or
+malformed required values are unresolved choices, not defaults to silently
+replace. If the selected file has no region, reconnect falls back to first
+setup after explicitly reporting that fact. If the configured root or its
+index is now absent, reconnect stops after reporting the break; creating either
+requires an explicit setup or reconfiguration request and confirmation.
 
 Reconfiguration changes only explicitly selected settings. A root change uses
 the new root's README language as the proposed language default. Moving the
@@ -143,19 +143,9 @@ Keep the managed block small enough for every turn. It contains only:
 
 1. the resolved index path;
 2. the resolved SpecSpine documentation language;
-3. the retrieval-accelerator policy;
-4. when to use `specspine-extract`;
-5. direct index-and-link fallback when extraction is unavailable;
-6. compact authority and conflict semantics.
-
-The accelerator policy is `auto` or `disabled`. `auto` lets Extract attempt its
-optional accelerator once and then fall back. `disabled` makes Extract skip the
-attempt and navigate Markdown; it does not disable Extract itself. For a new
-setup, default a policy not supplied by the request to `auto`. In an existing
-managed region, a missing or unrecognized policy is an unresolved operator
-choice. Preserve a recognized existing policy on refresh unless the user
-explicitly changes it. Do not infer policy from Python, SQLite, cache, or
-transient runtime state.
+3. when to use `specspine-extract`;
+4. direct index-and-link fallback when extraction is unavailable;
+5. compact authority and conflict semantics.
 
 Use exactly one managed region:
 
@@ -165,7 +155,7 @@ Use exactly one managed region:
 <!-- specspine:end -->
 ```
 
-Render the bundled bootstrap template verbatim except for its three
+Render the bundled bootstrap template verbatim except for its two
 placeholders. Do not translate its headings, field labels, or retrieval
 instructions into the SpecSpine documentation language. Persist the language
 value using the exact label accepted by the operator.

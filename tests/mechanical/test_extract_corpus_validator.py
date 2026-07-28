@@ -26,10 +26,9 @@ class ExtractCorpusValidatorTests(unittest.TestCase):
         self.spine.mkdir(parents=True)
         (self.project / "AGENTS.md").write_text(
             "<!-- specspine:begin -->\n"
-            "## Architecture\n\n"
+            "## SpecSpine documentation\n\n"
             "- SpecSpine index: `specspine/README.md`\n"
-            "- Documentation language: `en`\n"
-            "- Retrieval accelerator: `auto`\n"
+            "- SpecSpine documentation language: `en`\n"
             "<!-- specspine:end -->\n",
             encoding="utf-8",
         )

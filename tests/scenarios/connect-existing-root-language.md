@@ -16,12 +16,12 @@ only for the root and make no changes.
 The user selects `architecture`. The skill should inspect only that path, read
 the root `README.md`, detect Russian as its clear dominant language, and offer
 Russian as the documentation-language default. It should also offer
-`AGENTS.md` and `auto` as the remaining defaults. It must preserve every file.
+`AGENTS.md` as the remaining default. It must preserve every file.
 
 ## Stage 3: accept detected defaults
 
 The user accepts the offered settings. The skill should add one managed block
-to `AGENTS.md`, persist `architecture/README.md`, Russian, and `auto`, and leave
+to `AGENTS.md`, persist `architecture/README.md` and Russian, and leave
 the existing SpecSpine byte-for-byte unchanged.
 
 ## Failure indicators

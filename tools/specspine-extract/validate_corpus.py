@@ -155,7 +155,7 @@ def validate_bootstrap(project: Path, language: str) -> None:
     if "{{" in content or "}}" in content:
         fail("project/AGENTS.md", "contains unresolved template placeholders")
     language_line = re.compile(
-        rf"^- Documentation language:\s+`?{re.escape(language)}`?\s*$",
+        rf"^- SpecSpine documentation language:\s+`?{re.escape(language)}`?\s*$",
         re.MULTILINE,
     )
     if not language_line.search(content):

@@ -20,8 +20,7 @@ The user selects the default `specspine` root. The path does not exist.
 The skill should inspect that exact path, then ask for the remaining choices:
 
 - documentation language, defaulting to English;
-- project instruction file, defaulting to `AGENTS.md`;
-- retrieval accelerator, defaulting to `auto`.
+- project instruction file, defaulting to `AGENTS.md`.
 
 The second stage must not change project files.
 
@@ -33,7 +32,7 @@ The skill should:
 
 - preserve the user-authored `AGENTS.md` content;
 - add exactly one managed connection block to `AGENTS.md`;
-- persist `specspine/README.md`, English, and `auto` in the block;
+- persist `specspine/README.md` and English in the block;
 - create a minimal English `specspine/README.md`;
 - create no concept specifications or other artifacts.
 

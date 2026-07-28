@@ -15,7 +15,7 @@
       "assertions": [
         {"type": "max_changed_files", "max": 0},
         {"type": "response_contains", "value": "specspine"},
-        {"type": "response_not_contains", "values": ["English", "AGENTS.md", "auto"]},
+        {"type": "response_not_contains", "values": ["English", "AGENTS.md"]},
         {"type": "command_excludes", "value": "specspine"}
       ]
     },
@@ -25,18 +25,18 @@
       "prompt": "Use `specspine` as the SpecSpine root.",
       "assertions": [
         {"type": "max_changed_files", "max": 0},
-        {"type": "response_contains", "values": ["English", "AGENTS.md", "auto"]}
+        {"type": "response_contains", "values": ["English", "AGENTS.md"]}
       ]
     },
     {
       "id": "accept-remaining-defaults",
       "skill": "skills/specspine-doctor",
-      "prompt": "Use `specspine` as the root and accept English, `AGENTS.md`, and `auto` as the remaining defaults. Complete setup now.",
+      "prompt": "Use `specspine` as the root and accept English and `AGENTS.md` as the remaining defaults. Complete setup now.",
       "assertions": [
         {"type": "changed_only", "paths": ["AGENTS.md", "specspine/README.md"]},
         {"type": "file_contains", "path": "AGENTS.md", "value": "Preserve this user-authored sentence."},
         {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1},
-        {"type": "file_contains", "path": "AGENTS.md", "values": ["SpecSpine index: `specspine/README.md`", "Documentation language: `English`", "Retrieval accelerator: `auto`"]},
+        {"type": "file_contains", "path": "AGENTS.md", "values": ["SpecSpine index: `specspine/README.md`", "SpecSpine documentation language: `English`"]},
         {"type": "path_exists", "path": "specspine/README.md"},
         {"type": "file_contains", "path": "specspine/README.md", "values": ["# Project architecture", "## Purpose", "## Architecture map"]},
         {"type": "command_includes", "value": "check_spine.py"},

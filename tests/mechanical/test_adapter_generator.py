@@ -188,7 +188,7 @@ class AdapterGeneratorTests(unittest.TestCase):
         )
         instructions = skill + "\n" + contract
         index = (source / "assets/templates/spine-index.md").read_text(encoding="utf-8")
-        for value in ("`specspine`", "`English`", "`AGENTS.md`", "`auto`"):
+        for value in ("`specspine`", "`English`", "`AGENTS.md`"):
             self.assertIn(value, instructions)
         self.assertIn("<spine-root>/README.md", instructions)
         self.assertLess(

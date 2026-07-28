@@ -58,18 +58,17 @@ Expose this project's SpecSpine to agents through persistent project instruction
 ```
 
 Doctor asks for the Spine root (`specspine` by default), documentation language,
-project instruction file (`AGENTS.md` by default), and retrieval accelerator
-policy. It creates a missing root index but does not modify an existing index or
-create concept specifications. It installs one bounded managed bootstrap and
-runs the mechanical checker.
+and project instruction file (`AGENTS.md` by default). It creates a missing root
+index but does not modify an existing index or create concept specifications.
+It installs one bounded managed bootstrap and runs the mechanical checker.
 
 Connection administration and health review are separate operations.
 
 The managed project-instruction block contains only the index location,
-documentation language, accelerator policy, retrieval route, and compact
-authority rules. The root index contains only project-specific architectural
-context and coverage. General explanations of the SpecSpine framework remain
-in this documentation and are not copied into either project artifact.
+documentation language, retrieval route, and compact authority rules. The root
+index contains only project-specific architectural context and coverage.
+General explanations of the SpecSpine framework remain in this documentation
+and are not copied into either project artifact.
 
 ## Start or evolve intended architecture
 

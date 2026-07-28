@@ -1,9 +1,8 @@
 <!-- specspine:begin -->
-## Архитектура
+## SpecSpine documentation
 
-- Индекс SpecSpine: `specspine/README.md`
-- Documentation language: `ru`
-- Retrieval accelerator: benchmark-provided
+- SpecSpine index: `specspine/README.md`
+- SpecSpine documentation language: `ru`
 
 Для архитектурных изменений сначала прочитайте индекс SpecSpine, затем
 минимальный набор связанных документов. Решения и ограничения считаются

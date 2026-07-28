@@ -6,7 +6,7 @@
   "category": "core",
   "runs": 1,
   "initial_files": {
-    "AGENTS.md": "<!-- specspine:begin -->\n## Architecture\n\n- SpecSpine index: `specspine/README.md`\n- Documentation language: `English`\n- Retrieval accelerator: `disabled`\n\nFor architecture-relevant planning, specification, implementation, or review,\nuse installed `specspine-extract` for a minimal handoff. If it is unavailable,\nread the SpecSpine index and follow relevant links. `Decisions` and `Constraints`\nare accepted intent; preserve conflicts with `Observed`, `Inferred`, and `Open\nquestions`.\n<!-- specspine:end -->\n",
+    "AGENTS.md": "<!-- specspine:begin -->\n## SpecSpine documentation\n\n- SpecSpine index: `specspine/README.md`\n- SpecSpine documentation language: `English`\n- Retrieval accelerator: `disabled`\n\nFor architecture-relevant planning, specification, implementation, or review,\nuse installed `specspine-extract` for a minimal handoff. If it is unavailable,\nread the SpecSpine index and follow relevant links. `Decisions` and `Constraints`\nare accepted intent; preserve conflicts with `Observed`, `Inferred`, and `Open questions`.\n<!-- specspine:end -->\n",
     "specspine/README.md": "# Project architecture\n\n## Architecture map\n\n- [Payments](payments.md)\n- [Unrelated analytics](analytics.md)\n",
     "specspine/payments.md": "# Payments\n\nPayment navigation. [Settlement](settlement.md) owns settlement outcomes.\n",
     "specspine/settlement.md": "# Settlement\n\nOwns provider settlement boundaries. [Retry policy](retry-policy.md) canonically owns provider-timeout retry delay.\n",
