@@ -213,6 +213,7 @@ def run_candidate_checker(
     spine_root: Path,
     staging_root: Path,
     staged: dict[str, Path],
+    repository_root: Path,
 ) -> None:
     command = [
         sys.executable,
@@ -220,6 +221,8 @@ def run_candidate_checker(
         str(spine_root),
         "--candidates",
         str(staging_root),
+        "--repository-root",
+        str(repository_root),
         "--json",
     ]
     for relative in sorted(staged):
@@ -266,6 +269,7 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
             spine_root,
             staging,
             staged,
+            repository_root,
         )
 
     handoff.parent.mkdir(parents=True, exist_ok=True)

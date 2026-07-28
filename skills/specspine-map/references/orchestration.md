@@ -118,7 +118,7 @@ Use `todo --limit <n>` only for bounded diagnosis. For the selected wave:
 python3 <map-skill-root>/scripts/campaign.py packet <campaign> <task-id> --output <run-root>/packets/<task-id>-<attempt>.json
 ```
 
-2. precompute every launch prompt, then emit all spawn calls back-to-back with no reasoning, status checks, assignments, waits, or other tools between them.
+2. require slots, then precompute every prompt and emit all spawn calls back-to-back with no reasoning, status checks, assignments, waits, or other tools between them; packet creation and spawning are one transaction, so never finalize because packets exist.
    Use a platform batch-spawn operation when available. For Codex use `agent_type: medium`, `fork_turns: none`, and the minimal command above;
 3. after every handle is returned, assign the whole wave:
 
@@ -206,7 +206,8 @@ ask for “continue”, or obey hints. The operator must not have to restart.
 
 `may_finish: true` is necessary but not sufficient for success:
 
-- for `finalize`, finish only after `finalize_run.py` succeeds;
+- for `finalize`, require `finalize_run.py` to succeed with a clean
+  repository-aware v3 result; repair remaining baseline defects first;
 - for `report_blocked`, finish only with the exact blocker and preserved ledger.
 
 If execution is resumed after an infrastructure interruption, use the exact
@@ -228,8 +229,8 @@ python3 <map-skill-root>/scripts/campaign.py coverage-report <campaign>
 - no `todo`, `assigned`, `review`, `published`, or `blocked` task;
 - every producer terminated;
 - every result and suggestion was integrated;
-- source and live SpecSpine hashes still match the verified snapshots;
-- the latest integration pass produced no ToDo.
+- source and live Spine hashes are current, the v3 checker is clean, and the
+  latest integration pass produced no ToDo.
 
 This status means every inventory work unit was verified under this protocol;
 it is not a claim that no conceivable architectural concept exists.

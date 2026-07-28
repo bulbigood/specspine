@@ -22,6 +22,10 @@ IDENTITY_RE = re.compile(
     r"^\*\*ID:\*\*\s+`([^`]+)`\s+·\s+\*\*Kind:\*\*\s+`([^`]+)`\s*$"
 )
 DEFINITION_RE = re.compile(r"^ {0,3}[-+*]\s+\*\*([^*\n]+)\*\*\s+—\s+")
+SEMANTIC_BULLET_RE = re.compile(
+    r"^ {0,3}[-+*]\s+\*\*((?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)"
+    r"-[a-z0-9]+(?:-[a-z0-9]+)*)\*\*"
+)
 FENCE_RE = re.compile(r"^ {0,3}(?:>\s*)?(`{3,}|~{3,})")
 ATX_HEADING_RE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$")
 REFERENCE_DEFINITION_RE = re.compile(
@@ -29,6 +33,16 @@ REFERENCE_DEFINITION_RE = re.compile(
 )
 ID_REGION_BEGIN = "<!-- specspine:semantic-ids:begin -->"
 ID_REGION_END = "<!-- specspine:semantic-ids:end -->"
+EVIDENCE_BASELINE_RE = re.compile(
+    r"<!--\s*specspine:evidence-baseline\s+"
+    r"source=[^;>\s]+;\s*inspected=\d{4}-\d{2}-\d{2}\s*-->"
+)
+MARKDOWN_COMPLETENESS_SECTIONS = {
+    "Coverage",
+    "SpecSpine readiness",
+    "Reconstruction status",
+    "Facet status",
+}
 SECTION_PREFIXES = {
     "Decisions": "DEC",
     "System-wide decisions": "DEC",
@@ -349,6 +363,7 @@ class _Node:
     sections: dict[str, tuple[int, list[str]]] | None = None
     statements: dict[str, tuple[str, int]] | None = None
     links: list[tuple[int, MarkdownLink]] | None = None
+    active_lines: set[int] | None = None
 
 
 def _table_rows(lines: list[str], start: int) -> tuple[tuple[str, ...], list[tuple[int, tuple[str, ...]]]]:
@@ -408,6 +423,7 @@ def _parse_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
                 add(findings, "error", "MULTIPLE_IDENTITY", path, root, "document has multiple identity lines", number)
             else:
                 node.document_id, node.kind, node.identity_line = identity.group(1), identity.group(2), number
+    node.active_lines = active_lines
 
     h1 = [(number, title) for number, level, title in headings if level == 1]
     if not h1:
@@ -485,6 +501,17 @@ def _parse_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
         if heading and len(heading.group(1)) == 2:
             section = re.sub(r"[ \t]+#+[ \t]*$", "", heading.group(2) or "").strip()
         definition = DEFINITION_RE.match(line)
+        semantic_bullet = SEMANTIC_BULLET_RE.match(line)
+        if semantic_bullet and not definition:
+            add(
+                findings,
+                "error",
+                "MALFORMED_ID_DEFINITION",
+                path,
+                root,
+                "semantic definition requires an em dash and text on its first line",
+                number,
+            )
         if definition:
             identifier = definition.group(1).strip()
             if not ID_RE.fullmatch(identifier):
@@ -578,7 +605,49 @@ def _load_manifest(root: Path, findings: list[Finding]) -> dict[str, object] | N
     return value
 
 
-def check(root: Path) -> list[Finding]:
+def _observation_evidence(node: _Node) -> list[tuple[str, int, list[str]]]:
+    """Return OBS IDs, definition lines, and evidence code spans."""
+    result: list[tuple[str, int, list[str]]] = []
+    active = node.active_lines or set()
+    statements = [
+        (number, match.group(1))
+        for number, line in enumerate(node.lines, 1)
+        if number in active
+        if (match := SEMANTIC_BULLET_RE.match(line))
+    ]
+    h2_lines = [
+        number
+        for number, line in enumerate(node.lines, 1)
+        if number in active and line.startswith("## ")
+    ]
+    for index, (line, identifier) in enumerate(statements):
+        if not identifier.startswith("OBS-"):
+            continue
+        boundaries = [
+            candidate
+            for candidate in (
+                statements[index + 1][0] if index + 1 < len(statements) else None,
+                next((value for value in h2_lines if value > line), None),
+            )
+            if candidate is not None
+        ]
+        end = min(boundaries) if boundaries else len(node.lines) + 1
+        block = "\n".join(node.lines[line - 1 : end - 1])
+        marker = block.find("Evidence:")
+        evidence = (
+            re.findall(r"`([^`\n]+)`", block[marker + len("Evidence:") :])
+            if marker >= 0
+            else []
+        )
+        result.append((identifier, line, evidence))
+    return result
+
+
+def check(
+    root: Path,
+    *,
+    repository_root: Path | None = None,
+) -> list[Finding]:
     """Validate the canonical v3 specification graph and manifest."""
     root = root.resolve()
     findings: list[Finding] = []
@@ -594,6 +663,70 @@ def check(root: Path) -> list[Finding]:
     by_id: dict[str, _Node] = {}
     global_statements: dict[str, tuple[_Node, str, int]] = {}
     for node in nodes:
+        for section in sorted(
+            MARKDOWN_COMPLETENESS_SECTIONS & set(node.sections or {})
+        ):
+            add(
+                findings,
+                "error",
+                "COMPLETENESS_IN_MARKDOWN",
+                node.path,
+                root,
+                "v3 completeness belongs only in specspine.json; "
+                f"remove {section}",
+                node.sections[section][0],
+            )
+        if repository_root is not None:
+            observations = _observation_evidence(node)
+            if observations and not any(
+                EVIDENCE_BASELINE_RE.search(line) for line in node.lines
+            ):
+                add(
+                    findings,
+                    "error",
+                    "EVIDENCE_BASELINE_MISSING",
+                    node.path,
+                    root,
+                    "a document with OBS claims requires one evidence baseline",
+                )
+            for identifier, line, evidence in observations:
+                if not evidence:
+                    add(
+                        findings,
+                        "error",
+                        "OBS_EVIDENCE_MISSING",
+                        node.path,
+                        root,
+                        f"{identifier} requires repository-relative Evidence paths",
+                        line,
+                    )
+                    continue
+                for value in evidence:
+                    evidence_path = Path(value.rstrip("/"))
+                    if (
+                        evidence_path.is_absolute()
+                        or ".." in evidence_path.parts
+                        or not evidence_path.parts
+                    ):
+                        add(
+                            findings,
+                            "error",
+                            "EVIDENCE_PATH_INVALID",
+                            node.path,
+                            root,
+                            f"{identifier} has unsafe Evidence path: {value}",
+                            line,
+                        )
+                    elif not (repository_root / evidence_path).exists():
+                        add(
+                            findings,
+                            "error",
+                            "EVIDENCE_PATH_MISSING",
+                            node.path,
+                            root,
+                            f"{identifier} Evidence path does not exist: {value}",
+                            line,
+                        )
         if node.document_id:
             if node.document_id in by_id:
                 add(findings, "error", "DUPLICATE_DOCUMENT_ID", node.path, root, f"document ID already owned by {by_id[node.document_id].path.relative_to(root)}", node.identity_line)
@@ -1003,6 +1136,7 @@ def check_candidates(
     staging_root: Path,
     *,
     allowed_replacements: set[str] | None = None,
+    repository_root: Path | None = None,
 ) -> list[Finding]:
     """Check staged Markdown against the live Spine without publishing it."""
     spine_root = spine_root.resolve()
@@ -1048,7 +1182,10 @@ def check_candidates(
     if not candidates:
         return findings
 
-    baseline = {_finding_key(item) for item in check(spine_root)}
+    baseline = {
+        _finding_key(item)
+        for item in check(spine_root, repository_root=repository_root)
+    }
     ignored_overlay_codes = {
         "ID_SECTION_UNVERIFIED", "UNREACHABLE_SPEC", "MANIFEST_AREA_MISSING",
     }
@@ -1065,7 +1202,7 @@ def check_candidates(
             if destination.exists():
                 destination.unlink()
             _link_or_copy(source, destination)
-        for item in check(overlay):
+        for item in check(overlay, repository_root=repository_root):
             if item.code in ignored_overlay_codes or _finding_key(item) in baseline:
                 continue
             findings.append(item)
@@ -1086,6 +1223,11 @@ def main() -> int:
         help="allow one reserved existing Markdown destination; repeat as needed",
     )
     parser.add_argument("--json", action="store_true", help="emit a JSON array")
+    parser.add_argument(
+        "--repository-root",
+        type=Path,
+        help="validate OBS Evidence paths against this repository root",
+    )
     args = parser.parse_args()
     replacements: set[str] = set()
     for value in args.replace_existing:
@@ -1103,9 +1245,10 @@ def main() -> int:
             args.spine_root,
             args.candidates,
             allowed_replacements=replacements,
+            repository_root=args.repository_root,
         )
         if args.candidates
-        else check(args.spine_root)
+        else check(args.spine_root, repository_root=args.repository_root)
     )
     if args.json:
         print(json.dumps([asdict(item) for item in findings], indent=2))

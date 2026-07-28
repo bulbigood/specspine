@@ -187,6 +187,10 @@ Project-wide normative statements, divergences, and questions may live here.
 Completeness does not live in Markdown. Readers and tools obtain it from
 `specspine.json`.
 
+Do not add `Coverage`, `SpecSpine readiness`, `Reconstruction status`, or
+`Facet status` sections to Markdown. These are computed views over
+`specspine.json`, not durable specification content.
+
 ## Specification node
 
 Every non-index Markdown document has:
@@ -321,6 +325,10 @@ Use representative repository-relative inline-code paths:
 - **OBS-worker-retries** — Failed jobs are retried.
   Evidence: `src/worker.ts`, `tests/job-retry.test.ts`.
 ```
+
+Every `Evidence:` code span is one complete repository-relative path. Do not
+shorten subsequent paths by inheriting a directory prefix from an earlier
+span. Map validates these paths against its recorded repository root.
 
 Confirmed conflict is recorded once:
 

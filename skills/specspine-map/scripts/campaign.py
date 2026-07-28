@@ -31,8 +31,8 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCHEMA_VERSION = 5
-PRODUCER_CONTRACT_VERSION = 1
+SCHEMA_VERSION = 6
+PRODUCER_CONTRACT_VERSION = 2
 MAX_UNIT_FILES = 80
 MAX_EVIDENCE_STRATA = 4
 MAX_CANDIDATE_DOCUMENTS = 12
@@ -59,6 +59,16 @@ REVIEW_DISPOSITIONS = {
 }
 SUGGESTION_DISPOSITIONS = {"queued", "covered", "rejected"}
 DEFERRED_CHECKER_CODES = {"UNREACHABLE_SPEC"}
+V3_ENVELOPE_BLOCKER_CODES = {
+    "INDEX_MISSING",
+    "MANIFEST_IMPLEMENTATION_FREEDOM",
+    "MANIFEST_INVALID",
+    "MANIFEST_MISSING",
+    "MANIFEST_MISSING_KEY",
+    "MANIFEST_PROJECT",
+    "MANIFEST_UNKNOWN_KEY",
+    "MANIFEST_VERSION",
+}
 DEFAULT_RECENT_HOURS = 24.0
 COLLAPSED_DIRECTORIES = {
     ".git",
@@ -203,13 +213,15 @@ def ledger_producer_contract(ledger: dict[str, Any]) -> dict[str, Any]:
     version = ledger.get("producer_contract_version")
     digest = ledger.get("producer_contract_digest")
     if (
-        not isinstance(version, int)
+        version != PRODUCER_CONTRACT_VERSION
         or isinstance(version, bool)
-        or version < 1
         or not isinstance(digest, str)
         or not re.fullmatch(r"[0-9a-f]{64}", digest)
     ):
-        raise CampaignError("campaign producer contract metadata is invalid")
+        raise CampaignError(
+            "campaign does not use the current producer contract; "
+            "start a new campaign"
+        )
     return {"version": version, "digest": digest}
 
 
@@ -1002,16 +1014,47 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_seed_from_spine(args: argparse.Namespace) -> dict[str, Any]:
-    documents = document_hashes(args.spine_root.resolve())
+    spine_root = args.spine_root.resolve()
+    current = load(args.ledger)
+    if current["spine_state"] != "existing":
+        raise CampaignError("seed-from-spine requires --spine-state existing")
+    findings = run_checker(
+        args.checker,
+        spine_root,
+        repository_root=repository_root_from_ledger(current),
+        allow_material=True,
+    )
+    envelope_blockers = [
+        value
+        for value in findings
+        if isinstance(value, dict)
+        and value.get("code") in V3_ENVELOPE_BLOCKER_CODES
+    ]
+    if envelope_blockers:
+        raise CampaignError(
+            "seed-from-spine accepts only the current SpecSpine v3 format: "
+            + json.dumps(envelope_blockers, ensure_ascii=False)
+        )
+    documents = document_hashes(spine_root)
     if not documents:
         raise CampaignError("seed-from-spine requires live Markdown documents")
+    baseline = sorted(
+        {
+            canonical_json(normalize_checker_finding(value)).decode("utf-8")
+            for value in findings
+            if isinstance(value, dict)
+            and value.get("code") not in DEFERRED_CHECKER_CODES
+        }
+    )
     with locked_ledger(args.ledger) as ledger:
-        if ledger["spine_state"] != "existing":
-            raise CampaignError("seed-from-spine requires --spine-state existing")
         if ledger["documentation_seed"] is not None:
             raise CampaignError("documentation seed already exists")
         ledger["documentation_seed"] = {
             "documents": documents,
+            "checker_baseline": [
+                json.loads(value)
+                for value in baseline
+            ],
             "todo": [],
             "terminal_reason": (
                 "mechanical documentation index only; source verification and "
@@ -1023,6 +1066,7 @@ def command_seed_from_spine(args: argparse.Namespace) -> dict[str, Any]:
             "status": "seeded",
             "campaign_id": ledger["campaign_id"],
             "documents": len(documents),
+            "checker_baseline_findings": len(baseline),
             "added_todo": [],
             "revision": ledger["revision"],
         }
@@ -1036,6 +1080,15 @@ def command_inventory(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
+    current = load(args.ledger)
+    if current["spine_state"] == "existing" and current["documentation_seed"] is None:
+        raise CampaignError("seed-from-spine is required before source-pass")
+    run_checker(
+        args.checker,
+        args.spine_root.resolve(),
+        repository_root=args.repository_root.resolve(),
+        allowed_findings=checker_baseline_fingerprints(current),
+    )
     inventory = repository_inventory(
         args.repository_root,
         spine_root=args.spine_root,
@@ -1088,8 +1141,6 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
             "samples": record["samples"],
         }
     with locked_ledger(args.ledger) as ledger:
-        if ledger["spine_state"] == "existing" and ledger["documentation_seed"] is None:
-            raise CampaignError("seed-from-spine is required before source-pass")
         if ledger["source_pass"] is not None:
             raise CampaignError("source-pass is immutable once recorded")
         added = add_tasks(ledger, raw_todo, source="source-pass")
@@ -1514,13 +1565,42 @@ def validate_checkpoint(
     return status, directions, coverage
 
 
+def normalize_checker_finding(value: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value.get(key)
+        for key in ("severity", "code", "path", "message")
+    }
+
+
+def checker_fingerprint(value: dict[str, Any]) -> str:
+    return digest_json(normalize_checker_finding(value))
+
+
+def checker_baseline_fingerprints(ledger: dict[str, Any]) -> set[str]:
+    seed = ledger.get("documentation_seed")
+    raw = seed.get("checker_baseline", []) if isinstance(seed, dict) else []
+    if not isinstance(raw, list):
+        raise CampaignError("documentation checker baseline must be a list")
+    fingerprints: set[str] = set()
+    for value in raw:
+        if not isinstance(value, dict):
+            raise CampaignError("documentation checker baseline is invalid")
+        fingerprints.add(checker_fingerprint(value))
+    return fingerprints
+
+
 def run_checker(
     checker: Path,
     root: Path,
     *,
     candidates_root: Path | None = None,
-) -> None:
+    repository_root: Path | None = None,
+    allowed_findings: set[str] | None = None,
+    allow_material: bool = False,
+) -> list[Any]:
     command = [sys.executable, str(checker), str(root), "--json"]
+    if repository_root is not None:
+        command.extend(["--repository-root", str(repository_root)])
     if candidates_root is not None:
         command.extend(["--candidates", str(candidates_root)])
         for relative in sorted(candidate_files(candidates_root)):
@@ -1542,14 +1622,25 @@ def run_checker(
             and isinstance(value, dict)
             and value.get("code") in DEFERRED_CHECKER_CODES
         )
+        and not (
+            candidates_root is None
+            and isinstance(value, dict)
+            and checker_fingerprint(value) in (allowed_findings or set())
+        )
     ]
     if result.returncode != 0 and not findings:
         raise CampaignError(result.stderr.strip() or "checker failed")
-    if material:
+    if material and not allow_material:
         raise CampaignError(
             "SpecSpine checker rejected publication: "
             + json.dumps(material, ensure_ascii=False)
         )
+    return findings
+
+
+def repository_root_from_ledger(ledger: dict[str, Any]) -> Path | None:
+    value = ledger.get("repository_root")
+    return Path(value).resolve() if isinstance(value, str) and value else None
 
 
 def rollback_publication(
@@ -1680,7 +1771,12 @@ def harvest_receipt(
     status, directions, coverage = validate_checkpoint(raw, staging)
     candidates = infer_candidates(staging, spine_root)
     if candidates:
-        run_checker(checker, spine_root, candidates_root=staging_root)
+        run_checker(
+            checker,
+            spine_root,
+            candidates_root=staging_root,
+            repository_root=repository_root_from_ledger(ledger),
+        )
     task = require_task(ledger, task_id)
     if task["state"] != "assigned":
         raise CampaignError(f"harvest requires assigned task: {task_id}")
@@ -1859,11 +1955,13 @@ def command_accept(args: argparse.Namespace) -> dict[str, Any]:
     status, directions, coverage = validate_checkpoint(raw, staging)
     candidates = infer_candidates(staging, args.spine_root.resolve())
     checkpoint_digest = digest_json(raw)
+    repository_root = repository_root_from_ledger(load(args.ledger))
     if candidates:
         run_checker(
             args.checker,
             args.spine_root.resolve(),
             candidates_root=args.staging_root.resolve(),
+            repository_root=repository_root,
         )
 
     backups_root = Path(tempfile.mkdtemp(prefix="specspine-map-backup."))
@@ -1922,7 +2020,12 @@ def command_accept(args: argparse.Namespace) -> dict[str, Any]:
                         os.replace(source, destination)
                         destinations.append(destination)
                         published.append(candidate["path"])
-                    run_checker(args.checker, spine_root)
+                    run_checker(
+                        args.checker,
+                        spine_root,
+                        repository_root=repository_root,
+                        allowed_findings=checker_baseline_fingerprints(ledger),
+                    )
                 except Exception:
                     rollback_publication(destinations, backups, sources)
                     raise
@@ -2141,6 +2244,8 @@ def validate_integrated_source_publication(
 def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
     report = read_json(args.report)
     spine_root = args.spine_root.resolve()
+    current = load(args.ledger)
+    repository_root = repository_root_from_ledger(current)
     documents = validate_integration_evidence(
         spine_root,
         report.get("evidence_inspected"),
@@ -2169,7 +2274,12 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
         or not organization["reason"].strip()
     ):
         raise CampaignError("integration needs a reasoned organization assessment")
-    run_checker(args.checker, spine_root)
+    checker_findings = run_checker(
+        args.checker,
+        spine_root,
+        repository_root=repository_root,
+        allowed_findings=checker_baseline_fingerprints(current),
+    )
 
     normalized_reviews: dict[str, dict[str, str]] = {}
     for value in reviews:
@@ -2336,6 +2446,7 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
             "todo": sorted(added_set | retried),
             "terminal_reason": report.get("terminal_reason"),
             "organization": organization,
+            "checker_clean": not checker_findings,
         }
         history = ledger.setdefault("document_change_history", [])
         history.extend(
@@ -2353,6 +2464,7 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
             "reviewed_tasks": sorted(settled),
             "added_todo": added,
             "changed_documents": reported_changes,
+            "checker_findings": len(checker_findings),
             "revision": ledger["revision"],
         }
 
@@ -2418,6 +2530,10 @@ def terminal_gates(ledger: dict[str, Any]) -> dict[str, bool]:
             isinstance(source_pass, dict) and units_verified
         ),
         "integration_current": current_integration(ledger),
+        "spine_v3_clean": (
+            isinstance(ledger.get("integration_pass"), dict)
+            and ledger["integration_pass"].get("checker_clean") is True
+        ),
     }
 
 
@@ -2567,6 +2683,11 @@ def parser() -> argparse.ArgumentParser:
     seed = sub.add_parser("seed-from-spine")
     seed.add_argument("ledger", type=Path)
     seed.add_argument("spine_root", type=Path)
+    seed.add_argument(
+        "--checker",
+        type=Path,
+        default=Path(__file__).with_name("check_spine.py"),
+    )
 
     inventory = sub.add_parser("inventory")
     inventory.add_argument("repository_root", type=Path)
@@ -2576,6 +2697,11 @@ def parser() -> argparse.ArgumentParser:
     source.add_argument("ledger", type=Path)
     source.add_argument("repository_root", type=Path)
     source.add_argument("spine_root", type=Path)
+    source.add_argument(
+        "--checker",
+        type=Path,
+        default=Path(__file__).with_name("check_spine.py"),
+    )
 
     add = sub.add_parser("todo-add")
     add.add_argument("ledger", type=Path)

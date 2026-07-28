@@ -8,10 +8,10 @@ description: "Map observed brownfield repository architecture into a linked Mark
 All published nodes use stable document IDs and core or `x-*` kinds. Publish
 architectural edges only through canonical `Relation | Target | Meaning`
 tables; ordinary links remain navigation. Maintain evidence-backed manifest
-facets for every published owner. Repository facts are `OBS`,
-not accepted intent. Record a confirmed intent/code conflict as an evidence-
-backed observation plus one `Known divergences` row; never infer or silently
-resolve accepted intent. Use arc42 and ICOM only as diagnostic lenses.
+facets for every published owner. Repository facts are `OBS`, not accepted
+intent. Record a confirmed intent/code conflict as an evidence-backed
+observation plus one `Known divergences` row; never infer or silently resolve
+accepted intent. Use arc42 and ICOM only as diagnostic lenses.
 
 Select one execution mode before project discovery:
 
@@ -39,9 +39,11 @@ Select one execution mode before project discovery:
   before starting or resuming an exhaustive campaign in a new session.
 - Start new files from `assets/templates/` and omit empty sections.
 
-If the live root lacks `README.md` and no separate output root exists, create
-the index and `specspine.json` from their templates before discovery.
-Otherwise keep the live root read-only and stop for setup.
+If live `README.md` is absent and no output root exists, create the root pair;
+otherwise keep it read-only and never synthesize its manifest ad hoc.
+Exhaustive `seed-from-spine` accepts only current v3, never legacy. It records
+other v3 findings as a repairable baseline that must be clear at finalization.
+
 ## Bounded mode
 Perform exactly one bounded mapping operation and stop at its reported
 continuation or terminal refusal. Do not load exhaustive orchestration
@@ -69,10 +71,8 @@ the exact ledger. Emit a final answer only when it returns `may_finish: true`;
 otherwise perform the returned action and continue. Send intermediate counts
 only as commentary, never as a final answer.
 
-Start each producer in a fresh isolated context with no inherited conversation,
-reasoning, or hidden memory. In Codex this is `fork_turns: none`; on another
-agent platform use its equivalent new-session/no-history option. Pass only a
-minimal command naming the producer contract, task packet, and required paths.
+Start each producer in a fresh isolated context (`fork_turns: none` in Codex; equivalent on another agent platform). Pass only the
+producer contract, task packet, and required paths.
 Dispatch strict waves of at most five producers: precompute every prompt, then emit spawn calls back-to-back with no reasoning or other tools between them; use platform batch spawn when available.
 While a wave runs, read-only harvest completed handoffs; publish/integrate only after its terminal barrier, never refill, and stop only at a predeclared timeout or explicit stall.
 Never reuse a producer. If the platform cannot provide both a fresh producer

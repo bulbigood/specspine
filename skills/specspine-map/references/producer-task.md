@@ -17,7 +17,8 @@ Before handoff, reread every candidate as a coherent architectural
 specification and verify:
 
 - one canonical responsibility without duplicated neighboring ownership;
-- observations remain `OBS`, with concrete inspected evidence;
+- observations remain `OBS`; every `Evidence:` span is a complete
+  repository-relative path, never prefix-inherited shorthand;
 - supported relevant boundaries, interfaces, state, lifecycle, failures, and
   relationships are present;
 - semantic IDs are stable and links use the required complete labels;
@@ -45,11 +46,10 @@ acceptance checks; preflight never grants publication authority.
 
 ## Result
 
-Write one small JSON object. Use only the fields shown below. Paths in
-`evidence` are repository-relative concrete files. `directions` are plain
-questions; the campaign assigns their IDs and root decides whether they become
-ToDo.
-
+Write one small JSON object. Use only the fields shown below. `evidence` and
+staged `OBS` paths are complete repository-relative concrete paths.
+`directions` are plain questions; the campaign assigns their IDs and root
+decides whether they become ToDo.
 Existing owner:
 
 ```json

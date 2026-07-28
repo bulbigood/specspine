@@ -25,7 +25,10 @@ The root orchestrator must:
    and blockers, and register no asset a producer did not publish and own.
 10. Append every accepted refinement to persistent ToDo. Do not investigate it
    during integration.
-11. Run the full live checker.
+11. Run the full live checker. The campaign supplies its recorded repository
+    root. An existing-Spine campaign may retain an exact seed-baseline finding
+    temporarily, but every new finding rejects integration. Remove applicable
+    baseline defects while integrating their owners; finalization accepts none.
 12. After each producer document is integrated and its live checks pass, send
     the operator an immediate commentary update. Name the producer task, say
     what the integration established or corrected, name every affected

@@ -209,6 +209,36 @@ class ProducerFinalizeTests(unittest.TestCase):
         self.assertEqual("clean", receipt["mechanical_preflight"])
         self.assertTrue((self.handoff / "staging" / "identity.md").is_file())
 
+    def test_real_checker_rejects_shortened_candidate_evidence_path(self):
+        shutil.rmtree(self.spine)
+        shutil.copytree(
+            ROOT / "tests/eval/fixtures/map-modes-six-area/specspine",
+            self.spine,
+        )
+        self.checker = ROOT / "skills/specspine-map/scripts/check_spine.py"
+        (self.work / "staging" / "identity.md").write_text(
+            "# Identity\n\n"
+            "**ID:** `identity` · **Kind:** `concept`\n\n"
+            "Documents the observed identity session boundary.\n\n"
+            "## Responsibility\n\n"
+            "Owns the observed session lifecycle.\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "<!-- specspine:semantic-ids:begin -->\n"
+            "## Observed\n\n"
+            "- **OBS-identity-session** — A session implementation exists. "
+            "Evidence: `session.py`.\n"
+            "<!-- specspine:semantic-ids:end -->\n",
+            encoding="utf-8",
+        )
+        self.checkpoint()
+
+        error = self.execute(expected=2)
+
+        self.assertIn("EVIDENCE_PATH_MISSING", error["error"])
+        self.assertTrue(self.work.is_dir())
+        self.assertFalse(self.handoff.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

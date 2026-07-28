@@ -156,12 +156,19 @@ class DoctorCheckerV3Tests(unittest.TestCase):
 ```markdown
 [Missing](missing.md)
 - **CON-example-only** — This is not a canonical statement.
+- **OBS-example-only** — This is not repository evidence.
 ```
 """
         root = self.spine(index=INDEX + fenced)
         codes = self.codes(root)
         self.assertNotIn("BROKEN_LINK", codes)
         self.assertNotIn("ID_OUTSIDE_REGION", codes)
+
+        repository_codes = {
+            item.code
+            for item in CHECKER.check(root, repository_root=root)
+        }
+        self.assertNotIn("OBS_EVIDENCE_MISSING", repository_codes)
 
     def test_missing_identity_is_rejected(self):
         root = self.spine(payment="# Payments\n\n## Responsibility\n\n- owns payments.\n")
@@ -209,6 +216,63 @@ class DoctorCheckerV3Tests(unittest.TestCase):
         root = self.spine()
         (root / "specspine.json").unlink()
         self.assertIn("MANIFEST_MISSING", self.codes(root))
+
+    def test_rejects_legacy_coverage_section(self):
+        root = self.spine(index=INDEX + "\n## Coverage\n\n- Mapped.\n")
+        self.assertIn("COMPLETENESS_IN_MARKDOWN", self.codes(root))
+
+    def test_map_mode_validates_observation_evidence_paths(self):
+        root = self.spine()
+        repository = root / "repository"
+        repository.mkdir()
+
+        codes = {
+            item.code
+            for item in CHECKER.check(root, repository_root=repository)
+        }
+
+        self.assertIn("EVIDENCE_PATH_MISSING", codes)
+
+    def test_map_mode_requires_observation_evidence_baseline(self):
+        root = self.spine(
+            payment=PAYMENTS.replace(
+                "<!-- specspine:evidence-baseline "
+                "source=commit-abc123; inspected=2026-07-25 -->\n",
+                "",
+            )
+        )
+
+        codes = {
+            item.code
+            for item in CHECKER.check(root, repository_root=root)
+        }
+
+        self.assertIn("EVIDENCE_BASELINE_MISSING", codes)
+
+    def test_map_mode_requires_observation_evidence_clause(self):
+        root = self.spine(
+            payment=PAYMENTS.replace(
+                "  Evidence: `src/payments/provider.ts`.\n",
+                "",
+            )
+        )
+
+        codes = {
+            item.code
+            for item in CHECKER.check(root, repository_root=root)
+        }
+
+        self.assertIn("OBS_EVIDENCE_MISSING", codes)
+
+    def test_rejects_semantic_definition_without_same_line_text(self):
+        root = self.spine(
+            payment=PAYMENTS.replace(
+                "- **OBS-provider-duplicates** — Provider events are not deduplicated.",
+                "- **OBS-provider-duplicates** —\n  Provider events are not deduplicated.",
+            )
+        )
+
+        self.assertIn("MALFORMED_ID_DEFINITION", self.codes(root))
 
     def test_validates_divergence_statement_kinds(self):
         root = self.spine(payment=PAYMENTS.replace(

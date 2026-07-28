@@ -50,8 +50,17 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
             + ", ".join(sorted(dirty_staging))
         )
 
+    checker_command = [
+        sys.executable,
+        str(args.checker),
+        str(args.spine_root),
+        "--json",
+    ]
+    repository_root = campaign.repository_root_from_ledger(ledger)
+    if repository_root is not None:
+        checker_command.extend(["--repository-root", str(repository_root)])
     result = subprocess.run(
-        [sys.executable, str(args.checker), str(args.spine_root), "--json"],
+        checker_command,
         text=True,
         capture_output=True,
         check=False,

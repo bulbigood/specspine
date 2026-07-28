@@ -21,9 +21,29 @@ class MapCampaignTests(unittest.TestCase):
         self.spine.mkdir(parents=True)
         (self.spine / "README.md").write_text(
             "# Architecture\n\n"
-            "- **OBS-architecture-root** — broad system owner.\n"
-            "- Candidate evidence: `src/identity`.\n"
-            "- Build evidence: `pyproject.toml`.\n",
+            "**ID:** `project-architecture` · **Kind:** `index`\n\n"
+            "Architecture fixture.\n\n"
+            "## Architecture map\n\n"
+            "The fixture has one source boundary.\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "<!-- specspine:semantic-ids:begin -->\n"
+            "## Observed\n\n"
+            "- **OBS-architecture-root** — Broad system owner. "
+            "Evidence: `src/identity/session.py`, `pyproject.toml`.\n"
+            "<!-- specspine:semantic-ids:end -->\n",
+            encoding="utf-8",
+        )
+        (self.spine / "specspine.json").write_text(
+            json.dumps(
+                {
+                    "specspine": 3,
+                    "project": "fixture",
+                    "implementation_freedom": "contract-equivalent",
+                    "areas": [],
+                    "assets": [],
+                }
+            ),
             encoding="utf-8",
         )
         (self.repository / "src/identity").mkdir(parents=True)
@@ -74,6 +94,46 @@ class MapCampaignTests(unittest.TestCase):
 
     def ledger_value(self):
         return json.loads(self.ledger.read_text(encoding="utf-8"))
+
+    def add_spine_candidate(self, filename, document_id, evidence):
+        (self.spine / filename).write_text(
+            f"# {document_id}\n\n"
+            f"**ID:** `{document_id}` · **Kind:** `concept`\n\n"
+            "Candidate owner fixture.\n\n"
+            "## Responsibility\n\n"
+            "Owns the candidate boundary.\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "<!-- specspine:semantic-ids:begin -->\n"
+            "## Observed\n\n"
+            f"- **OBS-{document_id}** — Candidate evidence exists. "
+            f"Evidence: `{evidence}`.\n"
+            "<!-- specspine:semantic-ids:end -->\n",
+            encoding="utf-8",
+        )
+        with (self.spine / "README.md").open("a", encoding="utf-8") as stream:
+            stream.write(f"\n- [{document_id}]({filename}) — candidate.\n")
+        manifest_path = self.spine / "specspine.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["areas"].append(
+            {
+                "owner": document_id,
+                "facets": {
+                    name: "missing"
+                    for name in (
+                        "architecture",
+                        "behavior",
+                        "interfaces",
+                        "data",
+                        "failure",
+                        "quality",
+                        "verification",
+                    )
+                },
+                "blockers": [],
+            }
+        )
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     def source_pass(self, *, expected=0):
         return self.cli(
@@ -196,6 +256,11 @@ class MapCampaignTests(unittest.TestCase):
             ).hexdigest()
             for path in sorted(self.spine.rglob("*.md"))
         }
+        manifest = self.spine / "specspine.json"
+        if manifest.is_file():
+            after["specspine.json"] = hashlib.sha256(
+                manifest.read_bytes()
+            ).hexdigest()
         changed_documents = [
             {
                 "path": path,
@@ -300,9 +365,9 @@ class MapCampaignTests(unittest.TestCase):
 
     def test_init_uses_schema_five_and_private_ledger(self):
         ledger = self.ledger_value()
-        self.assertEqual(5, ledger["schema_version"])
+        self.assertEqual(6, ledger["schema_version"])
         contract = ROOT / "skills/specspine-map/references/producer-task.md"
-        self.assertEqual(1, ledger["producer_contract_version"])
+        self.assertEqual(2, ledger["producer_contract_version"])
         self.assertEqual(
             hashlib.sha256(contract.read_bytes()).hexdigest(),
             ledger["producer_contract_digest"],
@@ -439,10 +504,10 @@ class MapCampaignTests(unittest.TestCase):
                 f"VALUE = {index}\n",
                 encoding="utf-8",
             )
-        (self.spine / "late-owner.md").write_text(
-            "# Late owner\n\n"
-            "- **OBS-late-owner** — `src/identity/module_24.py`.\n",
-            encoding="utf-8",
+        self.add_spine_candidate(
+            "late-owner.md",
+            "late-owner",
+            "src/identity/module_24.py",
         )
         self.source_pass()
         _, task = self.task_for_unit("src/identity")
@@ -455,10 +520,10 @@ class MapCampaignTests(unittest.TestCase):
 
     def test_candidate_owner_packet_is_bounded(self):
         for index in range(20):
-            (self.spine / f"candidate-{index:02d}.md").write_text(
-                f"# Candidate {index}\n\n"
-                "- **OBS-candidate** — `src/identity`.\n",
-                encoding="utf-8",
+            self.add_spine_candidate(
+                f"candidate-{index:02d}.md",
+                f"candidate-{index:02d}",
+                "src/identity",
             )
         self.source_pass()
         _, task = self.task_for_unit("src/identity")
@@ -483,7 +548,7 @@ class MapCampaignTests(unittest.TestCase):
         self.assertIn(task_id, self.cli("ready", str(self.ledger))["ready"])
         packet = self.cli("packet", str(self.ledger), task_id)
         self.assertEqual(task_id, packet["task"]["id"])
-        self.assertEqual(1, packet["producer_contract"]["version"])
+        self.assertEqual(2, packet["producer_contract"]["version"])
         self.assertEqual(
             self.ledger_value()["producer_contract_digest"],
             packet["producer_contract"]["digest"],
@@ -590,9 +655,19 @@ class MapCampaignTests(unittest.TestCase):
 
         error = self.cli("resume-session", str(self.ledger), expected=2)
         self.assertIn(
-            "campaign producer contract metadata is invalid",
+            "campaign does not use the current producer contract",
             error["error"],
         )
+
+    def test_previous_campaign_schema_is_rejected_without_migration(self):
+        ledger = self.ledger_value()
+        ledger["schema_version"] = 5
+        self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
+
+        error = self.cli("summary", str(self.ledger), expected=2)
+
+        self.assertIn("unsupported campaign schema", error["error"])
+        self.assertIn("expected 6", error["error"])
 
     def test_contract_change_requires_new_campaign(self):
         self.source_pass()
@@ -689,7 +764,7 @@ class MapCampaignTests(unittest.TestCase):
             str(ledger),
             str(self.spine),
         )
-        self.assertEqual(1, receipt["documents"])
+        self.assertEqual(2, receipt["documents"])
         self.assertEqual([], receipt["added_todo"])
         self.cli(
             "source-pass",
@@ -697,6 +772,108 @@ class MapCampaignTests(unittest.TestCase):
             str(self.repository),
             str(self.spine),
         )
+
+    def test_documentation_seed_rejects_non_v3_spine(self):
+        ledger = self.run / "invalid-existing.json"
+        self.cli(
+            "init",
+            str(ledger),
+            "--scope",
+            "whole repository",
+            "--root-question",
+            "Map repository",
+            "--spine-state",
+            "existing",
+            "--repository-root",
+            str(self.repository),
+        )
+        manifest_path = self.spine / "specspine.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["specspine"] = 2
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        error = self.cli(
+            "seed-from-spine",
+            str(ledger),
+            str(self.spine),
+            expected=2,
+        )
+
+        self.assertIn("current SpecSpine v3", error["error"])
+        self.assertIn("MANIFEST_VERSION", error["error"])
+
+    def test_documentation_seed_records_current_v3_defects_as_baseline(self):
+        ledger = self.run / "defective-v3.json"
+        self.cli(
+            "init",
+            str(ledger),
+            "--scope",
+            "whole repository",
+            "--root-question",
+            "Map repository",
+            "--spine-state",
+            "existing",
+            "--repository-root",
+            str(self.repository),
+        )
+        with (self.spine / "README.md").open("a", encoding="utf-8") as stream:
+            stream.write("\n## Coverage\n\nNon-semantic status in a v3 document.\n")
+
+        receipt = self.cli("seed-from-spine", str(ledger), str(self.spine))
+
+        self.assertGreater(receipt["checker_baseline_findings"], 0)
+        baseline = json.loads(ledger.read_text(encoding="utf-8"))
+        self.assertIn(
+            "COMPLETENESS_IN_MARKDOWN",
+            {
+                finding["code"]
+                for finding in baseline["documentation_seed"]["checker_baseline"]
+            },
+        )
+        self.cli(
+            "source-pass",
+            str(ledger),
+            str(self.repository),
+            str(self.spine),
+        )
+
+    def test_old_producer_contract_version_is_rejected(self):
+        ledger = self.ledger_value()
+        ledger["producer_contract_version"] = 1
+        self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
+
+        error = self.cli("resume-session", str(self.ledger), expected=2)
+
+        self.assertIn("current producer contract", error["error"])
+        self.assertIn("start a new campaign", error["error"])
+
+    def test_source_pass_rejects_checker_finding_added_after_seed(self):
+        ledger = self.run / "new-defect-after-seed.json"
+        self.cli(
+            "init",
+            str(ledger),
+            "--scope",
+            "whole repository",
+            "--root-question",
+            "Map repository",
+            "--spine-state",
+            "existing",
+            "--repository-root",
+            str(self.repository),
+        )
+        self.cli("seed-from-spine", str(ledger), str(self.spine))
+        with (self.spine / "README.md").open("a", encoding="utf-8") as stream:
+            stream.write("\n## Coverage\n\nNew non-semantic status.\n")
+
+        error = self.cli(
+            "source-pass",
+            str(ledger),
+            str(self.repository),
+            str(self.spine),
+            expected=2,
+        )
+
+        self.assertIn("COMPLETENESS_IN_MARKDOWN", error["error"])
 
     def test_source_pass_is_immutable(self):
         self.source_pass()
@@ -1192,6 +1369,20 @@ class MapCampaignTests(unittest.TestCase):
         coverage = self.cli("coverage-report", str(self.ledger))
         self.assertEqual("inventory_verified", coverage["coverage_claim"])
 
+    def test_unclean_v3_integration_requires_repair_before_finalize(self):
+        self.verify_all_source_units()
+        ledger = self.ledger_value()
+        ledger["integration_pass"]["checker_clean"] = False
+        self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
+
+        summary = self.cli("summary", str(self.ledger))
+        next_action = self.cli("next-action", str(self.ledger))
+
+        self.assertFalse(summary["terminal_gates"]["spine_v3_clean"])
+        self.assertIsNone(summary["terminal"])
+        self.assertEqual("repair", next_action["action"])
+        self.assertFalse(next_action["may_finish"])
+
     def test_next_action_for_active_campaign_forbids_finishing(self):
         self.source_pass()
         next_action = self.cli("next-action", str(self.ledger))
@@ -1254,6 +1445,31 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual("inventory_verified", receipt["terminal"])
         self.assertEqual([], receipt["changed_documents"])
         self.assertEqual([], receipt["document_change_history"])
+
+    def test_finalize_passes_recorded_repository_root_to_checker(self):
+        self.verify_all_source_units()
+        ledger = self.ledger_value()
+        ledger["repository_root"] = str(self.repository.resolve())
+        self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
+        checker = self.root / "repository-aware-checker.py"
+        checker.write_text(
+            "import json, pathlib, sys\n"
+            "valid = '--repository-root' in sys.argv and "
+            "pathlib.Path(sys.argv[sys.argv.index('--repository-root') + 1]).is_dir()\n"
+            "print(json.dumps([] if valid else [{'code':'MISSING_REPOSITORY_ROOT'}]))\n"
+            "raise SystemExit(0 if valid else 1)\n",
+            encoding="utf-8",
+        )
+
+        receipt = self.cli(
+            str(self.ledger),
+            str(self.spine),
+            "--checker",
+            str(checker),
+            script=FINALIZE,
+        )
+
+        self.assertEqual("finalized", receipt["status"])
 
 
 if __name__ == "__main__":
