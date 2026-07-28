@@ -9,7 +9,7 @@ All published nodes use stable document IDs and core or `x-*` kinds. Publish
 architectural edges only through canonical `Relation | Target | Meaning`
 tables; ordinary links remain navigation. Maintain evidence-backed manifest
 facets for every published owner. Repository facts are `OBS`, not accepted
-intent. Record a confirmed intent/code conflict as an evidence-backed
+intent; never turn required policy into a Map ToDo. Record conflicts as
 observation plus one `Known divergences` row; never infer or silently resolve
 accepted intent. Use arc42 and ICOM only as diagnostic lenses.
 
@@ -40,9 +40,8 @@ Select one execution mode before project discovery:
 - Start new files from `assets/templates/` and omit empty sections.
 
 If live `README.md` is absent and no output root exists, create the root pair;
-otherwise keep it read-only and never synthesize its manifest ad hoc.
-Exhaustive `seed-from-spine` accepts only current v3, never legacy. It records
-other v3 findings as a repairable baseline that must be clear at finalization.
+otherwise keep it read-only. Omit index progress, future work, and placeholders.
+`seed-from-spine` accepts only v3; its repairable baseline must clear at finish.
 
 ## Bounded mode
 Perform exactly one bounded mapping operation and stop at its reported
@@ -65,11 +64,9 @@ weak/cheap tier nor its strongest/premium tier. In Codex this is
 `agent_type: medium`.
 
 Treat exhaustive intent as one durable campaign, not one turn. A turn boundary,
-elapsed-time boundary, context compaction, or progress report is never a
-terminal condition. Before any final answer, run `campaign.py next-action` on
-the exact ledger. Emit a final answer only when it returns `may_finish: true`;
-otherwise perform the returned action and continue. Send intermediate counts
-only as commentary, never as a final answer.
+elapsed time, compaction, and progress are not terminal. Before any final
+answer, run `campaign.py next-action` on the exact ledger; finish only when it
+returns `may_finish: true`. Send intermediate counts only as commentary.
 
 Start each producer in a fresh isolated context (`fork_turns: none` in Codex; equivalent on another agent platform). Pass only the
 producer contract, task packet, and required paths.
@@ -86,10 +83,12 @@ checked handoff package. Root independently repeats acceptance checks. Do not
 invoke Doctor inside producers; its whole-Spine semantic audit is a separate
 operator-authorized workflow.
 
-If the Spine already contains specification nodes, also read
-[references/documentation-first-seeding.md](references/documentation-first-seeding.md)
-completely and record the mechanical documentation index before inspecting
-production source.
+Acceptance never edits live Spine. Publish one checked private workspace and
+advance the ledger together. Use `covered` only for inventory, `answered` or
+`unresolved` only for anchored questions, and disposition every anchor.
+
+For an existing Spine, read [documentation-first-seeding.md](references/documentation-first-seeding.md)
+and record its mechanical index before production source.
 
 Read [references/integration-pass.md](references/integration-pass.md)
 completely before merging producer publications into the final graph.

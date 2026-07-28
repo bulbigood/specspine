@@ -31,15 +31,16 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCHEMA_VERSION = 6
-PRODUCER_CONTRACT_VERSION = 2
+SCHEMA_VERSION = 8
+PRODUCER_CONTRACT_VERSION = 4
 MAX_UNIT_FILES = 80
-MAX_EVIDENCE_STRATA = 4
 MAX_CANDIDATE_DOCUMENTS = 12
 TASK_STATES = {"todo", "assigned", "review", "published", "complete", "blocked"}
 CHECKPOINT_STATUSES = {
     "draft",
     "covered",
+    "answered",
+    "unresolved",
     "supporting",
     "retry",
     "blocked",
@@ -54,10 +55,37 @@ SOURCE_CLASSIFICATIONS = {
 REVIEW_DISPOSITIONS = {
     "integrated",
     "already_canonical",
+    "answered_canonical",
+    "still_open",
     "confirmed_supporting",
     "retry",
 }
-SUGGESTION_DISPOSITIONS = {"queued", "covered", "rejected"}
+ANCHOR_DISPOSITIONS = {"resolved", "refined", "still-open", "blocking"}
+OQ_ID_RE = re.compile(r"OQ-[a-z0-9]+(?:-[a-z0-9]+)*")
+EVIDENCE_BASELINE_RE = re.compile(
+    r"<!--\s*specspine:evidence-baseline\s+"
+    r"source=[^;\s>]+;\s*inspected=\d{4}-\d{2}-\d{2}\s*-->"
+)
+OBS_DEFINITION_RE = re.compile(
+    r"^ {0,3}[-+*]\s+\*\*OBS-[a-z0-9]+(?:-[a-z0-9]+)*\*\*\s+—\s+\S",
+    re.MULTILINE,
+)
+LEGACY_SEMANTIC_RE = re.compile(
+    r"^\*\*ID:\*\*\s+`(?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[^`]+`"
+    r"\s+·\s+\*\*Status:\*\*",
+    re.MULTILINE,
+)
+DOCUMENT_IDENTITY_RE = re.compile(
+    r"^\*\*ID:\*\*\s+`([a-z0-9]+(?:-[a-z0-9]+)*)`\s+·\s+"
+    r"\*\*Kind:\*\*\s+`(?!index`)[^`]+`\s*$",
+    re.MULTILINE,
+)
+RELATION_ROW_RE = re.compile(
+    r"^\|\s*`(?:[a-z][a-z0-9-]*|x-[a-z0-9-]+)`\s*\|\s*"
+    r"\[[^\]]+\]\(([^)#?]+\.md)\)\s*\|",
+    re.MULTILINE,
+)
+SUGGESTION_DISPOSITIONS = {"queued", "covered", "preserved", "rejected"}
 DEFERRED_CHECKER_CODES = {"UNREACHABLE_SPEC"}
 V3_ENVELOPE_BLOCKER_CODES = {
     "INDEX_MISSING",
@@ -115,6 +143,8 @@ TEST_COMPONENTS = TEST_ROOTS | {
     "mocks",
     "snapshot",
     "snapshots",
+    "test-data",
+    "test_data",
     "testdata",
 }
 DOCUMENTATION_ROOTS = {
@@ -377,7 +407,7 @@ def validate_reported_spine_changes(
     normalized.sort(key=lambda value: value["path"])
     if normalized != actual:
         raise CampaignError(
-            "integration changed_documents does not match live Spine changes: "
+            "integration changed_documents does not match workspace changes: "
             + json.dumps(
                 {"reported": normalized, "actual": actual},
                 ensure_ascii=False,
@@ -455,6 +485,11 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         )
     ]
     excludes = string_list(raw.get("excludes", []), f"ToDo {task_id} excludes")
+    basis = raw.get("basis", "repository-observation")
+    if basis != "repository-observation":
+        raise CampaignError(
+            f"ToDo {task_id} basis must be repository-observation"
+        )
     units = [
         validate_relative_path(value)
         for value in string_list(raw.get("units", []), f"ToDo {task_id} units")
@@ -481,19 +516,27 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         document = validate_relative_path(anchor.get("document"))
         location = anchor.get("location")
         known = anchor.get("known")
+        anchor_question = anchor.get("question")
         if (
             not isinstance(location, str)
             or not location.strip()
             or not isinstance(known, str)
             or not known.strip()
+            or not isinstance(anchor_question, str)
+            or not anchor_question.strip()
         ):
             raise CampaignError(
-                f"ToDo {task_id} anchor needs nonempty location and known"
+                f"ToDo {task_id} anchor needs nonempty location, known, and question"
+            )
+        if " ".join(anchor_question.split()) != " ".join(question.split()):
+            raise CampaignError(
+                f"ToDo {task_id} question must exactly match anchor question"
             )
         anchor = {
             "document": document,
             "location": location,
             "known": known,
+            "question": anchor_question.strip(),
         }
     return {
         "id": task_id,
@@ -503,6 +546,7 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         "evidence": evidence,
         "documents": documents,
         "excludes": excludes,
+        "basis": basis,
         "units": units,
         "evidence_strata": normalized_strata,
         "anchor": anchor,
@@ -514,6 +558,10 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         "producer_suggestions": [],
         "suggestion_reviews": {},
         "coverage_result": None,
+        "answer_result": None,
+        "uncertainty_result": None,
+        "accepted_staging_root": None,
+        "accepted_staging_digest": None,
         "terminal_reason": None,
     }
 
@@ -529,6 +577,7 @@ def task_definition(task: dict[str, Any]) -> dict[str, Any]:
             "evidence",
             "documents",
             "excludes",
+            "basis",
             "units",
             "evidence_strata",
             "anchor",
@@ -630,6 +679,18 @@ def repository_unit(relative_path: Path) -> str:
     return first
 
 
+def production_unit(relative_path: Path) -> str:
+    """Return one directory-coherent production unit.
+
+    Root files retain their architectural repository grouping. Every nested
+    file belongs to its concrete parent directory so unrelated sibling
+    subtrees can never be closed by one producer checkpoint.
+    """
+    if len(relative_path.parts) == 1:
+        return repository_unit(relative_path)
+    return relative_path.parent.as_posix()
+
+
 def file_classification(path: Path) -> tuple[str, str]:
     """Classify a concrete repository file before it enters a work unit."""
     parts = tuple(value.lower() for value in path.parts)
@@ -639,17 +700,37 @@ def file_classification(path: Path) -> tuple[str, str]:
         return "vendored", "Mechanically identified vendored dependency file"
     if any(value in GENERATED_DIRECTORIES for value in parts) or (
         name.startswith("zz_generated")
-        or name.endswith(("_generated.go", ".generated.ts", ".generated.js"))
+        or name.endswith(
+            (
+                "_generated.go",
+                "_mock.go",
+                ".pb.go",
+                ".pb.gw.go",
+                ".generated.ts",
+                ".generated.js",
+                ".mock.ts",
+                ".mock.tsx",
+            )
+        )
         or any(marker in name for marker in (".gen.", "_gen.", ".generated."))
     ):
         return "generated", "Mechanically identified generated file"
     if (
         any(value in TEST_COMPONENTS for value in parts[:-1])
         or first.startswith(("e2e-", "test-"))
-        or name.endswith("_test.go")
+        or name.endswith(
+            ("_test.go", "_test.ts", "_test.tsx", "_spec.ts", "_spec.tsx")
+        )
         or any(marker in name for marker in (".test.", ".spec."))
     ):
         return "test-only", "Mechanically identified test or fixture file"
+    if first == ".github" and (
+        len(parts) < 2 or parts[1] not in {"actions", "workflows"}
+    ):
+        return (
+            "repository-support",
+            "Mechanically identified repository governance or collaboration file",
+        )
     area = repository_unit(path)
     if (
         area == "repository-root/governance"
@@ -672,48 +753,31 @@ def classification_reason(classification: str) -> str:
 
 
 def evidence_strata(members: list[str]) -> list[dict[str, Any]]:
-    """Create a small deterministic evidence obligation spanning the whole unit."""
-    if not members:
-        return []
-    count = min(MAX_EVIDENCE_STRATA, max(1, math.ceil(len(members) / 20)))
-    strata: list[dict[str, Any]] = []
-    for index in range(count):
-        start = index * len(members) // count
-        end = (index + 1) * len(members) // count
-        partition = members[start:end]
-        strata.append(
-            {
-                "id": f"stratum-{index + 1:02d}",
-                "members": partition,
-                "sample": partition[0],
-            }
-        )
-    return strata
-
-
-def common_directory_depth(members: list[str]) -> int:
-    directories = [Path(value).parts[:-1] for value in members]
-    if not directories:
-        return 0
-    depth = 0
-    for values in zip(*directories):
-        if len(set(values)) != 1:
-            break
-        depth += 1
-    return depth
+    """Require one explicit evidence checkpoint for every production file."""
+    return [
+        {
+            "id": f"file-{index + 1:03d}",
+            "members": [member],
+            "sample": member,
+        }
+        for index, member in enumerate(members)
+    ]
 
 
 def split_production_unit(area: str, members: list[str]) -> list[dict[str, Any]]:
-    """Split by whole directory subtrees, then pack bounded sibling groups."""
+    """Keep a coherent directory together or fall back to one file per unit."""
     members = sorted(members)
     partitions = partition_members(members)
-    groups = [
-        (
-            area if len(partitions) == 1 else f"{area}/@unit-{index:03d}",
-            values,
-        )
-        for index, values in enumerate(partitions, start=1)
-    ]
+    groups: list[tuple[str, list[str]]] = []
+    for values in partitions:
+        if len(partitions) == 1:
+            unit_area = area
+        else:
+            relative = Path(values[0]).name
+            slug = re.sub(r"[^a-z0-9]+", "-", relative.lower()).strip("-")
+            suffix = hashlib.sha256(values[0].encode()).hexdigest()[:8]
+            unit_area = f"{area}/@file-{slug[:36].rstrip('-')}-{suffix}"
+        groups.append((unit_area, values))
     return [
         {
             "area": unit_area,
@@ -730,39 +794,10 @@ def split_production_unit(area: str, members: list[str]) -> list[dict[str, Any]]
 def partition_members(members: list[str]) -> list[list[str]]:
     if len(members) <= MAX_UNIT_FILES:
         return [members]
-    depth = common_directory_depth(members)
-    grouped: dict[str, list[str]] = {}
-    direct: list[str] = []
-    for value in members:
-        parts = Path(value).parts
-        if len(parts) - 1 <= depth:
-            direct.append(value)
-        else:
-            grouped.setdefault(parts[depth], []).append(value)
-    atomic: list[list[str]] = [
-        direct[index : index + MAX_UNIT_FILES]
-        for index in range(0, len(direct), MAX_UNIT_FILES)
-    ]
-    for _, values in sorted(grouped.items()):
-        if len(values) <= MAX_UNIT_FILES:
-            atomic.append(values)
-        elif common_directory_depth(values) > depth:
-            atomic.extend(partition_members(values))
-        else:
-            atomic.extend(
-                values[index : index + MAX_UNIT_FILES]
-                for index in range(0, len(values), MAX_UNIT_FILES)
-            )
-    packed: list[list[str]] = []
-    current: list[str] = []
-    for values in atomic:
-        if current and len(current) + len(values) > MAX_UNIT_FILES:
-            packed.append(sorted(current))
-            current = []
-        current.extend(values)
-    if current:
-        packed.append(sorted(current))
-    return packed
+    # Files in one concrete directory have no mechanically defensible
+    # sub-boundary. Arbitrary lexical chunks would let a few samples close
+    # unrelated files, so exhaustive mode assigns every file independently.
+    return [[value] for value in members]
 
 
 def verification_task_id(area: str) -> str:
@@ -880,7 +915,7 @@ def repository_inventory(
                     snapshot.update(chunk)
             snapshot.update(b"\n")
             classification, _ = file_classification(path)
-            area = repository_unit(path)
+            area = production_unit(path)
             record = units.setdefault(
                 (area, classification),
                 {
@@ -955,7 +990,7 @@ def validate_integration_evidence(
     unknown = paths - set(documents)
     if unknown:
         raise CampaignError(
-            f"{field} must name only live Markdown documents; "
+            f"{field} must name only workspace Markdown documents; "
             f"unknown={sorted(unknown)}"
         )
     return documents
@@ -1208,12 +1243,76 @@ def command_todo(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def source_task_priority(task: dict[str, Any]) -> tuple[int, int, str]:
+    units = task.get("units", [])
+    unit = units[0] if units else ""
+    parts = Path(unit.split("/@", 1)[0]).parts
+    if unit == "repository-root/runtime":
+        tier = 0
+    elif unit == "repository-root/manifests":
+        tier = 1
+    elif parts[:1] == ("cmd",) or parts[:2] == ("pkg", "cmd"):
+        tier = 2
+    elif parts[:1] in {("apps",), ("kinds",), ("pkg",)}:
+        tier = 3
+    elif parts[:1] in {("public",), ("packages",), ("plugins",)}:
+        tier = 4
+    elif unit == "repository-root/tooling" or parts[:1] in {
+        (".github",),
+        (".citools",),
+        ("scripts",),
+        ("tools",),
+    }:
+        tier = 6
+    else:
+        tier = 5
+    return tier, len(parts), task["id"]
+
+
+def breadth_order(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    source = [task for task in tasks if task.get("origin") == "source-pass"]
+    derived = [task for task in tasks if task.get("origin") != "source-pass"]
+    bootstrap_open = any(source_task_priority(task)[0] <= 2 for task in source)
+    ranked: list[tuple[tuple[int, int, str], str, dict[str, Any]]] = []
+    for task in source:
+        priority = source_task_priority(task)
+        unit = task.get("units", [""])[0]
+        family = Path(unit).parts[0] if unit else task["id"]
+        ranked.append((priority, family, task))
+    derived_tier = 5 if bootstrap_open else 2
+    for task in derived:
+        ranked.append(((derived_tier, 0, task["id"]), "integration", task))
+
+    ordered: list[dict[str, Any]] = []
+    remaining = sorted(ranked, key=lambda value: (value[0], value[1]))
+    while remaining:
+        tier = remaining[0][0][0]
+        tier_rows = [value for value in remaining if value[0][0] == tier]
+        other_rows = [value for value in remaining if value[0][0] != tier]
+        families: dict[str, list[tuple[tuple[int, int, str], str, dict[str, Any]]]] = {}
+        for row in tier_rows:
+            families.setdefault(row[1], []).append(row)
+        while families:
+            for family in sorted(list(families)):
+                rows = families[family]
+                ordered.append(rows.pop(0)[2])
+                if not rows:
+                    del families[family]
+        remaining = other_rows
+    return ordered
+
+
 def command_ready(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
     ready = [
         task["id"]
-        for task in sorted(ledger["tasks"].values(), key=lambda value: value["id"])
-        if task["state"] == "todo"
+        for task in breadth_order(
+            [
+                task
+                for task in ledger["tasks"].values()
+                if task["state"] == "todo"
+            ]
+        )
     ]
     selected = ready[: args.limit] if args.limit is not None else ready
     return {
@@ -1521,19 +1620,19 @@ def validate_checkpoint(
     if not isinstance(summary, str) or not summary.strip():
         raise CampaignError("checkpoint summary must be nonempty")
     directions = string_list(raw.get("directions", []), "checkpoint directions")
-    if status not in {"draft", "covered"} and directions:
+    if status not in {"draft", "covered", "answered"} and directions:
         raise CampaignError(
             f"{status} cannot emit directions without an integrable result"
         )
     coverage: dict[str, Any] | None = None
-    if status == "covered":
+    if status in {"covered", "answered"}:
         raw_owner = raw.get("owner")
         if not isinstance(raw_owner, dict) or set(raw_owner) != {
             "document",
             "claims",
         }:
             raise CampaignError(
-                "covered requires owner with document and claims"
+                f"{status} requires owner with document and claims"
             )
         owner_document = validate_relative_path(raw_owner["document"])
         claim_ids = string_list(
@@ -1556,7 +1655,7 @@ def validate_checkpoint(
         raise CampaignError("draft requires at least one staged Markdown file")
     if status != "draft" and staging:
         raise CampaignError(f"{status} must not publish staged files")
-    elif status in {"blocked", "supporting"}:
+    elif status in {"blocked", "supporting", "unresolved"}:
         reason = raw.get("reason")
         if not isinstance(reason, str) or not reason.strip():
             raise CampaignError(f"{status} checkpoint needs reason")
@@ -1643,22 +1742,6 @@ def repository_root_from_ledger(ledger: dict[str, Any]) -> Path | None:
     return Path(value).resolve() if isinstance(value, str) and value else None
 
 
-def rollback_publication(
-    destinations: list[Path],
-    backups: dict[Path, Path],
-    sources: dict[Path, Path],
-) -> None:
-    for destination in reversed(destinations):
-        source = sources[destination]
-        source.parent.mkdir(parents=True, exist_ok=True)
-        if destination.exists():
-            os.replace(destination, source)
-        backup = backups.get(destination)
-        if backup is not None and backup.exists():
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(backup, destination)
-
-
 def validate_task_evidence(
     ledger: dict[str, Any],
     task: dict[str, Any],
@@ -1700,7 +1783,7 @@ def validate_task_evidence(
             "checkpoint must inspect at least one concrete file from every task unit; "
             f"missing={sorted(set(units) - covered)}"
         )
-    if outcome in {"draft", "covered", "supporting"}:
+    if outcome in {"draft", "covered", "answered", "unresolved", "supporting"}:
         missing_strata: dict[str, list[str]] = {}
         for unit in units:
             record = inventory.get(unit, {})
@@ -1725,11 +1808,11 @@ def validate_coverage_result(
     coverage: dict[str, Any] | None,
     spine_root: Path,
     inspected: list[str],
+    *,
+    outcome: str,
 ) -> dict[str, Any]:
-    if not task.get("units"):
-        raise CampaignError("covered is valid only for inventory verification tasks")
     if coverage is None:
-        raise CampaignError("covered checkpoint is missing owner evidence")
+        raise CampaignError(f"{outcome} checkpoint is missing owner evidence")
     owner_document = coverage["owner_document"]
     if Path(owner_document).parts[:1] == (spine_root.name,):
         owner_document = Path(*Path(owner_document).parts[1:]).as_posix()
@@ -1749,13 +1832,53 @@ def validate_coverage_result(
         raise CampaignError(
             f"coverage owner claim IDs do not exist in owner document: {missing}"
         )
-    evidence_refs = [*task["units"], *inspected]
+    if outcome == "answered" and any(
+        not claim_id.startswith("OBS-")
+        for claim_id in coverage["owner_claim_ids"]
+    ):
+        raise CampaignError(
+            "answered owner claims must all be repository observations (OBS-*)"
+        )
+    evidence_refs = [*task.get("units", []), *inspected]
     if not any(value in body for value in evidence_refs):
         raise CampaignError(
             "coverage owner document does not reference the verified unit or "
             "inspected evidence"
         )
     return coverage
+
+
+def validate_task_outcome(task: dict[str, Any], outcome: str) -> None:
+    inventory_task = bool(task.get("units"))
+    if outcome in {"covered", "supporting"} and not inventory_task:
+        raise CampaignError(
+            f"{outcome} is valid only for inventory verification tasks"
+        )
+    if outcome in {"answered", "unresolved"} and inventory_task:
+        raise CampaignError(
+            f"{outcome} is valid only for integration-derived tasks"
+        )
+    if outcome in {"answered", "unresolved"} and task.get("anchor") is None:
+        raise CampaignError(
+            f"{outcome} requires an integration-derived task with an anchor"
+        )
+
+
+def validate_draft_semantics(staging: dict[str, Path]) -> None:
+    for relative, path in staging.items():
+        body = path.read_text(encoding="utf-8")
+        if LEGACY_SEMANTIC_RE.search(body):
+            raise CampaignError(
+                f"candidate uses legacy semantic definition syntax: {relative}"
+            )
+        if EVIDENCE_BASELINE_RE.search(body) is None:
+            raise CampaignError(
+                f"candidate needs an evidence baseline: {relative}"
+            )
+        if OBS_DEFINITION_RE.search(body) is None:
+            raise CampaignError(
+                f"candidate needs a semantic OBS definition: {relative}"
+            )
 
 
 def harvest_receipt(
@@ -1784,17 +1907,22 @@ def harvest_receipt(
         raise CampaignError(
             f"checkpoint owner mismatch: expected {task['owner']}, got {owner}"
         )
+    validate_task_outcome(task, status)
+    if status == "draft":
+        validate_draft_semantics(staging)
     inspected = validate_task_evidence(
         ledger,
         task,
         raw.get("evidence"),
         outcome=status,
     )
-    if status == "covered":
-        validate_coverage_result(task, coverage, spine_root, inspected)
-    if status == "supporting" and not task.get("units"):
-        raise CampaignError(
-            "supporting is valid only for inventory verification tasks"
+    if status in {"covered", "answered"}:
+        validate_coverage_result(
+            task,
+            coverage,
+            spine_root,
+            inspected,
+            outcome=status,
         )
     return {
         "status": "harvested",
@@ -1874,6 +2002,7 @@ def command_harvest_wave(args: argparse.Namespace) -> dict[str, Any]:
     )
     harvested: list[str] = []
     pending: list[str] = []
+    rejected: list[dict[str, str]] = []
     cached = 0
     for task in tasks:
         checkpoint, staging_root, receipt = wave_result_paths(
@@ -1889,18 +2018,22 @@ def command_harvest_wave(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(
                 f"atomic handoff is incomplete for assigned task: {task['id']}"
             )
-        result = command_harvest(
-            argparse.Namespace(
-                ledger=args.ledger,
-                id=task["id"],
-                checkpoint=checkpoint,
-                staging_root=staging_root,
-                spine_root=args.spine_root,
-                owner=task["owner"],
-                output=receipt,
-                checker=args.checker,
+        try:
+            result = command_harvest(
+                argparse.Namespace(
+                    ledger=args.ledger,
+                    id=task["id"],
+                    checkpoint=checkpoint,
+                    staging_root=staging_root,
+                    spine_root=args.spine_root,
+                    owner=task["owner"],
+                    output=receipt,
+                    checker=args.checker,
+                )
             )
-        )
+        except CampaignError as error:
+            rejected.append({"task": task["id"], "error": str(error)})
+            continue
         harvested.append(task["id"])
         cached += result["status"] == "already_harvested"
     return {
@@ -1909,8 +2042,10 @@ def command_harvest_wave(args: argparse.Namespace) -> dict[str, Any]:
         "harvested": len(harvested),
         "already_harvested": cached,
         "pending": len(pending),
+        "rejected": len(rejected),
         "harvested_tasks": harvested,
         "pending_tasks": pending,
+        "rejected_tasks": rejected,
     }
 
 
@@ -1949,6 +2084,97 @@ def require_harvest_receipt(
         )
 
 
+def apply_accepted_result(
+    ledger: dict[str, Any],
+    task: dict[str, Any],
+    raw: dict[str, Any],
+    staging: dict[str, Path],
+    staging_root: Path,
+    spine_root: Path,
+    *,
+    status: str,
+    directions: list[str],
+    coverage: dict[str, Any] | None,
+    checkpoint_digest: str,
+) -> dict[str, Any]:
+    validate_task_outcome(task, status)
+    inspected = validate_task_evidence(
+        ledger,
+        task,
+        raw.get("evidence"),
+        outcome=status,
+    )
+    suggestions = normalize_directions(task["id"], directions)
+    published: list[str] = []
+    if status == "draft":
+        candidates = infer_candidates(staging, spine_root)
+        published = [candidate["path"] for candidate in candidates]
+        task["state"] = "published"
+        task["published"] = published
+        task["accepted_staging_root"] = str(staging_root.resolve())
+        task["accepted_staging_digest"] = staging_digest(staging)
+        task["producer_suggestions"] = suggestions
+    elif status in {"covered", "answered"}:
+        result = validate_coverage_result(
+            task,
+            coverage,
+            spine_root,
+            inspected,
+            outcome=status,
+        )
+        task["state"] = "review"
+        if status == "covered":
+            task["coverage_result"] = result
+        else:
+            task["answer_result"] = result
+        task["producer_suggestions"] = suggestions
+    elif status == "unresolved":
+        task["state"] = "review"
+        task["uncertainty_result"] = {
+            "boundary_summary": raw["summary"].strip(),
+            "reason": raw["reason"].strip(),
+            "evidence": inspected,
+        }
+        task["producer_suggestions"] = []
+    elif status == "supporting":
+        task["state"] = "review"
+        task["support_result"] = {
+            "boundary_summary": raw["summary"].strip(),
+            "reason": raw["reason"].strip(),
+            "evidence": inspected,
+        }
+        task["producer_suggestions"] = []
+    elif status == "retry":
+        task["state"] = "todo"
+        task["evidence"] = sorted(
+            set(task["evidence"])
+            | set(
+                string_list(
+                    raw["need"],
+                    "checkpoint need",
+                    nonempty=True,
+                )
+            )
+        )
+    else:
+        task["state"] = "blocked"
+        task["terminal_reason"] = raw["reason"]
+        task["producer_suggestions"] = suggestions
+
+    if status in {"draft", "covered", "answered", "unresolved", "supporting"}:
+        ledger["publication_epoch"] += 1
+        ledger["integration_pass"] = None
+    task["owner"] = None
+    task["checkpoint_outcome"] = status
+    task["checkpoint_digest"] = checkpoint_digest
+    return {
+        "task": task["id"],
+        "task_state": task["state"],
+        "published": published,
+        "suggestions_pending_review": [value["id"] for value in suggestions],
+    }
+
+
 def command_accept(args: argparse.Namespace) -> dict[str, Any]:
     raw = read_json(args.checkpoint)
     staging = candidate_files(args.staging_root)
@@ -1964,145 +2190,41 @@ def command_accept(args: argparse.Namespace) -> dict[str, Any]:
             repository_root=repository_root,
         )
 
-    backups_root = Path(tempfile.mkdtemp(prefix="specspine-map-backup."))
-    destinations: list[Path] = []
-    backups: dict[Path, Path] = {}
-    sources: dict[Path, Path] = {}
-    published: list[str] = []
-    try:
-        with locked_ledger(args.ledger) as ledger:
-            task = require_task(ledger, args.id)
-            if task["state"] != "assigned":
-                raise CampaignError(f"accept requires assigned task: {args.id}")
-            if task["owner"] != args.owner:
-                raise CampaignError(
-                    f"checkpoint owner mismatch: expected {task['owner']}, got {args.owner}"
-                )
-            require_harvest_receipt(
-                args.harvest_receipt,
-                ledger,
-                task["id"],
-                args.owner,
-                status,
-                checkpoint_digest,
-                staging_digest(staging),
+    with locked_ledger(args.ledger) as ledger:
+        task = require_task(ledger, args.id)
+        if task["state"] != "assigned":
+            raise CampaignError(f"accept requires assigned task: {args.id}")
+        if task["owner"] != args.owner:
+            raise CampaignError(
+                f"checkpoint owner mismatch: expected {task['owner']}, got {args.owner}"
             )
-            inspected = validate_task_evidence(
-                ledger,
-                task,
-                raw.get("evidence"),
-                outcome=status,
-            )
-            suggestions = normalize_directions(task["id"], directions)
-            if status == "draft":
-                spine_root = args.spine_root.resolve()
-                plans: list[tuple[dict[str, str], Path, Path, bool]] = []
-                for candidate in candidates:
-                    source = staging[candidate["path"]]
-                    destination = spine_root / candidate["path"]
-                    exists = destination.exists()
-                    if candidate["operation"] == "create" and exists:
-                        raise CampaignError(f"create destination exists: {candidate['path']}")
-                    if candidate["operation"] == "replace" and not exists:
-                        raise CampaignError(
-                            f"replace destination is missing: {candidate['path']}"
-                        )
-                    plans.append((candidate, source, destination, exists))
-                try:
-                    for candidate, source, destination, exists in plans:
-                        sources[destination] = source
-                        if exists:
-                            backup = backups_root / candidate["path"]
-                            backup.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(destination, backup)
-                            backups[destination] = backup
-                        destination.parent.mkdir(parents=True, exist_ok=True)
-                        os.replace(source, destination)
-                        destinations.append(destination)
-                        published.append(candidate["path"])
-                    run_checker(
-                        args.checker,
-                        spine_root,
-                        repository_root=repository_root,
-                        allowed_findings=checker_baseline_fingerprints(ledger),
-                    )
-                except Exception:
-                    rollback_publication(destinations, backups, sources)
-                    raise
-                task["state"] = "published"
-                task["published"] = published
-                task["producer_suggestions"] = suggestions
-                ledger["publication_epoch"] += 1
-                ledger["integration_pass"] = None
-                for candidate in candidates:
-                    ledger["publication_history"].append(
-                        {
-                            "task": task["id"],
-                            "path": candidate["path"],
-                            "operation": candidate["operation"],
-                            "publication_epoch": ledger["publication_epoch"],
-                        }
-                    )
-            elif status == "covered":
-                task["state"] = "review"
-                task["checkpoint_outcome"] = status
-                task["coverage_result"] = validate_coverage_result(
-                    task,
-                    coverage,
-                    args.spine_root.resolve(),
-                    inspected,
-                )
-                task["producer_suggestions"] = suggestions
-                ledger["publication_epoch"] += 1
-                ledger["integration_pass"] = None
-            elif status == "supporting":
-                if not task.get("units"):
-                    raise CampaignError(
-                        "supporting is valid only for inventory verification tasks"
-                    )
-                task["state"] = "review"
-                task["checkpoint_outcome"] = status
-                task["support_result"] = {
-                    "boundary_summary": raw["summary"].strip(),
-                    "reason": raw["reason"].strip(),
-                    "evidence": inspected,
-                }
-                task["producer_suggestions"] = []
-                ledger["publication_epoch"] += 1
-                ledger["integration_pass"] = None
-            elif status == "retry":
-                task["state"] = "todo"
-                task["evidence"] = sorted(
-                    set(task["evidence"])
-                    | set(
-                        string_list(
-                            raw["need"],
-                            "checkpoint need",
-                            nonempty=True,
-                        )
-                    )
-                )
-            else:
-                task["state"] = "blocked"
-                task["terminal_reason"] = raw["reason"]
-                task["producer_suggestions"] = suggestions
-            task["owner"] = None
-            if status == "draft":
-                task["checkpoint_outcome"] = status
-            task["checkpoint_digest"] = checkpoint_digest
-            save_locked(args.ledger, ledger)
-            return {
-                "status": "accepted",
-                "task": task["id"],
-                "task_state": task["state"],
-                "published": published,
-                "suggestions_pending_review": [
-                    value["id"] for value in suggestions
-                ],
-                "revision": ledger["revision"],
-            }
-    finally:
-        shutil.rmtree(backups_root, ignore_errors=True)
+        require_harvest_receipt(
+            args.harvest_receipt,
+            ledger,
+            task["id"],
+            args.owner,
+            status,
+            checkpoint_digest,
+            staging_digest(staging),
+        )
+        result = apply_accepted_result(
+            ledger,
+            task,
+            raw,
+            staging,
+            args.staging_root,
+            args.spine_root.resolve(),
+            status=status,
+            directions=directions,
+            coverage=coverage,
+            checkpoint_digest=checkpoint_digest,
+        )
+        save_locked(args.ledger, ledger)
+        return {
+            "status": "accepted",
+            **result,
+            "revision": ledger["revision"],
+        }
 
 
 def command_accept_wave(args: argparse.Namespace) -> dict[str, Any]:
@@ -2115,7 +2237,19 @@ def command_accept_wave(args: argparse.Namespace) -> dict[str, Any]:
         ),
         key=lambda value: value["id"],
     )
-    prepared: list[tuple[dict[str, Any], Path, Path, Path]] = []
+    prepared: list[
+        tuple[
+            str,
+            str,
+            dict[str, Any],
+            dict[str, Path],
+            Path,
+            Path,
+            str,
+            list[str],
+            dict[str, Any] | None,
+        ]
+    ] = []
     candidate_owners: dict[str, str] = {}
     for task in tasks:
         checkpoint, staging_root, receipt = wave_result_paths(
@@ -2153,23 +2287,62 @@ def command_accept_wave(args: argparse.Namespace) -> dict[str, Any]:
                     f"{relative} from {previous} and {task['id']}"
                 )
             candidate_owners[relative] = task["id"]
-        prepared.append((task, checkpoint, staging_root, receipt))
-
-    results = [
-        command_accept(
-            argparse.Namespace(
-                ledger=args.ledger,
-                id=task["id"],
-                checkpoint=checkpoint,
-                staging_root=staging_root,
-                spine_root=args.spine_root,
-                owner=task["owner"],
-                harvest_receipt=receipt,
-                checker=args.checker,
+        status, directions, coverage = validate_checkpoint(raw, staging)
+        prepared.append(
+            (
+                task["id"],
+                task["owner"],
+                raw,
+                staging,
+                staging_root,
+                receipt,
+                status,
+                directions,
+                coverage,
             )
         )
-        for task, checkpoint, staging_root, receipt in prepared
-    ]
+
+    results: list[dict[str, Any]] = []
+    with locked_ledger(args.ledger) as current:
+        for (
+            task_id,
+            owner,
+            raw,
+            staging,
+            staging_root,
+            receipt,
+            status,
+            directions,
+            coverage,
+        ) in prepared:
+            task = require_task(current, task_id)
+            if task["state"] != "assigned" or task["owner"] != owner:
+                raise CampaignError(f"wave task changed before acceptance: {task_id}")
+            checkpoint_digest = digest_json(raw)
+            require_harvest_receipt(
+                receipt,
+                current,
+                task_id,
+                owner,
+                status,
+                checkpoint_digest,
+                staging_digest(staging),
+            )
+            results.append(
+                apply_accepted_result(
+                    current,
+                    task,
+                    raw,
+                    staging,
+                    staging_root,
+                    args.spine_root.resolve(),
+                    status=status,
+                    directions=directions,
+                    coverage=coverage,
+                    checkpoint_digest=checkpoint_digest,
+                )
+            )
+        save_locked(args.ledger, current)
     publications = [
         {"task": result["task"], "paths": result["published"]}
         for result in results
@@ -2188,6 +2361,104 @@ def command_accept_wave(args: argparse.Namespace) -> dict[str, Any]:
             for result in results
         ),
     }
+
+
+def accepted_candidates(task: dict[str, Any]) -> dict[str, Path]:
+    root_value = task.get("accepted_staging_root")
+    expected_digest = task.get("accepted_staging_digest")
+    if not isinstance(root_value, str) or not isinstance(expected_digest, str):
+        raise CampaignError(
+            f"accepted draft is missing its private staging reference: {task['id']}"
+        )
+    root = Path(root_value)
+    candidates = candidate_files(root)
+    if staging_digest(candidates) != expected_digest:
+        raise CampaignError(
+            f"accepted draft changed after acceptance: {task['id']}"
+        )
+    if sorted(candidates) != sorted(task.get("published", [])):
+        raise CampaignError(
+            f"accepted draft paths do not match task publication: {task['id']}"
+        )
+    return candidates
+
+
+def command_prepare_integration(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    spine_root = args.spine_root.resolve()
+    workspace = args.workspace.resolve()
+    if workspace.exists():
+        raise CampaignError(f"integration workspace already exists: {workspace}")
+    if workspace == spine_root or workspace in spine_root.parents or spine_root in workspace.parents:
+        raise CampaignError("integration workspace and live Spine must be separate")
+    current_hashes = document_hashes(spine_root)
+    if current_hashes != ledger_spine_snapshot(ledger):
+        raise CampaignError(
+            "live Spine changed since the last successful campaign boundary"
+        )
+    settled = [
+        task
+        for task in ledger["tasks"].values()
+        if task["state"] in {"published", "review"}
+    ]
+    shutil.copytree(spine_root, workspace)
+    copied: list[str] = []
+    try:
+        owners: dict[str, str] = {}
+        for task in settled:
+            if task["state"] != "published":
+                continue
+            for relative, source in accepted_candidates(task).items():
+                previous = owners.get(relative)
+                if previous is not None:
+                    raise CampaignError(
+                        f"integration candidates conflict: {relative} from "
+                        f"{previous} and {task['id']}"
+                    )
+                owners[relative] = task["id"]
+                destination = workspace / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, destination)
+                copied.append(relative)
+    except Exception:
+        shutil.rmtree(workspace, ignore_errors=True)
+        raise
+    return {
+        "status": "prepared",
+        "workspace": str(workspace),
+        "settled_tasks": sorted(task["id"] for task in settled),
+        "candidate_files": sorted(copied),
+    }
+
+
+def publish_integration_workspace(
+    spine_root: Path,
+    workspace: Path,
+) -> tuple[Path, Path]:
+    parent = spine_root.parent
+    candidate = Path(
+        tempfile.mkdtemp(prefix=f".{spine_root.name}.map-next.", dir=parent)
+    )
+    candidate.rmdir()
+    shutil.copytree(workspace, candidate)
+    backup = parent / f".{spine_root.name}.map-backup.{uuid.uuid4().hex}"
+    try:
+        os.replace(spine_root, backup)
+        os.replace(candidate, spine_root)
+    except Exception:
+        if backup.exists() and not spine_root.exists():
+            os.replace(backup, spine_root)
+        shutil.rmtree(candidate, ignore_errors=True)
+        raise
+    return backup, candidate
+
+
+def rollback_integration_publication(spine_root: Path, backup: Path) -> None:
+    failed = spine_root.parent / f".{spine_root.name}.map-failed.{uuid.uuid4().hex}"
+    if spine_root.exists():
+        os.replace(spine_root, failed)
+    os.replace(backup, spine_root)
+    shutil.rmtree(failed, ignore_errors=True)
 
 
 def command_block(args: argparse.Namespace) -> dict[str, Any]:
@@ -2210,8 +2481,6 @@ def validate_integrated_source_publication(
     task: dict[str, Any],
     spine_root: Path,
 ) -> None:
-    if task.get("origin") != "source-pass":
-        return
     published = task.get("published", [])
     if not published:
         raise CampaignError(
@@ -2229,6 +2498,8 @@ def validate_integrated_source_publication(
         raise CampaignError(
             f"integrated source task cannot discard producer publications: {missing}"
         )
+    if task.get("origin") != "source-pass":
+        return
     combined = "\n".join(bodies)
     if "**OBS-" not in combined:
         raise CampaignError(
@@ -2241,13 +2512,122 @@ def validate_integrated_source_publication(
         )
 
 
+def validate_published_graph(
+    settled: dict[str, dict[str, Any]],
+    workspace: Path,
+) -> None:
+    documents = {
+        path.relative_to(workspace).as_posix(): path.read_text(encoding="utf-8")
+        for path in workspace.rglob("*.md")
+        if path.is_file() and path.name != "README.md"
+    }
+    owners = {
+        relative
+        for relative, body in documents.items()
+        if DOCUMENT_IDENTITY_RE.search(body)
+    }
+    if len(owners) <= 1:
+        return
+    connected: set[str] = set()
+    for relative, body in documents.items():
+        source = Path(relative)
+        for target in RELATION_ROW_RE.findall(body):
+            resolved = (source.parent / target).as_posix()
+            if resolved in owners:
+                connected.update((relative, resolved))
+    missing = sorted(
+        relative
+        for task in settled.values()
+        if task["state"] == "published"
+        for relative in task.get("published", [])
+        if relative in owners and relative not in connected
+    )
+    if missing:
+        raise CampaignError(
+            "integrated source owners need an incoming or outgoing typed "
+            f"relationship: {missing}"
+        )
+
+
+def validate_blocking_anchor(
+    workspace: Path,
+    anchor: dict[str, str],
+    blocker: str,
+) -> None:
+    document = workspace / anchor["document"]
+    if not document.is_file():
+        raise CampaignError(
+            f"blocking anchor document does not exist: {anchor['document']}"
+        )
+    body = document.read_text(encoding="utf-8")
+    identity = re.search(
+        r"^\*\*ID:\*\*\s+`([a-z0-9]+(?:-[a-z0-9]+)*)`\s+·\s+"
+        r"\*\*Kind:\*\*\s+`[^`]+`\s*$",
+        body,
+        re.MULTILINE,
+    )
+    if identity is None:
+        raise CampaignError(
+            f"blocking anchor document has no valid identity: {anchor['document']}"
+        )
+    definition = re.search(
+        rf"^ {{0,3}}[-+*]\s+\*\*{re.escape(blocker)}\*\*\s+—\s+\S",
+        body,
+        re.MULTILINE,
+    )
+    if definition is None:
+        raise CampaignError(
+            f"blocking anchor must define {blocker} in {anchor['document']}"
+        )
+    manifest = read_json(workspace / "specspine.json")
+    areas = manifest.get("areas")
+    if not isinstance(areas, list) or not any(
+        isinstance(area, dict)
+        and area.get("owner") == identity.group(1)
+        and isinstance(area.get("blockers"), list)
+        and blocker in area["blockers"]
+        for area in areas
+    ):
+        raise CampaignError(
+            f"blocking anchor must register {blocker} on owner {identity.group(1)}"
+        )
+
+
+def validate_new_task_anchors(
+    workspace: Path,
+    raw_tasks: list[Any],
+) -> None:
+    """Bind every integration-derived task to the exact visible question."""
+    for raw in raw_tasks:
+        if not isinstance(raw, dict) or raw.get("anchor") is None:
+            continue
+        task = new_task(raw, source="integration-validation")
+        anchor = task["anchor"]
+        document = workspace / anchor["document"]
+        if not document.is_file():
+            raise CampaignError(
+                f"ToDo {task['id']} anchor document does not exist: "
+                f"{anchor['document']}"
+            )
+        body = " ".join(document.read_text(encoding="utf-8").split())
+        question = " ".join(anchor["question"].split())
+        if question not in body:
+            raise CampaignError(
+                f"ToDo {task['id']} anchor question is absent from "
+                f"{anchor['document']}"
+            )
+
+
 def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
     report = read_json(args.report)
     spine_root = args.spine_root.resolve()
+    workspace = args.workspace.resolve()
+    if not workspace.is_dir():
+        raise CampaignError(f"integration workspace is not a directory: {workspace}")
     current = load(args.ledger)
     repository_root = repository_root_from_ledger(current)
     documents = validate_integration_evidence(
-        spine_root,
+        workspace,
         report.get("evidence_inspected"),
         field="integration evidence_inspected",
     )
@@ -2276,18 +2656,19 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
         raise CampaignError("integration needs a reasoned organization assessment")
     checker_findings = run_checker(
         args.checker,
-        spine_root,
+        workspace,
         repository_root=repository_root,
         allowed_findings=checker_baseline_fingerprints(current),
     )
 
-    normalized_reviews: dict[str, dict[str, str]] = {}
+    normalized_reviews: dict[str, dict[str, Any]] = {}
     for value in reviews:
         if not isinstance(value, dict):
             raise CampaignError("task review must be an object")
         task_id = validate_id(value.get("task"))
         disposition = value.get("disposition")
         reason = value.get("reason")
+        anchor_disposition = value.get("anchor_disposition")
         if disposition not in REVIEW_DISPOSITIONS:
             raise CampaignError(
                 f"invalid integration disposition for {task_id}: {disposition!r}"
@@ -2296,9 +2677,45 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(f"task review needs a reason: {task_id}")
         if task_id in normalized_reviews:
             raise CampaignError(f"duplicate task review: {task_id}")
+        normalized_anchor: dict[str, str] | None = None
+        if anchor_disposition is not None:
+            anchor_status = (
+                anchor_disposition.get("status")
+                if isinstance(anchor_disposition, dict)
+                else None
+            )
+            expected_fields = {"status", "reason"}
+            if anchor_status == "refined":
+                expected_fields.add("todo")
+            elif anchor_status == "blocking":
+                expected_fields.add("blocker")
+            if (
+                not isinstance(anchor_disposition, dict)
+                or set(anchor_disposition) != expected_fields
+                or anchor_status not in ANCHOR_DISPOSITIONS
+                or not isinstance(anchor_disposition.get("reason"), str)
+                or not anchor_disposition["reason"].strip()
+            ):
+                raise CampaignError(
+                    f"task review has invalid anchor_disposition: {task_id}"
+                )
+            normalized_anchor = {
+                "status": anchor_status,
+                "reason": anchor_disposition["reason"].strip(),
+            }
+            if anchor_status == "refined":
+                normalized_anchor["todo"] = validate_id(anchor_disposition["todo"])
+            elif anchor_status == "blocking":
+                blocker = anchor_disposition["blocker"]
+                if not isinstance(blocker, str) or OQ_ID_RE.fullmatch(blocker) is None:
+                    raise CampaignError(
+                        f"blocking anchor needs a valid OQ-* ID: {task_id}"
+                    )
+                normalized_anchor["blocker"] = blocker
         normalized_reviews[task_id] = {
             "disposition": disposition,
             "reason": reason.strip(),
+            "anchor_disposition": normalized_anchor,
         }
 
     normalized_suggestions: dict[tuple[str, str], dict[str, str]] = {}
@@ -2310,6 +2727,7 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
         disposition = value.get("disposition")
         reason = value.get("reason")
         queued_task = value.get("todo")
+        preserved_document = value.get("document")
         if disposition not in SUGGESTION_DISPOSITIONS:
             raise CampaignError(
                 f"invalid suggestion disposition for {suggestion_id}: {disposition!r}"
@@ -2324,6 +2742,12 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(
                 f"non-queued suggestion must not name ToDo: {suggestion_id}"
             )
+        if disposition == "preserved":
+            preserved_document = validate_relative_path(preserved_document)
+        elif preserved_document is not None:
+            raise CampaignError(
+                f"only preserved suggestion may name a document: {suggestion_id}"
+            )
         key = (task_id, suggestion_id)
         if key in normalized_suggestions:
             raise CampaignError(f"duplicate suggestion review: {key}")
@@ -2331,11 +2755,17 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
             "disposition": disposition,
             "reason": reason.strip(),
             "todo": queued_task,
+            "document": preserved_document,
         }
 
     with locked_ledger(args.ledger) as ledger:
+        baseline = ledger_spine_snapshot(ledger)
+        if document_hashes(spine_root) != baseline:
+            raise CampaignError(
+                "live Spine changed after integration workspace preparation"
+            )
         actual_changes = spine_changes(
-            ledger_spine_snapshot(ledger),
+            baseline,
             documents,
         )
         reported_changes = validate_reported_spine_changes(
@@ -2365,6 +2795,28 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
                 "covered tasks require already_canonical integration "
                 f"disposition: {invalid_coverage_reviews}"
             )
+        invalid_answer_reviews = [
+            task_id
+            for task_id, task in settled.items()
+            if task.get("checkpoint_outcome") == "answered"
+            and normalized_reviews[task_id]["disposition"] != "answered_canonical"
+        ]
+        if invalid_answer_reviews:
+            raise CampaignError(
+                "answered tasks require answered_canonical integration "
+                f"disposition: {invalid_answer_reviews}"
+            )
+        invalid_uncertainty_reviews = [
+            task_id
+            for task_id, task in settled.items()
+            if task.get("checkpoint_outcome") == "unresolved"
+            and normalized_reviews[task_id]["disposition"] != "still_open"
+        ]
+        if invalid_uncertainty_reviews:
+            raise CampaignError(
+                "unresolved tasks require still_open integration "
+                f"disposition: {invalid_uncertainty_reviews}"
+            )
         invalid_support_reviews = [
             task_id
             for task_id, task in settled.items()
@@ -2390,8 +2842,48 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
                 f"{invalid_publication_reviews}"
             )
         for task_id, task in settled.items():
+            anchor = task.get("anchor")
+            anchor_review = normalized_reviews[task_id]["anchor_disposition"]
+            if anchor is None and anchor_review is not None:
+                raise CampaignError(
+                    f"inventory task must not have anchor_disposition: {task_id}"
+                )
+            if anchor is not None and normalized_reviews[task_id]["disposition"] != "retry":
+                if anchor_review is None:
+                    raise CampaignError(
+                        f"integration-derived task needs anchor_disposition: {task_id}"
+                    )
+                if (
+                    task.get("checkpoint_outcome") == "unresolved"
+                    and anchor_review["status"]
+                    not in {"refined", "still-open", "blocking"}
+                ):
+                    raise CampaignError(
+                        f"unresolved task must preserve uncertainty: {task_id}"
+                    )
+                if anchor_review["status"] == "resolved":
+                    anchor_path = workspace / anchor["document"]
+                    if anchor_path.is_file():
+                        normalized_body = " ".join(
+                            anchor_path.read_text(encoding="utf-8").split()
+                        )
+                        normalized_question = " ".join(
+                            anchor["question"].split()
+                        )
+                        if normalized_question in normalized_body:
+                            raise CampaignError(
+                                f"resolved anchor question remains in document: {task_id}"
+                            )
+                elif anchor_review["status"] == "blocking":
+                    validate_blocking_anchor(
+                        workspace,
+                        anchor,
+                        anchor_review["blocker"],
+                    )
+        for task_id, task in settled.items():
             if task["state"] == "published":
-                validate_integrated_source_publication(task, spine_root)
+                validate_integrated_source_publication(task, workspace)
+        validate_published_graph(settled, workspace)
         expected_suggestions = {
             (task_id, suggestion["id"])
             for task_id, task in settled.items()
@@ -2403,6 +2895,28 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
                 f"missing={sorted(expected_suggestions - set(normalized_suggestions))}, "
                 f"unknown={sorted(set(normalized_suggestions) - expected_suggestions)}"
             )
+        for (task_id, suggestion_id), review in normalized_suggestions.items():
+            if review["disposition"] != "preserved":
+                continue
+            document = workspace / review["document"]
+            if not document.is_file():
+                raise CampaignError(
+                    f"preserved suggestion document does not exist: "
+                    f"{review['document']}"
+                )
+            suggestion = next(
+                value
+                for value in settled[task_id]["producer_suggestions"]
+                if value["id"] == suggestion_id
+            )
+            body = " ".join(document.read_text(encoding="utf-8").split())
+            question = " ".join(suggestion["question"].split())
+            if question not in body:
+                raise CampaignError(
+                    f"preserved suggestion question is absent from "
+                    f"{review['document']}: {suggestion_id}"
+                )
+        validate_new_task_anchors(workspace, raw_todo)
         added = add_tasks(
             ledger,
             raw_todo,
@@ -2413,6 +2927,28 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
             for value in raw_todo
             if isinstance(value, dict)
         }
+        for task_id, task in settled.items():
+            anchor_review = normalized_reviews[task_id]["anchor_disposition"]
+            if (
+                anchor_review is None
+                or anchor_review["status"] != "refined"
+            ):
+                continue
+            successor_id = anchor_review["todo"]
+            if successor_id not in added_set:
+                raise CampaignError(
+                    f"refined anchor needs matching integration ToDo: {task_id}"
+                )
+            successor = ledger["tasks"][successor_id]
+            if (
+                successor.get("anchor", {}).get("document")
+                != task["anchor"]["document"]
+                or " ".join(successor["question"].split())
+                == " ".join(task["question"].split())
+            ):
+                raise CampaignError(
+                    f"refined anchor ToDo must be narrower and keep its document: {task_id}"
+                )
         for key, review in normalized_suggestions.items():
             if review["disposition"] == "queued" and review["todo"] not in added_set:
                 raise CampaignError(
@@ -2425,6 +2961,10 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
                 task["state"] = "todo"
                 task["checkpoint_outcome"] = None
                 task["support_result"] = None
+                task["answer_result"] = None
+                task["uncertainty_result"] = None
+                task["accepted_staging_root"] = None
+                task["accepted_staging_digest"] = None
                 retried.add(task_id)
             else:
                 task["state"] = "complete"
@@ -2457,8 +2997,31 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
             }
             for value in reported_changes
         )
+        operations = {
+            value["path"]: value["operation"] for value in reported_changes
+        }
+        for task in settled.values():
+            if task.get("checkpoint_outcome") != "draft":
+                continue
+            for relative in task.get("published", []):
+                ledger["publication_history"].append(
+                    {
+                        "task": task["id"],
+                        "path": relative,
+                        "operation": operations.get(relative, "changed"),
+                        "publication_epoch": ledger["publication_epoch"],
+                    }
+                )
         ledger["spine_snapshot"] = documents
-        save_locked(args.ledger, ledger)
+        backup, candidate = publish_integration_workspace(spine_root, workspace)
+        try:
+            save_locked(args.ledger, ledger)
+        except Exception:
+            rollback_integration_publication(spine_root, backup)
+            raise
+        else:
+            shutil.rmtree(backup, ignore_errors=True)
+            shutil.rmtree(candidate, ignore_errors=True)
         return {
             "status": "integrated",
             "reviewed_tasks": sorted(settled),
@@ -2786,6 +3349,11 @@ def parser() -> argparse.ArgumentParser:
         default=Path(__file__).with_name("check_spine.py"),
     )
 
+    prepare_integration = sub.add_parser("prepare-integration")
+    prepare_integration.add_argument("ledger", type=Path)
+    prepare_integration.add_argument("spine_root", type=Path)
+    prepare_integration.add_argument("workspace", type=Path)
+
     block = sub.add_parser("block")
     block.add_argument("ledger", type=Path)
     block.add_argument("id")
@@ -2794,6 +3362,7 @@ def parser() -> argparse.ArgumentParser:
     integration = sub.add_parser("integration-pass")
     integration.add_argument("ledger", type=Path)
     integration.add_argument("spine_root", type=Path)
+    integration.add_argument("workspace", type=Path)
     integration.add_argument("report", type=Path)
     integration.add_argument(
         "--checker",
@@ -2832,6 +3401,7 @@ def main() -> int:
         "harvest-wave": command_harvest_wave,
         "accept": command_accept,
         "accept-wave": command_accept_wave,
+        "prepare-integration": command_prepare_integration,
         "block": command_block,
         "integration-pass": command_integration_pass,
         "summary": command_summary,

@@ -33,7 +33,8 @@ Do not:
    root was supplied, keep the live root read-only and stop for setup. Then read
    the index, relevant
    specifications, and only repository documentation or architecture records
-   needed to understand existing intent.
+   needed to understand existing intent. Keep a new index stable: never add
+   campaign progress, future-work prose, or placeholder links.
 2. Perform one shallowest useful mapping step for the requested scope. A step
    is the smallest coherent documentation change, not necessarily one file.
    For an initial survey, inspect whole-system shape but create only a few

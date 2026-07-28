@@ -10,6 +10,10 @@ from pathlib import Path
 ROOT = Path(__file__).parents[2]
 CAMPAIGN = ROOT / "skills/specspine-map/scripts/campaign.py"
 FINALIZE = ROOT / "skills/specspine-map/scripts/finalize_run.py"
+DRAFT_EVIDENCE = (
+    "\n<!-- specspine:evidence-baseline "
+    "source=fixture; inspected=2026-07-28 -->\n"
+)
 
 
 class MapCampaignTests(unittest.TestCase):
@@ -78,6 +82,8 @@ class MapCampaignTests(unittest.TestCase):
             "--root-question",
             "Map repository",
         )
+        self.integration_index = 0
+        self.current_workspace = None
 
     def tearDown(self):
         self.temporary.cleanup()
@@ -173,7 +179,7 @@ class MapCampaignTests(unittest.TestCase):
             "summary": "The bounded unit and its responsibility were inspected",
             "directions": directions or [],
         }
-        if outcome == "covered":
+        if outcome in {"covered", "answered"}:
             payload["owner"] = (
                 {
                     "document": owner_document,
@@ -182,7 +188,7 @@ class MapCampaignTests(unittest.TestCase):
             )
         elif outcome == "retry":
             payload["need"] = ["src/identity/recovery.py"]
-        elif outcome in {"blocked", "supporting"}:
+        elif outcome in {"blocked", "supporting", "unresolved"}:
             payload["reason"] = "External evidence is unavailable"
         return payload
 
@@ -243,7 +249,68 @@ class MapCampaignTests(unittest.TestCase):
             owner=owner,
         )
 
-    def integration_report(self, *, todo=None, omit_suggestions=False):
+    def unresolved_anchored_task(self, task_id="session-recovery"):
+        self.source_pass()
+        source_task, _ = self.task_for_unit("src/identity")
+        self.covered(source_task, "src/identity/session.py")
+        todo = {
+            "id": task_id,
+            "question": "Who owns failed session recovery?",
+            "reason": "Recovery ownership remains unspecified",
+            "evidence": ["src/identity/session.py"],
+            "documents": ["README.md"],
+            "excludes": [],
+            "anchor": {
+                "document": "README.md",
+                "location": "Architecture map",
+                "known": "Normal session ownership is documented",
+            },
+        }
+        workspace = self.prepare_integration()
+        self.integrate(
+            self.integration_report(todo=[todo], workspace=workspace),
+            workspace=workspace,
+        )
+        owner = "/root/producer-unresolved"
+        self.assign(task_id, owner)
+        self.accept(
+            task_id,
+            self.checkpoint_payload(
+                outcome="unresolved",
+                evidence=["src/identity/session.py"],
+            ),
+            owner=owner,
+        )
+        return task_id
+
+    def prepare_integration(self):
+        self.integration_index += 1
+        workspace = self.run / f"integration-workspace-{self.integration_index}"
+        self.cli(
+            "prepare-integration",
+            str(self.ledger),
+            str(self.spine),
+            str(workspace),
+        )
+        self.current_workspace = workspace
+        return workspace
+
+    def integration_report(self, *, todo=None, omit_suggestions=False, workspace=None):
+        workspace = workspace or self.current_workspace or self.prepare_integration()
+        raw_todo = todo or []
+        for value in raw_todo:
+            value.setdefault("basis", "repository-observation")
+            anchor = value.get("anchor")
+            if anchor is None:
+                continue
+            anchor.setdefault("question", value["question"])
+            document = workspace / anchor["document"]
+            body = document.read_text(encoding="utf-8")
+            if value["question"] not in body:
+                document.write_text(
+                    body + f"\n- {value['question']}\n",
+                    encoding="utf-8",
+                )
         ledger = self.ledger_value()
         before = ledger.get("spine_snapshot")
         if before is None:
@@ -251,12 +318,12 @@ class MapCampaignTests(unittest.TestCase):
         if before is None:
             before = (ledger.get("documentation_seed") or {}).get("documents", {})
         after = {
-            path.relative_to(self.spine).as_posix(): hashlib.sha256(
+            path.relative_to(workspace).as_posix(): hashlib.sha256(
                 path.read_bytes()
             ).hexdigest()
-            for path in sorted(self.spine.rglob("*.md"))
+            for path in sorted(workspace.rglob("*.md"))
         }
-        manifest = self.spine / "specspine.json"
+        manifest = workspace / "specspine.json"
         if manifest.is_file():
             after["specspine.json"] = hashlib.sha256(
                 manifest.read_bytes()
@@ -286,11 +353,29 @@ class MapCampaignTests(unittest.TestCase):
                 "disposition": (
                     "confirmed_supporting"
                     if task.get("checkpoint_outcome") == "supporting"
+                    else "answered_canonical"
+                    if task.get("checkpoint_outcome") == "answered"
+                    else "still_open"
+                    if task.get("checkpoint_outcome") == "unresolved"
                     else "already_canonical"
                     if task["state"] == "review"
                     else "integrated"
                 ),
                 "reason": "Root integration confirmed the producer result",
+                **(
+                    {
+                        "anchor_disposition": {
+                            "status": (
+                                "still-open"
+                                if task.get("checkpoint_outcome") == "unresolved"
+                                else "resolved"
+                            ),
+                            "reason": "Root reviewed the originating question",
+                        }
+                    }
+                    if task.get("anchor") is not None
+                    else {}
+                ),
             }
             for task in settled
         ]
@@ -307,11 +392,10 @@ class MapCampaignTests(unittest.TestCase):
                             "reason": "The integrated result leaves this direction open",
                         }
                     )
-        raw_todo = todo or []
         return {
             "evidence_inspected": sorted(
-                path.relative_to(self.spine).as_posix()
-                for path in self.spine.rglob("*.md")
+                path.relative_to(workspace).as_posix()
+                for path in workspace.rglob("*.md")
             ),
             "changed_documents": changed_documents,
             "task_reviews": reviews,
@@ -328,21 +412,25 @@ class MapCampaignTests(unittest.TestCase):
             ),
         }
 
-    def integrate(self, report=None, *, expected=0):
+    def integrate(self, report=None, *, workspace=None, expected=0):
+        workspace = workspace or self.current_workspace or self.prepare_integration()
         path = self.run / "integration.json"
         path.write_text(
-            json.dumps(report or self.integration_report()),
+            json.dumps(report or self.integration_report(workspace=workspace)),
             encoding="utf-8",
         )
-        return self.cli(
+        result = self.cli(
             "integration-pass",
             str(self.ledger),
             str(self.spine),
+            str(workspace),
             str(path),
             "--checker",
             str(self.checker),
             expected=expected,
         )
+        self.current_workspace = None
+        return result
 
     def verify_all_source_units(self):
         self.source_pass()
@@ -365,9 +453,9 @@ class MapCampaignTests(unittest.TestCase):
 
     def test_init_uses_schema_five_and_private_ledger(self):
         ledger = self.ledger_value()
-        self.assertEqual(6, ledger["schema_version"])
+        self.assertEqual(8, ledger["schema_version"])
         contract = ROOT / "skills/specspine-map/references/producer-task.md"
-        self.assertEqual(2, ledger["producer_contract_version"])
+        self.assertEqual(4, ledger["producer_contract_version"])
         self.assertEqual(
             hashlib.sha256(contract.read_bytes()).hexdigest(),
             ledger["producer_contract_digest"],
@@ -424,6 +512,36 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual(2, todo["total"])
         self.assertEqual(1, len(todo["todo"]))
 
+    def test_ready_prioritizes_system_breadth_before_leaf_detail(self):
+        (self.repository / "main.go").write_text("package main\n", encoding="utf-8")
+        for relative in (
+            "cmd/server/main.go",
+            "apps/advisor/app.go",
+            "pkg/services/auth/service.go",
+            "public/app/features/dashboard/index.ts",
+        ):
+            path = self.repository / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("production\n", encoding="utf-8")
+        self.source_pass()
+        ledger = self.ledger_value()
+        by_unit = {
+            task["units"][0]: task["id"]
+            for task in ledger["tasks"].values()
+            if task["origin"] == "source-pass"
+        }
+        ready = self.cli("ready", str(self.ledger), "--limit", "5")["ready"]
+        self.assertEqual(
+            [
+                by_unit["repository-root/runtime"],
+                by_unit["repository-root/manifests"],
+                by_unit["cmd/server"],
+                by_unit["apps/advisor"],
+                by_unit["pkg/services/auth"],
+            ],
+            ready,
+        )
+
     def test_inventory_splits_oversized_units_mechanically(self):
         large = self.repository / "packages/big/src"
         large.mkdir(parents=True)
@@ -476,11 +594,63 @@ class MapCampaignTests(unittest.TestCase):
             )
         )
 
+    def test_inventory_never_packs_unrelated_sibling_directories(self):
+        for relative in (
+            "pkg/apimachinery/common/types.go",
+            "pkg/apis/iam/types.go",
+            "pkg/apiserver/filters/request.go",
+        ):
+            path = self.repository / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("package fixture\n", encoding="utf-8")
+
+        inventory = self.cli(
+            "inventory",
+            str(self.repository),
+            "--spine-root",
+            str(self.spine),
+        )
+        queued = {
+            value["area"]: value["members"]
+            for value in inventory["areas"]
+            if value["classification"] == "queued"
+        }
+
+        self.assertEqual(
+            ["pkg/apimachinery/common/types.go"],
+            queued["pkg/apimachinery/common"],
+        )
+        self.assertEqual(["pkg/apis/iam/types.go"], queued["pkg/apis/iam"])
+        self.assertEqual(
+            ["pkg/apiserver/filters/request.go"],
+            queued["pkg/apiserver/filters"],
+        )
+        self.assertNotIn("pkg", queued)
+
+    def test_generated_protobuf_and_mock_files_are_not_queued(self):
+        root = self.repository / "src/identity"
+        (root / "messages.pb.go").write_text("package identity", encoding="utf-8")
+        (root / "service_mock.go").write_text("package identity", encoding="utf-8")
+
+        self.source_pass()
+        inventory = self.ledger_value()["source_pass"]["inventory"]
+        generated = {
+            member
+            for value in inventory.values()
+            if value["classification"] == "generated"
+            for member in value["members"]
+        }
+
+        self.assertIn("src/identity/messages.pb.go", generated)
+        self.assertIn("src/identity/service_mock.go", generated)
+
     def test_nested_tests_fixtures_and_generated_files_are_not_queued(self):
         root = self.repository / "src/identity"
         (root / "testdata").mkdir()
+        (root / "test-data").mkdir()
         (root / "generated").mkdir()
         (root / "testdata/case.json").write_text("{}", encoding="utf-8")
+        (root / "test-data/case.json").write_text("{}", encoding="utf-8")
         (root / "generated/client.ts").write_text("export {}", encoding="utf-8")
         (root / "session_test.go").write_text("package identity", encoding="utf-8")
         self.source_pass()
@@ -492,6 +662,7 @@ class MapCampaignTests(unittest.TestCase):
             for path in value["members"]
         }
         self.assertIn("src/identity/testdata/case.json", terminal_members)
+        self.assertIn("src/identity/test-data/case.json", terminal_members)
         self.assertIn("src/identity/generated/client.ts", terminal_members)
         self.assertIn("src/identity/session_test.go", terminal_members)
         production = inventory["src/identity"]
@@ -513,6 +684,7 @@ class MapCampaignTests(unittest.TestCase):
         _, task = self.task_for_unit("src/identity")
         self.assertIn("late-owner.md", task["documents"])
         self.assertTrue(task["evidence_strata"])
+        self.assertEqual(26, len(task["evidence_strata"]))
         self.assertEqual(
             task["evidence"],
             [value["sample"] for value in task["evidence_strata"]],
@@ -548,7 +720,7 @@ class MapCampaignTests(unittest.TestCase):
         self.assertIn(task_id, self.cli("ready", str(self.ledger))["ready"])
         packet = self.cli("packet", str(self.ledger), task_id)
         self.assertEqual(task_id, packet["task"]["id"])
-        self.assertEqual(2, packet["producer_contract"]["version"])
+        self.assertEqual(4, packet["producer_contract"]["version"])
         self.assertEqual(
             self.ledger_value()["producer_contract_digest"],
             packet["producer_contract"]["digest"],
@@ -667,7 +839,7 @@ class MapCampaignTests(unittest.TestCase):
         error = self.cli("summary", str(self.ledger), expected=2)
 
         self.assertIn("unsupported campaign schema", error["error"])
-        self.assertIn("expected 6", error["error"])
+        self.assertIn("expected 8", error["error"])
 
     def test_contract_change_requires_new_campaign(self):
         self.source_pass()
@@ -939,7 +1111,8 @@ class MapCampaignTests(unittest.TestCase):
         self.assign(task_id)
         staged = self.staging / "identity.md"
         staged.write_text(
-            "# Identity\n\n- **OBS-identity-owner** — `src/identity/session.py`.\n",
+            "# Identity\n\n- **OBS-identity-owner** — `src/identity/session.py`.\n"
+            + DRAFT_EVIDENCE,
             encoding="utf-8",
         )
         self.checkpoint.write_text(
@@ -1068,6 +1241,47 @@ class MapCampaignTests(unittest.TestCase):
             accepted["task_states"],
         )
 
+    def test_harvest_wave_reports_invalid_handoff_without_hiding_valid_sibling(self):
+        self.source_pass()
+        ledger = self.ledger_value()
+        handoffs = self.run / "handoffs"
+        harvest = self.run / "harvest"
+        tasks = list(ledger["tasks"].values())
+        for index, task in enumerate(tasks):
+            owner = f"/root/producer-{index}"
+            self.assign(task["id"], owner)
+            package = handoffs / f"{task['id']}-1"
+            (package / "staging").mkdir(parents=True)
+            unit = task["units"][0]
+            evidence = ledger["source_pass"]["inventory"][unit]["samples"]
+            outcome = "answered" if index == 0 else "covered"
+            (package / "checkpoint.json").write_text(
+                json.dumps(
+                    self.checkpoint_payload(
+                        outcome=outcome,
+                        evidence=evidence,
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+        result = self.cli(
+            "harvest-wave",
+            str(self.ledger),
+            str(handoffs),
+            str(self.spine),
+            str(harvest),
+            "--checker",
+            str(self.checker),
+        )
+
+        self.assertEqual(1, result["harvested"])
+        self.assertEqual(1, result["rejected"])
+        self.assertIn(
+            "integration-derived",
+            result["rejected_tasks"][0]["error"],
+        )
+
     def test_covered_requires_evidence_from_every_mechanical_stratum(self):
         root = self.repository / "src/identity"
         for index in range(40):
@@ -1126,7 +1340,8 @@ class MapCampaignTests(unittest.TestCase):
         task_id, _ = self.task_for_unit("src/identity")
         self.assign(task_id)
         (self.staging / "identity.md").write_text(
-            "# Identity\n\n- **OBS-identity-owner** — owner.\n",
+            "# Identity\n\n- **OBS-identity-owner** — owner.\n"
+            + DRAFT_EVIDENCE,
             encoding="utf-8",
         )
         direction = "Who owns failed refresh recovery?"
@@ -1141,6 +1356,206 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual("published", receipt["task_state"])
         self.assertEqual(1, len(receipt["suggestions_pending_review"]))
         self.assertNotIn(receipt["suggestions_pending_review"][0], self.ledger_value()["tasks"])
+
+    def test_normative_suggestion_can_be_preserved_without_map_todo(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+        (self.staging / "identity.md").write_text(
+            "# Identity\n\n"
+            "- **OBS-identity-owner** — `src/identity/session.py`.\n"
+            + DRAFT_EVIDENCE,
+            encoding="utf-8",
+        )
+        question = "What recovery guarantee should the system provide?"
+        self.accept(
+            task_id,
+            self.checkpoint_payload(
+                outcome="draft",
+                evidence=["src/identity/session.py"],
+                directions=[question],
+            ),
+        )
+        workspace = self.prepare_integration()
+        with (workspace / "README.md").open("a", encoding="utf-8") as stream:
+            stream.write(f"\n- {question}\n")
+        report = self.integration_report(workspace=workspace)
+        suggestion = self.ledger_value()["tasks"][task_id]["producer_suggestions"][0]
+        report["suggestion_reviews"] = [
+            {
+                "task": task_id,
+                "suggestion": suggestion["id"],
+                "disposition": "preserved",
+                "document": "README.md",
+                "reason": "Repository evidence cannot decide required policy",
+            }
+        ]
+
+        self.integrate(report, workspace=workspace)
+
+        review = self.ledger_value()["tasks"][task_id]["suggestion_reviews"][
+            suggestion["id"]
+        ]
+        self.assertEqual("preserved", review["disposition"])
+        self.assertNotIn(suggestion["id"], self.ledger_value()["tasks"])
+
+    def test_accept_keeps_draft_private_until_checked_integration(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+        (self.staging / "identity.md").write_text(
+            "# Identity\n\n"
+            "- **OBS-identity-owner** — `src/identity/session.py`.\n"
+            + DRAFT_EVIDENCE,
+            encoding="utf-8",
+        )
+        self.accept(
+            task_id,
+            self.checkpoint_payload(
+                outcome="draft",
+                evidence=["src/identity/session.py"],
+            ),
+        )
+        self.assertFalse((self.spine / "identity.md").exists())
+        workspace = self.prepare_integration()
+        self.assertTrue((workspace / "identity.md").is_file())
+        self.assertFalse((self.spine / "identity.md").exists())
+        self.integrate(workspace=workspace)
+        self.assertTrue((self.spine / "identity.md").is_file())
+
+    def test_integration_derived_answer_uses_distinct_outcome(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.covered(task_id, "src/identity/session.py")
+        question = {
+            "id": "session-runtime-owner",
+            "question": "Who owns the session runtime?",
+            "reason": "The owner must be addressed explicitly",
+            "evidence": ["src/identity/session.py"],
+            "documents": ["README.md"],
+            "excludes": [],
+            "anchor": {
+                "document": "README.md",
+                "location": "Architecture map",
+                "known": "The repository root cites the session source",
+            },
+        }
+        first_workspace = self.prepare_integration()
+        with (first_workspace / "README.md").open("a", encoding="utf-8") as stream:
+            stream.write("\nWho owns the session runtime?\n")
+        self.integrate(
+            self.integration_report(todo=[question], workspace=first_workspace),
+            workspace=first_workspace,
+        )
+        self.assign("session-runtime-owner", "/root/producer-answer")
+        receipt = self.accept(
+            "session-runtime-owner",
+            self.checkpoint_payload(
+                outcome="answered",
+                evidence=["src/identity/session.py"],
+            ),
+            owner="/root/producer-answer",
+        )
+        self.assertEqual("review", receipt["task_state"])
+        report = self.integration_report()
+        self.assertEqual(
+            "answered_canonical",
+            report["task_reviews"][0]["disposition"],
+        )
+        error = self.integrate(report, expected=2)
+        self.assertIn("resolved anchor question remains", error["error"])
+        workspace = self.prepare_integration()
+        readme = workspace / "README.md"
+        readme.write_text(
+            readme.read_text(encoding="utf-8").replace(
+                "\nWho owns the session runtime?\n",
+                "\n",
+            ),
+            encoding="utf-8",
+        )
+        self.integrate(
+            self.integration_report(workspace=workspace),
+            workspace=workspace,
+        )
+        self.assertEqual(
+            "complete",
+            self.ledger_value()["tasks"]["session-runtime-owner"]["state"],
+        )
+
+    def test_refined_anchor_requires_named_narrower_todo(self):
+        task_id = self.unresolved_anchored_task()
+        report = self.integration_report()
+        report["task_reviews"][0]["anchor_disposition"] = {
+            "status": "refined",
+            "reason": "Recovery ownership is now narrowed to retry exhaustion",
+            "todo": "session-retry-owner",
+        }
+        error = self.integrate(report, expected=2)
+        self.assertIn("needs matching integration ToDo", error["error"])
+
+        successor = {
+            "id": "session-retry-owner",
+            "question": "Who owns recovery after retries are exhausted?",
+            "reason": "The broader recovery question was narrowed",
+            "evidence": ["src/identity/session.py"],
+            "documents": ["README.md"],
+            "excludes": [],
+            "anchor": {
+                "document": "README.md",
+                "location": "Architecture map",
+                "known": "Normal and failed session ownership were separated",
+            },
+        }
+        report = self.integration_report(todo=[successor])
+        report["task_reviews"][0]["anchor_disposition"] = {
+            "status": "refined",
+            "reason": "Recovery ownership is now narrowed to retry exhaustion",
+            "todo": successor["id"],
+        }
+        self.integrate(report)
+        self.assertEqual(
+            "todo",
+            self.ledger_value()["tasks"][successor["id"]]["state"],
+        )
+
+    def test_blocking_anchor_requires_owner_oq_and_manifest_registration(self):
+        self.unresolved_anchored_task()
+        report = self.integration_report()
+        workspace = self.current_workspace
+        report["task_reviews"][0]["anchor_disposition"] = {
+            "status": "blocking",
+            "reason": "A reconstruction agent cannot choose recovery ownership",
+            "blocker": "OQ-session-recovery-owner",
+        }
+        error = self.integrate(report, expected=2)
+        self.assertIn("must define OQ-session-recovery-owner", error["error"])
+
+        readme = workspace / "README.md"
+        readme.write_text(
+            readme.read_text(encoding="utf-8").replace(
+                "<!-- specspine:semantic-ids:end -->",
+                "- **OQ-session-recovery-owner** — Who owns failed session recovery?\n"
+                "<!-- specspine:semantic-ids:end -->",
+            ),
+            encoding="utf-8",
+        )
+        manifest_path = workspace / "specspine.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["areas"].append(
+            {
+                "owner": "project-architecture",
+                "facets": {},
+                "blockers": ["OQ-session-recovery-owner"],
+            }
+        )
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        report = self.integration_report(workspace=workspace)
+        report["task_reviews"][0]["anchor_disposition"] = {
+            "status": "blocking",
+            "reason": "A reconstruction agent cannot choose recovery ownership",
+            "blocker": "OQ-session-recovery-owner",
+        }
+        self.integrate(report, workspace=workspace)
 
     def test_needs_more_evidence_returns_task_for_fresh_producer(self):
         self.source_pass()
@@ -1159,12 +1574,17 @@ class MapCampaignTests(unittest.TestCase):
             self.ledger_value()["tasks"][task_id]["evidence"],
         )
 
-    def test_live_checker_failure_rolls_back_publication(self):
+    def test_integration_checker_failure_preserves_live_spine(self):
         self.source_pass()
         task_id, _ = self.task_for_unit("src/identity")
         self.assign(task_id)
         source = self.staging / "identity.md"
-        source.write_text("# Identity\n", encoding="utf-8")
+        source.write_text(
+            "# Identity\n\n"
+            "- **OBS-identity-owner** — `src/identity/session.py`.\n"
+            + DRAFT_EVIDENCE,
+            encoding="utf-8",
+        )
         self.checker.write_text(
             "import json, sys\n"
             "findings = [] if '--candidates' in sys.argv else "
@@ -1179,11 +1599,13 @@ class MapCampaignTests(unittest.TestCase):
                 outcome="draft",
                 evidence=["src/identity/session.py"],
             ),
-            expected=2,
         )
+        report = self.integration_report()
+        error = self.integrate(report, expected=2)
+        self.assertIn("checker rejected", error["error"])
         self.assertTrue(source.exists())
         self.assertFalse((self.spine / "identity.md").exists())
-        self.assertEqual("assigned", self.ledger_value()["tasks"][task_id]["state"])
+        self.assertEqual("published", self.ledger_value()["tasks"][task_id]["state"])
 
     def test_candidate_checker_receives_live_root_and_staging_path(self):
         self.source_pass()
@@ -1191,7 +1613,8 @@ class MapCampaignTests(unittest.TestCase):
         self.assign(task_id)
         (self.staging / "identity.md").write_text(
             "# Identity\n\n"
-            "- **OBS-identity-owner** — `src/identity/session.py`.\n",
+            "- **OBS-identity-owner** — `src/identity/session.py`.\n"
+            + DRAFT_EVIDENCE,
             encoding="utf-8",
         )
         self.checker.write_text(
@@ -1221,7 +1644,8 @@ class MapCampaignTests(unittest.TestCase):
         self.assign(task_id)
         (self.staging / "identity.md").write_text(
             "# Identity\n\n"
-            "- **OBS-identity-owner** — `src/identity/session.py`.\n",
+            "- **OBS-identity-owner** — `src/identity/session.py`.\n"
+            + DRAFT_EVIDENCE,
             encoding="utf-8",
         )
         self.accept(
@@ -1242,7 +1666,8 @@ class MapCampaignTests(unittest.TestCase):
         self.assign(task_id)
         (self.staging / "identity.md").write_text(
             "# Identity\n\n"
-            "- **OBS-identity-owner** — `src/identity/session.py`.\n",
+            "- **OBS-identity-owner** — `src/identity/session.py`.\n"
+            + DRAFT_EVIDENCE,
             encoding="utf-8",
         )
         self.accept(
@@ -1252,10 +1677,52 @@ class MapCampaignTests(unittest.TestCase):
                 evidence=["src/identity/session.py"],
             ),
         )
-        (self.spine / "identity.md").unlink()
-        report = self.integration_report()
+        workspace = self.prepare_integration()
+        (workspace / "identity.md").unlink()
+        report = self.integration_report(workspace=workspace)
         error = self.integrate(report, expected=2)
         self.assertIn("cannot discard producer publications", error["error"])
+
+    def test_new_owner_requires_typed_graph_connection(self):
+        neighbor_source = self.repository / "src/neighbor/service.py"
+        neighbor_source.parent.mkdir(parents=True)
+        neighbor_source.write_text("SERVICE = True\n", encoding="utf-8")
+        self.add_spine_candidate(
+            "neighbor.md",
+            "neighbor",
+            "src/neighbor/service.py",
+        )
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+        (self.staging / "identity.md").write_text(
+            "# Identity\n\n"
+            "**ID:** `identity` · **Kind:** `component`\n\n"
+            "Observed identity boundary.\n\n"
+            "## Responsibility\n\n"
+            "Owns observed session handling.\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "<!-- specspine:semantic-ids:begin -->\n"
+            "## Observed\n\n"
+            "- **OBS-identity-owner** — Session code exists. "
+            "Evidence: `src/identity/session.py`.\n"
+            "<!-- specspine:semantic-ids:end -->\n",
+            encoding="utf-8",
+        )
+        self.accept(
+            task_id,
+            self.checkpoint_payload(
+                outcome="draft",
+                evidence=["src/identity/session.py"],
+            ),
+        )
+        workspace = self.prepare_integration()
+        report = self.integration_report(workspace=workspace)
+
+        error = self.integrate(report, workspace=workspace, expected=2)
+
+        self.assertIn("typed relationship", error["error"])
 
     def test_integration_adds_document_derived_todo(self):
         self.source_pass()
@@ -1281,13 +1748,66 @@ class MapCampaignTests(unittest.TestCase):
             self.ledger_value()["tasks"]["session-recovery"]["state"],
         )
 
+    def test_integration_todo_must_match_visible_anchor_question(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.covered(task_id, "src/identity/session.py")
+        workspace = self.prepare_integration()
+        todo = {
+            "id": "session-recovery",
+            "question": "What recovery behavior is currently observed?",
+            "reason": "Recovery evidence remains incomplete",
+            "basis": "repository-observation",
+            "evidence": ["src/identity/session.py"],
+            "documents": ["README.md"],
+            "excludes": [],
+            "anchor": {
+                "document": "README.md",
+                "location": "Architecture map",
+                "known": "Normal session ownership is documented",
+                "question": "What recovery behavior should be guaranteed?",
+            },
+        }
+
+        report = self.integration_report(todo=[todo], workspace=workspace)
+        error = self.integrate(report, workspace=workspace, expected=2)
+
+        self.assertIn("exactly match anchor question", error["error"])
+
+    def test_integration_rejects_normative_map_todo_basis(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.covered(task_id, "src/identity/session.py")
+        workspace = self.prepare_integration()
+        todo = {
+            "id": "session-policy",
+            "question": "What recovery guarantee should be accepted?",
+            "reason": "Policy remains undecided",
+            "basis": "normative-policy",
+            "evidence": ["src/identity/session.py"],
+            "documents": ["README.md"],
+            "excludes": [],
+            "anchor": {
+                "document": "README.md",
+                "location": "Architecture map",
+                "known": "Current behavior is observed",
+                "question": "What recovery guarantee should be accepted?",
+            },
+        }
+
+        report = self.integration_report(todo=[todo], workspace=workspace)
+        error = self.integrate(report, workspace=workspace, expected=2)
+
+        self.assertIn("basis must be repository-observation", error["error"])
+
     def test_integration_records_and_returns_exact_live_document_changes(self):
         self.source_pass()
         task_id, _ = self.task_for_unit("src/identity")
         self.assign(task_id)
         (self.staging / "identity.md").write_text(
             "# Identity\n\n"
-            "- **OBS-identity-owner** — `src/identity/session.py`.\n",
+            "- **OBS-identity-owner** — `src/identity/session.py`.\n"
+            + DRAFT_EVIDENCE,
             encoding="utf-8",
         )
         self.accept(
@@ -1297,12 +1817,13 @@ class MapCampaignTests(unittest.TestCase):
                 evidence=["src/identity/session.py"],
             ),
         )
-        (self.spine / "README.md").write_text(
-            (self.spine / "README.md").read_text(encoding="utf-8")
+        workspace = self.prepare_integration()
+        (workspace / "README.md").write_text(
+            (workspace / "README.md").read_text(encoding="utf-8")
             + "\nSee [Identity](identity.md).\n",
             encoding="utf-8",
         )
-        result = self.integrate()
+        result = self.integrate(workspace=workspace)
         expected = [
             {"path": "README.md", "operation": "changed"},
             {"path": "identity.md", "operation": "created"},
@@ -1324,15 +1845,16 @@ class MapCampaignTests(unittest.TestCase):
 
     def test_integration_rejects_incomplete_document_change_report(self):
         self.source_pass()
-        (self.spine / "README.md").write_text(
+        workspace = self.prepare_integration()
+        (workspace / "README.md").write_text(
             "# Architecture\n\nChanged by root.\n",
             encoding="utf-8",
         )
-        report = self.integration_report()
+        report = self.integration_report(workspace=workspace)
         report["changed_documents"] = []
         error = self.integrate(report, expected=2)
         self.assertIn(
-            "does not match live Spine changes",
+            "does not match workspace changes",
             error["error"],
         )
 
@@ -1342,11 +1864,13 @@ class MapCampaignTests(unittest.TestCase):
         ledger = self.ledger_value()
         ledger.pop("spine_snapshot")
         self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
-        (self.spine / "README.md").write_text(
-            "# Architecture\n\nChanged after integration.\n",
-            encoding="utf-8",
+        error = self.cli(
+            "prepare-integration",
+            str(self.ledger),
+            str(self.spine),
+            str(self.run / "invalid-workspace"),
+            expected=2,
         )
-        error = self.integrate(expected=2)
         self.assertIn("campaign Spine snapshot is invalid", error["error"])
 
     def test_integration_must_review_every_covered_task(self):
@@ -1410,7 +1934,7 @@ class MapCampaignTests(unittest.TestCase):
         report = self.integration_report()
         report["evidence_inspected"] = ["missing.md"]
         error = self.integrate(report, expected=2)
-        self.assertIn("only live Markdown documents", error["error"])
+        self.assertIn("only workspace Markdown documents", error["error"])
 
     def test_repository_content_change_invalidates_inventory(self):
         self.verify_all_source_units()

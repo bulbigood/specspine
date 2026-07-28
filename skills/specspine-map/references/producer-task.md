@@ -19,11 +19,15 @@ specification and verify:
 - one canonical responsibility without duplicated neighboring ownership;
 - observations remain `OBS`; every `Evidence:` span is a complete
   repository-relative path, never prefix-inherited shorthand;
+- every staged owner has an evidence baseline and at least one v3 semantic
+  `OBS` bullet; legacy `**ID:** ... **Status:**` definitions are invalid;
 - supported relevant boundaries, interfaces, state, lifecycle, failures, and
   relationships are present;
 - semantic IDs are stable and links use the required complete labels;
 - implementation inventory and unsupported intent are absent;
-- every direction is a genuine unanswered architectural question.
+- every direction is a genuine unanswered question; keep required policy
+  distinct from observable repository behavior and never rewrite one as the
+  other.
 
 Revise the private result until this review is clean. Then run exactly:
 
@@ -65,6 +69,16 @@ Existing owner:
 }
 ```
 
+Use `covered` only for a source-pass inventory task. The cited claims must
+cover the assigned production unit, not merely mention a neighboring concept.
+
+For an integration-derived task, use `"outcome": "answered"` with the same
+`evidence`, `summary`, `owner`, and `directions` fields only when cited claims
+are all `OBS-*` and answer the exact observable anchored question. Repository
+evidence cannot answer what the system should guarantee. Use `"outcome":
+"unresolved"` with `evidence`, `summary`, `reason`, and empty `directions` when
+evidence confirms the anchor must remain uncertain.
+
 Missing observation:
 
 ```json
@@ -81,45 +95,17 @@ package's `staging/` directory. Do not describe their paths or create/replace
 operations in JSON; the preflight and `campaign.py` derive both from staging
 and the live Spine.
 
-Supporting implementation with no durable responsibility:
+Use `"outcome": "supporting"` with `evidence`, `summary`, `reason`, and empty
+`directions` only after every stratum proves the inventory unit has no durable
+responsibility. Use `"outcome": "retry"` with `evidence`, `summary`, and
+nonempty `need` when ownership remains unclear. Use `"outcome": "blocked"` with
+`evidence`, `summary`, and `reason` only for a concrete external dependency.
 
-```json
-{
-  "outcome": "supporting",
-  "evidence": ["pkg/cache/adapters/wire.go", "pkg/cache/adapters/options.go"],
-  "summary": "The unit only wires options into the existing cache lifecycle.",
-  "reason": "It introduces no owner, state, interface, lifecycle, or failure policy.",
-  "directions": []
-}
-```
-
-Use `supporting` only after checking every evidence stratum. It is not a
-shortcut for an unclear boundary; use `retry` when ownership remains uncertain.
-
-Insufficient evidence:
-
-```json
-{
-  "outcome": "retry",
-  "evidence": ["pkg/services/caching/cache.go"],
-  "summary": "The adapter is visible but its persistent owner is not.",
-  "need": ["pkg/storage/cache"]
-}
-```
-
-External blocker:
-
-```json
-{
-  "outcome": "blocked",
-  "evidence": ["pkg/services/caching/cache.go"],
-  "summary": "The repository delegates the contract to an unavailable schema.",
-  "reason": "The external schema is required to determine ownership."
-}
-```
-
-`draft`, `covered`, and `supporting` must cite at least one concrete member from
-every evidence stratum. `covered` is valid only when the owner document exists,
-every claim is a semantic ID in that document, the document references the unit
-or inspected evidence, and the summary explains the boundary. A title or broad
-neighboring owner is not proof.
+`draft`, `covered`, `answered`, `unresolved`, and `supporting` must cite at
+least one concrete member from every evidence stratum. `covered` is valid only
+for inventory tasks; `answered` and `unresolved` are valid only for anchored
+integration-derived tasks. For `covered` or `answered`, the owner document must
+exist, every claim must be a semantic ID in it, the document must reference the
+unit or inspected evidence, and the summary must explain the exact boundary or
+answer. A title, unknown-owner observation, or broad neighboring owner is not
+proof.

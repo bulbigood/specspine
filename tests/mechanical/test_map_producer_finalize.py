@@ -34,6 +34,9 @@ class ProducerFinalizeTests(unittest.TestCase):
                     "campaign_id": "campaign",
                     "task": {
                         "id": "verify-identity",
+                        "origin": "source-pass",
+                        "units": ["src/identity"],
+                        "anchor": None,
                         "evidence_strata": [
                             {
                                 "id": "entrypoint",
@@ -70,6 +73,8 @@ class ProducerFinalizeTests(unittest.TestCase):
     def candidate(self):
         (self.work / "staging" / "identity.md").write_text(
             "# Identity\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
             "- **OBS-identity-session** — `src/identity/session.py`.\n",
             encoding="utf-8",
         )
@@ -186,6 +191,62 @@ class ProducerFinalizeTests(unittest.TestCase):
         self.assertTrue(self.work.is_dir())
         self.assertFalse(self.handoff.exists())
 
+    def test_integration_task_rejects_inventory_covered_outcome(self):
+        packet = json.loads(self.packet.read_text(encoding="utf-8"))
+        packet["task"]["origin"] = "integration-1"
+        packet["task"]["units"] = []
+        packet["task"]["anchor"] = {
+            "document": "identity.md",
+            "location": "Open questions",
+            "known": "The runtime owner is unknown",
+        }
+        self.packet.write_text(json.dumps(packet), encoding="utf-8")
+        (self.spine / "identity.md").write_text(
+            "# Identity\n\n"
+            "- **OBS-identity-session** — `src/identity/session.py`.\n",
+            encoding="utf-8",
+        )
+        self.checkpoint(
+            outcome="covered",
+            owner={
+                "document": "identity.md",
+                "claims": ["OBS-identity-session"],
+            },
+        )
+
+        error = self.execute(expected=2)
+
+        self.assertIn("covered is valid only for inventory", error["error"])
+        self.assertTrue(self.work.is_dir())
+
+    def test_integration_task_accepts_answered_outcome(self):
+        packet = json.loads(self.packet.read_text(encoding="utf-8"))
+        packet["task"]["origin"] = "integration-1"
+        packet["task"]["units"] = []
+        packet["task"]["anchor"] = {
+            "document": "identity.md",
+            "location": "Open questions",
+            "known": "The runtime owner is unknown",
+        }
+        self.packet.write_text(json.dumps(packet), encoding="utf-8")
+        (self.spine / "identity.md").write_text(
+            "# Identity\n\n"
+            "- **OBS-identity-session** — `src/identity/session.py`.\n",
+            encoding="utf-8",
+        )
+        self.checkpoint(
+            outcome="answered",
+            owner={
+                "document": "identity.md",
+                "claims": ["OBS-identity-session"],
+            },
+        )
+
+        receipt = self.execute()
+
+        self.assertEqual("answered", receipt["outcome"])
+        self.assertFalse(self.work.exists())
+
     def test_real_checker_accepts_publish_ready_candidate(self):
         shutil.rmtree(self.spine)
         shutil.copytree(
@@ -199,7 +260,14 @@ class ProducerFinalizeTests(unittest.TestCase):
             "Documents the observed identity session boundary.\n\n"
             "## Responsibility\n\n"
             "Owns the observed session lifecycle evidenced by "
-            "`src/identity/session.py`.\n",
+            "`src/identity/session.py`.\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "<!-- specspine:semantic-ids:begin -->\n"
+            "## Observed\n\n"
+            "- **OBS-identity-session** — A session implementation exists. "
+            "Evidence: `src/identity/session.py`.\n"
+            "<!-- specspine:semantic-ids:end -->\n",
             encoding="utf-8",
         )
         self.checkpoint()
@@ -238,6 +306,64 @@ class ProducerFinalizeTests(unittest.TestCase):
         self.assertIn("EVIDENCE_PATH_MISSING", error["error"])
         self.assertTrue(self.work.is_dir())
         self.assertFalse(self.handoff.exists())
+
+    def test_draft_requires_semantic_observation_and_baseline(self):
+        (self.work / "staging" / "identity.md").write_text(
+            "# Identity\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "Observed session implementation.\n",
+            encoding="utf-8",
+        )
+        self.checkpoint()
+
+        error = self.execute(expected=2)
+
+        self.assertIn("semantic OBS definition", error["error"])
+        self.assertTrue(self.work.is_dir())
+
+    def test_draft_rejects_legacy_semantic_definition(self):
+        (self.work / "staging" / "identity.md").write_text(
+            "# Identity\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "**ID:** `OBS-identity-session` · **Status:** `OBS`\n\n"
+            "A session implementation exists.\n",
+            encoding="utf-8",
+        )
+        self.checkpoint()
+
+        error = self.execute(expected=2)
+
+        self.assertIn("legacy semantic definition", error["error"])
+        self.assertTrue(self.work.is_dir())
+
+    def test_answered_rejects_normative_owner_claim(self):
+        packet = json.loads(self.packet.read_text(encoding="utf-8"))
+        packet["task"]["origin"] = "integration-1"
+        packet["task"]["units"] = []
+        packet["task"]["anchor"] = {
+            "document": "identity.md",
+            "location": "Open questions",
+            "known": "The runtime owner is unknown",
+        }
+        self.packet.write_text(json.dumps(packet), encoding="utf-8")
+        (self.spine / "identity.md").write_text(
+            "# Identity\n\n"
+            "- **GUA-identity-session** — Sessions remain available.\n",
+            encoding="utf-8",
+        )
+        self.checkpoint(
+            outcome="answered",
+            owner={
+                "document": "identity.md",
+                "claims": ["GUA-identity-session"],
+            },
+        )
+
+        error = self.execute(expected=2)
+
+        self.assertIn("repository observations", error["error"])
 
 
 if __name__ == "__main__":

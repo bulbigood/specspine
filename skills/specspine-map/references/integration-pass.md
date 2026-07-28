@@ -6,10 +6,17 @@ canonical ownership or complete architectural depth.
 
 ## Integrate publications
 
+Create one private workspace first:
+
+```text
+python3 <map-skill-root>/scripts/campaign.py prepare-integration \
+  <campaign> <spine-root> <integration-workspace>
+```
+
 The root orchestrator must:
 
-1. Read every published document or `covered` receipt, its claimed
-   owner, and relevant graph neighbors.
+1. Read every private draft and `covered`, `answered`, `unresolved`, or
+   `supporting` receipt, its claimed owner, and relevant graph neighbors.
 2. Confirm or correct ownership, boundaries, terminology, and non-duplication.
 3. Add navigation needed for reachability and comprehension.
 4. Add architectural edges through canonical `Relationships` tables; never add
@@ -17,38 +24,38 @@ The root orchestrator must:
 5. Use semantic IDs as complete link labels when targeting statements.
 6. Preserve one canonical definition and ask before choosing among materially
    different plausible owners.
-7. Inspect every producer-discovered direction.
-8. Reread the integrated documents for narrower unanswered mechanisms,
+7. Inspect every producer direction. Queue only repository-observable questions;
+   preserve required policy verbatim in its canonical document.
+8. Disposition the originating anchor of every integration-derived task as
+   `resolved`, `refined`, `still-open`, or `blocking`. Remove a resolved
+   question; never leave stale uncertainty beside its answer. Reread the
+   integrated documents for narrower unanswered mechanisms,
    transitions, failures, ownership questions, and consequences.
 9. Update `specspine.json` in the same batch: add or remove area entries with
    their owners, set only evidence-supported facets, preserve normative facets
    and blockers, and register no asset a producer did not publish and own.
 10. Append every accepted refinement to persistent ToDo. Do not investigate it
    during integration.
-11. Run the full live checker. The campaign supplies its recorded repository
+11. Run the full checker on the workspace. The campaign supplies its recorded repository
     root. An existing-Spine campaign may retain an exact seed-baseline finding
     temporarily, but every new finding rejects integration. Remove applicable
     baseline defects while integrating their owners; finalization accepts none.
-12. After each producer document is integrated and its live checks pass, send
-    the operator an immediate commentary update. Name the producer task, say
-    what the integration established or corrected, name every affected
-    Spine-relative Markdown path, and label each path `created`, `changed`, or
-    `deleted`.
-    Report one document's integration before starting the next; do not defer
-    these updates until the final campaign summary. Never announce a write
-    before it and its checks succeed.
-13. Repeat the cumulative path-and-operation history in every campaign progress
-    or final summary, even though each change was already reported immediately.
-    If the pass changed no Spine files, explicitly say so.
+12. After the whole integration transaction and its checks succeed, send an
+    immediate commentary update: say what was established, name every affected
+    Spine-relative Markdown path, and label it `created`, `changed`, or `deleted`.
+    Never announce a write before publication succeeds.
+13. Repeat cumulative path-and-operation history in every progress or final
+    summary. If no Spine file changed, explicitly say so.
 
-The root may edit live specifications, `README.md`, and `specspine.json`.
-Producers may not edit the index or manifest.
+The root edits only the integration workspace, including `README.md` and
+`specspine.json`. Producers may not edit the index or manifest. The live Spine
+must remain unchanged until `integration-pass` publishes the checked workspace.
 
 ## Report
 
-Save a report whose `evidence_inspected` names only live Markdown documents
-actually read during this integration. The command inventories and checks the
-complete live Spine independently; do not copy the full inventory into this
+Save a report whose `evidence_inspected` names only workspace Markdown
+documents actually read during this integration. The command inventories and
+checks the complete workspace independently; do not copy the full inventory into this
 field unless every document was read:
 
 ```json
@@ -59,59 +66,58 @@ field unless every document was read:
     {"path": "sessions.md", "operation": "created"}
   ],
   "task_reviews": [
-    {
-      "task": "identity-sessions",
-      "disposition": "integrated",
-      "reason": "The new owner and consumes edge are canonical"
-    }
+    {"task": "identity-sessions", "disposition": "integrated",
+     "reason": "The new owner and consumes edge are canonical",
+     "anchor_disposition": {"status": "resolved",
+       "reason": "The integrated owner replaces the original question"}}
   ],
   "suggestion_reviews": [
-    {
-      "task": "identity-sessions",
-      "suggestion": "session-refresh-race",
-      "disposition": "queued",
-      "todo": "session-refresh-race",
-      "reason": "The integrated lifecycle exposes unresolved recovery ownership"
-    }
+    {"task": "identity-sessions", "suggestion": "session-refresh-race",
+     "disposition": "queued", "todo": "session-refresh-race",
+     "reason": "The lifecycle exposes unresolved recovery ownership"}
   ],
   "todo": [
     {
-      "id": "session-refresh-race",
+      "id": "session-refresh-race", "basis": "repository-observation",
       "question": "Who owns recovery when refresh races with expiry?",
       "reason": "The integrated lifecycle establishes normal expiry only",
       "evidence": ["src/sessions", "tests/session-refresh.test.ts"],
       "documents": ["sessions.md"],
       "excludes": ["login", "token issuance"],
-      "anchor": {
-        "document": "sessions.md",
-        "location": "Lifecycle / refresh transition",
-        "known": "Normal refresh and expiry are documented"
-      }
+      "anchor": {"document": "sessions.md", "location": "Lifecycle / refresh transition",
+        "known": "Normal expiry is documented", "question": "Who owns recovery when refresh races with expiry?"}
     }
   ],
-  "organization": {
-    "status": "flat_sufficient",
-    "reason": "The owner set remains directly navigable"
-  },
+  "organization": {"status": "flat_sufficient", "reason": "Owners remain directly navigable"},
   "terminal_reason": null
 }
 ```
 
-`changed_documents` is the exact delta since the preceding successful
-integration pass (or source pass for the first integration). The command
-independently hashes the live Spine and rejects missing, extra, or mislabeled
-paths. It records the verified delta in persistent campaign history and returns
-it in the integration receipt; use that receipt for the operator update.
+`changed_documents` is the exact workspace delta since the preceding
+successful integration pass (or source pass for the first integration). The
+command rejects missing, extra, or mislabeled paths, verifies that live Spine
+still matches the preceding snapshot, and returns the published delta.
 
-Every task in `published` or `review` needs one `task_reviews` row. A published
-draft requires `integrated`; a `covered` receipt requires
-`already_canonical`; a `supporting` receipt requires `confirmed_supporting` or
-`retry`. `retry` returns that unit to ToDo for a fresh producer.
+Every task in `published` or `review` needs one `task_reviews` row. A private
+draft requires `integrated`; source-pass `covered` requires
+`already_canonical`; integration-derived `answered` requires
+`answered_canonical`; `unresolved` requires `still_open`; and `supporting`
+requires `confirmed_supporting` or `retry`. `retry` returns that unit to ToDo
+for a fresh producer.
+
+Every non-retried task with an anchor needs `anchor_disposition`:
+
+- `resolved` — remove the exact question after integrating its answer;
+- `refined` — replace it with a narrower persistent ToDo and name its ID in
+  `anchor_disposition.todo`;
+- `still-open` — preserve the uncertainty with a concrete reason;
+- `blocking` — name its semantic ID in `anchor_disposition.blocker`, define that
+  `OQ-*` in the anchor owner, and add it to the owner's manifest area.
 
 Root cannot independently mark a queued source unit non-architectural.
 `confirmed_supporting` is valid only for a producer `supporting` receipt.
-Integration fails if a published owner was deleted, lacks a semantic `OBS`
-claim, or no longer references the verified unit or its source evidence.
+Integration fails if a published owner was deleted, lacks semantic `OBS`,
+loses source evidence, or has no incoming or outgoing typed relationship.
 Correct a poor draft in place; do not terminally discard it.
 
 Every suggestion emitted by those tasks needs one `suggestion_reviews` row.
@@ -119,10 +125,13 @@ Allowed dispositions are:
 
 - `queued`, with a matching `todo`;
 - `covered`, when the integrated graph already answers it;
+- `preserved`, with a document containing the exact normative question;
 - `rejected`, with a concrete architectural reason.
 
-The root may add ToDo that no producer suggested. Each task still needs a
-document anchor when documentation-derived. If `todo` is empty, use:
+The root may add ToDo that no producer suggested. Every Map ToDo uses basis
+`repository-observation` and exactly matches visible `anchor.question`; never
+convert required policy into an observable question.
+If `todo` is empty, use:
 
 ```text
 no integration-derived ToDo: <evidence-based reason>
@@ -132,10 +141,10 @@ Record and verify:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py integration-pass \
-  <campaign> <spine-root> <integration-report.json>
+  <campaign> <spine-root> <integration-workspace> <integration-report.json>
 ```
 
-The command checks the complete Markdown inventory, mechanical validity,
-settled-task reviews, suggestion dispositions, and ToDo references. It marks
-reviewed results complete and appends ToDo atomically. Any later producer result
-invalidates the pass.
+The command checks the complete workspace, mechanical validity, settled-task
+reviews, anchor and suggestion dispositions, and ToDo references. It publishes
+the workspace and advances the ledger as one rollback-protected operation. Any
+later producer result invalidates the pass.

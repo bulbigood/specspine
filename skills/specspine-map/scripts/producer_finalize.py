@@ -6,13 +6,22 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 
-CHECKPOINT_STATUSES = {"draft", "covered", "supporting", "retry", "blocked"}
+CHECKPOINT_STATUSES = {
+    "draft",
+    "covered",
+    "answered",
+    "unresolved",
+    "supporting",
+    "retry",
+    "blocked",
+}
 ALLOWED_FIELDS = {
     "outcome",
     "evidence",
@@ -22,6 +31,19 @@ ALLOWED_FIELDS = {
     "need",
     "reason",
 }
+EVIDENCE_BASELINE_RE = re.compile(
+    r"<!--\s*specspine:evidence-baseline\s+"
+    r"source=[^;\s>]+;\s*inspected=\d{4}-\d{2}-\d{2}\s*-->"
+)
+OBS_DEFINITION_RE = re.compile(
+    r"^ {0,3}[-+*]\s+\*\*OBS-[a-z0-9]+(?:-[a-z0-9]+)*\*\*\s+—\s+\S",
+    re.MULTILINE,
+)
+LEGACY_SEMANTIC_RE = re.compile(
+    r"^\*\*ID:\*\*\s+`(?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[^`]+`"
+    r"\s+·\s+\*\*Status:\*\*",
+    re.MULTILINE,
+)
 
 
 class PreflightError(ValueError):
@@ -122,16 +144,18 @@ def validate_checkpoint(
         checkpoint.get("directions", []),
         "checkpoint directions",
     )
-    if outcome not in {"draft", "covered"} and directions:
+    if outcome not in {"draft", "covered", "answered"} and directions:
         raise PreflightError(f"{outcome} cannot emit directions")
 
-    if outcome == "covered":
+    if outcome in {"covered", "answered"}:
         owner = checkpoint.get("owner")
         if not isinstance(owner, dict) or set(owner) != {"document", "claims"}:
-            raise PreflightError("covered requires owner with document and claims")
+            raise PreflightError(
+                f"{outcome} requires owner with document and claims"
+            )
         if not isinstance(owner["document"], str) or not owner["document"].strip():
-            raise PreflightError("covered owner document must be nonempty")
-        strings(owner["claims"], "covered owner claims", nonempty=True)
+            raise PreflightError(f"{outcome} owner document must be nonempty")
+        strings(owner["claims"], f"{outcome} owner claims", nonempty=True)
     elif checkpoint.get("owner") is not None:
         raise PreflightError(f"{outcome} checkpoint must not include owner")
 
@@ -140,7 +164,7 @@ def validate_checkpoint(
     elif checkpoint.get("need") is not None:
         raise PreflightError(f"{outcome} checkpoint must not include need")
 
-    if outcome in {"blocked", "supporting"}:
+    if outcome in {"blocked", "supporting", "unresolved"}:
         reason = checkpoint.get("reason")
         if not isinstance(reason, str) or not reason.strip():
             raise PreflightError(f"{outcome} checkpoint needs reason")
@@ -152,7 +176,7 @@ def validate_checkpoint(
     if outcome != "draft" and staged:
         raise PreflightError(f"{outcome} must not publish staged files")
 
-    if outcome in {"draft", "covered", "supporting"}:
+    if outcome in {"draft", "covered", "answered", "unresolved", "supporting"}:
         samples = {
             value["sample"] for value in task.get("evidence_strata", [])
         }
@@ -184,7 +208,7 @@ def validate_covered_owner(
     spine_root: Path,
     evidence: list[str],
 ) -> None:
-    if checkpoint["outcome"] != "covered":
+    if checkpoint["outcome"] not in {"covered", "answered"}:
         return
     owner = checkpoint["owner"]
     document = relative_path(owner["document"], "covered owner document")
@@ -201,10 +225,33 @@ def validate_covered_owner(
         raise PreflightError(
             f"covered owner claim IDs do not exist: {missing_claims}"
         )
+    if checkpoint["outcome"] == "answered" and any(
+        not claim.startswith("OBS-") for claim in owner["claims"]
+    ):
+        raise PreflightError(
+            "answered owner claims must all be repository observations (OBS-*)"
+        )
     references = [*task.get("units", []), *evidence]
     if references and not any(value in body for value in references):
         raise PreflightError(
             "covered owner does not reference the task unit or inspected evidence"
+        )
+
+
+def validate_task_outcome(checkpoint: dict[str, Any], task: dict[str, Any]) -> None:
+    outcome = checkpoint["outcome"]
+    inventory_task = bool(task.get("units"))
+    if outcome in {"covered", "supporting"} and not inventory_task:
+        raise PreflightError(
+            f"{outcome} is valid only for inventory verification tasks"
+        )
+    if outcome in {"answered", "unresolved"} and inventory_task:
+        raise PreflightError(
+            f"{outcome} is valid only for integration-derived tasks"
+        )
+    if outcome in {"answered", "unresolved"} and task.get("anchor") is None:
+        raise PreflightError(
+            f"{outcome} requires an integration-derived task with an anchor"
         )
 
 
@@ -243,6 +290,23 @@ def run_candidate_checker(
         )
 
 
+def validate_draft_semantics(staged: dict[str, Path]) -> None:
+    for relative, path in staged.items():
+        body = path.read_text(encoding="utf-8")
+        if LEGACY_SEMANTIC_RE.search(body):
+            raise PreflightError(
+                f"candidate uses legacy semantic definition syntax: {relative}"
+            )
+        if EVIDENCE_BASELINE_RE.search(body) is None:
+            raise PreflightError(
+                f"candidate needs an evidence baseline: {relative}"
+            )
+        if OBS_DEFINITION_RE.search(body) is None:
+            raise PreflightError(
+                f"candidate needs a semantic OBS definition: {relative}"
+            )
+
+
 def finalize(args: argparse.Namespace) -> dict[str, Any]:
     work = args.work_package.resolve()
     handoff = args.handoff_package.resolve()
@@ -259,11 +323,13 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
     task = task_definition(read_object(args.task_packet))
     checkpoint = read_object(checkpoint_path)
     evidence = validate_checkpoint(checkpoint, task, staged)
+    validate_task_outcome(checkpoint, task)
     repository_root = args.repository_root.resolve()
     spine_root = args.spine_root.resolve()
     validate_repository_evidence(repository_root, evidence)
     validate_covered_owner(checkpoint, task, spine_root, evidence)
     if checkpoint["outcome"] == "draft":
+        validate_draft_semantics(staged)
         run_candidate_checker(
             args.checker.resolve(),
             spine_root,

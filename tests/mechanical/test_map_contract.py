@@ -82,15 +82,19 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("exactly one bounded ToDo", normalized)
         self.assertIn("write one checkpoint, and terminate", normalized)
         self.assertIn(
-            "title or broad neighboring owner is not proof",
+            "broad neighboring owner is not proof",
             normalized,
         )
         self.assertIn('"outcome": "covered"', self.producer)
         self.assertIn('"outcome": "draft"', self.producer)
         self.assertIn('"outcome": "retry"', self.producer)
         self.assertIn('"outcome": "supporting"', self.producer)
+        self.assertIn('"outcome": "answered"', self.producer)
+        self.assertIn('"unresolved"` with', normalized)
         self.assertIn("every evidence stratum", normalized)
         self.assertIn("directions` are plain questions", normalized)
+        self.assertIn("evidence baseline and at least one v3 semantic", normalized)
+        self.assertIn("all `OBS-*`", normalized)
 
     def test_inventory_is_a_deterministic_completion_gate(self):
         normalized = " ".join(self.protocol.split())
@@ -101,7 +105,9 @@ class MapExhaustiveContractTests(unittest.TestCase):
         )
         self.assertIn("Candidate owners do not close work", normalized)
         self.assertIn("inventory_verified", normalized)
-        self.assertIn("80 concrete files", normalized)
+        self.assertIn("never packs sibling subtrees", normalized)
+        self.assertIn("over 80 files per file", normalized)
+        self.assertIn("obligation for every production file", normalized)
         self.assertIn("classifies concrete files before grouping", normalized)
         self.assertIn("def repository_inventory", self.campaign)
         self.assertIn("verification_task_id", self.campaign)
@@ -137,7 +143,8 @@ class MapExhaustiveContractTests(unittest.TestCase):
     def test_campaign_has_atomic_publication_and_no_self_quality_gate(self):
         self.assertIn("fcntl.flock", self.campaign)
         self.assertIn("os.replace(temporary_path, path)", self.campaign)
-        self.assertIn("def rollback_publication", self.campaign)
+        self.assertIn("def rollback_integration_publication", self.campaign)
+        self.assertIn("def command_prepare_integration", self.campaign)
         self.assertIn("checkpoint_digest", self.campaign)
         self.assertIn("DEFERRED_CHECKER_CODES", self.campaign)
         self.assertNotIn("quality_gate", self.campaign)
@@ -155,35 +162,36 @@ class MapExhaustiveContractTests(unittest.TestCase):
 
     def test_root_integration_derives_and_persists_new_todo(self):
         normalized = " ".join(self.integration.split())
-        self.assertIn("Inspect every producer-discovered direction", normalized)
+        self.assertIn("Inspect every producer direction", normalized)
         self.assertIn("Append every accepted refinement to persistent ToDo", normalized)
         self.assertIn("Every suggestion emitted", normalized)
         self.assertIn("queued`, with a matching `todo`", normalized)
+        self.assertIn("`preserved`", normalized)
+        self.assertIn("exactly matches visible `anchor.question`", normalized)
         self.assertIn("integration-pass", normalized)
         self.assertIn("add_tasks(", self.campaign)
 
-    def test_root_reports_each_integrated_producer_document_immediately(self):
+    def test_root_reports_only_after_atomic_integration_succeeds(self):
         integration = " ".join(self.integration.split())
         protocol = " ".join(self.protocol.split())
         self.assertIn(
-            "After each producer document is integrated and its live checks pass",
+            "After the whole integration transaction and its checks succeed",
             integration,
         )
         self.assertIn("immediate commentary update", integration)
         self.assertIn("Spine-relative Markdown path", integration)
         self.assertIn(
-            "label each path `created`, `changed`, or `deleted`",
+            "label it `created`, `changed`, or `deleted`",
             integration,
         )
-        self.assertIn("before starting the next", integration)
-        self.assertIn("Never announce a write before it and its checks succeed", integration)
+        self.assertIn("Never announce a write before publication succeeds", integration)
         self.assertIn(
-            "repeat the cumulative document-change history",
+            "Repeat cumulative document history",
             protocol,
         )
-        self.assertIn("`changed_documents` is the exact delta", self.integration)
+        self.assertIn("`changed_documents` is the exact workspace delta", self.integration)
         self.assertIn("rejects missing, extra, or mislabeled paths", integration)
-        self.assertIn("use that receipt for the operator update", integration)
+        self.assertIn("returns the published delta", integration)
 
     def test_producer_uses_minimal_contract_without_other_skill_context(self):
         producer = " ".join(self.producer.split())

@@ -26,6 +26,10 @@ SEMANTIC_BULLET_RE = re.compile(
     r"^ {0,3}[-+*]\s+\*\*((?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)"
     r"-[a-z0-9]+(?:-[a-z0-9]+)*)\*\*"
 )
+LEGACY_SEMANTIC_DEFINITION_RE = re.compile(
+    r"^\*\*ID:\*\*\s+`((?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[^`]+)`"
+    r"\s+·\s+\*\*Status:\*\*"
+)
 FENCE_RE = re.compile(r"^ {0,3}(?:>\s*)?(`{3,}|~{3,})")
 ATX_HEADING_RE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$")
 REFERENCE_DEFINITION_RE = re.compile(
@@ -487,6 +491,17 @@ def _parse_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
         if number not in active_lines:
             continue
         stripped = line.strip()
+        legacy_definition = LEGACY_SEMANTIC_DEFINITION_RE.match(line)
+        if legacy_definition:
+            add(
+                findings,
+                "error",
+                "LEGACY_SEMANTIC_DEFINITION",
+                path,
+                root,
+                "v3 semantic definitions must be bold bullets with an em dash",
+                number,
+            )
         if stripped == ID_REGION_BEGIN:
             regions += 1
             region_depth += 1

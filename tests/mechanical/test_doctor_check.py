@@ -221,6 +221,14 @@ class DoctorCheckerV3Tests(unittest.TestCase):
         root = self.spine(index=INDEX + "\n## Coverage\n\n- Mapped.\n")
         self.assertIn("COMPLETENESS_IN_MARKDOWN", self.codes(root))
 
+    def test_rejects_legacy_semantic_definition(self):
+        root = self.spine(
+            payment=PAYMENTS
+            + "\n**ID:** `OBS-legacy-payment` · **Status:** `OBS`\n\n"
+            + "Legacy observation text.\n"
+        )
+        self.assertIn("LEGACY_SEMANTIC_DEFINITION", self.codes(root))
+
     def test_map_mode_validates_observation_evidence_paths(self):
         root = self.spine()
         repository = root / "repository"

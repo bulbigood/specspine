@@ -1,42 +1,30 @@
 # SpecSpine Map exhaustive orchestration
 
 Exhaustive mode verifies a mechanically generated repository frontier through
-independent one-shot producers. Root schedules and integrates; it does not
-classify production code as already covered.
+one-shot producers; root never classifies production code as already covered.
 
 ## Invariants
 
 - Only root runs `campaign.py`.
 - One fresh producer handles one ToDo and terminates after one checkpoint.
-- Use a medium-capability general-purpose agent for every producer. Do not use
-  the platform's weak/cheap tier or strongest/premium tier. In Codex select
-  `agent_type: medium`; elsewhere select the closest middle tier intended for
-  bounded multi-file code analysis and synthesis.
-- Give every producer a fresh isolated context with no inherited conversation,
-  reasoning, or hidden memory. `fork_turns: none` is the Codex spelling; on
-  another platform create a new independent session or use its no-history
-  equivalent. Pass only the minimal launch command below.
+- Use a medium-capability general-purpose agent: `agent_type: medium` in Codex,
+  or the middle multi-file-analysis tier elsewhere. Never use weak or strongest.
+- Give every producer a fresh isolated context without inherited conversation or
+  hidden memory (`fork_turns: none` in Codex). Pass only the command below.
 - Producers write only to private staging.
-- Root cannot create, remove, group, or terminally classify production work
-  units.
-- An existing document is only a candidate owner until a producer supplies
-  concrete source evidence and existing semantic claim IDs.
+- Root cannot create, remove, group, or terminally classify production units.
+- A document is only a candidate owner until a producer supplies source evidence and existing semantic claim IDs.
 - Producer suggestions enter ToDo only through root integration.
 - Continue independent tasks after a producer failure.
 - Dispatch strict waves; never refill a finished producer slot mid-wave.
-- Without fresh producer creation, preserve generated ToDo and report
-  `blocked`.
+- Without fresh producer creation, preserve generated ToDo and report `blocked`.
 
 ## Start
 
-Create a durable private run root outside the repository. Do not use an
-OS-temporary directory for an exhaustive campaign: the ledger and staging must
-survive thread restarts and machine cleanup.
+Create a durable private run root outside the repository, never an OS-temporary directory; ledger and staging must survive restarts and cleanup.
 
-Follow `campaign-selection.md` before initialization in a new session. Use a
-new uniquely named run root only after discovery returns none or the operator
-chooses new. Never reuse a populated run directory or select by directory
-order. If the current thread already identifies its exact ledger, continue it.
+Follow `campaign-selection.md`. Create a unique run only when discovery returns
+none or the operator chooses new. Never reuse a populated run or select by directory order. Continue an exact ledger identified by the current thread.
 
 ```text
 mkdir -p <durable-private-run-root>
@@ -48,8 +36,7 @@ python3 <map-skill-root>/scripts/campaign.py init \
   --spine-state <empty-or-existing>
 ```
 
-For an existing Spine, run the mechanical index from
-`documentation-first-seeding.md`.
+For an existing Spine, run the mechanical index from `documentation-first-seeding.md`.
 
 Give each producer only this minimal launch command with resolved absolute paths:
 
@@ -81,29 +68,33 @@ python3 <map-skill-root>/scripts/campaign.py source-pass \
   <campaign> <repository-root> <spine-root>
 ```
 
-The command returns counts, never the full generated ToDo list. The ledger retains the complete frontier. It:
+The command returns counts; the ledger retains the complete frontier. It:
 
 - classifies concrete files before grouping;
-- separates nested tests, fixtures, generated files, vendored dependencies,
-  documentation, governance, and local support from production;
-- groups production files by stable repository boundaries and splits oversized
-  units by subdirectory before deterministic fallback chunks;
-- limits every production unit to 80 concrete files;
-- records up to four evidence strata spanning each production unit;
+- separates tests, fixtures, generated, vendored, documentation, governance,
+  and local-support files from production;
+- groups by concrete parent directory and never packs sibling subtrees;
+- splits a flat directory over 80 files per file and requires one evidence
+  obligation for every production file in each unit;
 - creates one immutable verification ToDo for every remaining unit;
 - finds candidate owner documents only through literal path references;
 - records the complete source-content digest.
 
-The recorded source frontier is immutable. If repository content changes before
-completion, discard the private run and start a new campaign from the new
-snapshot.
+The source frontier is immutable. If repository content changes, discard the
+private run and start from the new snapshot.
 
 Candidate owners do not close work. There is no fallback owner and no root
 classification equivalent to `mapped` or `neighbor-owned`.
 
+`ready` orders work breadth-first: repository runtime and manifests,
+composition/command entry points, top-level runtime families, leaf features,
+then tooling. It round-robins peer families so an early large subtree cannot
+precede the system skeleton. Integration refinement waits behind bootstrap work.
+
 ## Dispatch producer waves
 
-At a wave boundary, set the wave size to the smallest of ready ToDo, available producer slots, and five. Inspect only that bounded slice:
+At a wave boundary, use the smallest of ready ToDo, available producer slots,
+and five:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py ready <campaign> --limit <wave-size>
@@ -111,48 +102,58 @@ python3 <map-skill-root>/scripts/campaign.py ready <campaign> --limit <wave-size
 
 Use `todo --limit <n>` only for bounded diagnosis. For the selected wave:
 
-1. before spawning, prepare every packet and unique sibling work/handoff path: `<run-root>/producer-work/<task-id>-<attempt>` and
-   `<run-root>/handoffs/<task-id>-<attempt>`; create only work's `staging/`:
+1. Before spawning, prepare every packet and unique sibling work/handoff path:
+   `<run-root>/producer-work/<task-id>-<attempt>` and `<run-root>/handoffs/<task-id>-<attempt>`; create only work's `staging/`:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py packet <campaign> <task-id> --output <run-root>/packets/<task-id>-<attempt>.json
 ```
 
-2. require slots, then precompute every prompt and emit all spawn calls back-to-back with no reasoning, status checks, assignments, waits, or other tools between them; packet creation and spawning are one transaction, so never finalize because packets exist.
-   Use a platform batch-spawn operation when available. For Codex use `agent_type: medium`, `fork_turns: none`, and the minimal command above;
-3. after every handle is returned, assign the whole wave:
+2. Require slots, precompute prompts, then emit all spawn calls back-to-back with
+   no reasoning, status checks, assignments, waits, or other tools between them.
+   Packet creation and spawning are one transaction; use batch spawn when
+   available. In Codex use `agent_type: medium`, `fork_turns: none`.
+3. After every handle returns, assign the whole wave:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py assign <campaign> <task-id> \
   --owner <fresh-agent-path>
 ```
 
-4. whenever root wakes, inspect producer states, then harvest every available atomic handoff in one read-only command while others continue:
+4. Whenever root wakes, inspect states, then harvest every available atomic handoff:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py harvest-wave <campaign> <run-root>/handoffs <spine-root> <run-root>/harvest
 ```
 
-The command derives task, attempt, owner, handoff, and receipt paths from the ledger; never construct or parse shell-delimited task records. Harvest may
-validate and review immutable packages and prepare integration decisions, but must not mutate the ledger or live Spine.
-5. if any producer remains live, wait again without refill. Interrupt only when its predeclared deadline expired or the platform explicitly reports an
-   irrecoverable stall; never invent a timeout after launch. After confirmed cancellation, preserve its work, release its task, and count it terminal.
-6. after every wave member is completed, failed, or cancelled, accept or release the whole wave, then perform one integration pass:
+The command derives all paths from the ledger; never construct or parse
+shell-delimited task records. Harvest validates immutable
+packages but must not mutate the ledger or live Spine. It reports invalid
+handoffs without hiding valid siblings. Release rejected tasks after the
+terminal barrier; preserve successfully harvested siblings.
+5. If any producer remains live, wait without refill. Interrupt only after its
+   predeclared deadline or an explicit irrecoverable stall; never invent a timeout
+   after launch. After cancellation, preserve work, release it, and count it terminal.
+6. after every wave member is completed, failed, or cancelled, accept or release
+   the whole wave. Acceptance
+   validates it and records private immutable results in one ledger transaction
+   without writing the live Spine:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py accept-wave <campaign> <run-root>/handoffs <spine-root> <run-root>/harvest
 ```
 
-Only an atomically renamed handoff may be harvested. Do not inspect or accept `producer-work`. Missing handoff after termination is a failed attempt: preserve work
-for diagnosis and release the task. Root reruns candidate and post-publication checks; never trust the producer receipt as acceptance proof. A failed spawn remains ready
-in the smaller wave and is not refilled; elapsed time without a predeclared deadline or explicit stall is not failure.
+Only an atomically renamed handoff may be harvested. Do not inspect or accept
+`producer-work`. A missing terminal handoff is a failed attempt: preserve work
+and release the task. Root reruns checks; never trust the producer receipt. A failed spawn remains ready
+in the smaller wave and is not refilled; elapsed time alone is not failure.
 
-`draft` is transactionally published and waits for root integration. `covered`
-also waits for root integration; acceptance checks every evidence stratum,
-owner existence, and semantic claim IDs. `supporting` records a producer-owned
-finding that the unit has no durable architectural responsibility; root may
-confirm it or return it to ToDo. `retry` returns the task to ToDo immediately.
-Never continue the old producer.
+`draft` remains private and waits for root integration. Source-pass `covered`
+and `supporting` also wait for root review. Integration-derived `answered`
+means existing claims answer the exact anchored question; `unresolved` means
+the uncertainty remains real. Acceptance checks task/outcome compatibility,
+every evidence stratum, owner existence, and semantic claim IDs. `retry`
+returns the task to ToDo immediately. Never continue the old producer.
 
 If a producer disappears, use `release`. If a fresh isolated producer or the
 medium-capability tier is unavailable, use `block` for every actionable task
@@ -160,13 +161,12 @@ and report the campaign blocked. Never fall back to a weak or strongest tier.
 
 ## Integrate and derive ToDo
 
-After the entire wave settles, follow `integration-pass.md`. Root reviews published drafts and `covered` receipts, dispositions every suggestion, updates
-navigation or relationships, and atomically appends newly exposed questions to ToDo. After each producer document is successfully integrated, root immediately
-tells the operator in commentary what the integration established or corrected
-and lists every created, changed, or deleted Spine-relative Markdown path from
-the verified integration receipt. Also repeat the cumulative document-change
-history in every progress or final summary; immediate updates do not replace
-that durable summary.
+After the wave settles, follow `integration-pass.md`: prepare one private
+workspace, review drafts and receipts, disposition every anchor and suggestion,
+then publish the checked workspace as one transaction. Never edit live Spine
+between acceptance and integration. After integration, immediately tell the
+operator what it established and list every changed Spine-relative Markdown
+path. Repeat cumulative document history in every progress or final summary.
 
 Repeat:
 
@@ -175,13 +175,14 @@ ToDo → producer wave → barrier → batch acceptance → one integration → 
 ```
 
 An empty ready list does not skip integration: tasks may be waiting in
-`published` or `review`.
+`published` or `review`. `published` means a private accepted draft, not a live
+document.
 
 ## Turn continuity
 
-The durable campaign is the unit of completion. A model turn is only an
-execution slice. Elapsed time, token use, context compaction, a settled wave,
-an empty producer slot, or a large remaining count never authorizes stopping.
+The durable campaign is the unit of completion; a model turn is only an
+execution slice. Time, tokens, compaction, a settled wave, an empty slot, or a
+large remaining count never authorizes stopping.
 
 At campaign start, after every integration pass, after every resumed turn, and
 before any final answer, run:
@@ -210,9 +211,8 @@ ask for “continue”, or obey hints. The operator must not have to restart.
   repository-aware v3 result; repair remaining baseline defects first;
 - for `report_blocked`, finish only with the exact blocker and preserved ledger.
 
-If execution is resumed after an infrastructure interruption, use the exact
-ledger path already reported in the thread, run `next-action`, and continue
-from that state. Never infer the newest campaign by directory ordering.
+After infrastructure interruption, use the exact ledger named in the thread,
+run `next-action`, and continue. Never select by directory ordering.
 
 ## Verify the inventory
 

@@ -105,6 +105,10 @@ For exhaustive brownfield mapping, `campaign.py source-pass` mechanically
 creates a verification ToDo for every production-capable work unit. It excludes
 only structurally recognizable vendored, generated, repository-level test, and
 governance units. Tests remain useful evidence for behavior and failures.
+Nested production units are concrete parent directories; sibling subtrees are
+never packed to meet a size target. An oversized flat directory falls back to
+one file per unit rather than arbitrary lexical chunks. Every remaining
+production file is an explicit evidence obligation inside its unit.
 
 Existing path references produce candidate owners, never terminal coverage.
 Each production unit remains open until a one-shot producer either publishes
@@ -116,6 +120,14 @@ The inventory is a discovery lower bound, not an architecture model. One work
 unit does not imply one document: multiple verified units may share a canonical
 owner, while one unit may expose several responsibilities. A producer maps only
 its assigned question and suggests narrower directions for later ToDo.
+Map may deepen repository-observable uncertainty. Preserve questions about what
+the system should guarantee verbatim; repository evidence cannot answer them.
+
+Dispatch the frontier breadth-first. Establish repository runtime and
+manifests, composition and command entry points, and distinct top-level runtime
+families before leaf feature depth or repository tooling. Round-robin peer
+families; do not let alphabetical path order make one large subtree define the
+system skeleton.
 
 Use the quality and compression criteria in `spec-format.md` as the depth gate.
 The primary test is qualitative: ownership is accounted for, normal and
