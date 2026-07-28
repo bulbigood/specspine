@@ -41,8 +41,10 @@ The root orchestrator must:
     Retain the exact campaign-supplied evidence baseline in every integrated
     source publication; do not invent `repository`, `no-git`, or path-shaped
     baseline values.
-10. Append every accepted refinement to persistent ToDo. Do not investigate it
-   during integration.
+10. For exhaustive completion, append every accepted repository-observable
+    refinement to persistent ToDo. For increment completion, never queue
+    derived ToDo; cover, preserve, or reject directions because adjacent work
+    is already recorded in `deferred_leads`.
 11. Run the full checker on the workspace. The campaign supplies its recorded repository
     root. An existing-Spine campaign may retain an exact seed-baseline finding
     temporarily, but every new finding rejects integration. Remove applicable
@@ -134,6 +136,8 @@ Allowed dispositions are:
 - `covered`, when the integrated graph already answers it;
 - `preserved`, with a document containing the exact normative question;
 - `rejected`, with a concrete architectural reason.
+
+Increment completion forbids `queued`; its report must contain an empty `todo`.
 
 The root may add ToDo that no producer suggested. Every Map ToDo uses basis
 `repository-observation` and exactly matches visible `anchor.question`; never

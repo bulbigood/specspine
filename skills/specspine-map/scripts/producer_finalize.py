@@ -39,13 +39,6 @@ OBS_DEFINITION_RE = re.compile(
     r"^ {0,3}[-+*]\s+\*\*OBS-[a-z0-9]+(?:-[a-z0-9]+)*\*\*\s+—\s+\S",
     re.MULTILINE,
 )
-LEGACY_SEMANTIC_RE = re.compile(
-    r"^\*\*ID:\*\*\s+`(?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[^`]+`"
-    r"\s+·\s+\*\*Status:\*\*",
-    re.MULTILINE,
-)
-
-
 class PreflightError(ValueError):
     pass
 
@@ -297,10 +290,6 @@ def validate_draft_semantics(
     expected_baseline = task.get("evidence_baseline")
     for relative, path in staged.items():
         body = path.read_text(encoding="utf-8")
-        if LEGACY_SEMANTIC_RE.search(body):
-            raise PreflightError(
-                f"candidate uses legacy semantic definition syntax: {relative}"
-            )
         if EVIDENCE_BASELINE_RE.search(body) is None:
             raise PreflightError(
                 f"candidate needs an evidence baseline: {relative}"

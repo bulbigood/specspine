@@ -130,7 +130,6 @@ Owns an unreachable architectural responsibility.
                     self.assertFalse(path.is_symlink(), str(path))
 
         private_references = (
-            PROJECT_ROOT / "skills/specspine-map/references/bounded-mode.md",
             PROJECT_ROOT / "skills/specspine-map/references/mapping-method.md",
             PROJECT_ROOT / "skills/specspine-map/references/orchestration.md",
         )

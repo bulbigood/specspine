@@ -27,8 +27,7 @@ specification and verify:
 - observations remain `OBS`; every `Evidence:` span is a complete
   repository-relative path, never prefix-inherited shorthand;
 - every staged owner has an evidence baseline and at least one v3 semantic
-  `OBS` bullet; its baseline exactly matches the task packet; legacy
-  `**ID:** ... **Status:**` definitions are invalid;
+  `OBS` bullet; its baseline exactly matches the task packet;
 - supported relevant boundaries, interfaces, state, lifecycle, failures, and
   relationships are present;
 - semantic IDs are stable and links use the required complete labels;

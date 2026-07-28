@@ -1,107 +1,81 @@
 ---
 name: specspine-map
-description: "Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use bounded-step mode for surveys, overviews, local refresh, drift, or one limited deepening operation. Use an exhaustive campaign when the operator asks to completely document any scope, including a named architectural topic, related services, or the whole repository: recursively close a semantic discovery frontier, synthesize it against existing SpecSpine coverage, dispatch uncovered topics to fresh producers, and integrate until the requested scope is verified. Do not invent intended architecture, perform general integrity audits, implement changes, or claim code/spec conformance."
+description: "Map observed brownfield architecture into a linked Markdown SpecSpine v3. Use for one focused survey, deepening, refresh, or drift increment; a broad repository survey; or exhaustive documentation of a named architectural scope or whole repository. Discover semantic responsibilities, filter existing SpecSpine coverage, produce missing observations, integrate centrally, and verify the selected completion claim. Do not infer intended architecture, audit general integrity, implement code, or claim code/spec conformance."
 ---
 
 # SpecSpine Map
 
-All published nodes use stable document IDs and core or `x-*` kinds. Publish
-architectural edges only through canonical `Relation | Target | Meaning`
-tables; ordinary links remain navigation. Maintain evidence-backed manifest
-facets for every published owner. Repository facts are `OBS`, not accepted
-intent; never turn required policy into a Map ToDo. Record conflicts as
-observation plus one `Known divergences` row; never infer or silently resolve
-accepted intent. Use arc42 and ICOM only as diagnostic lenses.
+Turn repository evidence into verified SpecSpine observations through one
+operation:
 
-Select one operation before project discovery:
+```text
+scope → discovery → synthesis → production → integration → verification
+```
 
-- Use **bounded-step mode** for an explicitly limited operation such as a survey,
-  overview, high-level map, first pass, selected concern, refresh, or drift
-  recording. Repository size or the word “deep” alone does not authorize
-  exhaustive orchestration.
-- Use an **exhaustive campaign** for completion intent applied to any scope:
-  “fully document Kafka and related services”, “continue this subsystem until
-  saturated”, “cover this whole project”, or an unambiguous equivalent. The
-  whole repository is one exhaustive scope, not a separate campaign type.
+Repository evidence establishes `OBS`, not accepted intent. Preserve
+uncertainty and code/spec disagreement; never infer decisions, constraints,
+requirements, guarantees, or conformance.
 
-## Resources
+## Operation
 
-- Read [references/bounded-mode.md](references/bounded-mode.md) completely for
-  both modes. It is the sole mapping operation contract.
+Define two independent axes before discovery:
+
+- `scope.kind: semantic` for a named area or question; `repository` when the
+  whole repository is the search boundary.
+- `completion.kind: increment` for one coherent change; `exhaustive` for a
+  completeness request.
+
+Increment intents are `survey`, `deepen`, `refresh`, and `drift`. Repository
+increment supports only `survey`.
+
+Both completion policies use the same artifacts and state machine:
+
+- increment settles one initial discovery layer, preserves adjacent work in
+  `deferred_leads`, forbids derived ToDo, and ends at `increment_verified`;
+- exhaustive recursively closes every in-scope lead, forbids deferral, and
+  ends at `scope_verified`.
+
+Neither terminal claims that no conceivable architectural concept exists.
+`increment_verified` never claims scope completeness.
+
+## Required references
+
 - Read [references/spec-semantics.md](references/spec-semantics.md) before
-  classifying claims or recording code/spec disagreement.
-- Read [references/spec-format.md](references/spec-format.md) before creating,
-  editing, or restructuring specifications.
-- Read [references/mapping-method.md](references/mapping-method.md) before a
-  substantial survey, refresh, or restructuring.
-- Read [references/campaign-selection.md](references/campaign-selection.md)
-  before starting or resuming an exhaustive campaign in a new session.
-- In exhaustive discovery, give each scout
-  [references/discovery-task.md](references/discovery-task.md), each
-  between-level curator
-  [references/frontier-curation.md](references/frontier-curation.md), and the
-  final synthesis agent
-  [references/topic-synthesis.md](references/topic-synthesis.md).
-- Start new files from `assets/templates/` and omit empty sections.
+  classifying claims or disagreement.
+- Read [references/spec-format.md](references/spec-format.md) before changing
+  specifications.
+- Read [references/mapping-method.md](references/mapping-method.md) before
+  discovery.
+- Read [references/orchestration.md](references/orchestration.md) completely;
+  it defines the durable CLI lifecycle.
+- Give isolated workers only their phase contract:
+  [discovery-task.md](references/discovery-task.md),
+  [frontier-curation.md](references/frontier-curation.md),
+  [topic-synthesis.md](references/topic-synthesis.md), or
+  [producer-task.md](references/producer-task.md).
+- Read [integration-pass.md](references/integration-pass.md) before publishing.
+- Start new files from `assets/templates/`; omit empty sections.
 
-If live `README.md` is absent and no output root exists, create the root pair;
-otherwise keep it read-only. Omit index progress, future work, and placeholders.
-`seed-from-spine` accepts only v3; its repairable baseline must clear at finish.
+## Authorities
 
-## Bounded-step mode
-Perform exactly one bounded mapping operation and stop at its reported
-continuation or terminal refusal. Do not load exhaustive orchestration
-instructions, create a frontier ledger, or start producers.
+Discovery finds evidence; synthesis alone defines semantic topics and checks
+existing coverage; producers verify one topic and stage private output; root
+alone chooses canonical ownership and publishes a checked workspace. Discovery
+hierarchy, inventory pages, paths, and filenames never define architecture.
 
-## Exhaustive campaign
-Explicit exhaustive intent approves repeated documentation writes and final
-navigation normalization. It does not authorize changing accepted intent or
-choosing among materially different canonical owners.
+Use a flat production-file inventory only as a neutral accelerator for
+repository scope. It grants no grouping, ownership, coverage, or completion.
 
-Map records each owner's supported and missing manifest facets. Evidence
-cannot create normative claims or produce `ready` status.
+For exhaustive work, use fresh isolated medium-tier scouts, curators,
+synthesizer, and one-shot producers in strict waves of at most five without
+refill. An increment may execute the same contracts serially in root. If the
+required execution tier is unavailable, preserve the campaign and report it
+blocked.
 
-Read [references/orchestration.md](references/orchestration.md) completely
-before discovery. Every exhaustive scope uses the same semantic-frontier,
-synthesis, producer, and integration pipeline. A whole-repository flat
-production-file inventory is only an optional discovery accelerator; it grants
-no architectural grouping or completion authority. Use fresh discovery
-scouts, fresh frontier curators between discovery levels, one fresh whole-corpus synthesis
-agent that removes topics already covered by the current Spine, then one fresh
-producer per remaining bounded semantic ToDo. Use
-the platform's medium-capability general-purpose tier for every role: neither
-weak/cheap nor strongest/premium. In Codex this is `agent_type: medium`.
+Keep the operation durable. Run `campaign.py next-action` before every final
+answer. `may_finish: false` forbids finishing; pause only when it also returns
+`may_pause: true`. Never stop with assigned, review, or unpublished work.
 
-Treat exhaustive intent as one durable campaign, not one turn. Before
-`source-pass`, pause only between fully settled discovery levels with every
-packet, result, and frontier decision stored under the durable run root and no
-discovery agent live. After `source-pass`, run `campaign.py next-action` on the
-exact ledger before any final answer. Success or blockage requires
-`may_finish: true`; an unavoidable platform boundary additionally requires
-`may_pause: true`. Never stop with assigned, review, or privately published
-work. Send ordinary intermediate counts only as commentary.
-
-Start each discovery, curation, synthesis, and producer agent in a fresh isolated context
-(`fork_turns: none` in Codex; equivalent on another agent platform). Pass only
-its phase contract, inputs, and required paths.
-Dispatch strict waves of at most five producers: precompute every prompt, then emit spawn calls back-to-back with no reasoning or other tools between them; use platform batch spawn when available.
-While a wave runs, read-only harvest completed handoffs; publish/integrate only after its terminal barrier, never refill, and stop only at a predeclared timeout or explicit stall.
-Never reuse a producer. If the platform cannot provide both a fresh producer
-and a medium-capability tier, preserve the generated ToDo and report `blocked`;
-do not substitute another tier or simulate exhaustive coverage in root.
-
-Require every producer to iterate in its durable private work package, run the
-specified `producer_finalize.py` preflight, and atomically expose exactly one
-checked handoff package. Root independently repeats acceptance checks. Do not
-invoke Doctor inside producers; its whole-Spine semantic audit is a separate
-operator-authorized workflow.
-
-Acceptance never edits live Spine. Publish one checked private workspace and
-advance the ledger together. Use `covered` only for scope verification, `answered` or
-`unresolved` only for anchored questions, and disposition every anchor.
-
-For an existing Spine, read [documentation-first-seeding.md](references/documentation-first-seeding.md)
-and record its mechanical index before production source.
-
-Read [references/integration-pass.md](references/integration-pass.md)
-completely before merging producer publications into the final graph.
+Producer acceptance never edits the live Spine. Integrate accepted handoffs in
+one private workspace, run the v3 checker, then publish the workspace and
+ledger transition atomically. Do not invoke Doctor inside Map.

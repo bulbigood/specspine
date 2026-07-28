@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Run a reliable exhaustive SpecSpine Map campaign.
+"""Run a reliable SpecSpine Map operation.
 
 The campaign deliberately separates four authorities:
 
-* scoped discovery builds and closes the semantic evidence frontier;
+* scoped discovery builds the semantic evidence frontier;
 * one-shot producers verify one bounded task and stage missing observations;
 * the root orchestrator publishes and integrates accepted results;
-* the ledger derives completion from scope evidence, ToDo, and integration state.
+* the ledger derives the selected completion claim from evidence and integration.
 
 Producer prose is never treated as proof of coverage or saturation.
 """
@@ -31,9 +31,9 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 PRODUCER_CONTRACT_VERSION = 5
-DISCOVERY_CONTRACT_VERSION = 1
+DISCOVERY_CONTRACT_VERSION = 2
 MAX_UNIT_FILES = 80
 MAX_CANDIDATE_DOCUMENTS = 12
 DISCOVERY_TERMINAL_STATUSES = {
@@ -81,11 +81,6 @@ EVIDENCE_BASELINE_RE = re.compile(
 )
 OBS_DEFINITION_RE = re.compile(
     r"^ {0,3}[-+*]\s+\*\*OBS-[a-z0-9]+(?:-[a-z0-9]+)*\*\*\s+—\s+\S",
-    re.MULTILINE,
-)
-LEGACY_SEMANTIC_RE = re.compile(
-    r"^\*\*ID:\*\*\s+`(?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[^`]+`"
-    r"\s+·\s+\*\*Status:\*\*",
     re.MULTILINE,
 )
 DOCUMENT_IDENTITY_RE = re.compile(
@@ -538,6 +533,7 @@ def load(path: Path) -> dict[str, Any]:
         raise CampaignError("campaign created_at timestamp is invalid")
     if parse_timestamp(ledger.get("updated_at")) is None:
         raise CampaignError("campaign updated_at timestamp is invalid")
+    validate_operation_spec(ledger.get("operation"))
     ledger_producer_contract(ledger)
     return ledger
 
@@ -1053,8 +1049,8 @@ def validate_scope_spec(value: Any) -> dict[str, str]:
             "scope spec needs exactly kind, title, question, inclusion_rule, "
             "and exclusion_rule"
         )
-    if value["kind"] not in {"repository", "topic"}:
-        raise CampaignError("scope kind must be repository or topic")
+    if value["kind"] not in {"repository", "semantic"}:
+        raise CampaignError("scope kind must be repository or semantic")
     for field in ("title", "question", "inclusion_rule", "exclusion_rule"):
         if not isinstance(value[field], str) or not value[field].strip():
             raise CampaignError(f"scope {field} must be nonempty")
@@ -1065,6 +1061,42 @@ def validate_scope_spec(value: Any) -> dict[str, str]:
         "inclusion_rule": value["inclusion_rule"].strip(),
         "exclusion_rule": value["exclusion_rule"].strip(),
     }
+
+
+def validate_operation_spec(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != {"scope", "completion"}:
+        raise CampaignError("operation spec needs exactly scope and completion")
+    scope = validate_scope_spec(value["scope"])
+    completion = value["completion"]
+    if not isinstance(completion, dict) or "kind" not in completion:
+        raise CampaignError("operation completion must be an object with kind")
+    if completion["kind"] == "exhaustive":
+        if set(completion) != {"kind"}:
+            raise CampaignError("exhaustive completion needs exactly kind")
+        normalized_completion = {"kind": "exhaustive"}
+    elif completion["kind"] == "increment":
+        if set(completion) != {"kind", "intent"}:
+            raise CampaignError("increment completion needs exactly kind and intent")
+        if completion["intent"] not in {"survey", "deepen", "refresh", "drift"}:
+            raise CampaignError(
+                "increment intent must be survey, deepen, refresh, or drift"
+            )
+        normalized_completion = {
+            "kind": "increment",
+            "intent": completion["intent"],
+        }
+    else:
+        raise CampaignError("completion kind must be increment or exhaustive")
+    if (
+        scope["kind"] == "repository"
+        and normalized_completion["kind"] == "increment"
+        and normalized_completion["intent"] != "survey"
+    ):
+        raise CampaignError(
+            "repository increment supports only survey intent; use semantic "
+            "scope for deepen, refresh, or drift"
+        )
+    return {"scope": scope, "completion": normalized_completion}
 
 
 def normalize_discovery_lead(value: Any, *, field: str) -> dict[str, Any]:
@@ -1119,7 +1151,7 @@ def discovery_packet(
         "discovery_contract_version": DISCOVERY_CONTRACT_VERSION,
         "repository_root": seed["repository_root"],
         "spine_root": seed["spine_root"],
-        "scope": seed["scope"],
+        "operation": seed["operation"],
         "lead": lead,
         "source_refs": sorted(source_refs),
     }
@@ -1138,7 +1170,17 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         )
     if not spine_root.is_dir():
         raise CampaignError(f"Spine root is not a directory: {spine_root}")
-    scope = validate_scope_spec(read_json(args.scope_spec))
+    current = load(args.ledger)
+    operation = validate_operation_spec(current["operation"])
+    scope = operation["scope"]
+    recorded_repository = repository_root_from_ledger(current)
+    if (
+        recorded_repository is not None
+        and recorded_repository != repository_root
+    ):
+        raise CampaignError("discovery repository root differs from operation")
+    if current.get("discovery") is not None:
+        raise CampaignError("operation discovery already started")
     if args.inventory_accelerator and scope["kind"] != "repository":
         raise CampaignError(
             "flat inventory accelerator is valid only for repository scope"
@@ -1185,7 +1227,7 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         "discovery_contract_version": DISCOVERY_CONTRACT_VERSION,
         "repository_root": str(repository_root),
         "spine_root": str(spine_root),
-        "scope": scope,
+        "operation": operation,
         "accelerator": (
             None
             if inventory is None
@@ -1205,11 +1247,22 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         path = packets_dir / f"lead-{lead['id']}.json"
         atomic_write(path, discovery_packet(seed, lead, source_refs=[]))
         packets.append(str(path.resolve()))
+    with locked_ledger(args.ledger) as ledger:
+        if ledger.get("discovery") is not None:
+            raise CampaignError("operation discovery already started")
+        ledger["discovery"] = {
+            "status": "discovering",
+            "root": str(args.output_dir.resolve()),
+            "seed": str((args.output_dir / "discovery-seed.json").resolve()),
+            "corpus": None,
+        }
+        save_locked(args.ledger, ledger)
     return {
         "status": "written",
         "seed": str((args.output_dir / "discovery-seed.json").resolve()),
         "packets": packets,
         "scope_kind": scope["kind"],
+        "completion_kind": operation["completion"]["kind"],
         "inventory_accelerator": inventory is not None,
         "seed_files": (
             0 if inventory is None else len(inventory["production_files"])
@@ -1227,6 +1280,8 @@ def normalize_frontier_decision(
     disposition = value["disposition"]
     if disposition == "queue":
         expected = {"disposition", "sources", "lead"}
+    elif disposition == "defer":
+        expected = {"disposition", "sources", "lead", "reason"}
     elif disposition == "duplicate":
         expected = {"disposition", "sources", "target", "reason"}
     elif disposition == "out_of_scope":
@@ -1261,11 +1316,16 @@ def normalize_frontier_decision(
         "disposition": disposition,
         "sources": sorted(sources),
     }
-    if disposition == "queue":
+    if disposition in {"queue", "defer"}:
         normalized["lead"] = normalize_discovery_lead(
             value["lead"],
             field=f"frontier decision {index} lead",
         )
+        if disposition == "defer":
+            reason = value["reason"]
+            if not isinstance(reason, str) or not reason.strip():
+                raise CampaignError(f"frontier decision {index} needs a reason")
+            normalized["reason"] = reason.strip()
     else:
         reason = value["reason"]
         if not isinstance(reason, str) or not reason.strip():
@@ -1296,6 +1356,15 @@ def command_discovery_packets(args: argparse.Namespace) -> dict[str, Any]:
         normalize_frontier_decision(value, index=index)
         for index, value in enumerate(raw["decisions"], start=1)
     ]
+    completion_kind = validate_operation_spec(seed["operation"])["completion"]["kind"]
+    if completion_kind == "exhaustive" and any(
+        value["disposition"] == "defer" for value in decisions
+    ):
+        raise CampaignError("exhaustive discovery cannot defer frontier leads")
+    if completion_kind == "increment" and any(
+        value["disposition"] == "queue" for value in decisions
+    ):
+        raise CampaignError("increment discovery cannot expand child leads")
     seen_sources: set[str] = set()
     queued_ids: set[str] = set()
     for decision in decisions:
@@ -1337,6 +1406,9 @@ def command_discovery_packets(args: argparse.Namespace) -> dict[str, Any]:
         "out_of_scope": sum(
             value["disposition"] == "out_of_scope" for value in decisions
         ),
+        "deferred": sum(
+            value["disposition"] == "defer" for value in decisions
+        ),
     }
 
 
@@ -1352,15 +1424,26 @@ def command_discovery_reopen(args: argparse.Namespace) -> dict[str, Any]:
             f"discovery packet directory already exists: {args.output_dir}"
         )
     plan = read_json(args.topic_plan)
+    operation = validate_operation_spec(seed["operation"])
+    if operation["completion"]["kind"] != "exhaustive":
+        raise CampaignError("only exhaustive discovery may reopen synthesis gaps")
+    current = load(args.ledger)
+    if current["operation"] != operation:
+        raise CampaignError("discovery operation differs from ledger")
+    if current.get("discovery", {}).get("status") != "synthesis":
+        raise CampaignError("ledger is not awaiting synthesis")
     if not isinstance(plan, dict) or set(plan) != {
         "topics",
         "covered",
         "supporting",
         "open_leads",
+        "deferred_leads",
     }:
         raise CampaignError("synthesis topic plan shape is invalid")
     if not isinstance(plan["open_leads"], list) or not plan["open_leads"]:
         raise CampaignError("discovery-reopen requires nonempty open_leads")
+    if plan["deferred_leads"]:
+        raise CampaignError("exhaustive synthesis cannot defer discovery leads")
     decisions: list[dict[str, Any]] = []
     proposals: list[str] = []
     seen_ids: set[str] = set()
@@ -1434,6 +1517,13 @@ def command_discovery_reopen(args: argparse.Namespace) -> dict[str, Any]:
             discovery_packet(seed, lead, source_refs=decision["sources"]),
         )
         packets.append(str(path.resolve()))
+    with locked_ledger(args.ledger) as ledger:
+        ledger["discovery"] = {
+            **ledger["discovery"],
+            "status": "discovering",
+            "corpus": None,
+        }
+        save_locked(args.ledger, ledger)
     return {
         "status": "written",
         "packets": packets,
@@ -1741,6 +1831,17 @@ def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
     ):
         raise CampaignError("discovery seed contract is invalid")
     repository_root = Path(seed["repository_root"]).resolve()
+    operation = validate_operation_spec(seed["operation"])
+    current = load(args.ledger)
+    if current["operation"] != operation:
+        raise CampaignError("discovery operation differs from ledger")
+    discovery_state = current.get("discovery")
+    if (
+        not isinstance(discovery_state, dict)
+        or discovery_state.get("status") not in {"discovering", "synthesis"}
+        or discovery_state.get("seed") != str(args.seed.resolve())
+    ):
+        raise CampaignError("ledger does not track this active discovery")
     packet_paths = sorted(args.packets_root.rglob("lead-*.json"))
     if not packet_paths:
         raise CampaignError("discovery packet tree is empty")
@@ -1753,7 +1854,7 @@ def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
             != DISCOVERY_CONTRACT_VERSION
             or packet.get("repository_root") != seed["repository_root"]
             or packet.get("spine_root") != seed["spine_root"]
-            or packet.get("scope") != seed["scope"]
+            or packet.get("operation") != seed["operation"]
         ):
             raise CampaignError(
                 f"discovery packet metadata is invalid: {packet_path}"
@@ -1820,6 +1921,15 @@ def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
             f"undispositioned={sorted(proposals - decision_sources)}, "
             f"unknown={sorted(decision_sources - proposals)}"
         )
+    deferred_decisions = [
+        value for value in decisions if value["disposition"] == "defer"
+    ]
+    if operation["completion"]["kind"] == "exhaustive" and deferred_decisions:
+        raise CampaignError("exhaustive discovery cannot contain deferred leads")
+    if operation["completion"]["kind"] == "increment" and any(
+        value["disposition"] == "queue" for value in decisions
+    ):
+        raise CampaignError("increment discovery cannot contain queued child leads")
     queued: dict[str, set[str]] = {}
     for decision in decisions:
         if decision["disposition"] == "queue":
@@ -1917,23 +2027,38 @@ def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
         "discovery_contract_version": DISCOVERY_CONTRACT_VERSION,
         "repository_root": seed["repository_root"],
         "spine_root": seed["spine_root"],
-        "scope": seed["scope"],
+        "operation": operation,
         "snapshot": snapshot,
         "leads": sorted(results.values(), key=lambda value: value["lead"]["id"]),
         "frontier_decisions": decisions,
         "topics": topics,
         "supporting": supporting,
+        "deferred_leads": [
+            value["lead"] | {"deferral_reason": value["reason"]}
+            for value in deferred_decisions
+        ],
         "evidence_files": evidence_files,
     }
     corpus["digest"] = digest_json(corpus)
     atomic_write(args.output, corpus)
+    with locked_ledger(args.ledger) as ledger:
+        if ledger["operation"] != operation:
+            raise CampaignError("discovery operation differs from ledger")
+        ledger["discovery"] = {
+            **ledger["discovery"],
+            "status": "synthesis",
+            "corpus": str(args.output.resolve()),
+        }
+        save_locked(args.ledger, ledger)
     return {
         "status": "written",
         "corpus": str(args.output.resolve()),
-        "scope_kind": seed["scope"]["kind"],
+        "scope_kind": operation["scope"]["kind"],
+        "completion_kind": operation["completion"]["kind"],
         "leads": len(results),
         "candidate_topics": len(topics),
         "evidence_files": len(evidence_files),
+        "deferred_leads": len(deferred_decisions),
     }
 
 
@@ -1947,12 +2072,13 @@ def load_discovery_corpus(
         "discovery_contract_version",
         "repository_root",
         "spine_root",
-        "scope",
+        "operation",
         "snapshot",
         "leads",
         "frontier_decisions",
         "topics",
         "supporting",
+        "deferred_leads",
         "evidence_files",
         "digest",
     }
@@ -1964,7 +2090,7 @@ def load_discovery_corpus(
         raise CampaignError("discovery corpus repository root differs")
     if corpus["spine_root"] != str(spine_root.resolve()):
         raise CampaignError("discovery corpus Spine root differs")
-    validate_scope_spec(corpus["scope"])
+    operation = validate_operation_spec(corpus["operation"])
     files = [
         validate_relative_path(value)
         for value in string_list(
@@ -2004,6 +2130,28 @@ def load_discovery_corpus(
         corpus["supporting"], list
     ):
         raise CampaignError("discovery corpus candidate lists are invalid")
+    if not isinstance(corpus["deferred_leads"], list):
+        raise CampaignError("discovery corpus deferred_leads must be a list")
+    deferred_leads: list[dict[str, Any]] = []
+    for index, value in enumerate(corpus["deferred_leads"], start=1):
+        if not isinstance(value, dict) or "deferral_reason" not in value:
+            raise CampaignError(f"deferred lead {index} is invalid")
+        reason = value["deferral_reason"]
+        if not isinstance(reason, str) or not reason.strip():
+            raise CampaignError(f"deferred lead {index} needs a deferral_reason")
+        lead = dict(value)
+        lead.pop("deferral_reason")
+        deferred_leads.append(
+            normalize_discovery_lead(
+                lead,
+                field=f"deferred lead {index}",
+            )
+            | {"deferral_reason": reason.strip()}
+        )
+    if operation["completion"]["kind"] == "exhaustive" and deferred_leads:
+        raise CampaignError("exhaustive discovery corpus cannot defer leads")
+    if deferred_leads != corpus["deferred_leads"]:
+        raise CampaignError("discovery corpus deferred_leads are not canonical")
     candidate_files = {
         path
         for index, value in enumerate(corpus["topics"], start=1)
@@ -2086,6 +2234,7 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         raise CampaignError(f"campaign already exists: {args.ledger}")
     timestamp = utc_timestamp()
     contract = producer_contract()
+    operation = validate_operation_spec(read_json(args.operation_spec))
     ledger = {
         "schema_version": SCHEMA_VERSION,
         "campaign_id": str(uuid.uuid4()),
@@ -2097,8 +2246,7 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
             if args.repository_root is not None
             else None
         ),
-        "scope": args.scope,
-        "root_question": args.root_question,
+        "operation": operation,
         "spine_state": args.spine_state,
         "producer_contract_version": contract["version"],
         "producer_contract_digest": contract["digest"],
@@ -2108,6 +2256,7 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         "publication_history": [],
         "document_change_history": [],
         "documentation_seed": None,
+        "discovery": None,
         "spine_snapshot": None,
         "source_pass": None,
         "integration_pass": None,
@@ -2176,46 +2325,49 @@ def command_seed_from_spine(args: argparse.Namespace) -> dict[str, Any]:
         }
 
 
-def command_inventory(args: argparse.Namespace) -> dict[str, Any]:
-    inventory = repository_inventory(
-        args.repository_root,
-        spine_root=args.spine_root,
-    )
-    if args.output is None:
-        return inventory
-    if args.output.exists():
-        raise CampaignError(f"inventory output already exists: {args.output}")
-    atomic_write(args.output, inventory)
-    return {
-        "status": "written",
-        "inventory": str(args.output.resolve()),
-        "production_files": len(inventory["production_files"]),
-        "excluded_files": sum(len(value) for value in inventory["excluded"].values()),
-        "digest": inventory["digest"],
-    }
-
-
 def validate_topic_plan(
     path: Path,
     evidence_files: list[str],
     spine_root: Path,
+    operation: dict[str, Any],
+    expected_deferred_leads: list[dict[str, Any]],
 ) -> dict[str, Any]:
     raw = read_json(path)
-    if set(raw) != {"topics", "covered", "supporting", "open_leads"}:
+    if set(raw) != {
+        "topics",
+        "covered",
+        "supporting",
+        "open_leads",
+        "deferred_leads",
+    }:
         raise CampaignError(
-            "topic plan needs exactly topics, covered, supporting, and open_leads"
+            "topic plan needs exactly topics, covered, supporting, open_leads, "
+            "and deferred_leads"
         )
     if any(
         not isinstance(raw[field], list)
-        for field in ("topics", "covered", "supporting", "open_leads")
+        for field in (
+            "topics",
+            "covered",
+            "supporting",
+            "open_leads",
+            "deferred_leads",
+        )
     ):
         raise CampaignError(
-            "topic plan topics, covered, supporting, and open_leads must be lists"
+            "topic plan collections must be lists"
         )
     if raw["open_leads"]:
         raise CampaignError(
             "topic plan has open discovery leads; return them to discovery "
             "before source-pass"
+        )
+    completion_kind = operation["completion"]["kind"]
+    if completion_kind == "exhaustive" and raw["deferred_leads"]:
+        raise CampaignError("exhaustive topic plan cannot defer discovery leads")
+    if raw["deferred_leads"] != expected_deferred_leads:
+        raise CampaignError(
+            "topic plan deferred_leads differ from the discovery corpus"
         )
     evidence = set(evidence_files)
     topics: list[dict[str, Any]] = []
@@ -2433,12 +2585,14 @@ def validate_topic_plan(
         "supporting": normalized_supporting,
         "evidence_files": sorted(evidence),
         "open_leads": [],
+        "deferred_leads": raw["deferred_leads"],
         "digest": digest_json(
             {
                 "topics": normalized_topics,
                 "covered": normalized_covered,
                 "supporting": normalized_supporting,
                 "open_leads": [],
+                "deferred_leads": raw["deferred_leads"],
             }
         ),
     }
@@ -2446,6 +2600,8 @@ def validate_topic_plan(
 
 def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
     current = load(args.ledger)
+    if current["source_pass"] is not None:
+        raise CampaignError("source-pass is immutable once recorded")
     if current["spine_state"] == "existing" and current["documentation_seed"] is None:
         raise CampaignError("seed-from-spine is required before source-pass")
     if args.discovery_corpus is None:
@@ -2463,6 +2619,15 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
         args.repository_root,
         args.spine_root,
     )
+    if corpus["operation"] != current["operation"]:
+        raise CampaignError("discovery corpus operation differs from ledger")
+    discovery_state = current.get("discovery")
+    if (
+        not isinstance(discovery_state, dict)
+        or discovery_state.get("status") != "synthesis"
+        or discovery_state.get("corpus") != str(args.discovery_corpus.resolve())
+    ):
+        raise CampaignError("ledger is not ready to record this synthesis")
     evidence_baseline = repository_evidence_baseline(
         args.repository_root,
         corpus["snapshot"]["digest"],
@@ -2471,6 +2636,8 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
         args.topic_plan,
         corpus["evidence_files"],
         args.spine_root,
+        corpus["operation"],
+        corpus["deferred_leads"],
     )
     raw_todo: list[dict[str, Any]] = []
     topic_tasks: dict[str, str] = {}
@@ -2510,7 +2677,9 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
         ledger["source_pass"] = {
             "repository_root": str(args.repository_root.resolve()),
             "spine_root": str(args.spine_root.resolve()),
-            "scope": corpus["scope"],
+            "operation": corpus["operation"],
+            "scope": corpus["operation"]["scope"],
+            "completion": corpus["operation"]["completion"],
             "scope_snapshot": corpus["snapshot"],
             "discovery_digest": corpus["digest"],
             "discovery_corpus": corpus,
@@ -2523,62 +2692,26 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
             "publication_epoch": ledger["publication_epoch"],
         }
         ledger["spine_snapshot"] = document_hashes(args.spine_root.resolve())
+        ledger["discovery"] = {
+            **ledger["discovery"],
+            "status": "production",
+        }
         ledger.setdefault("document_change_history", [])
         save_locked(args.ledger, ledger)
         return {
             "status": "recorded",
-            "scope_kind": corpus["scope"]["kind"],
+            "scope_kind": corpus["operation"]["scope"]["kind"],
+            "completion_kind": corpus["operation"]["completion"]["kind"],
             "evidence_files": len(corpus["evidence_files"]),
             "discovery_leads": len(corpus["leads"]),
             "topics": len(plan["topics"]),
             "covered_topics": len(plan["covered"]),
             "supporting_groups": len(plan["supporting"]),
+            "deferred_leads": len(plan["deferred_leads"]),
             "verification_todo": len(raw_todo),
             "added_todo_count": len(added),
             "revision": ledger["revision"],
         }
-
-
-def command_todo_add(args: argparse.Namespace) -> dict[str, Any]:
-    raw = {
-        "id": args.id,
-        "question": args.question,
-        "reason": args.reason,
-        "evidence": args.evidence,
-        "documents": args.document,
-        "excludes": args.exclude,
-    }
-    with locked_ledger(args.ledger) as ledger:
-        added = add_tasks(ledger, [raw], source=args.origin)
-        if added:
-            ledger["integration_pass"] = None
-        save_locked(args.ledger, ledger)
-        return {
-            "status": "added" if added else "already-present",
-            "added_todo": added,
-            "revision": ledger["revision"],
-        }
-
-
-def command_todo(args: argparse.Namespace) -> dict[str, Any]:
-    ledger = load(args.ledger)
-    tasks = [
-        task_definition(task)
-        | {
-            "state": task["state"],
-            "attempts": task["attempts"],
-            "terminal_reason": task["terminal_reason"],
-        }
-        for task in sorted(ledger["tasks"].values(), key=lambda value: value["id"])
-        if args.all or task["state"] in {"todo", "assigned", "published", "blocked"}
-    ]
-    selected = tasks[: args.limit] if args.limit is not None else tasks
-    return {
-        "campaign_id": ledger["campaign_id"],
-        "todo": selected,
-        "returned": len(selected),
-        "total": len(tasks),
-    }
 
 
 def source_task_priority(task: dict[str, Any]) -> tuple[int, int, str]:
@@ -2748,7 +2881,7 @@ def command_discover(args: argparse.Namespace) -> dict[str, Any]:
         assert activity is not None
         age_seconds = max(0, int((now - activity).total_seconds()))
         source_current: bool | None = (
-            current_scope_snapshot(ledger)
+            current_operation_snapshot(ledger)
             if isinstance(ledger.get("source_pass"), dict)
             else None
         )
@@ -2770,7 +2903,8 @@ def command_discover(args: argparse.Namespace) -> dict[str, Any]:
             {
                 "ledger": str(path.resolve()),
                 "campaign_id": ledger["campaign_id"],
-                "scope": ledger["scope"],
+                "scope": ledger["operation"]["scope"],
+                "completion": ledger["operation"]["completion"],
                 "last_activity": activity.isoformat().replace("+00:00", "Z"),
                 "age_seconds": age_seconds,
                 "recency": "recent" if recent else "stale",
@@ -2799,7 +2933,7 @@ def command_resume_session(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError("campaign is not resumable")
         if (
             isinstance(ledger.get("source_pass"), dict)
-            and not current_scope_snapshot(ledger)
+            and not current_operation_snapshot(ledger)
         ):
             raise CampaignError(
                 "campaign source snapshot changed; start a new campaign"
@@ -3204,10 +3338,6 @@ def validate_draft_semantics(
     expected_baseline = task.get("evidence_baseline")
     for relative, path in staging.items():
         body = path.read_text(encoding="utf-8")
-        if LEGACY_SEMANTIC_RE.search(body):
-            raise CampaignError(
-                f"candidate uses legacy semantic definition syntax: {relative}"
-            )
         if EVIDENCE_BASELINE_RE.search(body) is None:
             raise CampaignError(
                 f"candidate needs an evidence baseline: {relative}"
@@ -3278,41 +3408,49 @@ def harvest_receipt(
     }
 
 
-def command_harvest(args: argparse.Namespace) -> dict[str, Any]:
-    raw = read_json(args.checkpoint)
-    staging = candidate_files(args.staging_root)
+def harvest_handoff(
+    *,
+    ledger_path: Path,
+    task_id: str,
+    owner: str,
+    checkpoint: Path,
+    staging_root: Path,
+    spine_root: Path,
+    receipt_path: Path,
+    checker: Path,
+) -> dict[str, Any]:
+    raw = read_json(checkpoint)
+    staging = candidate_files(staging_root)
     receipt = harvest_receipt(
-        load(args.ledger),
-        args.id,
-        args.owner,
+        load(ledger_path),
+        task_id,
+        owner,
         raw,
         staging,
-        args.staging_root.resolve(),
-        args.spine_root.resolve(),
-        args.checker,
+        staging_root.resolve(),
+        spine_root.resolve(),
+        checker,
     )
-    if args.output is None:
-        return receipt
-    if args.output.exists():
-        existing = read_json(args.output)
+    if receipt_path.exists():
+        existing = read_json(receipt_path)
         if existing != receipt:
             raise CampaignError(
-                f"harvest receipt conflicts with current handoff: {args.output}"
+                f"harvest receipt conflicts with current handoff: {receipt_path}"
             )
         return {
             "status": "already_harvested",
             "task": receipt["task"],
             "outcome": receipt["outcome"],
-            "receipt": str(args.output.resolve()),
+            "receipt": str(receipt_path.resolve()),
             "checkpoint_digest": receipt["checkpoint_digest"],
             "staging_digest": receipt["staging_digest"],
         }
-    atomic_write(args.output, receipt)
+    atomic_write(receipt_path, receipt)
     return {
         "status": "harvested",
         "task": receipt["task"],
         "outcome": receipt["outcome"],
-        "receipt": str(args.output.resolve()),
+        "receipt": str(receipt_path.resolve()),
         "checkpoint_digest": receipt["checkpoint_digest"],
         "staging_digest": receipt["staging_digest"],
     }
@@ -3360,17 +3498,15 @@ def command_harvest_wave(args: argparse.Namespace) -> dict[str, Any]:
                 f"atomic handoff is incomplete for assigned task: {task['id']}"
             )
         try:
-            result = command_harvest(
-                argparse.Namespace(
-                    ledger=args.ledger,
-                    id=task["id"],
-                    checkpoint=checkpoint,
-                    staging_root=staging_root,
-                    spine_root=args.spine_root,
-                    owner=task["owner"],
-                    output=receipt,
-                    checker=args.checker,
-                )
+            result = harvest_handoff(
+                ledger_path=args.ledger,
+                task_id=task["id"],
+                owner=task["owner"],
+                checkpoint=checkpoint,
+                staging_root=staging_root,
+                spine_root=args.spine_root,
+                receipt_path=receipt,
+                checker=args.checker,
             )
         except CampaignError as error:
             rejected.append({"task": task["id"], "error": str(error)})
@@ -3514,58 +3650,6 @@ def apply_accepted_result(
         "published": published,
         "suggestions_pending_review": [value["id"] for value in suggestions],
     }
-
-
-def command_accept(args: argparse.Namespace) -> dict[str, Any]:
-    raw = read_json(args.checkpoint)
-    staging = candidate_files(args.staging_root)
-    status, directions, coverage = validate_checkpoint(raw, staging)
-    candidates = infer_candidates(staging, args.spine_root.resolve())
-    checkpoint_digest = digest_json(raw)
-    repository_root = repository_root_from_ledger(load(args.ledger))
-    if candidates:
-        run_checker(
-            args.checker,
-            args.spine_root.resolve(),
-            candidates_root=args.staging_root.resolve(),
-            repository_root=repository_root,
-        )
-
-    with locked_ledger(args.ledger) as ledger:
-        task = require_task(ledger, args.id)
-        if task["state"] != "assigned":
-            raise CampaignError(f"accept requires assigned task: {args.id}")
-        if task["owner"] != args.owner:
-            raise CampaignError(
-                f"checkpoint owner mismatch: expected {task['owner']}, got {args.owner}"
-            )
-        require_harvest_receipt(
-            args.harvest_receipt,
-            ledger,
-            task["id"],
-            args.owner,
-            status,
-            checkpoint_digest,
-            staging_digest(staging),
-        )
-        result = apply_accepted_result(
-            ledger,
-            task,
-            raw,
-            staging,
-            args.staging_root,
-            args.spine_root.resolve(),
-            status=status,
-            directions=directions,
-            coverage=coverage,
-            checkpoint_digest=checkpoint_digest,
-        )
-        save_locked(args.ledger, ledger)
-        return {
-            "status": "accepted",
-            **result,
-            "revision": ledger["revision"],
-        }
 
 
 def command_accept_wave(args: argparse.Namespace) -> dict[str, Any]:
@@ -3802,22 +3886,6 @@ def rollback_integration_publication(spine_root: Path, backup: Path) -> None:
     shutil.rmtree(failed, ignore_errors=True)
 
 
-def command_block(args: argparse.Namespace) -> dict[str, Any]:
-    with locked_ledger(args.ledger) as ledger:
-        task = require_task(ledger, args.id)
-        if task["state"] not in {"todo", "assigned"}:
-            raise CampaignError(f"block requires todo or assigned state: {args.id}")
-        task["state"] = "blocked"
-        task["owner"] = None
-        task["terminal_reason"] = args.reason
-        save_locked(args.ledger, ledger)
-        return {
-            "status": "blocked",
-            "task": args.id,
-            "revision": ledger["revision"],
-        }
-
-
 def validate_integrated_source_publication(
     task: dict[str, Any],
     spine_root: Path,
@@ -3987,6 +4055,14 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
     raw_todo = report.get("todo")
     if not isinstance(raw_todo, list):
         raise CampaignError("integration todo must be a list")
+    completion_kind = validate_operation_spec(current["operation"])["completion"][
+        "kind"
+    ]
+    if completion_kind == "increment" and raw_todo:
+        raise CampaignError(
+            "increment integration cannot derive additional ToDo; preserve "
+            "adjacent work as deferred continuation"
+        )
     validate_empty_reason(
         raw_todo,
         report.get("terminal_reason"),
@@ -4078,6 +4154,10 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
         if disposition not in SUGGESTION_DISPOSITIONS:
             raise CampaignError(
                 f"invalid suggestion disposition for {suggestion_id}: {disposition!r}"
+            )
+        if completion_kind == "increment" and disposition == "queued":
+            raise CampaignError(
+                "increment integration cannot queue producer suggestions"
             )
         if not isinstance(reason, str) or not reason.strip():
             raise CampaignError(
@@ -4388,7 +4468,7 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
         }
 
 
-def current_scope_snapshot(ledger: dict[str, Any]) -> bool:
+def current_operation_snapshot(ledger: dict[str, Any]) -> bool:
     source = ledger.get("source_pass")
     if not isinstance(source, dict):
         return False
@@ -4450,8 +4530,8 @@ def terminal_gates(ledger: dict[str, Any]) -> dict[str, bool]:
         "no_blocked_tasks": not any(
             task["state"] == "blocked" for task in tasks
         ),
-        "scope_snapshot_current": current_scope_snapshot(ledger),
-        "scope_units_verified": (
+        "operation_snapshot_current": current_operation_snapshot(ledger),
+        "operation_units_verified": (
             isinstance(source_pass, dict) and units_verified
         ),
         "integration_current": current_integration(ledger),
@@ -4462,8 +4542,8 @@ def terminal_gates(ledger: dict[str, Any]) -> dict[str, bool]:
     }
 
 
-def command_summary(args: argparse.Namespace) -> dict[str, Any]:
-    ledger = load(args.ledger)
+def campaign_summary(ledger_path: Path) -> dict[str, Any]:
+    ledger = load(ledger_path)
     gates = terminal_gates(ledger)
     states = {
         state: sorted(
@@ -4475,7 +4555,11 @@ def command_summary(args: argparse.Namespace) -> dict[str, Any]:
     }
     terminal: str | None = None
     if all(gates.values()):
-        terminal = "scope_verified"
+        terminal = (
+            "increment_verified"
+            if ledger["operation"]["completion"]["kind"] == "increment"
+            else "scope_verified"
+        )
     elif (
         gates["todo_empty"]
         and gates["producers_finished"]
@@ -4495,13 +4579,44 @@ def command_summary(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
-    summary = command_summary(args)
+    ledger = load(args.ledger)
+    if ledger.get("source_pass") is None:
+        discovery = ledger.get("discovery")
+        if discovery is None:
+            action = "discover"
+            reason = "operation discovery has not started"
+        elif discovery.get("status") == "discovering":
+            action = "discover"
+            reason = "semantic discovery frontier is not yet synthesized"
+        elif discovery.get("status") == "synthesis":
+            action = "synthesize"
+            reason = "discovery corpus requires semantic synthesis"
+        else:
+            action = "repair"
+            reason = "pre-production operation state is invalid"
+        return {
+            "campaign_id": ledger["campaign_id"],
+            "revision": ledger["revision"],
+            "action": action,
+            "may_finish": False,
+            "may_pause": action == "synthesize",
+            "response_policy": (
+                "unavoidable_platform_turn_boundary_only"
+                if action == "synthesize"
+                else "continue_in_same_turn_no_final_response"
+            ),
+            "reason": reason,
+            "counts": {state: 0 for state in sorted(TASK_STATES)},
+            "terminal": None,
+            "terminal_gates": terminal_gates(ledger),
+        }
+    summary = campaign_summary(args.ledger)
     states = summary["states"]
     gates = summary["terminal_gates"]
-    if summary["terminal"] == "scope_verified":
+    if summary["terminal"] in {"increment_verified", "scope_verified"}:
         action = "finalize"
         may_finish = True
-        reason = "scope_verified"
+        reason = summary["terminal"]
     elif summary["terminal"] == "blocked":
         action = "report_blocked"
         may_finish = True
@@ -4526,7 +4641,7 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
         action == "dispatch"
         and gates["producers_finished"]
         and gates["publications_integrated"]
-        and gates["scope_snapshot_current"]
+        and gates["operation_snapshot_current"]
         and gates["integration_current"]
         and gates["spine_v3_clean"]
     )
@@ -4554,50 +4669,13 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def command_coverage_report(args: argparse.Namespace) -> dict[str, Any]:
-    ledger = load(args.ledger)
-    summary = command_summary(args)
-    source = ledger.get("source_pass", {})
-    verified_units = sum(
-        ledger["tasks"].get(task_id, {}).get("state") == "complete"
-        for task_id in source.get("todo", [])
-    )
-    return {
-        "campaign_id": ledger["campaign_id"],
-        "scope": ledger["scope"],
-        "terminal": summary["terminal"],
-        "terminal_gates": summary["terminal_gates"],
-        "task_states": {
-            state: len(values) for state, values in summary["states"].items()
-        },
-        "scope_kind": source.get("scope", {}).get("kind"),
-        "scope_title": source.get("scope", {}).get("title"),
-        "evidence_files": len(source.get("evidence_files", [])),
-        "discovery_leads": len(
-            source.get("discovery_corpus", {}).get("leads", [])
-        ),
-        "verified_topics": verified_units,
-        "existing_spine_covered_topics": len(
-            source.get("topic_plan", {}).get("covered", [])
-        ),
-        "coverage_claim": (
-            "scope_verified"
-            if summary["terminal"] == "scope_verified"
-            else "blocked"
-            if summary["terminal"] == "blocked"
-            else "partial"
-        ),
-    }
-
-
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     sub = result.add_subparsers(dest="command", required=True)
 
     init = sub.add_parser("init")
     init.add_argument("ledger", type=Path)
-    init.add_argument("--scope", required=True)
-    init.add_argument("--root-question", required=True)
+    init.add_argument("operation_spec", type=Path)
     init.add_argument(
         "--spine-state",
         choices=("empty", "existing"),
@@ -4626,15 +4704,10 @@ def parser() -> argparse.ArgumentParser:
         default=Path(__file__).with_name("check_spine.py"),
     )
 
-    inventory = sub.add_parser("inventory")
-    inventory.add_argument("repository_root", type=Path)
-    inventory.add_argument("--spine-root", type=Path)
-    inventory.add_argument("--output", type=Path)
-
     discovery_start = sub.add_parser("discovery-start")
+    discovery_start.add_argument("ledger", type=Path)
     discovery_start.add_argument("repository_root", type=Path)
     discovery_start.add_argument("spine_root", type=Path)
-    discovery_start.add_argument("scope_spec", type=Path)
     discovery_start.add_argument("output_dir", type=Path)
     discovery_start.add_argument(
         "--inventory-accelerator",
@@ -4652,11 +4725,13 @@ def parser() -> argparse.ArgumentParser:
     discovery_packets.add_argument("output_dir", type=Path)
 
     discovery_reopen = sub.add_parser("discovery-reopen")
+    discovery_reopen.add_argument("ledger", type=Path)
     discovery_reopen.add_argument("seed", type=Path)
     discovery_reopen.add_argument("topic_plan", type=Path)
     discovery_reopen.add_argument("output_dir", type=Path)
 
     discovery_collect = sub.add_parser("discovery-collect")
+    discovery_collect.add_argument("ledger", type=Path)
     discovery_collect.add_argument("seed", type=Path)
     discovery_collect.add_argument("packets_root", type=Path)
     discovery_collect.add_argument("results_root", type=Path)
@@ -4673,21 +4748,6 @@ def parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path(__file__).with_name("check_spine.py"),
     )
-
-    add = sub.add_parser("todo-add")
-    add.add_argument("ledger", type=Path)
-    add.add_argument("id")
-    add.add_argument("--question", required=True)
-    add.add_argument("--reason", required=True)
-    add.add_argument("--origin", required=True)
-    add.add_argument("--evidence", action="append", default=[])
-    add.add_argument("--document", action="append", default=[])
-    add.add_argument("--exclude", action="append", default=[])
-
-    todo = sub.add_parser("todo")
-    todo.add_argument("ledger", type=Path)
-    todo.add_argument("--all", action="store_true")
-    todo.add_argument("--limit", type=positive_int)
 
     ready = sub.add_parser("ready")
     ready.add_argument("ledger", type=Path)
@@ -4707,40 +4767,12 @@ def parser() -> argparse.ArgumentParser:
     release.add_argument("ledger", type=Path)
     release.add_argument("id")
 
-    harvest = sub.add_parser("harvest")
-    harvest.add_argument("ledger", type=Path)
-    harvest.add_argument("id")
-    harvest.add_argument("checkpoint", type=Path)
-    harvest.add_argument("staging_root", type=Path)
-    harvest.add_argument("spine_root", type=Path)
-    harvest.add_argument("--owner", required=True)
-    harvest.add_argument("--output", type=Path)
-    harvest.add_argument(
-        "--checker",
-        type=Path,
-        default=Path(__file__).with_name("check_spine.py"),
-    )
-
     harvest_wave = sub.add_parser("harvest-wave")
     harvest_wave.add_argument("ledger", type=Path)
     harvest_wave.add_argument("handoffs_root", type=Path)
     harvest_wave.add_argument("spine_root", type=Path)
     harvest_wave.add_argument("harvest_root", type=Path)
     harvest_wave.add_argument(
-        "--checker",
-        type=Path,
-        default=Path(__file__).with_name("check_spine.py"),
-    )
-
-    accept = sub.add_parser("accept")
-    accept.add_argument("ledger", type=Path)
-    accept.add_argument("id")
-    accept.add_argument("checkpoint", type=Path)
-    accept.add_argument("staging_root", type=Path)
-    accept.add_argument("spine_root", type=Path)
-    accept.add_argument("--owner", required=True)
-    accept.add_argument("--harvest-receipt", required=True, type=Path)
-    accept.add_argument(
         "--checker",
         type=Path,
         default=Path(__file__).with_name("check_spine.py"),
@@ -4762,11 +4794,6 @@ def parser() -> argparse.ArgumentParser:
     prepare_integration.add_argument("spine_root", type=Path)
     prepare_integration.add_argument("workspace", type=Path)
 
-    block = sub.add_parser("block")
-    block.add_argument("ledger", type=Path)
-    block.add_argument("id")
-    block.add_argument("--reason", required=True)
-
     integration = sub.add_parser("integration-pass")
     integration.add_argument("ledger", type=Path)
     integration.add_argument("spine_root", type=Path)
@@ -4778,14 +4805,8 @@ def parser() -> argparse.ArgumentParser:
         default=Path(__file__).with_name("check_spine.py"),
     )
 
-    summary = sub.add_parser("summary")
-    summary.add_argument("ledger", type=Path)
-
     next_action = sub.add_parser("next-action")
     next_action.add_argument("ledger", type=Path)
-
-    coverage = sub.add_parser("coverage-report")
-    coverage.add_argument("ledger", type=Path)
 
     return result
 
@@ -4797,28 +4818,20 @@ def main() -> int:
         "discover": command_discover,
         "resume-session": command_resume_session,
         "seed-from-spine": command_seed_from_spine,
-        "inventory": command_inventory,
         "discovery-start": command_discovery_start,
         "discovery-packets": command_discovery_packets,
         "discovery-reopen": command_discovery_reopen,
         "discovery-collect": command_discovery_collect,
         "source-pass": command_source_pass,
-        "todo-add": command_todo_add,
-        "todo": command_todo,
         "ready": command_ready,
         "packet": command_packet,
         "assign": command_assign,
         "release": command_release,
-        "harvest": command_harvest,
         "harvest-wave": command_harvest_wave,
-        "accept": command_accept,
         "accept-wave": command_accept_wave,
         "prepare-integration": command_prepare_integration,
-        "block": command_block,
         "integration-pass": command_integration_pass,
-        "summary": command_summary,
         "next-action": command_next_action,
-        "coverage-report": command_coverage_report,
     }
     try:
         value = commands[args.command](args)

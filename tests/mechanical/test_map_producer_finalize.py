@@ -322,22 +322,6 @@ class ProducerFinalizeTests(unittest.TestCase):
         self.assertIn("semantic OBS definition", error["error"])
         self.assertTrue(self.work.is_dir())
 
-    def test_draft_rejects_legacy_semantic_definition(self):
-        (self.work / "staging" / "identity.md").write_text(
-            "# Identity\n\n"
-            "<!-- specspine:evidence-baseline "
-            "source=fixture; inspected=2026-07-28 -->\n"
-            "**ID:** `OBS-identity-session` · **Status:** `OBS`\n\n"
-            "A session implementation exists.\n",
-            encoding="utf-8",
-        )
-        self.checkpoint()
-
-        error = self.execute(expected=2)
-
-        self.assertIn("legacy semantic definition", error["error"])
-        self.assertTrue(self.work.is_dir())
-
     def test_answered_rejects_normative_owner_claim(self):
         packet = json.loads(self.packet.read_text(encoding="utf-8"))
         packet["task"]["origin"] = "integration-1"

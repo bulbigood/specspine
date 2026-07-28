@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Issue a final exhaustive Map receipt for a scope-verified campaign."""
+"""Issue a final receipt for a verified SpecSpine Map operation."""
 
 from __future__ import annotations
 
@@ -19,11 +19,10 @@ class FinalizeError(ValueError):
 
 def finalize(args: argparse.Namespace) -> dict[str, object]:
     ledger = campaign.load(args.ledger)
-    summary_args = argparse.Namespace(ledger=args.ledger)
-    summary = campaign.command_summary(summary_args)
-    if summary["terminal"] != "scope_verified":
+    summary = campaign.campaign_summary(args.ledger)
+    if summary["terminal"] not in {"increment_verified", "scope_verified"}:
         raise FinalizeError(
-            "campaign is not scope_verified: "
+            "operation is not verified: "
             + json.dumps(summary["terminal_gates"], ensure_ascii=False)
         )
 
@@ -119,6 +118,10 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
             "markdown_total": len(actual_documents),
         },
         "scope": source.get("scope"),
+        "completion": source.get("completion"),
+        "deferred_leads": len(
+            source.get("topic_plan", {}).get("deferred_leads", [])
+        ),
         "evidence_files": len(source.get("evidence_files", [])),
         "discovery_leads": len(
             source.get("discovery_corpus", {}).get("leads", [])

@@ -1,282 +1,204 @@
-# SpecSpine Map exhaustive orchestration
+# SpecSpine Map orchestration
 
-An exhaustive campaign closes one operator-defined semantic scope. The scope
-may be Kafka, a subsystem and its related services, or the whole repository.
-Whole-repository mapping is the same campaign with a broad scope and an
-optional flat-file discovery accelerator.
-
-## Invariants
-
-- Only root runs `campaign.py`.
-- Discovery scouts expand one semantic lead by one level. Fresh curators merge
-  child proposals between levels. One final synthesis agent creates the producer
-  frontier. One fresh producer handles each uncovered topic.
-- Use the medium-capability general-purpose tier for every agent:
-  `agent_type: medium` in Codex. Use a fresh isolated context
-  (`fork_turns: none`) and only the phase contract and inputs.
-- Never fall back to a weak or strongest tier. Preserve the work and report a
-  concrete blocker when fresh medium-tier agents are unavailable.
-- Discovery hierarchy and inventory pagination are provenance, never
-  architecture.
-- A flat production-file inventory is only a repository-scope accelerator. It
-  grants no owner, topic, coverage, or completion authority.
-- Producers write only to private staging. Root integrates centrally.
-- Dispatch strict waves of at most five; never refill a running wave.
-- A safety depth, agent, time, or topic limit may block a campaign but never
-  establish scope closure.
-
-## Start
-
-Create a durable private run root outside the repository. Follow
-`campaign-selection.md`; never silently select a campaign by directory order.
+Run every operation through one durable state machine:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py init \
-  <run-root>/campaign.json \
-  --scope <requested-scope> \
-  --root-question <scope-question> \
-  --repository-root <repository-root> \
-  --spine-state <empty-or-existing>
+scope → discovery → synthesis → production → integration → verification
 ```
 
-For an existing Spine, run the mechanical index from
-`documentation-first-seeding.md`.
+Only root runs `campaign.py`, edits the integration workspace, and publishes
+the live Spine. Run `next-action` after every state transition.
 
-Write `<run-root>/scope.json`:
+## Start or resume
+
+Before creating a campaign in a new session, inspect the private campaign home:
+
+```text
+python3 <skill>/scripts/campaign.py discover <campaign-home> <repository>
+```
+
+If it reports an incomplete campaign, require the operator to choose that exact
+campaign or a new run. Resume only the selected ledger:
+
+```text
+python3 <skill>/scripts/campaign.py resume-session <campaign>
+python3 <skill>/scripts/campaign.py next-action <campaign>
+```
+
+Otherwise create a unique private run directory and write `operation.json`:
 
 ```json
 {
-  "kind": "topic",
-  "title": "Kafka and related services",
-  "question": "Which components publish, consume, configure, deploy, observe, recover, or own contracts for Kafka traffic?",
-  "inclusion_rule": "Include direct Kafka runtime, contract, operational, failure, deployment, producer, and consumer responsibilities.",
-  "exclusion_rule": "Exclude components connected only through shared infrastructure or unrelated domain calls."
+  "scope": {
+    "kind": "semantic",
+    "title": "Kafka and related services",
+    "question": "Which components publish, consume, configure, deploy, observe, recover, or own Kafka contracts?",
+    "inclusion_rule": "Include direct Kafka runtime, contract, operational, producer, and consumer responsibilities.",
+    "exclusion_rule": "Exclude components connected only through shared infrastructure."
+  },
+  "completion": {"kind": "exhaustive"}
 }
 ```
 
-Use `kind: repository` only when the requested topic is the whole repository.
-Do not broaden a topic merely to make discovery easier.
-
-## Close the discovery frontier
-
-Start discovery:
+`scope.kind` is `semantic` or `repository`. Completion is
+`{"kind":"exhaustive"}` or
+`{"kind":"increment","intent":"survey|deepen|refresh|drift"}`. Repository
+increment permits only `survey`.
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py discovery-start \
-  <repository-root> <spine-root> <run-root>/scope.json \
-  <run-root>/discovery
+python3 <skill>/scripts/campaign.py init \
+  <campaign> <operation.json> \
+  --repository-root <repository> --spine-state <empty|existing>
 ```
 
-For repository scope, normally add `--inventory-accelerator`. It supplies every
-mechanically recognized text production file as neutral seed pagination. Do
-not use it for a bounded topic: semantic scouts must find the relevant files.
-
-Run the `scope-root` scout first so broad discovery starts from
-`<spine-root>/README.md` and the operator's semantic question. For repository
-scope, treat the neutral inventory packets and root child leads as the next
-level.
-
-Launch one fresh scout per packet. Execute a discovery level in strict
-subwaves of at most five without starting its children. Give each scout:
+For an existing Spine, record its exact v3 documents and checker baseline:
 
 ```text
-Read <map-skill-root>/references/discovery-task.md completely; it is your sole
-Map contract. Analyze <discovery-packet> against <repository-root> and
-<spine-root>. Write the result to <matching-discovery-result>. Do not read
-other Map references or message other agents. Terminate after writing it.
+python3 <skill>/scripts/campaign.py seed-from-spine \
+  <campaign> <spine-root>
 ```
 
-After every packet at the current level settles, launch one fresh curator with:
+This seed grants no coverage. A non-v3 root is rejected.
+
+## Discover
 
 ```text
-Read <map-skill-root>/references/frontier-curation.md completely; it is your
-sole Map contract. Read <scope.json>, the settled level results, and the compact
-registry of prior packet leads and frontier decisions. Write
-<next-frontier.json>. Do not inspect source, read other Map references, or
-message other agents. Terminate after writing it.
+python3 <skill>/scripts/campaign.py discovery-start \
+  <campaign> <repository> <spine-root> <discovery>
 ```
 
-Create the next level:
+Add `--inventory-accelerator` only for repository scope. The root packet and
+neutral inventory pages form the initial discovery layer. Give every fresh
+scout only:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py discovery-packets \
-  <run-root>/discovery/discovery-seed.json \
-  <next-frontier.json> <run-root>/discovery/wave-NNNN
+Read <skill>/references/discovery-task.md completely; it is your sole Map
+contract. Analyze <packet> against <repository> and <spine-root>. Write the
+matching result under <results> and terminate.
 ```
 
-Repeat level expansion then curation until the curator emits no queued decisions and
-every proposal is `duplicate` or `out_of_scope`. Never dispatch an additional
-file planner for evidence a semantic scout already classified. Neutral file
-packets are needed only for the repository accelerator or for a mechanically
-added bulk/orphan set that no scout classified.
+After a settled layer, give one fresh curator the operation, results, and
+compact lead registry under `frontier-curation.md`.
 
-Collect and mechanically validate the closed graph:
+- Increment: disposition every unique in-scope continuation as `defer`; queue
+  nothing.
+- Exhaustive: queue every unique in-scope continuation; defer nothing.
+
+Persist its decision and, for exhaustive work, execute the next layer:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py discovery-collect \
-  <run-root>/discovery/discovery-seed.json \
-  <run-root>/discovery <run-root>/discovery-results \
-  <run-root>/discovery-corpus.json
+python3 <skill>/scripts/campaign.py discovery-packets \
+  <discovery-seed> <frontier.json> <discovery>/wave-NNNN
 ```
 
-The collector rejects missing scout results, unclassified seed files,
-undispositioned child proposals, unknown duplicates, stale source files,
-invalid scope paths, and queued leads without results.
+Use strict scout subwaves of at most five. Safety limits establish blockage,
+never closure.
 
-## Synthesize the producer frontier
-
-Launch exactly one fresh synthesis agent:
+When the frontier is settled:
 
 ```text
-Read <map-skill-root>/references/topic-synthesis.md completely; it is your sole
-Map contract. Synthesize <discovery-corpus.json> against <repository-root> and
-check every semantic topic against <spine-root>. Write
-<run-root>/topic-plan.json. Do not read other Map references or message other
-agents. Terminate after writing it.
+python3 <skill>/scripts/campaign.py discovery-collect \
+  <campaign> <discovery-seed> <discovery> <results> \
+  <discovery-corpus.json>
 ```
 
-If `open_leads` is nonempty, do not create producers. Reopen discovery:
+## Synthesize
+
+Give the complete corpus to one fresh synthesizer under
+`topic-synthesis.md`. It writes exactly `topics`, `covered`, `supporting`,
+`open_leads`, and `deferred_leads`.
+
+- Increment reproduces the corpus `deferred_leads` exactly and returns no
+  `open_leads`.
+- Exhaustive returns no `deferred_leads`. Reopen every `open_lead`, close the
+  new frontier, collect again, and rerun whole-corpus synthesis:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py discovery-reopen \
-  <run-root>/discovery/discovery-seed.json \
-  <run-root>/topic-plan.json <run-root>/discovery/wave-NNNN
+python3 <skill>/scripts/campaign.py discovery-reopen \
+  <campaign> <discovery-seed> <topic-plan.json> \
+  <discovery>/wave-NNNN
 ```
 
-Run scouts and frontier curation again, rebuild the corpus at a new path, and
-rerun whole-corpus synthesis. Continue until `open_leads` is empty.
-
-Record the immutable scope pass:
+When synthesis is closed:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py source-pass \
-  <campaign> <repository-root> <spine-root> \
-  --discovery-corpus <run-root>/discovery-corpus-final.json \
-  --topic-plan <run-root>/topic-plan-final.json
+python3 <skill>/scripts/campaign.py source-pass \
+  <campaign> <repository> <spine-root> \
+  --discovery-corpus <corpus.json> --topic-plan <topic-plan.json>
 ```
 
-The command validates the current scope snapshot, complete evidence
-disposition, existing-Spine coverage documents and semantic claims, and then
-creates one immutable producer ToDo per uncovered semantic topic. `covered`
-and `supporting` remain auditable without producers. Candidate owners never
-close work.
+Only uncovered `topics` become producer tasks.
 
-## Dispatch producer waves
+## Produce
 
-At a wave boundary:
+For every `dispatch` action, create one strict wave:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py ready <campaign> --limit <wave-size>
+python3 <skill>/scripts/campaign.py ready <campaign> --limit 5
+python3 <skill>/scripts/campaign.py packet \
+  <campaign> <task-id> --output <packet.json>
+python3 <skill>/scripts/campaign.py assign \
+  <campaign> <task-id> --owner <fresh-producer-id>
 ```
 
-For each selected task, prepare a packet and unique sibling work/handoff paths:
+Give each fresh producer only `producer-task.md`, its packet, repository,
+Spine, private work/handoff paths, and `producer_finalize.py`. Wait for the
+whole wave without refill. Producers atomically expose checked handoffs; never
+inspect their work directories.
+
+Harvest the complete wave, inspect receipts only after the barrier, then accept
+or release tasks:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py packet \
-  <campaign> <task-id> --output <run-root>/packets/<task-id>-<attempt>.json
+python3 <skill>/scripts/campaign.py harvest-wave \
+  <campaign> <handoffs> <spine-root> <harvest-receipts>
+python3 <skill>/scripts/campaign.py accept-wave \
+  <campaign> <handoffs> <spine-root> <harvest-receipts>
 ```
 
-Give each fresh producer only:
+Acceptance validates evidence and staging but never publishes.
+
+## Integrate
+
+Read `integration-pass.md`. Create a private copy of the current Spine:
 
 ```text
-Handle exactly one exhaustive SpecSpine Map ToDo.
-Contract: read <map-skill-root>/references/producer-task.md completely; it is
-your sole Map contract. Do not read SKILL.md or any other Map reference.
-Task: <task-packet.json>; roots: repository=<repository-root>; Spine=<spine-root>
-Packages: work=<work-package>; handoff=<handoff-package>
-Finalize script: <map-skill-root>/scripts/producer_finalize.py
-Do not message other agents. Terminate after the atomic handoff.
+python3 <skill>/scripts/campaign.py prepare-integration \
+  <campaign> <spine-root> <workspace>
 ```
 
-Precompute the entire wave and emit spawn calls back-to-back. After every
-handle returns, assign the whole wave:
+Resolve ownership and duplication, merge accepted drafts, update navigation and
+manifest, disposition every task and suggestion, and write the required
+integration report. Exhaustive integration may derive evidence-backed ToDo;
+increment integration may not.
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py assign \
-  <campaign> <task-id> --owner <fresh-agent-path>
+python3 <skill>/scripts/campaign.py integration-pass \
+  <campaign> <spine-root> <workspace> <report.json>
 ```
 
-Wait for the terminal barrier without refill. Harvest all available immutable
-handoffs:
+The command checks the complete workspace and publishes the workspace plus
+ledger transition atomically. Repeat production and integration until
+`next-action` returns `finalize`.
+
+## Finish
+
+Before every response:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py harvest-wave \
-  <campaign> <run-root>/handoffs <spine-root> <run-root>/harvest
+python3 <skill>/scripts/campaign.py next-action <campaign>
 ```
 
-After every wave member is completed, failed, or cancelled, accept or release
-the whole wave:
+Follow its action: `discover`, `synthesize`, `dispatch`, `wait`, `integrate`,
+`repair`, `finalize`, or `report_blocked`. `may_finish: false` forbids a normal
+final answer. Pause only when `may_pause: true`.
+
+Finalize only a verified terminal:
 
 ```text
-python3 <map-skill-root>/scripts/campaign.py accept-wave \
-  <campaign> <run-root>/handoffs <spine-root> <run-root>/harvest
+python3 <skill>/scripts/finalize_run.py \
+  <campaign> <spine-root> --staging-root <staging>
 ```
 
-Never inspect or accept `producer-work`; only atomically renamed handoffs are
-eligible. Root reruns every acceptance check. Preserve valid siblings when one
-handoff fails. Release failed attempts only after the barrier. Never reuse a
-producer. If fresh medium-tier agents are unavailable, block actionable tasks
-instead of substituting another tier.
-
-## Integrate and derive ToDo
-
-After every settled wave, follow `integration-pass.md`: prepare one private
-workspace, disposition every result, anchor, and suggestion, then publish the
-checked workspace and ledger update atomically. Never edit live Spine between
-acceptance and integration. Repeat cumulative document history in every
-progress or final report.
-
-Repeat:
-
-```text
-ToDo → producer wave → barrier → acceptance → one integration → derived ToDo
-```
-
-An empty ready list does not skip integration: tasks may remain in `review` or
-`published`. `published` means a private accepted draft, not a live document.
-
-## Continuity and completion
-
-The durable campaign is the unit of completion. Before `source-pass`, an
-unavoidable turn boundary is clean only between discovery levels: every
-launched scout and curator has terminated, every packet/result/decision is
-durable, and no partially dispatched level exists. Report the exact run root,
-completed levels, and next frontier; this is a pause, never completion.
-
-After `source-pass`, at campaign start, after every integration, after resume,
-and before any final answer run:
-
-```text
-python3 <map-skill-root>/scripts/campaign.py next-action <campaign>
-```
-
-Follow `action`:
-
-- `dispatch` — start one bounded producer wave;
-- `wait` — wait for the assigned wave;
-- `integrate` — integrate settled results;
-- `repair` — restore current source, Spine, integration, or checker state;
-- `finalize` — run `finalize_run.py`;
-- `report_blocked` — report the concrete preserved blocker.
-
-`may_finish: false` forbids a final answer. An unavoidable platform boundary
-allows a resumable progress final only when `may_pause: true`; name the exact
-ledger and remaining counts. Never stop with assigned, review, or private
-publication work.
-
-`scope_verified` requires:
-
-- the discovery graph was closed and synthesized with no `open_leads`;
-- every producer topic is complete;
-- no `todo`, `assigned`, `review`, `published`, or `blocked` task remains;
-- every result and suggestion was integrated;
-- the recorded scope snapshot and live Spine hashes are current;
-- the v3 checker is clean and the latest integration created no ToDo.
-
-For repository scope this verifies the broad scope seeded by the flat inventory.
-For topic scope it verifies the declared semantic frontier. Neither status
-claims that no conceivable architectural concept exists.
-
-After `scope_verified`, make no further edits. Run `finalize_run.py`, report the
-scope, discovery and verification counts, publications, and uncertainty, and
-recommend `$specspine-doctor` in a separate session.
+Report the operation, exact terminal claim, inspected evidence, deferred and
+verified counts, changed Spine-relative paths, and unresolved uncertainty.

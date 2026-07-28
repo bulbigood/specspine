@@ -13,11 +13,17 @@ project-specific architectural contract. Resolve overlaps by responsibility,
 interfaces, lifecycle, state, data ownership, failures, and consumers. Inspect
 targeted repository evidence when candidate descriptions are insufficient.
 
-Before coverage classification, check the whole corpus for a responsibility,
+Before coverage classification, apply the completion policy. For exhaustive
+completion, check the whole corpus for a responsibility,
 cross-topic reference, or boundary that discovery exposed but never expanded.
 Put each such gap in `open_leads`; do not compensate by creating a vague topic.
 When `open_leads` is nonempty, the orchestrator must return them to discovery
 and rerun synthesis after the frontier closes.
+
+For increment completion, do not reopen discovery. Reproduce the corpus
+`deferred_leads` exactly and keep any additional adjacent direction inside that
+set only when it was dispositioned by frontier curation. `open_leads` must be
+empty. Do not turn a deferred lead into a producer topic.
 
 When discovery is closed, process every semantic topic one at a time. Retrieve
 relevant context from the existing `<spine-root>` using the available
@@ -69,7 +75,8 @@ Write `topic-plan.json` with exactly:
       "files": ["src/session/format.go"]
     }
   ],
-  "open_leads": []
+  "open_leads": [],
+  "deferred_leads": []
 }
 ```
 

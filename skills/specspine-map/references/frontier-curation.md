@@ -13,11 +13,30 @@ when an existing or newly queued lead will perform the same investigation.
 Mark it `out_of_scope` only with a concrete scope-rule reason. Do not use page,
 directory, framework-layer, or hierarchy names as semantic identity.
 
+Apply the packet completion policy:
+
+- exhaustive: queue every remaining unique in-scope proposal; never defer;
+- increment: queue none; merge remaining in-scope proposals into canonical
+  `defer` decisions with their lead content and a concrete deferral reason.
+
 Write exactly:
 
 ```json
 {
   "decisions": [
+    {
+      "disposition": "defer",
+      "sources": ["kafka-runtime/schema-registry"],
+      "lead": {
+        "id": "kafka-schema-ownership",
+        "title": "Kafka schema ownership",
+        "question": "Who evolves Kafka event schemas?",
+        "reason": "The mapped runtime exposes an adjacent contract boundary.",
+        "parent_ids": ["kafka-runtime"],
+        "seed_files": ["pkg/kafka/schema.go"]
+      },
+      "reason": "Increment completion records adjacent work without expanding it."
+    },
     {
       "disposition": "queue",
       "sources": [

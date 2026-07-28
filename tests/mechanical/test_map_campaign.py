@@ -1,16 +1,26 @@
+import argparse
 import hashlib
+import importlib.util
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).parents[2]
 CAMPAIGN = ROOT / "skills/specspine-map/scripts/campaign.py"
 FINALIZE = ROOT / "skills/specspine-map/scripts/finalize_run.py"
+CAMPAIGN_SPEC = importlib.util.spec_from_file_location("map_campaign", CAMPAIGN)
+assert CAMPAIGN_SPEC is not None and CAMPAIGN_SPEC.loader is not None
+CAMPAIGN_MODULE = importlib.util.module_from_spec(CAMPAIGN_SPEC)
+CAMPAIGN_SPEC.loader.exec_module(CAMPAIGN_MODULE)
+
+
 class MapCampaignTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -69,13 +79,29 @@ class MapCampaignTests(unittest.TestCase):
             "import json\nprint(json.dumps([]))\n",
             encoding="utf-8",
         )
+        self.operation = self.run / "operation.json"
+        self.operation.parent.mkdir(parents=True, exist_ok=True)
+        self.operation.write_text(
+            json.dumps(
+                {
+                    "scope": {
+                        "kind": "repository",
+                        "title": "Whole repository",
+                        "question": "Map the whole repository",
+                        "inclusion_rule": "All repository architecture is in scope.",
+                        "exclusion_rule": (
+                            "Only mechanically excluded support is out of scope."
+                        ),
+                    },
+                    "completion": {"kind": "exhaustive"},
+                }
+            ),
+            encoding="utf-8",
+        )
         self.cli(
             "init",
             str(self.ledger),
-            "--scope",
-            "whole repository",
-            "--root-question",
-            "Map repository",
+            str(self.operation),
         )
         self.integration_index = 0
         self.current_workspace = None
@@ -95,6 +121,38 @@ class MapCampaignTests(unittest.TestCase):
 
     def ledger_value(self):
         return json.loads(self.ledger.read_text(encoding="utf-8"))
+
+    def inventory(self):
+        return CAMPAIGN_MODULE.repository_inventory(
+            self.repository,
+            spine_root=self.spine,
+        )
+
+    def set_semantic_operation(self, *, completion="exhaustive", intent=None):
+        ledger = self.ledger_value()
+        ledger["operation"] = {
+            "scope": {
+                "kind": "semantic",
+                "title": "Sessions",
+                "question": "Map sessions and directly related services",
+                "inclusion_rule": "Direct session lifecycle responsibilities.",
+                "exclusion_rule": "Unrelated services.",
+            },
+            "completion": (
+                {"kind": completion, "intent": intent}
+                if completion == "increment"
+                else {"kind": "exhaustive"}
+            ),
+        }
+        self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
+
+    def copy_discovery_state(self, target):
+        corpus = self.discovery_corpus_path()
+        source = self.ledger_value()
+        ledger = json.loads(target.read_text(encoding="utf-8"))
+        ledger["discovery"] = source["discovery"]
+        target.write_text(json.dumps(ledger), encoding="utf-8")
+        return corpus
 
     def draft_evidence(self, task_id):
         marker = self.ledger_value()["tasks"][task_id]["evidence_baseline"]
@@ -141,12 +199,7 @@ class MapCampaignTests(unittest.TestCase):
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     def topic_plan_path(self):
-        inventory = self.cli(
-            "inventory",
-            str(self.repository),
-            "--spine-root",
-            str(self.spine),
-        )
+        inventory = self.inventory()
         grouped = {}
         for path in inventory["production_files"]:
             value = Path(path)
@@ -193,6 +246,7 @@ class MapCampaignTests(unittest.TestCase):
                     "covered": [],
                     "supporting": [],
                     "open_leads": [],
+                    "deferred_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -203,25 +257,12 @@ class MapCampaignTests(unittest.TestCase):
         corpus = self.run / "discovery-corpus.json"
         if corpus.exists():
             return corpus
-        scope = self.run / "scope.json"
-        scope.write_text(
-            json.dumps(
-                {
-                    "kind": "repository",
-                    "title": "Whole repository",
-                    "question": "Map the whole repository",
-                    "inclusion_rule": "All repository architecture is in scope.",
-                    "exclusion_rule": "Only mechanically excluded support is out of scope.",
-                }
-            ),
-            encoding="utf-8",
-        )
         discovery = self.run / "discovery"
         self.cli(
             "discovery-start",
+            str(self.ledger),
             str(self.repository),
             str(self.spine),
-            str(scope),
             str(discovery),
             "--inventory-accelerator",
         )
@@ -259,6 +300,7 @@ class MapCampaignTests(unittest.TestCase):
             )
         self.cli(
             "discovery-collect",
+            str(self.ledger),
             str(discovery / "discovery-seed.json"),
             str(discovery),
             str(results),
@@ -331,48 +373,44 @@ class MapCampaignTests(unittest.TestCase):
     def accept(self, task_id, payload, *, owner="/root/producer-1", expected=0):
         self.checkpoint.write_text(json.dumps(payload), encoding="utf-8")
         attempt = self.ledger_value()["tasks"][task_id]["attempts"]
-        harvest_receipt = self.run / f"harvest-{task_id}-{attempt}.json"
-        harvest = subprocess.run(
-            [
-                sys.executable,
-                str(CAMPAIGN),
-                "harvest",
-                str(self.ledger),
-                task_id,
-                str(self.checkpoint),
-                str(self.staging),
-                str(self.spine),
-                "--owner",
-                owner,
-                "--output",
-                str(harvest_receipt),
-                "--checker",
-                str(self.checker),
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        harvest_payload = json.loads(harvest.stdout or harvest.stderr)
-        if harvest.returncode != 0:
-            self.assertEqual(expected, harvest.returncode, harvest.stderr)
-            return harvest_payload
-        self.assertEqual(0, harvest.returncode, harvest.stderr)
-        return self.cli(
-            "accept",
+        handoffs = self.run / f"handoffs-{task_id}-{attempt}"
+        package = handoffs / f"{task_id}-{attempt}"
+        package.mkdir(parents=True)
+        shutil.copy2(self.checkpoint, package / "checkpoint.json")
+        shutil.copytree(self.staging, package / "staging")
+        harvest_root = self.run / f"harvest-{task_id}-{attempt}"
+        harvest = self.cli(
+            "harvest-wave",
             str(self.ledger),
-            task_id,
-            str(self.checkpoint),
-            str(self.staging),
+            str(handoffs),
             str(self.spine),
-            "--owner",
-            owner,
-            "--harvest-receipt",
-            str(harvest_receipt),
+            str(harvest_root),
+            "--checker",
+            str(self.checker),
+        )
+        if harvest["rejected"]:
+            self.assertEqual(2, expected)
+            return {"error": harvest["rejected_tasks"][0]["error"]}
+        accepted = self.cli(
+            "accept-wave",
+            str(self.ledger),
+            str(handoffs),
+            str(self.spine),
+            str(harvest_root),
             "--checker",
             str(self.checker),
             expected=expected,
         )
+        if expected:
+            return accepted
+        task = self.ledger_value()["tasks"][task_id]
+        return {
+            "status": "accepted",
+            "task_state": accepted["task_states"][task_id],
+            "suggestions_pending_review": [
+                value["id"] for value in task["producer_suggestions"]
+            ],
+        }
 
     def covered(self, task_id, evidence, *, owner="/root/producer-1"):
         self.assign(task_id, owner)
@@ -583,11 +621,88 @@ class MapCampaignTests(unittest.TestCase):
             )
         self.integrate()
 
+    def verify_single_topic_operation(self):
+        discovery = self.run / "single-topic-discovery"
+        self.cli(
+            "discovery-start",
+            str(self.ledger),
+            str(self.repository),
+            str(self.spine),
+            str(discovery),
+        )
+        packet_path = next(discovery.rglob("lead-*.json"))
+        results = self.run / "single-topic-results"
+        result_path = results / packet_path.relative_to(discovery)
+        result_path.parent.mkdir(parents=True)
+        topic = {
+            "id": "session-lifecycle",
+            "title": "Session lifecycle",
+            "responsibility": "Owns the observed session lifecycle.",
+            "reason": "The runtime exposes a durable session boundary.",
+            "files": ["src/identity/session.py"],
+        }
+        result_path.write_text(
+            json.dumps(
+                {
+                    "lead_id": "scope-root",
+                    "status": "leaf",
+                    "reason": "The directly exposed responsibility is classified.",
+                    "inspected": {
+                        "files": ["src/identity/session.py"],
+                        "queries": ["session"],
+                    },
+                    "topics": [topic],
+                    "supporting": [],
+                    "child_leads": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        corpus = self.run / "single-topic-corpus.json"
+        self.cli(
+            "discovery-collect",
+            str(self.ledger),
+            str(discovery / "discovery-seed.json"),
+            str(discovery),
+            str(results),
+            str(corpus),
+        )
+        plan = self.run / "single-topic-plan.json"
+        plan.write_text(
+            json.dumps(
+                {
+                    "topics": [topic],
+                    "covered": [],
+                    "supporting": [],
+                    "open_leads": [],
+                    "deferred_leads": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.cli(
+            "source-pass",
+            str(self.ledger),
+            str(self.repository),
+            str(self.spine),
+            "--discovery-corpus",
+            str(corpus),
+            "--topic-plan",
+            str(plan),
+        )
+        task_id = self.ledger_value()["source_pass"]["todo"][0]
+        self.covered(task_id, "src/identity/session.py")
+        self.integrate()
+        return self.cli("next-action", str(self.ledger))
+
     def test_init_uses_current_schema_and_private_ledger(self):
         ledger = self.ledger_value()
-        self.assertEqual(11, ledger["schema_version"])
+        self.assertEqual(CAMPAIGN_MODULE.SCHEMA_VERSION, ledger["schema_version"])
         contract = ROOT / "skills/specspine-map/references/producer-task.md"
-        self.assertEqual(5, ledger["producer_contract_version"])
+        self.assertEqual(
+            CAMPAIGN_MODULE.PRODUCER_CONTRACT_VERSION,
+            ledger["producer_contract_version"],
+        )
         self.assertEqual(
             hashlib.sha256(contract.read_bytes()).hexdigest(),
             ledger["producer_contract_digest"],
@@ -595,19 +710,197 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual({}, ledger["tasks"])
         self.assertEqual(0o600, self.ledger.stat().st_mode & 0o777)
 
+    def test_repository_survey_increment_reaches_increment_verified(self):
+        ledger = self.ledger_value()
+        ledger["operation"]["completion"] = {
+            "kind": "increment",
+            "intent": "survey",
+        }
+        self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
+
+        next_action = self.verify_single_topic_operation()
+
+        self.assertEqual("increment_verified", next_action["terminal"])
+        self.assertEqual("finalize", next_action["action"])
+        self.assertTrue(next_action["may_finish"])
+
+    def test_semantic_exhaustive_reaches_scope_verified(self):
+        self.set_semantic_operation()
+
+        next_action = self.verify_single_topic_operation()
+
+        self.assertEqual("scope_verified", next_action["terminal"])
+        self.assertEqual("finalize", next_action["action"])
+        self.assertTrue(next_action["may_finish"])
+
+    def test_repository_non_survey_increment_is_rejected(self):
+        for intent in ("deepen", "refresh", "drift"):
+            with self.subTest(intent=intent):
+                operation = self.run / f"invalid-{intent}-operation.json"
+                operation.write_text(
+                    json.dumps(
+                        {
+                            "scope": {
+                                "kind": "repository",
+                                "title": "Repository",
+                                "question": "Update the repository",
+                                "inclusion_rule": "All architecture.",
+                                "exclusion_rule": "Generated files.",
+                            },
+                            "completion": {
+                                "kind": "increment",
+                                "intent": intent,
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                error = self.cli(
+                    "init",
+                    str(self.run / f"invalid-{intent}-campaign.json"),
+                    str(operation),
+                    expected=2,
+                )
+                self.assertIn(
+                    "repository increment supports only survey intent",
+                    error["error"],
+                )
+
+    def test_increment_defers_child_frontier_and_finishes_without_scope_claim(self):
+        self.set_semantic_operation(completion="increment", intent="deepen")
+        discovery = self.run / "increment-discovery"
+        self.cli(
+            "discovery-start",
+            str(self.ledger),
+            str(self.repository),
+            str(self.spine),
+            str(discovery),
+        )
+        packet_path = next(discovery.rglob("lead-*.json"))
+        results = self.run / "increment-results"
+        result_path = results / packet_path.relative_to(discovery)
+        result_path.parent.mkdir(parents=True)
+        result_path.write_text(
+            json.dumps(
+                {
+                    "lead_id": "scope-root",
+                    "status": "expanded",
+                    "reason": "Session storage is adjacent to the requested lifecycle.",
+                    "inspected": {
+                        "files": ["src/identity/session.py"],
+                        "queries": ["session"],
+                    },
+                    "topics": [
+                        {
+                            "id": "session-lifecycle",
+                            "title": "Session lifecycle",
+                            "responsibility": "Owns session lifecycle.",
+                            "reason": "The requested increment exposes this boundary.",
+                            "files": ["src/identity/session.py"],
+                        }
+                    ],
+                    "supporting": [],
+                    "child_leads": [
+                        {
+                            "id": "session-storage",
+                            "title": "Session storage",
+                            "question": "Who persists sessions?",
+                            "reason": "Persistence is an adjacent responsibility.",
+                            "seed_files": ["src/identity/session.py"],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        deferred = {
+            "id": "session-storage",
+            "title": "Session storage",
+            "question": "Who persists sessions?",
+            "reason": "Persistence is an adjacent responsibility.",
+            "parent_ids": ["scope-root"],
+            "seed_files": ["src/identity/session.py"],
+            "deferral_reason": (
+                "The increment records but does not expand adjacent ownership."
+            ),
+        }
+        frontier = self.run / "increment-frontier.json"
+        frontier.write_text(
+            json.dumps(
+                {
+                    "decisions": [
+                        {
+                            "disposition": "defer",
+                            "sources": ["scope-root/session-storage"],
+                            "lead": {
+                                key: value
+                                for key, value in deferred.items()
+                                if key != "deferral_reason"
+                            },
+                            "reason": deferred["deferral_reason"],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        receipt = self.cli(
+            "discovery-packets",
+            str(discovery / "discovery-seed.json"),
+            str(frontier),
+            str(discovery / "wave-0002"),
+        )
+        self.assertEqual([], receipt["packets"])
+        self.assertEqual(1, receipt["deferred"])
+        corpus = self.run / "increment-corpus.json"
+        self.cli(
+            "discovery-collect",
+            str(self.ledger),
+            str(discovery / "discovery-seed.json"),
+            str(discovery),
+            str(results),
+            str(corpus),
+        )
+        plan = self.run / "increment-plan.json"
+        plan.write_text(
+            json.dumps(
+                {
+                    "topics": [
+                        {
+                            "id": "session-lifecycle",
+                            "title": "Session lifecycle",
+                            "responsibility": "Owns session lifecycle.",
+                            "reason": "The requested increment exposes this boundary.",
+                            "files": ["src/identity/session.py"],
+                        }
+                    ],
+                    "covered": [],
+                    "supporting": [],
+                    "open_leads": [],
+                    "deferred_leads": [deferred],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.cli(
+            "source-pass",
+            str(self.ledger),
+            str(self.repository),
+            str(self.spine),
+            "--discovery-corpus",
+            str(corpus),
+            "--topic-plan",
+            str(plan),
+        )
+        task_id = self.ledger_value()["source_pass"]["todo"][0]
+        self.covered(task_id, "src/identity/session.py")
+        self.integrate()
+        next_action = self.cli("next-action", str(self.ledger))
+        self.assertEqual("increment_verified", next_action["terminal"])
+
     def test_inventory_returns_flat_production_files_and_exclusions(self):
-        first = self.cli(
-            "inventory",
-            str(self.repository),
-            "--spine-root",
-            str(self.spine),
-        )
-        second = self.cli(
-            "inventory",
-            str(self.repository),
-            "--spine-root",
-            str(self.spine),
-        )
+        first = self.inventory()
+        second = self.inventory()
         self.assertEqual(first["digest"], second["digest"])
         self.assertEqual(
             ["pyproject.toml", "src/identity/session.py"],
@@ -636,18 +929,14 @@ class MapCampaignTests(unittest.TestCase):
                 for task_id in ledger["source_pass"]["todo"])
         )
 
-    def test_ready_and_todo_can_limit_large_frontier_output(self):
+    def test_ready_can_limit_large_frontier_output(self):
         self.source_pass()
 
         ready = self.cli("ready", str(self.ledger), "--limit", "1")
-        todo = self.cli("todo", str(self.ledger), "--limit", "1")
 
         self.assertEqual(1, ready["returned"])
         self.assertEqual(2, ready["total"])
         self.assertEqual(1, len(ready["ready"]))
-        self.assertEqual(1, todo["returned"])
-        self.assertEqual(2, todo["total"])
-        self.assertEqual(1, len(todo["todo"]))
 
     def test_ready_prioritizes_system_breadth_before_leaf_detail(self):
         (self.repository / "main.go").write_text("package main\n", encoding="utf-8")
@@ -683,28 +972,6 @@ class MapCampaignTests(unittest.TestCase):
             ready,
         )
 
-    def test_inventory_keeps_large_production_inventory_flat(self):
-        large = self.repository / "packages/big/src"
-        large.mkdir(parents=True)
-        for index in range(401):
-            (large / f"file_{index:03d}.ts").write_text(
-                f"export const value{index} = {index};\n",
-                encoding="utf-8",
-            )
-        inventory = self.cli(
-            "inventory",
-            str(self.repository),
-            "--spine-root",
-            str(self.spine),
-        )
-        files = [
-            value
-            for value in inventory["production_files"]
-            if value.startswith("packages/big/")
-        ]
-        self.assertEqual(401, len(files))
-        self.assertEqual(401, len(set(files)))
-
     def test_repository_discovery_uses_flat_inventory_as_neutral_accelerator(self):
         for directory in ("alpha", "beta"):
             root = self.repository / "packages/big" / directory
@@ -714,37 +981,19 @@ class MapCampaignTests(unittest.TestCase):
                     f"export const value{index} = {index};\n",
                     encoding="utf-8",
                 )
-        scope = self.run / "scope.json"
-        scope.write_text(
-            json.dumps(
-                {
-                    "kind": "repository",
-                    "title": "Repository",
-                    "question": "Map the repository",
-                    "inclusion_rule": "All architecture is in scope.",
-                    "exclusion_rule": "Mechanical support files are excluded.",
-                }
-            ),
-            encoding="utf-8",
-        )
         discovery = self.run / "discovery"
         receipt = self.cli(
             "discovery-start",
+            str(self.ledger),
             str(self.repository),
             str(self.spine),
-            str(scope),
             str(discovery),
             "--inventory-accelerator",
             "--page-size",
             "80",
         )
         packets = [json.loads(Path(path).read_text()) for path in receipt["packets"]]
-        inventory = self.cli(
-            "inventory",
-            str(self.repository),
-            "--spine-root",
-            str(self.spine),
-        )
+        inventory = self.inventory()
         paged = [
             path
             for packet in packets
@@ -758,7 +1007,7 @@ class MapCampaignTests(unittest.TestCase):
                     "discovery_contract_version",
                     "repository_root",
                     "spine_root",
-                    "scope",
+                    "operation",
                     "lead",
                     "source_refs",
                 }
@@ -767,25 +1016,13 @@ class MapCampaignTests(unittest.TestCase):
         )
 
     def test_topic_discovery_starts_without_repository_inventory(self):
-        scope = self.run / "scope.json"
-        scope.write_text(
-            json.dumps(
-                {
-                    "kind": "topic",
-                    "title": "Session lifecycle",
-                    "question": "Fully map session lifecycle and related services",
-                    "inclusion_rule": "Direct session lifecycle responsibilities.",
-                    "exclusion_rule": "Unrelated runtime services.",
-                }
-            ),
-            encoding="utf-8",
-        )
+        self.set_semantic_operation()
         discovery = self.run / "discovery"
         receipt = self.cli(
             "discovery-start",
+            str(self.ledger),
             str(self.repository),
             str(self.spine),
-            str(scope),
             str(discovery),
         )
         self.assertFalse(receipt["inventory_accelerator"])
@@ -803,6 +1040,7 @@ class MapCampaignTests(unittest.TestCase):
         corpus = self.run / "second-corpus.json"
         error = self.cli(
             "discovery-collect",
+            str(self.ledger),
             str(discovery / "discovery-seed.json"),
             str(discovery),
             str(results),
@@ -812,25 +1050,13 @@ class MapCampaignTests(unittest.TestCase):
         self.assertIn("missing discovery result", error["error"])
 
     def test_discovery_collect_rejects_unclosed_child_frontier(self):
-        scope = self.run / "scope.json"
-        scope.write_text(
-            json.dumps(
-                {
-                    "kind": "topic",
-                    "title": "Sessions",
-                    "question": "Map sessions",
-                    "inclusion_rule": "Session responsibilities.",
-                    "exclusion_rule": "Unrelated services.",
-                }
-            ),
-            encoding="utf-8",
-        )
+        self.set_semantic_operation()
         discovery = self.run / "discovery"
         self.cli(
             "discovery-start",
+            str(self.ledger),
             str(self.repository),
             str(self.spine),
-            str(scope),
             str(discovery),
         )
         packet_path = next(discovery.rglob("lead-*.json"))
@@ -872,6 +1098,7 @@ class MapCampaignTests(unittest.TestCase):
         )
         error = self.cli(
             "discovery-collect",
+            str(self.ledger),
             str(discovery / "discovery-seed.json"),
             str(discovery),
             str(results),
@@ -881,25 +1108,13 @@ class MapCampaignTests(unittest.TestCase):
         self.assertIn("frontier is not closed", error["error"])
 
     def test_topic_discovery_closes_recursive_semantic_frontier(self):
-        scope = self.run / "scope.json"
-        scope.write_text(
-            json.dumps(
-                {
-                    "kind": "topic",
-                    "title": "Sessions",
-                    "question": "Fully map sessions and related services",
-                    "inclusion_rule": "Direct session lifecycle responsibilities.",
-                    "exclusion_rule": "Unrelated services.",
-                }
-            ),
-            encoding="utf-8",
-        )
+        self.set_semantic_operation()
         discovery = self.run / "discovery"
         self.cli(
             "discovery-start",
+            str(self.ledger),
             str(self.repository),
             str(self.spine),
-            str(scope),
             str(discovery),
         )
         root_packet = next(discovery.rglob("lead-*.json"))
@@ -999,12 +1214,13 @@ class MapCampaignTests(unittest.TestCase):
         corpus = self.run / "topic-corpus.json"
         collected = self.cli(
             "discovery-collect",
+            str(self.ledger),
             str(discovery / "discovery-seed.json"),
             str(discovery),
             str(results),
             str(corpus),
         )
-        self.assertEqual("topic", collected["scope_kind"])
+        self.assertEqual("semantic", collected["scope_kind"])
         self.assertEqual(2, collected["leads"])
         self.assertEqual(2, collected["evidence_files"])
 
@@ -1025,6 +1241,7 @@ class MapCampaignTests(unittest.TestCase):
                             "seed_files": ["src/identity/session.py"],
                         }
                     ],
+                    "deferred_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -1044,6 +1261,7 @@ class MapCampaignTests(unittest.TestCase):
         self.assertIn("open discovery leads", error["error"])
         reopened = self.cli(
             "discovery-reopen",
+            str(self.ledger),
             str(self.run / "discovery/discovery-seed.json"),
             str(plan),
             str(self.run / "discovery/wave-0002"),
@@ -1067,6 +1285,7 @@ class MapCampaignTests(unittest.TestCase):
                     "covered": [],
                     "supporting": [],
                     "open_leads": [],
+                    "deferred_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -1105,6 +1324,7 @@ class MapCampaignTests(unittest.TestCase):
                         }
                     ],
                     "open_leads": [],
+                    "deferred_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -1149,6 +1369,7 @@ class MapCampaignTests(unittest.TestCase):
                     "covered": [],
                     "supporting": [],
                     "open_leads": [],
+                    "deferred_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -1197,6 +1418,7 @@ class MapCampaignTests(unittest.TestCase):
                     ],
                     "supporting": [],
                     "open_leads": [],
+                    "deferred_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -1247,6 +1469,7 @@ class MapCampaignTests(unittest.TestCase):
                     ],
                     "supporting": [],
                     "open_leads": [],
+                    "deferred_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -1266,80 +1489,19 @@ class MapCampaignTests(unittest.TestCase):
 
         self.assertIn("claim is not defined", error["error"])
 
-    def test_inventory_does_not_group_unrelated_sibling_directories(self):
-        for relative in (
-            "pkg/apimachinery/common/types.go",
-            "pkg/apis/iam/types.go",
-            "pkg/apiserver/filters/request.go",
-        ):
-            path = self.repository / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("package fixture\n", encoding="utf-8")
-
-        inventory = self.cli(
-            "inventory",
-            str(self.repository),
-            "--spine-root",
-            str(self.spine),
-        )
-        self.assertTrue(
-            {
-                "pkg/apimachinery/common/types.go",
-                "pkg/apis/iam/types.go",
-                "pkg/apiserver/filters/request.go",
-            }.issubset(inventory["production_files"])
-        )
-        self.assertNotIn("areas", inventory)
-
-    def test_generated_protobuf_and_mock_files_are_not_queued(self):
-        root = self.repository / "src/identity"
-        (root / "messages.pb.go").write_text("package identity", encoding="utf-8")
-        (root / "service_mock.go").write_text("package identity", encoding="utf-8")
-
-        inventory = self.cli(
-            "inventory",
-            str(self.repository),
-            "--spine-root",
-            str(self.spine),
-        )
-        generated = inventory["excluded"]["generated"]
-
-        self.assertIn("src/identity/messages.pb.go", generated)
-        self.assertIn("src/identity/service_mock.go", generated)
-
-    def test_nested_tests_fixtures_and_generated_files_are_not_queued(self):
-        root = self.repository / "src/identity"
-        (root / "testdata").mkdir()
-        (root / "test-data").mkdir()
-        (root / "generated").mkdir()
-        (root / "testdata/case.json").write_text("{}", encoding="utf-8")
-        (root / "test-data/case.json").write_text("{}", encoding="utf-8")
-        (root / "generated/client.ts").write_text("export {}", encoding="utf-8")
-        (root / "session_test.go").write_text("package identity", encoding="utf-8")
-        source = self.cli(
-            "inventory",
-            str(self.repository),
-            "--spine-root",
-            str(self.spine),
-        )
-        terminal_members = {
-            path for values in source["excluded"].values() for path in values
-        }
-        self.assertIn("src/identity/testdata/case.json", terminal_members)
-        self.assertIn("src/identity/test-data/case.json", terminal_members)
-        self.assertIn("src/identity/generated/client.ts", terminal_members)
-        self.assertIn("src/identity/session_test.go", terminal_members)
-        self.assertEqual(
-            ["pyproject.toml", "src/identity/session.py"],
-            source["production_files"],
-        )
-
-    def test_static_assets_locks_and_github_files_are_not_production_topics(self):
+    def test_inventory_classifies_nonproduction_files(self):
         additions = {
+            "src/identity/messages.pb.go": "package identity",
+            "src/identity/service_mock.go": "package identity",
+            "src/identity/testdata/case.json": "{}",
+            "src/identity/test-data/case.json": "{}",
+            "src/identity/generated/client.ts": "export {}",
+            "src/identity/session_test.go": "package identity",
             "public/img/icon.svg": "<svg/>",
             "public/locales/en-US/messages.json": "{}",
             "go.sum": "checksum",
             ".github/workflows/build.yml": "name: build",
+            ".vscode/settings.json": "{}",
             ".gitignore": "dist/",
             "packages/ui/LICENSE_APACHE2": "license",
             "packages/ui/src/Button.mdx": "# Button",
@@ -1350,13 +1512,21 @@ class MapCampaignTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(body, encoding="utf-8")
 
-        inventory = self.cli(
-            "inventory",
-            str(self.repository),
-            "--spine-root",
-            str(self.spine),
-        )
+        inventory = self.inventory()
 
+        generated = inventory["excluded"]["generated"]
+        self.assertIn("src/identity/messages.pb.go", generated)
+        self.assertIn("src/identity/service_mock.go", generated)
+        terminal_members = {
+            path for values in inventory["excluded"].values() for path in values
+        }
+        for relative in (
+            "src/identity/testdata/case.json",
+            "src/identity/test-data/case.json",
+            "src/identity/generated/client.ts",
+            "src/identity/session_test.go",
+        ):
+            self.assertIn(relative, terminal_members)
         self.assertIn("public/img/icon.svg", inventory["excluded"]["opaque-asset"])
         self.assertIn(
             "public/locales/en-US/messages.json",
@@ -1369,11 +1539,16 @@ class MapCampaignTests(unittest.TestCase):
         )
         for relative in (
             ".gitignore",
+            ".vscode/settings.json",
             "packages/ui/LICENSE_APACHE2",
             "packages/ui/src/Button.mdx",
             "packages/ui/tsconfig.build.json",
         ):
             self.assertIn(relative, inventory["excluded"]["repository-support"])
+        self.assertEqual(
+            ["pyproject.toml", "src/identity/session.py"],
+            inventory["production_files"],
+        )
 
     def test_candidate_owner_search_uses_every_member_not_only_samples(self):
         root = self.repository / "src/identity"
@@ -1409,22 +1584,6 @@ class MapCampaignTests(unittest.TestCase):
         self.assertGreaterEqual(len(task["documents"]), 1)
         self.assertLessEqual(len(task["documents"]), 12)
 
-    def test_local_editor_directories_are_repository_support(self):
-        editor = self.repository / ".vscode"
-        editor.mkdir()
-        (editor / "settings.json").write_text("{}", encoding="utf-8")
-        source = self.cli(
-            "inventory",
-            str(self.repository),
-            "--spine-root",
-            str(self.spine),
-        )
-        self.assertIn(
-            ".vscode/settings.json",
-            source["excluded"]["repository-support"],
-        )
-        self.assertNotIn(".vscode/settings.json", source["production_files"])
-
     def test_broad_existing_owner_cannot_eliminate_verification_todo(self):
         self.source_pass()
         task_id, task = self.task_for_unit("src/identity")
@@ -1433,7 +1592,10 @@ class MapCampaignTests(unittest.TestCase):
         self.assertIn(task_id, self.cli("ready", str(self.ledger))["ready"])
         packet = self.cli("packet", str(self.ledger), task_id)
         self.assertEqual(task_id, packet["task"]["id"])
-        self.assertEqual(5, packet["producer_contract"]["version"])
+        self.assertEqual(
+            CAMPAIGN_MODULE.PRODUCER_CONTRACT_VERSION,
+            packet["producer_contract"]["version"],
+        )
         self.assertEqual(
             self.ledger_value()["producer_contract_digest"],
             packet["producer_contract"]["digest"],
@@ -1477,10 +1639,7 @@ class MapCampaignTests(unittest.TestCase):
         self.cli(
             "init",
             str(early_ledger),
-            "--scope",
-            "whole repository",
-            "--root-question",
-            "Map repository",
+            str(self.operation),
             "--repository-root",
             str(self.repository),
         )
@@ -1544,15 +1703,18 @@ class MapCampaignTests(unittest.TestCase):
             error["error"],
         )
 
-    def test_previous_campaign_schema_is_rejected_without_migration(self):
+    def test_unsupported_campaign_schema_is_rejected(self):
         ledger = self.ledger_value()
         ledger["schema_version"] = 10
         self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
 
-        error = self.cli("summary", str(self.ledger), expected=2)
+        error = self.cli("next-action", str(self.ledger), expected=2)
 
         self.assertIn("unsupported campaign schema", error["error"])
-        self.assertIn("expected 11", error["error"])
+        self.assertIn(
+            f"expected {CAMPAIGN_MODULE.SCHEMA_VERSION}",
+            error["error"],
+        )
 
     def test_contract_change_requires_new_campaign(self):
         self.source_pass()
@@ -1616,10 +1778,7 @@ class MapCampaignTests(unittest.TestCase):
         self.cli(
             "init",
             str(ledger),
-            "--scope",
-            "whole repository",
-            "--root-question",
-            "Map repository",
+            str(self.operation),
             "--spine-state",
             "existing",
         )
@@ -1636,15 +1795,12 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertIn("seed-from-spine", error["error"])
 
-    def test_documentation_seed_is_mechanical_and_needs_no_ai_plan(self):
+    def test_existing_spine_seed_records_baseline_without_granting_coverage(self):
         ledger = self.run / "existing-seeded.json"
         self.cli(
             "init",
             str(ledger),
-            "--scope",
-            "whole repository",
-            "--root-question",
-            "Map repository",
+            str(self.operation),
             "--spine-state",
             "existing",
         )
@@ -1655,13 +1811,20 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertEqual(2, receipt["documents"])
         self.assertEqual([], receipt["added_todo"])
+        self.assertEqual(
+            [],
+            json.loads(ledger.read_text(encoding="utf-8"))[
+                "documentation_seed"
+            ]["todo"],
+        )
+        corpus = self.copy_discovery_state(ledger)
         self.cli(
             "source-pass",
             str(ledger),
             str(self.repository),
             str(self.spine),
             "--discovery-corpus",
-            str(self.discovery_corpus_path()),
+            str(corpus),
             "--topic-plan",
             str(self.topic_plan_path()),
         )
@@ -1671,10 +1834,7 @@ class MapCampaignTests(unittest.TestCase):
         self.cli(
             "init",
             str(ledger),
-            "--scope",
-            "whole repository",
-            "--root-question",
-            "Map repository",
+            str(self.operation),
             "--spine-state",
             "existing",
             "--repository-root",
@@ -1700,10 +1860,7 @@ class MapCampaignTests(unittest.TestCase):
         self.cli(
             "init",
             str(ledger),
-            "--scope",
-            "whole repository",
-            "--root-question",
-            "Map repository",
+            str(self.operation),
             "--spine-state",
             "existing",
             "--repository-root",
@@ -1723,36 +1880,24 @@ class MapCampaignTests(unittest.TestCase):
                 for finding in baseline["documentation_seed"]["checker_baseline"]
             },
         )
+        corpus = self.copy_discovery_state(ledger)
         self.cli(
             "source-pass",
             str(ledger),
             str(self.repository),
             str(self.spine),
             "--discovery-corpus",
-            str(self.discovery_corpus_path()),
+            str(corpus),
             "--topic-plan",
             str(self.topic_plan_path()),
         )
-
-    def test_old_producer_contract_version_is_rejected(self):
-        ledger = self.ledger_value()
-        ledger["producer_contract_version"] = 1
-        self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
-
-        error = self.cli("resume-session", str(self.ledger), expected=2)
-
-        self.assertIn("current producer contract", error["error"])
-        self.assertIn("start a new campaign", error["error"])
 
     def test_source_pass_rejects_checker_finding_added_after_seed(self):
         ledger = self.run / "new-defect-after-seed.json"
         self.cli(
             "init",
             str(ledger),
-            "--scope",
-            "whole repository",
-            "--root-question",
-            "Map repository",
+            str(self.operation),
             "--spine-state",
             "existing",
             "--repository-root",
@@ -1831,10 +1976,12 @@ class MapCampaignTests(unittest.TestCase):
         task_id, _ = self.task_for_unit("src/identity")
         receipt = self.covered(task_id, "src/identity/session.py")
         self.assertEqual("review", receipt["task_state"])
-        summary = self.cli("summary", str(self.ledger))
-        self.assertFalse(summary["terminal_gates"]["publications_integrated"])
+        next_action = self.cli("next-action", str(self.ledger))
+        self.assertFalse(
+            next_action["terminal_gates"]["publications_integrated"]
+        )
 
-    def test_harvest_is_read_only_and_accept_rejects_changed_handoff(self):
+    def test_harvest_wave_is_read_only_and_accept_wave_rejects_changed_handoff(self):
         self.source_pass()
         task_id, _ = self.task_for_unit("src/identity")
         self.assign(task_id)
@@ -1853,57 +2000,51 @@ class MapCampaignTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        receipt_path = self.run / "harvest.json"
+        handoffs = self.run / "handoffs"
+        package = handoffs / f"{task_id}-1"
+        package.mkdir(parents=True)
+        shutil.copy2(self.checkpoint, package / "checkpoint.json")
+        shutil.copytree(self.staging, package / "staging")
+        harvest_root = self.run / "harvest"
         before = self.ledger_value()
         receipt = self.cli(
-            "harvest",
+            "harvest-wave",
             str(self.ledger),
-            task_id,
-            str(self.checkpoint),
-            str(self.staging),
+            str(handoffs),
             str(self.spine),
-            "--owner",
-            "/root/producer-1",
-            "--output",
-            str(receipt_path),
+            str(harvest_root),
             "--checker",
             str(self.checker),
         )
         self.assertEqual(before, self.ledger_value())
-        self.assertEqual("harvested", receipt["status"])
+        self.assertEqual(1, receipt["harvested"])
         repeated = self.cli(
-            "harvest",
+            "harvest-wave",
             str(self.ledger),
-            task_id,
-            str(self.checkpoint),
-            str(self.staging),
+            str(handoffs),
             str(self.spine),
-            "--owner",
-            "/root/producer-1",
-            "--output",
-            str(receipt_path),
+            str(harvest_root),
             "--checker",
             str(self.checker),
         )
-        self.assertEqual("already_harvested", repeated["status"])
+        self.assertEqual(1, repeated["already_harvested"])
         self.assertEqual(before, self.ledger_value())
-        staged.write_text("# Changed after harvest\n", encoding="utf-8")
+        handed_off = package / "staging" / "identity.md"
+        handed_off.write_text(
+            handed_off.read_text(encoding="utf-8") + "\nChanged after harvest.\n",
+            encoding="utf-8",
+        )
         error = self.cli(
-            "accept",
+            "accept-wave",
             str(self.ledger),
-            task_id,
-            str(self.checkpoint),
-            str(self.staging),
+            str(handoffs),
             str(self.spine),
-            "--owner",
-            "/root/producer-1",
-            "--harvest-receipt",
-            str(receipt_path),
+            str(harvest_root),
             "--checker",
             str(self.checker),
             expected=2,
         )
-        self.assertIn("changed after harvest", error["error"])
+        self.assertIn("changed after wave harvest", error["error"])
         self.assertEqual("assigned", self.ledger_value()["tasks"][task_id]["state"])
 
     def test_wave_commands_derive_paths_without_shell_parsing(self):
@@ -2334,6 +2475,44 @@ class MapCampaignTests(unittest.TestCase):
         self.assertFalse((self.spine / "identity.md").exists())
         self.assertEqual("published", self.ledger_value()["tasks"][task_id]["state"])
 
+    def test_ledger_write_failure_rolls_back_published_spine(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.covered(task_id, "src/identity/session.py")
+        workspace = self.prepare_integration()
+        with (workspace / "README.md").open("a", encoding="utf-8") as stream:
+            stream.write("\nRollback candidate content.\n")
+        report = self.integration_report(workspace=workspace)
+        report_path = self.run / "rollback-integration.json"
+        report_path.write_text(json.dumps(report), encoding="utf-8")
+        before_ledger = self.ledger.read_bytes()
+        before_documents = CAMPAIGN_MODULE.document_hashes(self.spine)
+
+        args = argparse.Namespace(
+            ledger=self.ledger,
+            spine_root=self.spine,
+            workspace=workspace,
+            report=report_path,
+            checker=self.checker,
+        )
+        with mock.patch.object(
+            CAMPAIGN_MODULE,
+            "save_locked",
+            side_effect=OSError("injected ledger write failure"),
+        ):
+            with self.assertRaisesRegex(OSError, "injected ledger write failure"):
+                CAMPAIGN_MODULE.command_integration_pass(args)
+
+        self.assertEqual(before_ledger, self.ledger.read_bytes())
+        self.assertEqual(
+            before_documents,
+            CAMPAIGN_MODULE.document_hashes(self.spine),
+        )
+        self.assertEqual(
+            [],
+            list(self.spine.parent.glob(f".{self.spine.name}.map-*")),
+        )
+
     def test_candidate_checker_receives_live_root_and_staging_path(self):
         self.source_pass()
         task_id, _ = self.task_for_unit("src/identity")
@@ -2563,11 +2742,6 @@ class MapCampaignTests(unittest.TestCase):
             ],
             ledger["document_change_history"],
         )
-        summary = self.cli("summary", str(self.ledger))
-        self.assertEqual(
-            ledger["document_change_history"],
-            summary["document_change_history"],
-        )
 
     def test_integration_rejects_incomplete_document_change_report(self):
         self.source_pass()
@@ -2610,14 +2784,11 @@ class MapCampaignTests(unittest.TestCase):
 
     def test_scope_verified_requires_every_unit_and_empty_integration(self):
         self.verify_all_source_units()
-        summary = self.cli("summary", str(self.ledger))
-        self.assertEqual("scope_verified", summary["terminal"])
-        self.assertTrue(all(summary["terminal_gates"].values()))
         next_action = self.cli("next-action", str(self.ledger))
+        self.assertEqual("scope_verified", next_action["terminal"])
+        self.assertTrue(all(next_action["terminal_gates"].values()))
         self.assertTrue(next_action["may_finish"])
         self.assertEqual("finalize", next_action["action"])
-        coverage = self.cli("coverage-report", str(self.ledger))
-        self.assertEqual("scope_verified", coverage["coverage_claim"])
 
     def test_unclean_v3_integration_requires_repair_before_finalize(self):
         self.verify_all_source_units()
@@ -2625,11 +2796,10 @@ class MapCampaignTests(unittest.TestCase):
         ledger["integration_pass"]["checker_clean"] = False
         self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
 
-        summary = self.cli("summary", str(self.ledger))
         next_action = self.cli("next-action", str(self.ledger))
 
-        self.assertFalse(summary["terminal_gates"]["spine_v3_clean"])
-        self.assertIsNone(summary["terminal"])
+        self.assertFalse(next_action["terminal_gates"]["spine_v3_clean"])
+        self.assertIsNone(next_action["terminal"])
         self.assertEqual("repair", next_action["action"])
         self.assertFalse(next_action["may_finish"])
 
@@ -2643,6 +2813,67 @@ class MapCampaignTests(unittest.TestCase):
             next_action["response_policy"],
         )
         self.assertGreater(next_action["counts"]["todo"], 0)
+
+    def test_next_action_routes_every_preproduction_state(self):
+        initial = self.cli("next-action", str(self.ledger))
+        self.assertEqual("discover", initial["action"])
+        self.assertFalse(initial["may_pause"])
+
+        for status, action, may_pause in (
+            ("discovering", "discover", False),
+            ("synthesis", "synthesize", True),
+            ("invalid", "repair", False),
+        ):
+            with self.subTest(status=status):
+                ledger = self.ledger_value()
+                ledger["discovery"] = {"status": status}
+                self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
+                result = self.cli("next-action", str(self.ledger))
+                self.assertEqual(action, result["action"])
+                self.assertEqual(may_pause, result["may_pause"])
+                self.assertFalse(result["may_finish"])
+
+    def test_next_action_waits_then_integrates_settled_results(self):
+        self.source_pass()
+        task_id, task = self.task_for_unit("src/identity")
+        self.assign(task_id)
+
+        waiting = self.cli("next-action", str(self.ledger))
+        self.assertEqual("wait", waiting["action"])
+        self.assertEqual(1, waiting["counts"]["assigned"])
+
+        self.accept(
+            task_id,
+            self.checkpoint_payload(
+                outcome="covered",
+                evidence=task["evidence"],
+            ),
+        )
+        integrating = self.cli("next-action", str(self.ledger))
+        self.assertEqual("integrate", integrating["action"])
+        self.assertEqual(1, integrating["counts"]["review"])
+
+    def test_blocked_producers_reach_report_blocked(self):
+        self.source_pass()
+        ledger = self.ledger_value()
+        for index, task_id in enumerate(ledger["source_pass"]["todo"]):
+            task = ledger["tasks"][task_id]
+            owner = f"/root/blocked-producer-{index}"
+            self.assign(task_id, owner)
+            receipt = self.accept(
+                task_id,
+                self.checkpoint_payload(
+                    outcome="blocked",
+                    evidence=task["evidence"],
+                ),
+                owner=owner,
+            )
+            self.assertEqual("blocked", receipt["task_state"])
+
+        result = self.cli("next-action", str(self.ledger))
+        self.assertEqual("blocked", result["terminal"])
+        self.assertEqual("report_blocked", result["action"])
+        self.assertTrue(result["may_finish"])
 
     def test_integration_evidence_may_be_relevant_live_subset(self):
         self.source_pass()
@@ -2668,9 +2899,11 @@ class MapCampaignTests(unittest.TestCase):
             "SESSION = False\nRECOVERY = True\n",
             encoding="utf-8",
         )
-        summary = self.cli("summary", str(self.ledger))
-        self.assertFalse(summary["terminal_gates"]["scope_snapshot_current"])
-        self.assertIsNone(summary["terminal"])
+        next_action = self.cli("next-action", str(self.ledger))
+        self.assertFalse(
+            next_action["terminal_gates"]["operation_snapshot_current"]
+        )
+        self.assertIsNone(next_action["terminal"])
 
     def test_live_spine_change_invalidates_integration(self):
         self.verify_all_source_units()
@@ -2678,9 +2911,9 @@ class MapCampaignTests(unittest.TestCase):
             "# Architecture\n\nChanged after integration.\n",
             encoding="utf-8",
         )
-        summary = self.cli("summary", str(self.ledger))
-        self.assertFalse(summary["terminal_gates"]["integration_current"])
-        self.assertIsNone(summary["terminal"])
+        next_action = self.cli("next-action", str(self.ledger))
+        self.assertFalse(next_action["terminal_gates"]["integration_current"])
+        self.assertIsNone(next_action["terminal"])
 
     def test_finalize_requires_scope_verified(self):
         self.verify_all_source_units()

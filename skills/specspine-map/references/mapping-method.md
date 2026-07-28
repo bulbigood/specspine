@@ -1,183 +1,88 @@
 # SpecSpine brownfield mapping method
 
-Discover durable architecture without turning SpecSpine into a source-code
-catalog. `SKILL.md` defines the scope and stopping point of one Map operation;
-the format and semantics references define valid artifacts and claim authority.
+Discover durable architecture without reproducing the source tree.
 
-## Contents
+## Search from shape to detail
 
-- [Discovery strategy](#discovery-strategy)
-- [Evidence signals](#evidence-signals)
-- [Choosing specification nodes](#choosing-specification-nodes)
-- [Mapping modes](#mapping-modes)
-- [Coverage and depth](#coverage-and-depth)
-- [Evidence discipline](#evidence-discipline)
-- [Search stopping signals](#search-stopping-signals)
-- [Failure modes](#failure-modes)
+Read only enough evidence to resolve architectural boundaries:
 
-## Discovery strategy
+1. Existing SpecSpine and repository architecture documentation.
+2. Workspace, build, and package manifests.
+3. Runtime entry points and composition roots.
+4. Deployment and runtime configuration.
+5. Public interfaces, consumers, schedulers, and commands.
+6. Owned schemas, migrations, and contracts.
+7. Representative integration and failure tests.
+8. Local implementation required by a remaining architectural question.
 
-Start with system shape, then inspect internals only where boundaries remain
-unclear. A useful sequence is:
+Prefer sources that expose ownership, runtime shape, interfaces, state,
+lifecycle, cross-component behavior, or failure handling. Documentation may be
+stale; package and directory boundaries may be incidental; test structure may
+reflect fixtures.
 
-1. Existing SpecSpine documents and repository architecture documentation.
-2. Package, workspace, and build manifests.
-3. Top-level directories.
-4. Runtime entry points and composition roots.
-5. Deployment, container, process, and runtime configuration.
-6. Public interfaces, routes, consumers, schedulers, and commands.
-7. Schemas, migrations, and owned contracts.
-8. Representative integration or end-to-end tests.
-9. Local implementation needed to resolve remaining architectural questions.
+## Choose semantic topics
 
-Adapt the order to the requested scope; this is not a checklist.
+Prefer independently evolving responsibilities:
 
-## Evidence signals
+- deployable runtime components;
+- domain or capability ownership;
+- persistence and contract ownership;
+- significant external integrations;
+- project-specific cross-cutting behavior.
 
-| Source | Usually reveals | Common misreading |
-|---|---|---|
-| Root documentation | Product purpose, named components, stated architecture | Documentation may be stale |
-| Manifests and workspace configuration | Packages, executables, dependencies, technology choices | A package is not automatically an architectural boundary |
-| Entry points and composition roots | Runtime components, dependency assembly, public adapters | Framework wiring may obscure the durable responsibility |
-| Routes, consumers, schedulers, commands | Capabilities, external inputs, integrations, asynchronous behavior | A handler does not deserve its own specification |
-| Schemas and migrations | Durable concepts, ownership clues, lifecycle constraints | A table is not automatically a subsystem |
-| Integration and end-to-end tests | Significant behavior, failure cases, hidden contracts | Test structure may reflect fixtures rather than architecture |
-| Deployment and operations files | Deployable units, external services, process relationships, scaling boundaries | Infrastructure layout may not express domain ownership |
+Reject topics based only on generic layers, utilities, individual
+classes/endpoints, framework wiring, generated code, or one-off scripts.
 
-Prefer sources that expose boundaries, ownership, runtime shape, or
-cross-component behavior. Use local implementation only to answer a concrete
-architectural uncertainty.
-
-## Choosing specification nodes
-
-Prefer durable architectural concepts such as:
-
-- a deployable runtime component;
-- a domain or capability boundary;
-- a shared platform responsibility;
-- persistence ownership;
-- a significant integration;
-- a cross-cutting concern with project-specific rules.
-
-Avoid nodes based only on utility directories, generic framework layers,
-individual classes or endpoints, generated code, trivial adapters, or one-off
-scripts.
-
-For a candidate node, ask:
+For each candidate ask:
 
 1. Does it own a distinct responsibility?
-2. Would an agent navigate to it for a class of changes?
-3. Does it have meaningful boundaries, relationships, or decisions?
+2. Would an agent navigate here for a class of changes?
+3. Does it have meaningful boundaries, relationships, state, or decisions?
 4. Can it evolve independently?
-5. Is it more stable than the current file layout?
+5. Is it more stable than the file layout?
 
-If most answers are no, describe it within a broader specification. Apply the
-canonical decomposition and ownership rules from `spec-format.md` when writing
-or restructuring files.
+If most answers are no, merge it into a broader owner. Apply the canonical
+decomposition rules from `spec-format.md`.
 
-## Mapping modes
+## Apply the operation policy
 
-### Initial survey
+For `survey`, establish a small linked skeleton of major runtime, capability,
+ownership, and data-flow boundaries. For `deepen`, start from an existing owner
+and its direct relationships. For `refresh` or `drift`, inspect only affected
+specifications and source areas, preserve accepted intent, and record
+unresolved disagreement.
 
-Establish a small number of linked entry points covering major runtime,
-capability, ownership, and data-flow boundaries. Keep each file concise. Follow
-the organization rules and templates routed from `SKILL.md`; do not reproduce
-the repository tree.
+An increment settles one initial discovery layer and defers directly exposed
+continuations. Exhaustive work expands every in-scope lead by one semantic
+level until the frontier closes. A flat file inventory may seed repository
+scope but never defines topics.
 
-### Deepening a branch
+Each scout proposes only directly exposed child questions. Synthesis merges
+the complete corpus by responsibility, checks each topic against existing
+canonical SpecSpine claims, and accounts for every evidence file. A path match,
+navigation entry, or broad neighboring owner is not coverage.
 
-Start from the existing specification and its direct relationships. Inspect
-public entry points, representative behavior tests, owned schemas or contracts,
-integration edges, and only then necessary local internals. Update the smallest
-affected specification set. Split a node only under the canonical decomposition
-rules.
+One topic does not imply one document. Several topics may converge on one
+canonical owner; one topic may expose multiple independent owners. Producers
+verify assigned topics and may suggest narrower questions, but root decides
+final ownership.
 
-### Refreshing after code changes
+Dispatch source topics breadth-first: establish runtimes, manifests,
+composition, command entry points, and peer families before leaf depth. Do not
+let alphabetical path order or one large subtree define the system skeleton.
 
-Start from affected specifications and the relevant diff or changed areas.
-Update observations, preserve accepted intent, and record unresolved drift.
-Refresh an evidence baseline only for observations actually rechecked against
-the named source. Do not remap the whole repository for a local change.
+## Preserve evidence semantics
 
-## Coverage and depth
+Use `spec-semantics.md` as the sole authority for observation, intent,
+interpretation, and uncertainty. Repetition in code does not establish accepted
+intent. Preserve normative questions verbatim; repository evidence cannot
+answer what the system should guarantee.
 
-Every exhaustive campaign closes an operator-defined semantic scope. Discovery
-starts broad, expands each in-scope lead by one semantic level with a fresh
-scout, and uses a fresh curator between waves to merge duplicate child leads
-before they multiply. The whole repository is the same workflow with a broad
-scope. A mechanical flat list of text production files may accelerate that
-initial discovery; it does not define topics, owners, coverage, or completion.
+Cite representative concrete paths that support non-obvious claims or future
+navigation. Paths are evidence, not document structure. Stop reading when
+ownership, boundaries, significant behavior, dependencies, state, and failure
+surfaces are understood and further detail would reproduce implementation.
 
-Each scout classifies its seed evidence and proposes only directly exposed
-in-scope children. Discovery ends when every proposal is queued and expanded,
-merged with an equivalent lead, or rejected by the explicit exclusion rule.
-Safety budgets establish blockage, never closure. One final synthesis pass
-merges the complete candidate corpus, reopens discovery for missing boundaries,
-checks every closed topic against canonical SpecSpine coverage, and assigns
-every evidence file before `source-pass` creates producer ToDo only for
-uncovered topics.
-
-Existing path references produce candidate owners, never terminal coverage.
-Each synthesized topic remains open until a one-shot producer either publishes
-the missing observation or proves coverage through concrete source evidence
-and existing owner semantic IDs. Root must not replace semantic synthesis with
-regex ownership, directory-name inference, a broad fallback owner, or prose
-classification.
-
-Discovery leads, hierarchy, and inventory pages are provenance, not
-architecture models. One synthesized topic does not imply one document: several topics may
-converge on one canonical owner, while one topic may expose several genuinely
-independent responsibilities. A producer maps only its assigned question and
-suggests narrower directions.
-Map may deepen repository-observable uncertainty. Preserve questions about what
-the system should guarantee verbatim; repository evidence cannot answer them.
-
-Dispatch the frontier breadth-first. Establish repository runtime and
-manifests, composition and command entry points, and distinct top-level runtime
-families before leaf feature depth or repository tooling. Round-robin peer
-families; do not let alphabetical path order make one large subtree define the
-system skeleton.
-
-Use the quality and compression criteria in `spec-format.md` as the depth gate.
-The primary test is qualitative: ownership is accounted for, normal and
-significant edge or failure behavior are understandable, relationships are
-navigable, and the documentation adds non-local information without replaying
-source. A summary-to-production-source ratio near `1:10` is only a campaign
-diagnostic. Never pad prose to reach it or discard useful diagrams, contracts,
-constraints, decisions, or questions to stay below it.
-
-## Evidence discipline
-
-Use `spec-semantics.md` as the sole definition of intent, evidence,
-interpretation, and uncertainty. Repository repetition does not establish
-accepted intent.
-
-Cite only representative locations that support non-obvious claims or help
-future navigation. Do not let paths become the main content; record them using
-the syntax from `spec-format.md`.
-
-## Search stopping signals
-
-For a focused branch, stop expanding the evidence search when the relevant
-production area is classified, the responsibility, boundary, significant
-behavior, dependencies, edge and failure surfaces are known, and remaining
-detail is local implementation or has low architectural value. A broad survey
-does not stop until its directly exposed independent responsibilities are
-classified into owners or child branches.
-
-## Failure modes
-
-- **Mirroring directories:** model responsibilities, capabilities, runtimes,
-  ownership, and relationships instead.
-- **Mapping too deeply too early:** establish system shape before subsystem
-  internals.
-- **Treating names as intent:** verify names through usage, tests, interfaces,
-  and accepted documentation.
-- **Canonizing technical debt:** record repository structure as observed unless
-  its intended status is established.
-- **Excessive path references:** use paths as evidence and navigation aids, not
-  as the document structure.
-- **Word-target writing:** use compression ratios only to diagnose suspicious
-  undercoverage or source duplication, never to allocate prose.
-- **Claiming completeness:** report qualitative remaining coverage and
-  uncertainty.
+Use the compression criteria in `spec-format.md` qualitatively. Documentation
+must add non-local information and remain sufficient for reconstruction; never
+pad prose to meet a word or source ratio.
