@@ -95,19 +95,19 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
         }
     )
     ledger_digest = hashlib.sha256(campaign.canonical_json(ledger)).hexdigest()
-    source_inventory = ledger["source_pass"]["inventory"]
+    source = ledger["source_pass"]
+    excluded = source.get("excluded", {})
     inventory_counts = {
-        classification: sum(
-            value.get("classification") == classification
-            for value in source_inventory.values()
+        classification: (
+            len(source.get("production_files", []))
+            if classification == "queued"
+            else len(excluded.get(classification, []))
         )
         for classification in sorted(campaign.SOURCE_CLASSIFICATIONS)
     }
     verified_units = sum(
-        value.get("classification") == "queued"
-        and value.get("task") in ledger["tasks"]
-        and ledger["tasks"][value["task"]]["state"] == "complete"
-        for value in source_inventory.values()
+        ledger["tasks"].get(task_id, {}).get("state") == "complete"
+        for task_id in source.get("todo", [])
     )
     return {
         "status": "finalized",
@@ -128,7 +128,10 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
             "markdown_total": len(actual_documents),
         },
         "inventory_classifications": inventory_counts,
-        "verified_production_units": verified_units,
+        "verified_topics": verified_units,
+        "existing_spine_covered_topics": len(
+            source.get("topic_plan", {}).get("covered", [])
+        ),
         "spine_root": str(args.spine_root.resolve()),
     }
 

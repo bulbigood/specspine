@@ -18,6 +18,10 @@ The root orchestrator must:
 1. Read every private draft and `covered`, `answered`, `unresolved`, or
    `supporting` receipt, its claimed owner, and relevant graph neighbors.
 2. Confirm or correct ownership, boundaries, terminology, and non-duplication.
+   Treat `architecture_unit` as a synthesized topic, not a required document
+   path. Correct its final ownership when evidence demands it; never publish a
+   models/utils/services document merely because the repository has that
+   directory.
 3. Add navigation needed for reachability and comprehension.
 4. Add architectural edges through canonical `Relationships` tables; never add
    reciprocal rows only for navigation.
@@ -32,8 +36,11 @@ The root orchestrator must:
    integrated documents for narrower unanswered mechanisms,
    transitions, failures, ownership questions, and consequences.
 9. Update `specspine.json` in the same batch: add or remove area entries with
-   their owners, set only evidence-supported facets, preserve normative facets
-   and blockers, and register no asset a producer did not publish and own.
+    their owners, set only evidence-supported facets, preserve normative facets
+    and blockers, and register no asset a producer did not publish and own.
+    Retain the exact campaign-supplied evidence baseline in every integrated
+    source publication; do not invent `repository`, `no-git`, or path-shaped
+    baseline values.
 10. Append every accepted refinement to persistent ToDo. Do not investigate it
    during integration.
 11. Run the full checker on the workspace. The campaign supplies its recorded repository

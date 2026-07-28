@@ -31,8 +31,8 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCHEMA_VERSION = 8
-PRODUCER_CONTRACT_VERSION = 4
+SCHEMA_VERSION = 10
+PRODUCER_CONTRACT_VERSION = 5
 MAX_UNIT_FILES = 80
 MAX_CANDIDATE_DOCUMENTS = 12
 TASK_STATES = {"todo", "assigned", "review", "published", "complete", "blocked"}
@@ -47,7 +47,9 @@ CHECKPOINT_STATUSES = {
 }
 SOURCE_CLASSIFICATIONS = {
     "queued",
+    "dependency-lock",
     "generated",
+    "opaque-asset",
     "vendored",
     "test-only",
     "repository-support",
@@ -62,6 +64,10 @@ REVIEW_DISPOSITIONS = {
 }
 ANCHOR_DISPOSITIONS = {"resolved", "refined", "still-open", "blocking"}
 OQ_ID_RE = re.compile(r"OQ-[a-z0-9]+(?:-[a-z0-9]+)*")
+COVERAGE_CLAIM_ID_RE = re.compile(
+    r"(?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS)-"
+    r"[a-z0-9]+(?:-[a-z0-9]+)*"
+)
 EVIDENCE_BASELINE_RE = re.compile(
     r"<!--\s*specspine:evidence-baseline\s+"
     r"source=[^;\s>]+;\s*inspected=\d{4}-\d{2}-\d{2}\s*-->"
@@ -183,11 +189,88 @@ ROOT_GOVERNANCE = {
 }
 REPOSITORY_SUPPORT_UNITS = {
     ".claude",
+    ".citools",
+    ".github",
     ".idea",
     ".vim",
     ".vscode",
     "contribute",
 }
+DEPENDENCY_LOCK_FILES = {
+    "cargo.lock",
+    "composer.lock",
+    "go.sum",
+    "go.work.sum",
+    "package-lock.json",
+    "packages.lock.json",
+    "pnpm-lock.yaml",
+    "poetry.lock",
+    "yarn.lock",
+}
+OPAQUE_ASSET_EXTENSIONS = {
+    ".avif",
+    ".bmp",
+    ".csv",
+    ".eot",
+    ".gif",
+    ".ico",
+    ".jpeg",
+    ".jpg",
+    ".map",
+    ".mp3",
+    ".mp4",
+    ".otf",
+    ".pdf",
+    ".png",
+    ".svg",
+    ".ttf",
+    ".webm",
+    ".webp",
+    ".woff",
+    ".woff2",
+}
+ROOT_SUPPORT_FILES = {
+    "crowdin.yml",
+    "eslint-suppressions.json",
+    "eslint.config.js",
+    "i18next.config.ts",
+    "jest.config.codeowner.js",
+    "jest.config.js",
+    "knip.config.ts",
+    "lefthook.rc",
+    "lefthook.yml",
+    "lerna.json",
+    "nx.json",
+    "playwright.config.ts",
+    "playwright.storybook.config.ts",
+    "project.json",
+    "relyance.yaml",
+    "stylelint.config.js",
+    "yarn.config.cjs",
+}
+REPOSITORY_SUPPORT_FILENAMES = {
+    ".dockerignore",
+    ".editorconfig",
+    ".gitattributes",
+    ".gitignore",
+    ".ignore",
+    ".npmignore",
+    ".prettierignore",
+    "license",
+    "notice",
+}
+REPOSITORY_SUPPORT_NAME_PREFIXES = (
+    "babel.config.",
+    "eslint.config.",
+    "jest.config.",
+    "playwright.config.",
+    "prettier.config.",
+    "stylelint.config.",
+    "tsconfig.",
+    "vite.config.",
+    "vitest.config.",
+    "webpack.config.",
+)
 
 
 class CampaignError(ValueError):
@@ -494,6 +577,18 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         validate_relative_path(value)
         for value in string_list(raw.get("units", []), f"ToDo {task_id} units")
     ]
+    architecture_unit = raw.get("architecture_unit")
+    if architecture_unit is not None:
+        architecture_unit = validate_relative_path(architecture_unit)
+    evidence_baseline = raw.get("evidence_baseline")
+    if (
+        evidence_baseline is not None
+        and (
+            not isinstance(evidence_baseline, str)
+            or EVIDENCE_BASELINE_RE.fullmatch(evidence_baseline) is None
+        )
+    ):
+        raise CampaignError(f"ToDo {task_id} evidence_baseline is invalid")
     evidence_strata = raw.get("evidence_strata", [])
     if not isinstance(evidence_strata, list):
         raise CampaignError(f"ToDo {task_id} evidence_strata must be a list")
@@ -548,6 +643,8 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         "excludes": excludes,
         "basis": basis,
         "units": units,
+        "architecture_unit": architecture_unit,
+        "evidence_baseline": evidence_baseline,
         "evidence_strata": normalized_strata,
         "anchor": anchor,
         "state": "todo",
@@ -579,6 +676,8 @@ def task_definition(task: dict[str, Any]) -> dict[str, Any]:
             "excludes",
             "basis",
             "units",
+            "architecture_unit",
+            "evidence_baseline",
             "evidence_strata",
             "anchor",
         )
@@ -631,6 +730,8 @@ def repository_unit(relative_path: Path) -> str:
             return "repository-root/governance"
         if name in ROOT_MANIFESTS:
             return "repository-root/manifests"
+        if name.lower().startswith(("dockerfile", "compose.")):
+            return "repository-root/deployment"
         if name.startswith(".") or name.lower().endswith(
             (".json", ".toml", ".yaml", ".yml")
         ):
@@ -639,10 +740,18 @@ def repository_unit(relative_path: Path) -> str:
     first = parts[0]
     if first in COLLAPSED_DIRECTORIES:
         return first
-    if len(parts) >= 4 and parts[:3] == ("public", "app", "features"):
-        if Path(parts[3]).suffix:
-            return "public/app/features"
-        return Path(*parts[:4]).as_posix()
+    if first == "public":
+        if len(parts) >= 4 and parts[:3] == ("public", "app", "features"):
+            if Path(parts[3]).suffix:
+                return "public/app/features"
+            return Path(*parts[:4]).as_posix()
+        if len(parts) >= 3 and parts[1] == "app":
+            if Path(parts[2]).suffix:
+                return "public/app"
+            return Path(*parts[:3]).as_posix()
+        if len(parts) >= 2:
+            return Path(*parts[:2]).as_posix()
+        return first
     if (
         len(parts) >= 3
         and first == "pkg"
@@ -679,25 +788,15 @@ def repository_unit(relative_path: Path) -> str:
     return first
 
 
-def production_unit(relative_path: Path) -> str:
-    """Return one directory-coherent production unit.
-
-    Root files retain their architectural repository grouping. Every nested
-    file belongs to its concrete parent directory so unrelated sibling
-    subtrees can never be closed by one producer checkpoint.
-    """
-    if len(relative_path.parts) == 1:
-        return repository_unit(relative_path)
-    return relative_path.parent.as_posix()
-
-
 def file_classification(path: Path) -> tuple[str, str]:
-    """Classify a concrete repository file before it enters a work unit."""
+    """Classify a concrete repository file before it enters the flat inventory."""
     parts = tuple(value.lower() for value in path.parts)
     first = parts[0]
     name = parts[-1]
     if any(value in VENDORED_DIRECTORIES for value in parts):
         return "vendored", "Mechanically identified vendored dependency file"
+    if name in DEPENDENCY_LOCK_FILES:
+        return "dependency-lock", "Mechanically identified dependency lock/checksum"
     if any(value in GENERATED_DIRECTORIES for value in parts) or (
         name.startswith("zz_generated")
         or name.endswith(
@@ -724,8 +823,23 @@ def file_classification(path: Path) -> tuple[str, str]:
         or any(marker in name for marker in (".test.", ".spec."))
     ):
         return "test-only", "Mechanically identified test or fixture file"
-    if first == ".github" and (
-        len(parts) < 2 or parts[1] not in {"actions", "workflows"}
+    if path.suffix.lower() in OPAQUE_ASSET_EXTENSIONS or (
+        len(parts) >= 2 and parts[:2] == ("public", "locales")
+    ):
+        return "opaque-asset", "Mechanically identified opaque/static runtime asset"
+    if (
+        first in REPOSITORY_SUPPORT_UNITS
+        or name in REPOSITORY_SUPPORT_FILENAMES
+        or name.startswith(("license_", "license.", "notice_", "notice."))
+        or name.startswith(REPOSITORY_SUPPORT_NAME_PREFIXES)
+        or (len(parts) > 1 and name == "makefile")
+        or (
+            len(parts) == 1
+            and (
+                name in ROOT_SUPPORT_FILES
+                or (name.startswith(".") and name not in ROOT_MANIFESTS)
+            )
+        )
     ):
         return (
             "repository-support",
@@ -736,68 +850,42 @@ def file_classification(path: Path) -> tuple[str, str]:
         area == "repository-root/governance"
         or first in REPOSITORY_SUPPORT_UNITS
         or first in DOCUMENTATION_ROOTS
-        or path.suffix.lower() in {".md", ".txt"}
+        or path.suffix.lower() in {".md", ".mdx", ".txt"}
     ):
         return "repository-support", "Mechanically identified documentation or repository support"
     return "queued", "Production-capable file requires producer verification"
 
 
-def classification_reason(classification: str) -> str:
+def repository_evidence_baseline(
+    repository_root: Path,
+    inventory_digest: str,
+) -> dict[str, str]:
+    root = repository_root.resolve()
+    commit: str | None = None
+    result = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--verify", "HEAD"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    value = result.stdout.strip()
+    if result.returncode == 0 and re.fullmatch(r"[0-9a-fA-F]{40,64}", value):
+        commit = value.lower()
+    snapshot = inventory_digest[:16]
+    source = (
+        f"commit-{commit[:16]}-snapshot-{snapshot}"
+        if commit is not None
+        else f"workspace-snapshot-{snapshot}"
+    )
+    inspected = utc_now().date().isoformat()
     return {
-        "queued": "Production-capable unit requires producer verification",
-        "generated": "Mechanically identified generated/build output",
-        "vendored": "Mechanically identified vendored dependency tree",
-        "test-only": "Mechanically identified tests or fixtures",
-        "repository-support": "Mechanically identified documentation or repository support",
-    }[classification]
-
-
-def evidence_strata(members: list[str]) -> list[dict[str, Any]]:
-    """Require one explicit evidence checkpoint for every production file."""
-    return [
-        {
-            "id": f"file-{index + 1:03d}",
-            "members": [member],
-            "sample": member,
-        }
-        for index, member in enumerate(members)
-    ]
-
-
-def split_production_unit(area: str, members: list[str]) -> list[dict[str, Any]]:
-    """Keep a coherent directory together or fall back to one file per unit."""
-    members = sorted(members)
-    partitions = partition_members(members)
-    groups: list[tuple[str, list[str]]] = []
-    for values in partitions:
-        if len(partitions) == 1:
-            unit_area = area
-        else:
-            relative = Path(values[0]).name
-            slug = re.sub(r"[^a-z0-9]+", "-", relative.lower()).strip("-")
-            suffix = hashlib.sha256(values[0].encode()).hexdigest()[:8]
-            unit_area = f"{area}/@file-{slug[:36].rstrip('-')}-{suffix}"
-        groups.append((unit_area, values))
-    return [
-        {
-            "area": unit_area,
-            "classification": "queued",
-            "files": len(values),
-            "members": values,
-            "strata": evidence_strata(values),
-            "samples": [value["sample"] for value in evidence_strata(values)],
-        }
-        for unit_area, values in groups
-    ]
-
-
-def partition_members(members: list[str]) -> list[list[str]]:
-    if len(members) <= MAX_UNIT_FILES:
-        return [members]
-    # Files in one concrete directory have no mechanically defensible
-    # sub-boundary. Arbitrary lexical chunks would let a few samples close
-    # unrelated files, so exhaustive mode assigns every file independently.
-    return [[value] for value in members]
+        "source": source,
+        "inspected": inspected,
+        "marker": (
+            f"<!-- specspine:evidence-baseline source={source}; "
+            f"inspected={inspected} -->"
+        ),
+    }
 
 
 def verification_task_id(area: str) -> str:
@@ -824,7 +912,7 @@ def candidate_owner_documents(
         (
             value
             for value, count in parent_counts.items()
-            if count >= threshold and len(Path(value).parts) >= 3
+            if count >= threshold and len(Path(value).parts) >= 2
         ),
         key=lambda value: (-len(Path(value).parts), value),
     )[:6]
@@ -849,6 +937,18 @@ def candidate_owner_documents(
     ]
 
 
+def is_probably_text(path: Path) -> bool:
+    with path.open("rb") as stream:
+        sample = stream.read(8192)
+    if b"\0" in sample:
+        return False
+    try:
+        sample.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    return True
+
+
 def repository_inventory(
     repository_root: Path,
     *,
@@ -867,7 +967,13 @@ def repository_inventory(
         else:
             excluded_spine = resolved_spine
 
-    units: dict[tuple[str, str], dict[str, Any]] = {}
+    production_files: list[str] = []
+    excluded: dict[str, list[str]] = {
+        classification: []
+        for classification in SOURCE_CLASSIFICATIONS
+        if classification != "queued"
+    }
+    excluded_directories: list[dict[str, str]] = []
     snapshot = hashlib.sha256()
     for directory, names, files in os.walk(root):
         current = Path(directory)
@@ -891,20 +997,12 @@ def repository_inventory(
             snapshot.update(
                 f"D\0{area_path}\0{stat.st_size}\0{stat.st_mtime_ns}\n".encode()
             )
-            area = repository_unit(Path(area_path))
             classification = (
                 "vendored" if name in VENDORED_DIRECTORIES else "generated"
             )
-            record = units.setdefault(
-                (area, classification),
-                {
-                    "area": area,
-                    "classification": classification,
-                    "members": [],
-                    "collapsed_samples": [],
-                },
+            excluded_directories.append(
+                {"path": area_path + "/", "classification": classification}
             )
-            record["collapsed_samples"].append(area_path + "/")
             names.remove(name)
         for filename in files:
             path = relative_directory / filename
@@ -915,64 +1013,24 @@ def repository_inventory(
                     snapshot.update(chunk)
             snapshot.update(b"\n")
             classification, _ = file_classification(path)
-            area = production_unit(path)
-            record = units.setdefault(
-                (area, classification),
-                {
-                    "area": area,
-                    "classification": classification,
-                    "members": [],
-                    "collapsed_samples": [],
-                },
-            )
-            record["members"].append(path.as_posix())
-    bounded: list[dict[str, Any]] = []
-    used_areas: set[str] = set()
-    for (_, classification), record in sorted(units.items()):
-        area = record["area"]
-        if classification == "queued":
-            production = split_production_unit(area, record["members"])
-            for value in production:
-                if value["area"] in used_areas:
-                    raise CampaignError(f"duplicate inventory area: {value['area']}")
-                used_areas.add(value["area"])
-                bounded.append(value)
-            continue
-        terminal_area = f"{area}/@{classification}"
-        suffix = 2
-        while terminal_area in used_areas:
-            terminal_area = f"{area}/@{classification}-{suffix}"
-            suffix += 1
-        used_areas.add(terminal_area)
-        members = sorted(record["members"])
-        bounded.append(
-            {
-                "area": terminal_area,
-                "classification": classification,
-                "files": len(members),
-                "members": members,
-                "strata": [],
-                "samples": [
-                    *members[:5],
-                    *record["collapsed_samples"][: max(0, 5 - len(members))],
-                ],
-            }
-        )
-    inventory = sorted(bounded, key=lambda value: value["area"])
-    oversized = [
-        value["area"]
-        for value in inventory
-        if value["classification"] == "queued"
-        and value["files"] > MAX_UNIT_FILES
-    ]
-    if oversized:
-        raise CampaignError(f"inventory contains oversized units: {oversized}")
+            if classification == "queued" and not is_probably_text(source):
+                classification = "opaque-asset"
+            if classification == "queued":
+                production_files.append(path.as_posix())
+            else:
+                excluded[classification].append(path.as_posix())
     return {
         "repository_root": str(root),
-        "areas": inventory,
+        "production_files": sorted(production_files),
+        "excluded": {
+            classification: sorted(paths)
+            for classification, paths in sorted(excluded.items())
+        },
+        "excluded_directories": sorted(
+            excluded_directories,
+            key=lambda value: (value["path"], value["classification"]),
+        ),
         "digest": snapshot.hexdigest(),
-        "shape_digest": digest_json(inventory),
-        "max_unit_files": MAX_UNIT_FILES,
     }
 
 
@@ -1108,10 +1166,446 @@ def command_seed_from_spine(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_inventory(args: argparse.Namespace) -> dict[str, Any]:
-    return repository_inventory(
+    inventory = repository_inventory(
         args.repository_root,
         spine_root=args.spine_root,
     )
+    if args.output is None:
+        return inventory
+    if args.output.exists():
+        raise CampaignError(f"inventory output already exists: {args.output}")
+    atomic_write(args.output, inventory)
+    return {
+        "status": "written",
+        "inventory": str(args.output.resolve()),
+        "production_files": len(inventory["production_files"]),
+        "excluded_files": sum(len(value) for value in inventory["excluded"].values()),
+        "digest": inventory["digest"],
+    }
+
+
+def command_planning_packets(args: argparse.Namespace) -> dict[str, Any]:
+    inventory = read_json(args.inventory)
+    files = string_list(
+        inventory.get("production_files"),
+        "inventory production_files",
+    )
+    repository_root = inventory.get("repository_root")
+    digest = inventory.get("digest")
+    if not isinstance(repository_root, str) or not isinstance(digest, str):
+        raise CampaignError("planning inventory metadata is invalid")
+    if args.output_dir.exists():
+        raise CampaignError(f"planning packet directory already exists: {args.output_dir}")
+    args.output_dir.mkdir(parents=True)
+    packets: list[str] = []
+    for offset in range(0, len(files), args.page_size):
+        index = offset // args.page_size + 1
+        packet = {
+            "planning_contract_version": 1,
+            "repository_root": repository_root,
+            "inventory_digest": digest,
+            "page": index,
+            "production_files": files[offset : offset + args.page_size],
+        }
+        path = args.output_dir / f"page-{index:04d}.json"
+        atomic_write(path, packet)
+        packets.append(str(path.resolve()))
+    return {
+        "status": "written",
+        "packets": packets,
+        "packet_count": len(packets),
+        "production_files": len(files),
+    }
+
+
+def validate_planning_result(
+    packet: dict[str, Any],
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    if set(result) != {"page", "topics", "supporting"}:
+        raise CampaignError("planning result needs exactly page, topics, and supporting")
+    if result["page"] != packet.get("page"):
+        raise CampaignError("planning result page does not match its packet")
+    assigned = set(
+        string_list(
+            packet.get("production_files"),
+            "planning packet production_files",
+        )
+    )
+    if not isinstance(result["topics"], list) or not isinstance(
+        result["supporting"], list
+    ):
+        raise CampaignError("planning result topics and supporting must be lists")
+    topics: list[dict[str, Any]] = []
+    topic_ids: set[str] = set()
+    topic_files: set[str] = set()
+    for value in result["topics"]:
+        if not isinstance(value, dict) or set(value) != {
+            "id",
+            "title",
+            "responsibility",
+            "reason",
+            "files",
+        }:
+            raise CampaignError(
+                "planning topic needs id, title, responsibility, reason, and files"
+            )
+        topic_id = validate_id(value["id"])
+        if topic_id in topic_ids:
+            raise CampaignError(f"duplicate planning topic id: {topic_id}")
+        topic_ids.add(topic_id)
+        texts = [value["title"], value["responsibility"], value["reason"]]
+        if any(not isinstance(text, str) or not text.strip() for text in texts):
+            raise CampaignError(f"planning topic {topic_id} has empty text")
+        files = [
+            validate_relative_path(item)
+            for item in string_list(
+                value["files"],
+                f"planning topic {topic_id} files",
+                nonempty=True,
+            )
+        ]
+        unknown = sorted(set(files) - assigned)
+        if unknown:
+            raise CampaignError(
+                f"planning topic {topic_id} uses files outside its page: {unknown}"
+            )
+        topic_files.update(files)
+        topics.append(
+            {
+                "id": topic_id,
+                "title": value["title"].strip(),
+                "responsibility": value["responsibility"].strip(),
+                "reason": value["reason"].strip(),
+                "files": sorted(set(files)),
+            }
+        )
+    supporting: list[dict[str, Any]] = []
+    supporting_files: set[str] = set()
+    for index, value in enumerate(result["supporting"], start=1):
+        if not isinstance(value, dict) or set(value) != {"reason", "files"}:
+            raise CampaignError("planning supporting entry needs reason and files")
+        reason = value["reason"]
+        if not isinstance(reason, str) or not reason.strip():
+            raise CampaignError(f"planning supporting entry {index} needs a reason")
+        files = [
+            validate_relative_path(item)
+            for item in string_list(
+                value["files"],
+                f"planning supporting entry {index} files",
+                nonempty=True,
+            )
+        ]
+        unknown = sorted(set(files) - assigned)
+        if unknown:
+            raise CampaignError(
+                f"planning supporting entry {index} uses files outside its page: {unknown}"
+            )
+        overlap = sorted(set(files) & supporting_files)
+        if overlap:
+            raise CampaignError(f"planning supporting files are repeated: {overlap}")
+        supporting_files.update(files)
+        supporting.append({"reason": reason.strip(), "files": sorted(set(files))})
+    conflict = sorted(topic_files & supporting_files)
+    if conflict:
+        raise CampaignError(
+            f"planning files cannot be both topic and supporting: {conflict}"
+        )
+    missing = sorted(assigned - topic_files - supporting_files)
+    if missing:
+        raise CampaignError(f"planning result leaves page files uncovered: {missing}")
+    return {
+        "page": packet["page"],
+        "topics": topics,
+        "supporting": supporting,
+    }
+
+
+def command_planning_collect(args: argparse.Namespace) -> dict[str, Any]:
+    if args.output.exists():
+        raise CampaignError(f"planning corpus output already exists: {args.output}")
+    packet_paths = sorted(args.packets_dir.glob("page-*.json"))
+    if not packet_paths:
+        raise CampaignError("planning packet directory is empty")
+    pages: list[dict[str, Any]] = []
+    repository_root: str | None = None
+    inventory_digest: str | None = None
+    for packet_path in packet_paths:
+        result_path = args.results_dir / packet_path.name
+        if not result_path.is_file():
+            raise CampaignError(f"missing planning result: {result_path}")
+        packet = read_json(packet_path)
+        if repository_root is None:
+            repository_root = packet.get("repository_root")
+            inventory_digest = packet.get("inventory_digest")
+        elif (
+            packet.get("repository_root") != repository_root
+            or packet.get("inventory_digest") != inventory_digest
+        ):
+            raise CampaignError("planning packets do not share one inventory snapshot")
+        pages.append(validate_planning_result(packet, read_json(result_path)))
+    extra = sorted(
+        path.name
+        for path in args.results_dir.glob("page-*.json")
+        if not (args.packets_dir / path.name).is_file()
+    )
+    if extra:
+        raise CampaignError(f"planning results have unknown pages: {extra}")
+    corpus = {
+        "planning_contract_version": 1,
+        "repository_root": repository_root,
+        "inventory_digest": inventory_digest,
+        "pages": pages,
+    }
+    atomic_write(args.output, corpus)
+    return {
+        "status": "written",
+        "corpus": str(args.output.resolve()),
+        "pages": len(pages),
+        "candidate_topics": sum(len(value["topics"]) for value in pages),
+    }
+
+
+def validate_topic_plan(
+    path: Path,
+    production_files: list[str],
+    spine_root: Path,
+) -> dict[str, Any]:
+    raw = read_json(path)
+    if set(raw) != {"topics", "covered", "supporting"}:
+        raise CampaignError(
+            "topic plan needs exactly topics, covered, and supporting"
+        )
+    if any(
+        not isinstance(raw[field], list)
+        for field in ("topics", "covered", "supporting")
+    ):
+        raise CampaignError(
+            "topic plan topics, covered, and supporting must be lists"
+        )
+    production = set(production_files)
+    topics: list[dict[str, Any]] = []
+    topic_ids: set[str] = set()
+    topic_files: set[str] = set()
+
+    def normalize_topic(value: Any, *, field: str) -> dict[str, Any]:
+        if not isinstance(value, dict) or set(value) != {
+            "id",
+            "title",
+            "responsibility",
+            "reason",
+            "files",
+        }:
+            raise CampaignError(
+                f"each {field} topic needs id, title, responsibility, reason, and files"
+            )
+        topic_id = validate_id(value["id"])
+        if topic_id in topic_ids:
+            raise CampaignError(f"duplicate topic id: {topic_id}")
+        topic_ids.add(topic_id)
+        title = value["title"]
+        responsibility = value["responsibility"]
+        reason = value["reason"]
+        if any(
+            not isinstance(text, str) or not text.strip()
+            for text in (title, responsibility, reason)
+        ):
+            raise CampaignError(f"topic {topic_id} text fields must be nonempty")
+        files = [
+            validate_relative_path(item)
+            for item in string_list(
+                value["files"],
+                f"{field} topic {topic_id} files",
+                nonempty=True,
+            )
+        ]
+        if len(files) != len(set(files)):
+            raise CampaignError(
+                f"{field} topic {topic_id} contains duplicate files"
+            )
+        if len(files) > MAX_UNIT_FILES:
+            raise CampaignError(
+                f"{field} topic {topic_id} exceeds "
+                f"{MAX_UNIT_FILES} production files"
+            )
+        unknown = sorted(set(files) - production)
+        if unknown:
+            raise CampaignError(
+                f"{field} topic {topic_id} has unknown files: {unknown}"
+            )
+        return {
+            "id": topic_id,
+            "title": title.strip(),
+            "responsibility": responsibility.strip(),
+            "reason": reason.strip(),
+            "files": sorted(files),
+        }
+
+    for value in raw["topics"]:
+        topic = normalize_topic(value, field="uncovered")
+        topic_files.update(topic["files"])
+        topics.append(topic)
+
+    covered_topics: list[dict[str, Any]] = []
+    covered_files: set[str] = set()
+    for value in raw["covered"]:
+        if not isinstance(value, dict) or set(value) != {
+            "id",
+            "title",
+            "responsibility",
+            "reason",
+            "files",
+            "coverage_reason",
+            "coverage",
+        }:
+            raise CampaignError(
+                "each covered topic needs id, title, responsibility, reason, "
+                "files, coverage_reason, and coverage"
+            )
+        topic = normalize_topic(
+            {
+                key: value[key]
+                for key in ("id", "title", "responsibility", "reason", "files")
+            },
+            field="covered",
+        )
+        coverage_reason = value["coverage_reason"]
+        if not isinstance(coverage_reason, str) or not coverage_reason.strip():
+            raise CampaignError(
+                f"covered topic {topic['id']} needs a coverage_reason"
+            )
+        if not isinstance(value["coverage"], list) or not value["coverage"]:
+            raise CampaignError(
+                f"covered topic {topic['id']} needs nonempty coverage"
+            )
+        citations: list[dict[str, Any]] = []
+        seen_documents: set[str] = set()
+        for citation in value["coverage"]:
+            if not isinstance(citation, dict) or set(citation) != {
+                "document",
+                "claims",
+            }:
+                raise CampaignError(
+                    f"covered topic {topic['id']} coverage needs document and claims"
+                )
+            document = validate_relative_path(citation["document"])
+            if not document.endswith(".md"):
+                raise CampaignError(
+                    f"covered topic {topic['id']} document must be Markdown: "
+                    f"{document}"
+                )
+            if document in seen_documents:
+                raise CampaignError(
+                    f"covered topic {topic['id']} repeats document: {document}"
+                )
+            seen_documents.add(document)
+            document_path = spine_root.resolve() / document
+            try:
+                document_path.resolve().relative_to(spine_root.resolve())
+            except ValueError as error:
+                raise CampaignError(
+                    f"covered topic {topic['id']} document escapes Spine: {document}"
+                ) from error
+            if not document_path.is_file():
+                raise CampaignError(
+                    f"covered topic {topic['id']} document does not exist: {document}"
+                )
+            claims = string_list(
+                citation["claims"],
+                f"covered topic {topic['id']} claims",
+                nonempty=True,
+            )
+            if len(claims) != len(set(claims)):
+                raise CampaignError(
+                    f"covered topic {topic['id']} repeats semantic claims"
+                )
+            body = document_path.read_text(encoding="utf-8")
+            for claim in claims:
+                if COVERAGE_CLAIM_ID_RE.fullmatch(claim) is None:
+                    raise CampaignError(
+                        f"covered topic {topic['id']} has invalid semantic claim: "
+                        f"{claim}"
+                    )
+                definition = re.compile(
+                    rf"^ {{0,3}}[-+*]\s+\*\*{re.escape(claim)}\*\*"
+                    rf"\s+—\s+\S",
+                    re.MULTILINE,
+                )
+                if definition.search(body) is None:
+                    raise CampaignError(
+                        f"covered topic {topic['id']} claim is not defined in "
+                        f"{document}: {claim}"
+                    )
+            citations.append({"document": document, "claims": sorted(claims)})
+        covered_files.update(topic["files"])
+        covered_topics.append(
+            topic
+            | {
+                "coverage_reason": coverage_reason.strip(),
+                "coverage": sorted(
+                    citations,
+                    key=lambda citation: citation["document"],
+                ),
+            }
+        )
+
+    supporting: list[dict[str, Any]] = []
+    supporting_files: set[str] = set()
+    for index, value in enumerate(raw["supporting"], start=1):
+        if not isinstance(value, dict) or set(value) != {"reason", "files"}:
+            raise CampaignError("each supporting entry needs reason and files")
+        reason = value["reason"]
+        if not isinstance(reason, str) or not reason.strip():
+            raise CampaignError(f"supporting entry {index} needs a reason")
+        files = [
+            validate_relative_path(item)
+            for item in string_list(
+                value["files"],
+                f"supporting entry {index} files",
+                nonempty=True,
+            )
+        ]
+        if len(files) != len(set(files)):
+            raise CampaignError(f"supporting entry {index} contains duplicate files")
+        unknown = sorted(set(files) - production)
+        if unknown:
+            raise CampaignError(f"supporting entry {index} has unknown files: {unknown}")
+        overlap = sorted(set(files) & supporting_files)
+        if overlap:
+            raise CampaignError(f"supporting files are repeated: {overlap}")
+        supporting_files.update(files)
+        supporting.append({"reason": reason.strip(), "files": sorted(files)})
+    conflict = sorted((topic_files | covered_files) & supporting_files)
+    if conflict:
+        raise CampaignError(
+            f"files cannot be both topic-covered and supporting: {conflict}"
+        )
+    accounted = topic_files | covered_files | supporting_files
+    missing = sorted(production - accounted)
+    if missing:
+        raise CampaignError(f"topic plan leaves production files uncovered: {missing}")
+    normalized_topics = sorted(topics, key=lambda value: value["id"])
+    normalized_covered = sorted(
+        covered_topics,
+        key=lambda value: value["id"],
+    )
+    normalized_supporting = sorted(
+        supporting,
+        key=lambda value: (value["files"], value["reason"]),
+    )
+    return {
+        "topics": normalized_topics,
+        "covered": normalized_covered,
+        "supporting": normalized_supporting,
+        "production_files": sorted(production),
+        "digest": digest_json(
+            {
+                "topics": normalized_topics,
+                "covered": normalized_covered,
+                "supporting": normalized_supporting,
+            }
+        ),
+    }
 
 
 def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
@@ -1128,53 +1622,48 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
         args.repository_root,
         spine_root=args.spine_root,
     )
-    normalized: dict[str, dict[str, Any]] = {}
+    evidence_baseline = repository_evidence_baseline(
+        args.repository_root,
+        inventory["digest"],
+    )
+    if args.topic_plan is None:
+        raise CampaignError("source-pass requires a synthesized --topic-plan")
+    plan = validate_topic_plan(
+        args.topic_plan,
+        inventory["production_files"],
+        args.spine_root,
+    )
     raw_todo: list[dict[str, Any]] = []
-    for record in inventory["areas"]:
-        area = record["area"]
-        classification = record["classification"]
-        reason = classification_reason(classification)
-        task_id: str | None = None
-        candidates: list[str] = []
-        if classification == "queued":
-            task_id = verification_task_id(area)
-            candidates = candidate_owner_documents(
-                args.spine_root.resolve(),
-                area,
-                record["members"],
-            )
-            raw_todo.append(
-                {
-                    "id": task_id,
-                    "question": (
-                        f"Verify whether repository unit {area} is architecturally "
-                        "covered; publish the missing observation if it is not"
-                    ),
-                    "reason": (
-                        "Every production-capable inventory unit requires an "
-                        "independent producer checkpoint"
-                    ),
-                    "evidence": record["samples"],
-                    "documents": candidates,
-                    "excludes": [],
-                    "units": [area],
-                    "evidence_strata": [
-                        {"id": value["id"], "sample": value["sample"]}
-                        for value in record["strata"]
-                    ],
-                    "anchor": None,
-                }
-            )
-        normalized[area] = {
-            "classification": classification,
-            "reason": reason,
-            "task": task_id,
-            "candidate_documents": candidates,
-            "files": record["files"],
-            "members": record["members"],
-            "strata": record["strata"],
-            "samples": record["samples"],
-        }
+    topic_tasks: dict[str, str] = {}
+    for topic in plan["topics"]:
+        task_id = verification_task_id(f"topic/{topic['id']}")
+        topic_tasks[topic["id"]] = task_id
+        candidates = candidate_owner_documents(
+            args.spine_root.resolve(),
+            topic["id"],
+            topic["files"],
+        )
+        raw_todo.append(
+            {
+                "id": task_id,
+                "question": (
+                    f"Verify observed architecture topic {topic['title']}: "
+                    f"{topic['responsibility']}"
+                ),
+                "reason": topic["reason"],
+                "evidence": topic["files"],
+                "documents": candidates,
+                "excludes": [],
+                "units": [f"topics/{topic['id']}"],
+                "architecture_unit": f"topics/{topic['id']}",
+                "evidence_baseline": evidence_baseline["marker"],
+                "evidence_strata": [
+                    {"id": f"file-{index:03d}", "sample": path}
+                    for index, path in enumerate(topic["files"], start=1)
+                ],
+                "anchor": None,
+            }
+        )
     with locked_ledger(args.ledger) as ledger:
         if ledger["source_pass"] is not None:
             raise CampaignError("source-pass is immutable once recorded")
@@ -1183,8 +1672,12 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
             "repository_root": str(args.repository_root.resolve()),
             "spine_root": str(args.spine_root.resolve()),
             "inventory_digest": inventory["digest"],
-            "max_unit_files": inventory["max_unit_files"],
-            "inventory": normalized,
+            "evidence_baseline": evidence_baseline,
+            "production_files": inventory["production_files"],
+            "excluded": inventory["excluded"],
+            "excluded_directories": inventory["excluded_directories"],
+            "topic_plan": plan,
+            "topic_tasks": topic_tasks,
             "todo": sorted(value["id"] for value in raw_todo),
             "terminal_reason": None,
             "publication_epoch": ledger["publication_epoch"],
@@ -1194,7 +1687,10 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
         save_locked(args.ledger, ledger)
         return {
             "status": "recorded",
-            "areas": len(normalized),
+            "production_files": len(inventory["production_files"]),
+            "topics": len(plan["topics"]),
+            "covered_topics": len(plan["covered"]),
+            "supporting_groups": len(plan["supporting"]),
             "verification_todo": len(raw_todo),
             "added_todo_count": len(added),
             "revision": ledger["revision"],
@@ -1244,29 +1740,33 @@ def command_todo(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def source_task_priority(task: dict[str, Any]) -> tuple[int, int, str]:
-    units = task.get("units", [])
-    unit = units[0] if units else ""
-    parts = Path(unit.split("/@", 1)[0]).parts
-    if unit == "repository-root/runtime":
-        tier = 0
-    elif unit == "repository-root/manifests":
-        tier = 1
-    elif parts[:1] == ("cmd",) or parts[:2] == ("pkg", "cmd"):
-        tier = 2
-    elif parts[:1] in {("apps",), ("kinds",), ("pkg",)}:
-        tier = 3
-    elif parts[:1] in {("public",), ("packages",), ("plugins",)}:
-        tier = 4
-    elif unit == "repository-root/tooling" or parts[:1] in {
-        (".github",),
-        (".citools",),
-        ("scripts",),
-        ("tools",),
-    }:
-        tier = 6
-    else:
-        tier = 5
-    return tier, len(parts), task["id"]
+    ranked: list[tuple[int, int]] = []
+    for value in task.get("evidence", []):
+        path = Path(value)
+        parts = path.parts
+        area = repository_unit(path)
+        if area in {"repository-root/runtime", "repository-root/deployment"}:
+            tier = 0
+        elif area == "repository-root/manifests":
+            tier = 1
+        elif parts[:1] == ("cmd",) or parts[:2] == ("pkg", "cmd"):
+            tier = 2
+        elif parts[:1] in {("apps",), ("kinds",), ("pkg",)}:
+            tier = 3
+        elif parts[:1] in {("public",), ("packages",), ("plugins",)}:
+            tier = 4
+        elif area == "repository-root/tooling" or parts[:1] in {
+            (".github",),
+            (".citools",),
+            ("scripts",),
+            ("tools",),
+        }:
+            tier = 6
+        else:
+            tier = 5
+        ranked.append((tier, len(parts)))
+    priority = min(ranked) if ranked else (5, 0)
+    return priority[0], priority[1], task["id"]
 
 
 def breadth_order(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1276,7 +1776,7 @@ def breadth_order(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ranked: list[tuple[tuple[int, int, str], str, dict[str, Any]]] = []
     for task in source:
         priority = source_task_priority(task)
-        unit = task.get("units", [""])[0]
+        unit = task.get("architecture_unit") or task.get("units", [""])[0]
         family = Path(unit).parts[0] if unit else task["id"]
         ranked.append((priority, family, task))
     derived_tier = 5 if bootstrap_open else 2
@@ -1304,17 +1804,25 @@ def breadth_order(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def command_ready(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
-    ready = [
-        task["id"]
-        for task in breadth_order(
-            [
-                task
-                for task in ledger["tasks"].values()
-                if task["state"] == "todo"
-            ]
-        )
-    ]
-    selected = ready[: args.limit] if args.limit is not None else ready
+    ordered = breadth_order(
+        [
+            task
+            for task in ledger["tasks"].values()
+            if task["state"] == "todo"
+        ]
+    )
+    ready = [task["id"] for task in ordered]
+    limit = args.limit if args.limit is not None else len(ready)
+    selected: list[str] = []
+    selected_units: set[str] = set()
+    for task in ordered:
+        architecture_unit = task.get("architecture_unit") or task["id"]
+        if architecture_unit in selected_units:
+            continue
+        selected.append(task["id"])
+        selected_units.add(architecture_unit)
+        if len(selected) == limit:
+            break
     return {
         "campaign_id": ledger["campaign_id"],
         "ready": selected,
@@ -1764,41 +2272,21 @@ def validate_task_evidence(
     if not isinstance(source_pass, dict):
         raise CampaignError("verification task requires a recorded source-pass")
     repository_root = Path(source_pass["repository_root"])
-    inventory = source_pass.get("inventory", {})
-    covered: set[str] = set()
-    covered_strata: dict[str, set[str]] = {unit: set() for unit in units}
     for value in paths:
         path = repository_root / value
         if not path.is_file():
             raise CampaignError(f"checkpoint evidence is not a repository file: {value}")
-        for unit in units:
-            record = inventory.get(unit)
-            if isinstance(record, dict) and value in record.get("members", []):
-                covered.add(unit)
-                for stratum in record.get("strata", []):
-                    if value in stratum.get("members", []):
-                        covered_strata[unit].add(stratum["id"])
-    if covered != set(units):
-        raise CampaignError(
-            "checkpoint must inspect at least one concrete file from every task unit; "
-            f"missing={sorted(set(units) - covered)}"
-        )
     if outcome in {"draft", "covered", "answered", "unresolved", "supporting"}:
-        missing_strata: dict[str, list[str]] = {}
-        for unit in units:
-            record = inventory.get(unit, {})
-            expected = {
-                value["id"]
-                for value in record.get("strata", [])
-                if isinstance(value, dict) and isinstance(value.get("id"), str)
-            }
-            missing = sorted(expected - covered_strata[unit])
-            if missing:
-                missing_strata[unit] = missing
-        if missing_strata:
+        expected = {
+            value["sample"]
+            for value in task.get("evidence_strata", [])
+            if isinstance(value, dict) and isinstance(value.get("sample"), str)
+        }
+        missing = sorted(expected - set(paths))
+        if missing:
             raise CampaignError(
                 "checkpoint must inspect every evidence stratum for an integrable "
-                f"result: {missing_strata}"
+                f"result: {missing}"
             )
     return paths
 
@@ -1864,7 +2352,11 @@ def validate_task_outcome(task: dict[str, Any], outcome: str) -> None:
         )
 
 
-def validate_draft_semantics(staging: dict[str, Path]) -> None:
+def validate_draft_semantics(
+    staging: dict[str, Path],
+    task: dict[str, Any],
+) -> None:
+    expected_baseline = task.get("evidence_baseline")
     for relative, path in staging.items():
         body = path.read_text(encoding="utf-8")
         if LEGACY_SEMANTIC_RE.search(body):
@@ -1874,6 +2366,10 @@ def validate_draft_semantics(staging: dict[str, Path]) -> None:
         if EVIDENCE_BASELINE_RE.search(body) is None:
             raise CampaignError(
                 f"candidate needs an evidence baseline: {relative}"
+            )
+        if expected_baseline is not None and expected_baseline not in body:
+            raise CampaignError(
+                f"candidate must use the campaign evidence baseline: {relative}"
             )
         if OBS_DEFINITION_RE.search(body) is None:
             raise CampaignError(
@@ -1891,7 +2387,10 @@ def harvest_receipt(
     spine_root: Path,
     checker: Path,
 ) -> dict[str, Any]:
+    task = require_task(ledger, task_id)
     status, directions, coverage = validate_checkpoint(raw, staging)
+    if status == "draft":
+        validate_draft_semantics(staging, task)
     candidates = infer_candidates(staging, spine_root)
     if candidates:
         run_checker(
@@ -1900,7 +2399,6 @@ def harvest_receipt(
             candidates_root=staging_root,
             repository_root=repository_root_from_ledger(ledger),
         )
-    task = require_task(ledger, task_id)
     if task["state"] != "assigned":
         raise CampaignError(f"harvest requires assigned task: {task_id}")
     if task["owner"] != owner:
@@ -1908,8 +2406,6 @@ def harvest_receipt(
             f"checkpoint owner mismatch: expected {task['owner']}, got {owner}"
         )
     validate_task_outcome(task, status)
-    if status == "draft":
-        validate_draft_semantics(staging)
     inspected = validate_task_evidence(
         ledger,
         task,
@@ -2505,6 +3001,12 @@ def validate_integrated_source_publication(
         raise CampaignError(
             f"integrated source publication needs a semantic OBS claim: {task['id']}"
         )
+    expected_baseline = task.get("evidence_baseline")
+    if expected_baseline is not None and expected_baseline not in combined:
+        raise CampaignError(
+            f"integrated source publication must retain the campaign evidence "
+            f"baseline: {task['id']}"
+        )
     evidence = [*task.get("units", []), *task.get("evidence", [])]
     if not any(value in combined for value in evidence):
         raise CampaignError(
@@ -2917,6 +3419,15 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
                     f"{review['document']}: {suggestion_id}"
                 )
         validate_new_task_anchors(workspace, raw_todo)
+        source_baseline = ledger.get("source_pass", {}).get("evidence_baseline", {})
+        baseline_marker = (
+            source_baseline.get("marker")
+            if isinstance(source_baseline, dict)
+            else None
+        )
+        for value in raw_todo:
+            if isinstance(value, dict):
+                value["evidence_baseline"] = baseline_marker
         added = add_tasks(
             ledger,
             raw_todo,
@@ -3066,16 +3577,13 @@ def current_integration(ledger: dict[str, Any]) -> bool:
 def terminal_gates(ledger: dict[str, Any]) -> dict[str, bool]:
     tasks = list(ledger["tasks"].values())
     source_pass = ledger.get("source_pass")
-    inventory = (
-        source_pass.get("inventory", {}) if isinstance(source_pass, dict) else {}
+    source_tasks = (
+        source_pass.get("todo", []) if isinstance(source_pass, dict) else []
     )
-    units_verified = all(
-        value.get("classification") != "queued"
-        or (
-            value.get("task") in ledger["tasks"]
-            and ledger["tasks"][value["task"]]["state"] == "complete"
-        )
-        for value in inventory.values()
+    units_verified = bool(isinstance(source_pass, dict)) and all(
+        task_id in ledger["tasks"]
+        and ledger["tasks"][task_id]["state"] == "complete"
+        for task_id in source_tasks
     )
     return {
         "todo_empty": not any(task["state"] == "todo" for task in tasks),
@@ -3135,6 +3643,7 @@ def command_summary(args: argparse.Namespace) -> dict[str, Any]:
 def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
     summary = command_summary(args)
     states = summary["states"]
+    gates = summary["terminal_gates"]
     if summary["terminal"] == "inventory_verified":
         action = "finalize"
         may_finish = True
@@ -3159,15 +3668,28 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
         action = "repair"
         may_finish = False
         reason = "terminal gates are stale or incomplete"
+    may_pause = bool(
+        action == "dispatch"
+        and gates["producers_finished"]
+        and gates["publications_integrated"]
+        and gates["source_inventory_current"]
+        and gates["integration_current"]
+        and gates["spine_v3_clean"]
+    )
     return {
         "campaign_id": summary["campaign_id"],
         "revision": summary["revision"],
         "action": action,
         "may_finish": may_finish,
+        "may_pause": may_pause,
         "response_policy": (
             "final_response_allowed"
             if may_finish
-            else "continue_in_same_turn_no_final_response"
+            else (
+                "unavoidable_platform_turn_boundary_only"
+                if may_pause
+                else "continue_in_same_turn_no_final_response"
+            )
         ),
         "reason": reason,
         "counts": {
@@ -3181,20 +3703,19 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
 def command_coverage_report(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
     summary = command_summary(args)
-    inventory = ledger.get("source_pass", {}).get("inventory", {})
+    source = ledger.get("source_pass", {})
+    excluded = source.get("excluded", {}) if isinstance(source, dict) else {}
     counts = {
-        classification: sum(
-            1
-            for value in inventory.values()
-            if value.get("classification") == classification
+        classification: (
+            len(source.get("production_files", []))
+            if classification == "queued"
+            else len(excluded.get(classification, []))
         )
         for classification in sorted(SOURCE_CLASSIFICATIONS)
     }
     verified_units = sum(
-        value.get("classification") == "queued"
-        and value.get("task") in ledger["tasks"]
-        and ledger["tasks"][value["task"]]["state"] == "complete"
-        for value in inventory.values()
+        ledger["tasks"].get(task_id, {}).get("state") == "complete"
+        for task_id in source.get("todo", [])
     )
     return {
         "campaign_id": ledger["campaign_id"],
@@ -3205,7 +3726,10 @@ def command_coverage_report(args: argparse.Namespace) -> dict[str, Any]:
             state: len(values) for state, values in summary["states"].items()
         },
         "inventory_classifications": counts,
-        "verified_production_units": verified_units,
+        "verified_topics": verified_units,
+        "existing_spine_covered_topics": len(
+            source.get("topic_plan", {}).get("covered", [])
+        ),
         "coverage_claim": (
             "inventory_verified"
             if summary["terminal"] == "inventory_verified"
@@ -3255,11 +3779,27 @@ def parser() -> argparse.ArgumentParser:
     inventory = sub.add_parser("inventory")
     inventory.add_argument("repository_root", type=Path)
     inventory.add_argument("--spine-root", type=Path)
+    inventory.add_argument("--output", type=Path)
+
+    planning_packets = sub.add_parser("planning-packets")
+    planning_packets.add_argument("inventory", type=Path)
+    planning_packets.add_argument("output_dir", type=Path)
+    planning_packets.add_argument(
+        "--page-size",
+        type=positive_int,
+        default=MAX_UNIT_FILES,
+    )
+
+    planning_collect = sub.add_parser("planning-collect")
+    planning_collect.add_argument("packets_dir", type=Path)
+    planning_collect.add_argument("results_dir", type=Path)
+    planning_collect.add_argument("output", type=Path)
 
     source = sub.add_parser("source-pass")
     source.add_argument("ledger", type=Path)
     source.add_argument("repository_root", type=Path)
     source.add_argument("spine_root", type=Path)
+    source.add_argument("--topic-plan", type=Path)
     source.add_argument(
         "--checker",
         type=Path,
@@ -3390,6 +3930,8 @@ def main() -> int:
         "resume-session": command_resume_session,
         "seed-from-spine": command_seed_from_spine,
         "inventory": command_inventory,
+        "planning-packets": command_planning_packets,
+        "planning-collect": command_planning_collect,
         "source-pass": command_source_pass,
         "todo-add": command_todo_add,
         "todo": command_todo,

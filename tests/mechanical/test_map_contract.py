@@ -17,6 +17,12 @@ class MapExhaustiveContractTests(unittest.TestCase):
         cls.producer = (
             ROOT / "skills/specspine-map/references/producer-task.md"
         ).read_text(encoding="utf-8")
+        cls.planner = (
+            ROOT / "skills/specspine-map/references/planning-task.md"
+        ).read_text(encoding="utf-8")
+        cls.synthesis = (
+            ROOT / "skills/specspine-map/references/topic-synthesis.md"
+        ).read_text(encoding="utf-8")
         cls.protocol = (
             ROOT / "skills/specspine-map/references/orchestration.md"
         ).read_text(encoding="utf-8")
@@ -47,7 +53,10 @@ class MapExhaustiveContractTests(unittest.TestCase):
 
     def test_exhaustive_requires_fresh_one_shot_producers(self):
         normalized = " ".join(self.entrypoint.split())
-        self.assertIn("one producer per bounded ToDo", normalized)
+        self.assertIn(
+            "one fresh producer per remaining bounded semantic ToDo",
+            normalized,
+        )
         self.assertIn("Never reuse a producer", normalized)
         self.assertIn("`fork_turns: none`", self.entrypoint)
         self.assertIn("fresh isolated context", normalized)
@@ -72,9 +81,9 @@ class MapExhaustiveContractTests(unittest.TestCase):
     def test_exhaustive_requires_medium_tier_producers(self):
         entrypoint = " ".join(self.entrypoint.split())
         protocol = " ".join(self.protocol.split())
-        self.assertIn("medium-capability general-purpose agent tier", entrypoint)
+        self.assertIn("medium-capability general-purpose tier", entrypoint)
         self.assertIn("`agent_type: medium`", self.entrypoint)
-        self.assertIn("neither its weak/cheap tier nor its strongest/premium tier", entrypoint)
+        self.assertIn("neither weak/cheap nor strongest/premium", entrypoint)
         self.assertIn("Never fall back to a weak or strongest tier", protocol)
 
     def test_producer_has_one_checkpoint_and_no_coverage_authority(self):
@@ -98,17 +107,26 @@ class MapExhaustiveContractTests(unittest.TestCase):
 
     def test_inventory_is_a_deterministic_completion_gate(self):
         normalized = " ".join(self.protocol.split())
-        self.assertIn("mechanically generated repository frontier", normalized)
+        self.assertIn("flat mechanical source inventory", normalized)
         self.assertIn(
-            "creates one immutable verification ToDo for every remaining unit",
+            "creates one immutable producer ToDo per semantic topic",
             normalized,
         )
         self.assertIn("Candidate owners do not close work", normalized)
         self.assertIn("inventory_verified", normalized)
-        self.assertIn("never packs sibling subtrees", normalized)
-        self.assertIn("over 80 files per file", normalized)
-        self.assertIn("obligation for every production file", normalized)
-        self.assertIn("classifies concrete files before grouping", normalized)
+        self.assertIn("flat list of text production files", normalized)
+        self.assertIn("does not group production paths", normalized)
+        self.assertIn("explicit evidence obligation", normalized)
+        self.assertIn("planning-collect", normalized)
+        self.assertIn("topic-plan.json", normalized)
+        self.assertIn("whole-list pass", normalized)
+        self.assertIn("transport pagination", " ".join(self.planner.split()))
+        synthesis = " ".join(self.synthesis.split())
+        self.assertIn("ignore page boundaries", synthesis)
+        self.assertIn("process every topic one at a time", synthesis)
+        self.assertIn("existing `<spine-root>`", synthesis)
+        self.assertIn("semantic discovery/extraction workflow", synthesis)
+        self.assertIn("Only `topics` becomes the producer frontier", synthesis)
         self.assertIn("def repository_inventory", self.campaign)
         self.assertIn("verification_task_id", self.campaign)
         self.assertNotIn("OWNER_CLASSIFICATIONS", self.campaign)
@@ -116,13 +134,12 @@ class MapExhaustiveContractTests(unittest.TestCase):
     def test_turn_boundary_cannot_complete_an_active_campaign(self):
         entrypoint = " ".join(self.entrypoint.split())
         protocol = " ".join(self.protocol.split())
-        self.assertIn("A turn boundary", entrypoint)
         self.assertIn("Before any final answer", entrypoint)
         self.assertIn("`may_finish: true`", entrypoint)
+        self.assertIn("`may_pause: true`", entrypoint)
         self.assertIn("The durable campaign is the unit of completion", protocol)
-        self.assertIn("`may_finish: false` forbids a final answer", protocol)
-        self.assertIn("Do not phrase progress as a handoff", protocol)
-        self.assertIn("The operator must not have to restart", protocol)
+        self.assertIn("`may_finish: false` normally forbids a final answer", protocol)
+        self.assertIn("`may_pause: true`", protocol)
         self.assertIn("continue_in_same_turn_no_final_response", self.campaign)
         self.assertIn("def command_next_action", self.campaign)
         self.assertIn('"next-action": command_next_action', self.campaign)
@@ -249,11 +266,13 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("producer must not publish README.md", self.campaign)
 
     def test_prompt_files_stay_bounded(self):
-        self.assertLessEqual(len(self.entrypoint.splitlines()), 95)
-        self.assertLessEqual(len(self.producer.splitlines()), 125)
-        self.assertLessEqual(len(self.protocol.splitlines()), 240)
+        self.assertLessEqual(len(self.entrypoint.splitlines()), 105)
+        self.assertLessEqual(len(self.producer.splitlines()), 135)
+        self.assertLessEqual(len(self.planner.splitlines()), 80)
+        self.assertLessEqual(len(self.synthesis.splitlines()), 90)
+        self.assertLessEqual(len(self.protocol.splitlines()), 315)
         self.assertLessEqual(len(self.documentation_first.splitlines()), 100)
-        self.assertLessEqual(len(self.integration.splitlines()), 150)
+        self.assertLessEqual(len(self.integration.splitlines()), 175)
         self.assertLessEqual(len(self.selection.splitlines()), 80)
 
 

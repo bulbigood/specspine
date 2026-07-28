@@ -1,18 +1,24 @@
 # SpecSpine Map exhaustive orchestration
 
-Exhaustive mode verifies a mechanically generated repository frontier through
-one-shot producers; root never classifies production code as already covered.
+Exhaustive mode builds a semantic topic frontier from a flat mechanical source
+inventory, then verifies it through one-shot producers.
 
 ## Invariants
 
 - Only root runs `campaign.py`.
-- One fresh producer handles one ToDo and terminates after one checkpoint.
+- Fresh planning agents classify neutral inventory pages, one fresh synthesis
+  agent merges the complete candidate corpus, and one fresh producer handles
+  each accepted topic ToDo.
 - Use a medium-capability general-purpose agent: `agent_type: medium` in Codex,
   or the middle multi-file-analysis tier elsewhere. Never use weak or strongest.
-- Give every producer a fresh isolated context without inherited conversation or
-  hidden memory (`fork_turns: none` in Codex). Pass only the command below.
+- Give every planning, synthesis, and producer agent a fresh isolated context
+  (`fork_turns: none` in Codex) and only its phase contract and inputs.
 - Producers write only to private staging.
-- Root cannot create, remove, group, or terminally classify production units.
+- The inventory script emits a flat list of text production files and
+  terminally classifies only mechanically recognizable non-production
+  categories. It never proposes architecture.
+- Neutral planning pages are context transport, not semantic groups.
+- Only the validated final `topic-plan.json` creates producer ToDo.
 - A document is only a candidate owner until a producer supplies source evidence and existing semantic claim IDs.
 - Producer suggestions enter ToDo only through root integration.
 - Continue independent tasks after a producer failure.
@@ -54,37 +60,86 @@ Producers invoke neither `campaign.py` nor Doctor.
 
 ## Generate the source frontier
 
-Inspect the deterministic inventory if useful:
+Write the deterministic flat inventory:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py inventory \
-  <repository-root> --spine-root <spine-root>
+  <repository-root> --spine-root <spine-root> \
+  --output <run-root>/mechanical-inventory.json
 ```
 
-Then record it without an AI-authored classification report:
+It records every text production path plus explicit generated, test, vendored,
+dependency-lock, repository-support, opaque/binary, and collapsed-directory
+exclusions. It does not group production paths by directory or architecture.
+
+Paginate only for bounded context:
+
+```text
+python3 <map-skill-root>/scripts/campaign.py planning-packets \
+  <run-root>/mechanical-inventory.json <run-root>/planning-packets
+```
+
+Launch one fresh medium-capability planning agent per page, in strict waves of
+at most five. Each reads only
+`references/planning-task.md`, its packet, and the repository root, and writes
+the matching `planning-results/page-NNNN.json`. Do not reuse agents or let page
+names become topic names.
+
+Give each planner only:
+
+```text
+Read <map-skill-root>/references/planning-task.md completely; it is your sole
+Map contract. Analyze <planning-packet> against <repository-root>. Write the
+result to <matching-planning-result>. Do not read other Map references or
+message other agents. Terminate after writing the result.
+```
+
+After every page result exists, validate and collect them:
+
+```text
+python3 <map-skill-root>/scripts/campaign.py planning-collect \
+  <run-root>/planning-packets <run-root>/planning-results \
+  <run-root>/planning-corpus.json
+```
+
+Launch exactly one fresh medium-capability synthesis agent. It reads only
+`references/topic-synthesis.md`, the complete corpus, repository root, and
+current Spine root, then writes `<run-root>/topic-plan.json`. It performs the
+required whole-list pass: merge duplicate/cross-page topics, split mixed
+responsibilities, remove source-shaped categories, compare every remaining
+topic with existing canonical SpecSpine coverage, and account for every
+production file.
+
+Give the synthesis agent only:
+
+```text
+Read <map-skill-root>/references/topic-synthesis.md completely; it is your sole
+Map contract. Synthesize <planning-corpus> against <repository-root> and check
+every topic against <spine-root>. Write the result to
+<run-root>/topic-plan.json. Do not read other Map references or message other
+agents. Terminate after writing the result.
+```
+
+Only then record the source pass:
 
 ```text
 python3 <map-skill-root>/scripts/campaign.py source-pass \
-  <campaign> <repository-root> <spine-root>
+  <campaign> <repository-root> <spine-root> \
+  --topic-plan <run-root>/topic-plan.json
 ```
 
-The command returns counts; the ledger retains the complete frontier. It:
-
-- classifies concrete files before grouping;
-- separates tests, fixtures, generated, vendored, documentation, governance,
-  and local-support files from production;
-- groups by concrete parent directory and never packs sibling subtrees;
-- splits a flat directory over 80 files per file and requires one evidence
-  obligation for every production file in each unit;
-- creates one immutable verification ToDo for every remaining unit;
-- finds candidate owner documents only through literal path references;
-- records the complete source-content digest.
+The command recomputes the inventory, rejects unknown, omitted, conflicting, or
+oversized topic assignments, records the exact plan and source digest, and
+creates one immutable producer ToDo per semantic topic. Every topic file
+becomes an explicit evidence obligation. Files classified `supporting` by the
+synthesis agent and topics classified `covered` with concrete existing
+documents and semantic claims remain in the ledger without a producer.
 
 The source frontier is immutable. If repository content changes, discard the
 private run and start from the new snapshot.
 
-Candidate owners do not close work. There is no fallback owner and no root
-classification equivalent to `mapped` or `neighbor-owned`.
+Candidate owners do not close work. Root may neither rewrite the accepted topic
+plan nor classify production files as supporting.
 
 `ready` orders work breadth-first: repository runtime and manifests,
 composition/command entry points, top-level runtime families, leaf features,
@@ -182,7 +237,14 @@ document.
 
 The durable campaign is the unit of completion; a model turn is only an
 execution slice. Time, tokens, compaction, a settled wave, an empty slot, or a
-large remaining count never authorizes stopping.
+large remaining count do not establish completion.
+
+Keep enough execution reserve to integrate a started wave. With a known hard
+turn window, stop dispatching after 60% of it or when less than the longer of
+four minutes and the preceding wave-plus-integration duration remains. Finish
+the current wave, accept it, integrate it, and reach a clean dispatch boundary.
+Never start a wave that is likely to leave `assigned`, `review`, or `published`
+work at the boundary.
 
 At campaign start, after every integration pass, after every resumed turn, and
 before any final answer, run:
@@ -201,9 +263,11 @@ Follow its `action`:
 - `finalize` — run `finalize_run.py`;
 - `report_blocked` — report the concrete protocol blocker.
 
-`may_finish: false` forbids a final answer. Send progress only in commentary,
-then act in the same turn. Do not phrase progress as a handoff, yield control,
-ask for “continue”, or obey hints. The operator must not have to restart.
+`may_finish: false` normally forbids a final answer. Send progress only in
+commentary and continue. If the platform imposes an unavoidable hard turn
+boundary, a resumable progress final is allowed only when `may_pause: true`;
+name the exact ledger and remaining counts. `may_pause` is false while a wave,
+publication, integration, source snapshot, or checker state is unsettled.
 
 `may_finish: true` is necessary but not sufficient for success:
 

@@ -12,7 +12,7 @@ python3 <map-skill-root>/scripts/campaign.py seed-from-spine \
 
 The command stores every live Markdown hash. It adds no ToDo and grants no
 coverage. `source-pass` later uses literal evidence references from the whole
-Spine to suggest candidate owners for every production unit.
+Spine to suggest candidate owners for every synthesized semantic topic.
 
 The command accepts only a current v3 root pair: a missing index or manifest,
 an invalid manifest envelope, any manifest version other than integer `3`, and

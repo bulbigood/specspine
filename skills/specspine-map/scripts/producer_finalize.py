@@ -290,7 +290,11 @@ def run_candidate_checker(
         )
 
 
-def validate_draft_semantics(staged: dict[str, Path]) -> None:
+def validate_draft_semantics(
+    staged: dict[str, Path],
+    task: dict[str, Any],
+) -> None:
+    expected_baseline = task.get("evidence_baseline")
     for relative, path in staged.items():
         body = path.read_text(encoding="utf-8")
         if LEGACY_SEMANTIC_RE.search(body):
@@ -300,6 +304,10 @@ def validate_draft_semantics(staged: dict[str, Path]) -> None:
         if EVIDENCE_BASELINE_RE.search(body) is None:
             raise PreflightError(
                 f"candidate needs an evidence baseline: {relative}"
+            )
+        if expected_baseline is not None and expected_baseline not in body:
+            raise PreflightError(
+                f"candidate must use the task packet evidence baseline: {relative}"
             )
         if OBS_DEFINITION_RE.search(body) is None:
             raise PreflightError(
@@ -329,7 +337,7 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
     validate_repository_evidence(repository_root, evidence)
     validate_covered_owner(checkpoint, task, spine_root, evidence)
     if checkpoint["outcome"] == "draft":
-        validate_draft_semantics(staged)
+        validate_draft_semantics(staged, task)
         run_candidate_checker(
             args.checker.resolve(),
             spine_root,

@@ -7,6 +7,13 @@ dependencies, failures, and boundaries. This file is the complete producer
 instruction set: do not load the Map `SKILL.md` or any other Map reference.
 Start with targeted `rg` and narrow excerpts, target at most 10,000 output tokens per call, and never dump complete large files; exceed the target only for a concrete unresolved boundary.
 
+`architecture_unit` names a topic accepted by the complete semantic synthesis
+pass; it is not a required document filename or guaranteed final owner. Verify
+the proposed responsibility against every evidence stratum. Prefer an existing
+canonical responsibility and correct a weak topic boundary in the draft;
+create or split a specification only for independently evolving ownership.
+Copy `evidence_baseline` exactly into every staged document.
+
 Write Markdown only in staging; write checkpoint to `<work-package>/checkpoint.json`.
 Do not edit the live Spine, repository source, tests, README, or campaign state;
 do not write to handoff, continue to another unit, or integrate navigation.
@@ -20,7 +27,8 @@ specification and verify:
 - observations remain `OBS`; every `Evidence:` span is a complete
   repository-relative path, never prefix-inherited shorthand;
 - every staged owner has an evidence baseline and at least one v3 semantic
-  `OBS` bullet; legacy `**ID:** ... **Status:**` definitions are invalid;
+  `OBS` bullet; its baseline exactly matches the task packet; legacy
+  `**ID:** ... **Status:**` definitions are invalid;
 - supported relevant boundaries, interfaces, state, lifecycle, failures, and
   relationships are present;
 - semantic IDs are stable and links use the required complete labels;
@@ -70,7 +78,8 @@ Existing owner:
 ```
 
 Use `covered` only for a source-pass inventory task. The cited claims must
-cover the assigned production unit, not merely mention a neighboring concept.
+cover the assigned semantic topic and all of its evidence obligations, not
+merely mention a neighboring concept.
 
 For an integration-derived task, use `"outcome": "answered"` with the same
 `evidence`, `summary`, `owner`, and `directions` fields only when cited claims

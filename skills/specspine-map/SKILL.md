@@ -1,6 +1,6 @@
 ---
 name: specspine-map
-description: "Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use bounded mode for surveys, overviews, selected subsystems, local refresh, and drift. Use exhaustive mode when the operator asks to cover the whole project: mechanically queue every production work unit, dispatch each verification ToDo to one fresh producer, integrate results centrally, and continue until the inventory is verified. Do not invent intended architecture, perform general integrity audits, implement changes, or claim code/spec conformance."
+description: "Map observed brownfield repository architecture into a linked Markdown SpecSpine. Use bounded mode for surveys, overviews, selected subsystems, local refresh, and drift. Use exhaustive mode when the operator asks to cover the whole project: mechanically inventory every text production file, synthesize semantic topics with fresh agents, dispatch each topic ToDo to one fresh producer, integrate results centrally, and continue until the inventory is verified. Do not invent intended architecture, perform general integrity audits, implement changes, or claim code/spec conformance."
 ---
 
 # SpecSpine Map
@@ -37,6 +37,10 @@ Select one execution mode before project discovery:
   substantial survey, refresh, or restructuring.
 - Read [references/campaign-selection.md](references/campaign-selection.md)
   before starting or resuming an exhaustive campaign in a new session.
+- In exhaustive planning, give each planning agent
+  [references/planning-task.md](references/planning-task.md) and give the one
+  final synthesis agent
+  [references/topic-synthesis.md](references/topic-synthesis.md).
 - Start new files from `assets/templates/` and omit empty sections.
 
 If live `README.md` is absent and no output root exists, create the root pair;
@@ -57,25 +61,26 @@ Map records each owner's supported and missing manifest facets. Evidence
 cannot create normative claims or produce `ready` status.
 
 Read [references/orchestration.md](references/orchestration.md) completely
-before discovery. Exhaustive mode requires fresh producer handles: one producer
-per bounded ToDo, one checkpoint, then termination. Use the platform's
-medium-capability general-purpose agent tier for every producer: neither its
-weak/cheap tier nor its strongest/premium tier. In Codex this is
-`agent_type: medium`.
+before discovery. Exhaustive mode requires fresh topic-planning agents, one
+fresh whole-list synthesis agent that removes topics already covered by the
+current Spine, then one fresh producer per remaining bounded semantic ToDo. Use
+the platform's medium-capability general-purpose tier for every role: neither
+weak/cheap nor strongest/premium. In Codex this is `agent_type: medium`.
 
-Treat exhaustive intent as one durable campaign, not one turn. A turn boundary,
-elapsed time, compaction, and progress are not terminal. Before any final
-answer, run `campaign.py next-action` on the exact ledger; finish only when it
-returns `may_finish: true`. Send intermediate counts only as commentary.
+Treat exhaustive intent as one durable campaign, not one turn. Before any final
+answer, run `campaign.py next-action` on the exact ledger. Success or blockage
+requires `may_finish: true`. An unavoidable platform turn boundary additionally
+requires `may_pause: true`; never stop with assigned, review, or privately
+published work. Send ordinary intermediate counts only as commentary.
 
-Start each producer in a fresh isolated context (`fork_turns: none` in Codex; equivalent on another agent platform). Pass only the
-producer contract, task packet, and required paths.
+Start each planning, synthesis, and producer agent in a fresh isolated context
+(`fork_turns: none` in Codex; equivalent on another agent platform). Pass only
+its phase contract, inputs, and required paths.
 Dispatch strict waves of at most five producers: precompute every prompt, then emit spawn calls back-to-back with no reasoning or other tools between them; use platform batch spawn when available.
 While a wave runs, read-only harvest completed handoffs; publish/integrate only after its terminal barrier, never refill, and stop only at a predeclared timeout or explicit stall.
 Never reuse a producer. If the platform cannot provide both a fresh producer
 and a medium-capability tier, preserve the generated ToDo and report `blocked`;
-do not substitute another tier, classify production units, or simulate
-exhaustive coverage in root.
+do not substitute another tier or simulate exhaustive coverage in root.
 
 Require every producer to iterate in its durable private work package, run the
 specified `producer_finalize.py` preflight, and atomically expose exactly one

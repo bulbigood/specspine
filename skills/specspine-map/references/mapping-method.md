@@ -101,25 +101,29 @@ the named source. Do not remap the whole repository for a local change.
 
 ## Coverage and depth
 
-For exhaustive brownfield mapping, `campaign.py source-pass` mechanically
-creates a verification ToDo for every production-capable work unit. It excludes
-only structurally recognizable vendored, generated, repository-level test, and
-governance units. Tests remain useful evidence for behavior and failures.
-Nested production units are concrete parent directories; sibling subtrees are
-never packed to meet a size target. An oversized flat directory falls back to
-one file per unit rather than arbitrary lexical chunks. Every remaining
-production file is an explicit evidence obligation inside its unit.
+For exhaustive brownfield mapping, the mechanical inventory emits a flat list
+of text production files. It terminally records structurally recognizable
+vendored/generated trees, dependency locks, tests, repository support, and
+opaque static assets; they remain retrievable evidence but do not independently
+justify architecture owners. Tests remain useful evidence for behavior and
+failures. Neutral pagination bounds planning-agent context without expressing
+architecture. Fresh planning agents propose topics; one final synthesis pass
+merges the complete candidate list, checks each topic against existing
+canonical SpecSpine coverage, and assigns every production file before
+`source-pass` creates producer ToDo only for uncovered topics.
 
 Existing path references produce candidate owners, never terminal coverage.
-Each production unit remains open until a one-shot producer either publishes
-the missing observation or proves coverage through concrete source evidence and
-existing owner semantic IDs. Root must not replace this with regex ownership,
-directory-name inference, a broad fallback owner, or prose classification.
+Each synthesized topic remains open until a one-shot producer either publishes
+the missing observation or proves coverage through concrete source evidence
+and existing owner semantic IDs. Root must not replace semantic synthesis with
+regex ownership, directory-name inference, a broad fallback owner, or prose
+classification.
 
-The inventory is a discovery lower bound, not an architecture model. One work
-unit does not imply one document: multiple verified units may share a canonical
-owner, while one unit may expose several responsibilities. A producer maps only
-its assigned question and suggests narrower directions for later ToDo.
+The inventory and its pages are discovery lower bounds, not architecture
+models. One synthesized topic does not imply one document: several topics may
+converge on one canonical owner, while one topic may expose several genuinely
+independent responsibilities. A producer maps only its assigned question and
+suggests narrower directions.
 Map may deepen repository-observable uncertainty. Preserve questions about what
 the system should guarantee verbatim; repository evidence cannot answer them.
 
