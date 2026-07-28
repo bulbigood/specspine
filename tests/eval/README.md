@@ -178,18 +178,15 @@ disjoint: `core` has 7 executable cases, `extended` has 14, and `planned` has
 
 ### Large external Grafana Extract benchmark
 
-The opt-in Grafana benchmark compares three retrieval strategies on seven
+The opt-in Grafana benchmark compares two retrieval strategies on seven
 cross-document scenarios from a local Grafana checkout:
 
 - direct navigation through SpecSpine without an installed skill;
-- direct repository-source search without SpecSpine or an installed skill;
 - accelerated Extract over SpecSpine.
 
-Documentation arms copy only `AGENTS.md` and `specspine/`. The source-search arm
-copies the tracked Grafana worktree without `specspine/`, strips the SpecSpine
-bootstrap block from `AGENTS.md`, and does not install `.eval/skill`. The normal
-eval inventory and CI remain hermetic. One sample runs every scenario once in
-each arm; report metrics are averaged across all scenario/sample results.
+Both arms copy only `AGENTS.md` and `specspine/`; the normal eval inventory and
+CI remain hermetic. One sample runs every scenario once in each arm; report
+metrics are averaged across all scenario/sample results.
 
 ```bash
 report_dir=$(mktemp -d -t specspine-extract-grafana.XXXXXX)
@@ -203,15 +200,7 @@ The scenarios cover resource migration, plugin backend requests, alert
 evaluation and delivery, frontend API boundaries, session authorization,
 resource schema publication, and folder cascade deletion. Documentation arms
 have explicit required, supporting, and hard-negative specification paths.
-The source-search arm has equivalent required concept groups with alternative
-canonical source paths, plus source-specific supporting and hard-negative
-paths. A required source group passes when the response cites at least one
-canonical implementation file for that concept. This avoids requiring one
-arbitrary file when multiple implementations expose the same boundary.
-Source-code relevance is open-world: precision scores only known relevant and
-hard-negative source paths, while unjudged implementation paths are neutral.
-SpecSpine relevance remains closed-world because its canonical owner set is
-bounded.
+SpecSpine relevance is closed-world because its canonical owner set is bounded.
 Raw reports and `comparison.md` use the same normalized recall, precision,
 quality, and cost metrics across arms. They also split wall time into
 pre-retrieval, production retrieval, and post-retrieval phases and report

@@ -133,41 +133,16 @@ def summarize(report: dict[str, Any]) -> dict[str, Any]:
             response,
         ))
         required = set(judgments.get("required", []))
-        required_groups = [
-            set(group)
-            for group in judgments.get("required_groups", [])
-            if isinstance(group, list) and group
-        ]
         supporting = set(judgments.get("supporting", []))
         hard_negatives = set(judgments.get("hard_negatives", []))
-        relevant = (
-            set(judgments.get("relevant", []))
-            | required
-            | supporting
-            | set().union(*required_groups)
-            if required_groups
-            else set(judgments.get("relevant", [])) | required | supporting
-        )
-        if required_groups:
-            required_recalls.append(
-                sum(bool(group & mentioned) for group in required_groups)
-                / len(required_groups)
-            )
-        elif required:
+        relevant = set(judgments.get("relevant", [])) | required | supporting
+        if required:
             required_recalls.append(len(required & mentioned) / len(required))
         if supporting:
             supporting_recalls.append(len(supporting & mentioned) / len(supporting))
-        if judgments.get("open_world_relevance", False):
-            judged_mentions = mentioned & (relevant | hard_negatives)
-            handoff_precisions.append(
-                len(relevant & judged_mentions) / len(judged_mentions)
-                if judged_mentions
-                else 0.0
-            )
-        else:
-            handoff_precisions.append(
-                len(relevant & mentioned) / len(mentioned) if mentioned else 0.0
-            )
+        handoff_precisions.append(
+            len(relevant & mentioned) / len(mentioned) if mentioned else 0.0
+        )
         for run in sample.get("agent_runs", []):
             count = run.get("retrieval_attempt_count")
             if isinstance(count, int) and not isinstance(count, bool):
@@ -290,7 +265,6 @@ def write_comparison(
     )
     display_names = {
         "no-extract": "No Extract",
-        "source-search": "Source search",
         "fallback": "Extract fallback",
         "accelerated": "Accelerated Extract",
     }

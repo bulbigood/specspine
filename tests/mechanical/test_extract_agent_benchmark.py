@@ -3,7 +3,6 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 
 SCRIPT = Path(__file__).parents[1] / "eval" / "benchmark_extract_agents.py"
@@ -57,7 +56,7 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
                 + case["handoff_judgments"]["supporting"],
             )
         self.assertEqual(
-            ["no-extract", "source-search", "accelerated"],
+            ["no-extract", "accelerated"],
             [label for label, *_ in GRAFANA_BENCHMARK.ARMS],
         )
 
@@ -73,63 +72,6 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
             self.assertTrue((target / "AGENTS.md").is_file())
             self.assertTrue((target / "specspine" / "README.md").is_file())
             self.assertFalse((target / "ignored.go").exists())
-
-    def test_grafana_source_fixture_excludes_specspine_and_strips_bootstrap(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            source = root / "grafana"
-            (source / "specspine").mkdir(parents=True)
-            (source / "pkg").mkdir()
-            (source / "AGENTS.md").write_text(
-                "# Instructions\n"
-                "<!-- specspine:begin -->\nUse SpecSpine.\n"
-                "<!-- specspine:end -->\n",
-                encoding="utf-8",
-            )
-            (source / "specspine" / "README.md").write_text(
-                "index", encoding="utf-8"
-            )
-            (source / "pkg" / "service.go").write_text(
-                "package pkg\n", encoding="utf-8"
-            )
-            listed = b"AGENTS.md\\0specspine/README.md\\0pkg/service.go\\0".replace(
-                b"\\0", b"\0"
-            )
-            with mock.patch.object(
-                GRAFANA_BENCHMARK.subprocess,
-                "run",
-                return_value=mock.Mock(stdout=listed),
-            ):
-                target = GRAFANA_BENCHMARK.materialize_source_fixture(
-                    source, root / "source-fixture"
-                )
-            self.assertTrue((target / "pkg" / "service.go").is_file())
-            self.assertFalse((target / "specspine").exists())
-            self.assertNotIn(
-                "SpecSpine",
-                (target / "AGENTS.md").read_text(encoding="utf-8"),
-            )
-
-    def test_grafana_source_search_uses_alternative_source_path_groups(self):
-        fixture = Path("/fixtures/grafana-source")
-        case = GRAFANA_BENCHMARK.grafana_case(
-            fixture,
-            "source-search",
-            GRAFANA_BENCHMARK.SCENARIOS[0],
-        )
-        judgments = case["handoff_judgments"]
-        self.assertFalse(judgments["required"])
-        self.assertTrue(judgments["required_groups"])
-        self.assertNotIn("specspine/", " ".join(judgments["relevant"]))
-        group_assertions = [
-            item
-            for item in case["assertions"]
-            if item["type"] == "response_contains_any"
-        ]
-        self.assertEqual(
-            len(judgments["required_groups"]),
-            len(group_assertions),
-        )
 
     def test_grafana_no_extract_adapter_does_not_enable_retrieval_telemetry(self):
         command = GRAFANA_BENCHMARK.adapter_command(
@@ -283,36 +225,6 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
         )
         rendered = " ".join(command)
         self.assertNotIn("--retrieval-telemetry", rendered)
-
-    def test_source_groups_use_group_recall_and_open_world_precision(self):
-        report = {
-            "cases": {
-                "source-case": {
-                    "handoff_judgments": {
-                        "required": [],
-                        "required_groups": [
-                            ["pkg/a.go", "pkg/a_alt.go"],
-                            ["pkg/b.go"],
-                        ],
-                        "supporting": [],
-                        "relevant": ["pkg/a.go", "pkg/a_alt.go", "pkg/b.go"],
-                        "hard_negatives": ["pkg/wrong.go"],
-                        "open_world_relevance": True,
-                    }
-                }
-            },
-            "samples": [{
-                "case_id": "source-case",
-                "passed": True,
-                "diagnostics": {
-                    "response": "pkg/a_alt.go pkg/extra.go pkg/wrong.go"
-                },
-                "agent_runs": [],
-            }],
-        }
-        summary = BENCHMARK.summarize(report)
-        self.assertEqual(0.5, summary["mean_required_recall"])
-        self.assertEqual(0.5, summary["mean_handoff_precision"])
 
     def test_comparison_contains_agent_cost_and_quality_metrics(self):
         sample = {

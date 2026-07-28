@@ -7,11 +7,8 @@ import argparse
 import datetime
 import importlib.util
 import json
-import os
-import re
 import shlex
 import shutil
-import subprocess
 import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -39,7 +36,6 @@ AGENT_BENCHMARK = load_module(
 )
 ARMS = (
     ("no-extract", "no-extract", "accelerated"),
-    ("source-search", "source-search", "accelerated"),
     # ("fallback", "fallback", "fallback"),
     ("accelerated", "extract", "accelerated"),
 )
@@ -59,21 +55,6 @@ SCENARIOS = (
         "hard_negatives": [
             "specspine/operations/resource-provisioning-reconciliation.md"
         ],
-        "source_required_groups": [
-            ["pkg/storage/legacysql/dualwrite/storage_service.go"],
-            [
-                "pkg/storage/unified/migrations/status_reader.go",
-                "pkg/storage/unified/migrations/contract/migrations.go",
-            ],
-            ["pkg/services/apiserver/builder/helper.go"],
-        ],
-        "source_supporting": [
-            "pkg/setting/setting_unified_storage.go",
-            "pkg/storage/legacysql/dualwrite/dualwriter.go",
-        ],
-        "source_hard_negatives": [
-            "pkg/registry/apis/provisioning/resources/dualwriter.go"
-        ],
     },
     {
         "id": "extract-grafana-plugin-backend-request",
@@ -87,24 +68,6 @@ SCENARIOS = (
         "hard_negatives": [
             "specspine/plugins/plugin-resource-http-response-adapter.md"
         ],
-        "source_required_groups": [
-            [
-                "pkg/plugins/backendplugin/grpcplugin/client.go",
-                "pkg/plugins/backendplugin/grpcplugin/client_v2.go",
-            ],
-            [
-                "pkg/plugins/manager/pipeline/initialization/steps.go",
-                "pkg/plugins/backendplugin/grpcplugin/grpc_plugin.go",
-            ],
-            ["pkg/plugins/instrumentationutils/request_status.go"],
-        ],
-        "source_supporting": [
-            "pkg/plugins/manager/process/process.go",
-            "pkg/services/pluginsintegration/clientmiddleware/metrics_middleware.go",
-        ],
-        "source_hard_negatives": [
-            "pkg/plugins/httpresponsesender/http_response_sender.go"
-        ],
     },
     {
         "id": "extract-grafana-alert-evaluation-delivery",
@@ -116,23 +79,6 @@ SCENARIOS = (
         "supporting": ["specspine/alerting/alerting.md"],
         "hard_negatives": [
             "specspine/alerting/alerting-notifications-app-api-adapter.md"
-        ],
-        "source_required_groups": [
-            [
-                "pkg/services/ngalert/state/state.go",
-                "pkg/services/ngalert/state/manager.go",
-            ],
-            [
-                "pkg/services/ngalert/sender/router.go",
-                "pkg/services/ngalert/notifier/alertmanager.go",
-            ],
-        ],
-        "source_supporting": [
-            "pkg/services/ngalert/eval/eval.go",
-            "pkg/services/ngalert/notifier/multiorg_alertmanager.go",
-        ],
-        "source_hard_negatives": [
-            "pkg/registry/apps/alerting/notifications/register.go"
         ],
     },
     {
@@ -147,25 +93,6 @@ SCENARIOS = (
         "hard_negatives": [
             "specspine/querying/sql-datasource-frontend-contract.md"
         ],
-        "source_required_groups": [
-            [
-                "packages/grafana-api-clients/src/clients/rtkq/createBaseQuery.ts",
-                "packages/grafana-api-clients/src/utils/utils.ts",
-            ],
-            [
-                "packages/grafana-runtime/src/services/backendSrv.ts",
-                "public/app/app.ts",
-            ],
-            [
-                "public/app/store/configureStore.ts",
-                "public/app/core/services/backend_srv.ts",
-            ],
-        ],
-        "source_supporting": [
-            "public/app/core/reducers/root.ts",
-            "packages/grafana-api-clients/src/clients/rtkq/index.ts",
-        ],
-        "source_hard_negatives": ["packages/grafana-sql/src/index.ts"],
     },
     {
         "id": "extract-grafana-session-authorization",
@@ -178,21 +105,6 @@ SCENARIOS = (
         "hard_negatives": [
             "specspine/identity-access/anonymous-device-management.md"
         ],
-        "source_required_groups": [
-            [
-                "pkg/services/authn/clients/session.go",
-                "pkg/services/auth/authimpl/auth_token.go",
-            ],
-            [
-                "pkg/services/apiserver/auth/authorizer/resource.go",
-                "pkg/services/authz/rbac/service.go",
-            ],
-        ],
-        "source_supporting": [
-            "pkg/services/authn/authnimpl/service.go",
-            "pkg/services/accesscontrol/authorizer.go",
-        ],
-        "source_hard_negatives": ["pkg/services/anonymous/anonimpl/impl.go"],
     },
     {
         "id": "extract-grafana-resource-schema-publication",
@@ -205,23 +117,6 @@ SCENARIOS = (
         ],
         "supporting": ["specspine/resources/grafana-schema-contract.md"],
         "hard_negatives": ["specspine/plugins/plugin-cue-schema-generation.md"],
-        "source_required_groups": [
-            ["kinds/gen.go"],
-            ["hack/update-codegen.sh"],
-            [
-                "pkg/services/apiserver/appinstaller/installer.go",
-                "pkg/services/apiserver/builder/scheme.go",
-            ],
-            [
-                "packages/grafana-openapi/src/scripts/process-specs.ts",
-                "packages/grafana-openapi/package.json",
-            ],
-        ],
-        "source_supporting": [
-            "hack/openapi-codegen.sh",
-            "pkg/services/apiserver/builder/openapi.go",
-        ],
-        "source_hard_negatives": ["pkg/plugins/codegen/jenny_plugingotypes.go"],
     },
     {
         "id": "extract-grafana-folder-deletion",
@@ -234,27 +129,6 @@ SCENARIOS = (
         "supporting": ["specspine/content/content-management.md"],
         "hard_negatives": [
             "specspine/content/library-panel-resource-transition.md"
-        ],
-        "source_required_groups": [
-            [
-                "pkg/registry/apis/folders/cascade_delete.go",
-                "pkg/registry/apis/folders/cascade_delete_storage.go",
-            ],
-            [
-                "pkg/services/folder/cleaner/contents_cleaner.go",
-                "pkg/services/dashboards/service/dashboard_service.go",
-            ],
-            [
-                "public/app/features/browse-dashboards/api/browseDashboardsAPI.ts",
-                "public/app/features/browse-dashboards/components/DashboardsTree.tsx",
-            ],
-        ],
-        "source_supporting": [
-            "pkg/services/folder/cleaner/provider.go",
-            "public/app/features/browse-dashboards/BrowseDashboardsPage.tsx",
-        ],
-        "source_hard_negatives": [
-            "pkg/registry/apis/dashboard/libary_panel.go"
         ],
     },
 )
@@ -275,75 +149,12 @@ def materialize_fixture(grafana_root: Path, target: Path) -> Path:
     return target
 
 
-def materialize_source_fixture(grafana_root: Path, target: Path) -> Path:
-    source = grafana_root.expanduser().resolve()
-    agents = source / "AGENTS.md"
-    if not agents.is_file():
-        raise ValueError(f"Grafana source fixture requires AGENTS.md: {source}")
-    try:
-        listed = subprocess.run(
-            ["git", "-C", str(source), "ls-files", "-z"],
-            check=True,
-            capture_output=True,
-        ).stdout
-    except (OSError, subprocess.CalledProcessError) as error:
-        raise ValueError(
-            f"Grafana source fixture requires a readable Git worktree: {source}"
-        ) from error
-    paths = [
-        Path(os.fsdecode(value))
-        for value in listed.split(b"\0")
-        if value and not os.fsdecode(value).startswith("specspine/")
-    ]
-    target.mkdir(parents=True)
-    for relative in paths:
-        source_path = source / relative
-        if not source_path.is_file():
-            continue
-        target_path = target / relative
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source_path, target_path)
-    target_agents = target / "AGENTS.md"
-    content = target_agents.read_text(encoding="utf-8")
-    content = re.sub(
-        r"\n?<!-- specspine:begin -->.*?<!-- specspine:end -->\n?",
-        "\n",
-        content,
-        flags=re.DOTALL,
-    )
-    target_agents.write_text(content, encoding="utf-8")
-    return target
-
-
 def grafana_case(
     fixture: Path, profile: str, scenario: dict[str, Any] = SCENARIOS[0]
 ) -> dict[str, Any]:
-    source_search = profile == "source-search"
-    required_groups = (
-        [list(group) for group in scenario["source_required_groups"]]
-        if source_search
-        else []
-    )
-    required = [] if source_search else list(scenario["required"])
-    supporting = list(
-        scenario["source_supporting"] if source_search else scenario["supporting"]
-    )
-    hard_negatives = list(
-        scenario["source_hard_negatives"]
-        if source_search
-        else scenario["hard_negatives"]
-    )
-    relevant = required + supporting + [
-        path for group in required_groups for path in group
-    ]
-    required_assertions = (
-        [
-            {"type": "response_contains_any", "values": group}
-            for group in required_groups
-        ]
-        if source_search
-        else [{"type": "response_contains", "values": required}]
-    )
+    required = list(scenario["required"])
+    supporting = list(scenario["supporting"])
+    hard_negatives = list(scenario["hard_negatives"])
     return {
         "id": scenario["id"],
         "scenario": scenario["scenario"],
@@ -355,11 +166,9 @@ def grafana_case(
         "_execution_profile": profile,
         "handoff_judgments": {
             "required": required,
-            "required_groups": required_groups,
             "supporting": supporting,
-            "relevant": relevant,
+            "relevant": required + supporting,
             "hard_negatives": hard_negatives,
-            "open_world_relevance": source_search,
         },
         "assertions": [
             {"type": "max_changed_files", "max": 0},
@@ -369,11 +178,6 @@ def grafana_case(
                 "profiles": ["extract", "fallback", "no-extract"],
             },
             {
-                "type": "read_only",
-                "paths": ["**"],
-                "profiles": ["source-search"],
-            },
-            {
                 "type": "command_includes",
                 "value": "search_spine.py",
                 "profiles": ["extract", "fallback"],
@@ -381,7 +185,7 @@ def grafana_case(
             {
                 "type": "command_excludes",
                 "value": "search_spine.py",
-                "profiles": ["no-extract", "source-search"],
+                "profiles": ["no-extract"],
             },
             {
                 "type": "trace_equals",
@@ -389,7 +193,7 @@ def grafana_case(
                 "value": 1,
                 "profiles": ["extract"],
             },
-            *required_assertions,
+            {"type": "response_contains", "values": required},
             {
                 "type": "response_not_contains",
                 "values": hard_negatives,
@@ -528,26 +332,12 @@ def main() -> int:
                 args.grafana_root,
                 fixture_root / "documentation-project",
             )
-            source_fixture = (
-                materialize_source_fixture(
-                    args.grafana_root,
-                    fixture_root / "source-project",
-                )
-                if any(arm[1] == "source-search" for arm in selected_arms)
-                else None
-            )
         except ValueError as error:
             parser.error(str(error))
         for label, execution_profile, retrieval_profile in selected_arms:
-            fixture = (
-                source_fixture
-                if execution_profile == "source-search"
-                else documentation_fixture
-            )
-            assert fixture is not None
             report, arm_passed = run_arm(
                 args.output_dir,
-                fixture,
+                documentation_fixture,
                 label,
                 execution_profile,
                 retrieval_profile,

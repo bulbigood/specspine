@@ -49,7 +49,7 @@ NO_SKILL_BOUNDARY_INSTRUCTIONS = (
     "information is absent, report that it is unavailable. The `.eval` directory is "
     "evaluator-owned and contains no skill for this profile; never inspect it.\n"
 )
-EXECUTION_PROFILES = {"extract", "fallback", "no-extract", "source-search"}
+EXECUTION_PROFILES = {"extract", "fallback", "no-extract"}
 SPECSPINE_BEGIN_MARKER = "<!-- specspine:begin -->"
 SPECSPINE_END_MARKER = "<!-- specspine:end -->"
 SEMANTIC_ID_ERROR_CODES = {
@@ -1838,21 +1838,6 @@ def build_prompt(case: dict[str, Any], stage: dict[str, Any] | None = None) -> s
             + NO_SKILL_BOUNDARY_INSTRUCTIONS
             + "No retrieval skill is installed for this profile. Work directly from "
             "the project documentation without inspecting `.eval`.\n"
-            "Treat the current directory as the project root.\n"
-            f"For reproducibility, write the final response in {eval_language}. "
-            "Preserve existing user-authored language, identifiers, and quoted text.\n"
-            "Perform the user request described by the scenario.\n\n"
-            f"{scenario}\n"
-        )
-    if execution_profile(case) == "source-search":
-        return (
-            "You are running a repeatable repository-source retrieval evaluation.\n"
-            + NO_SKILL_BOUNDARY_INSTRUCTIONS
-            + "No SpecSpine documentation or retrieval skill is available for this "
-            "profile. Search the project source tree directly without inspecting "
-            "`.eval`. Identify and cite the repository-relative source files needed "
-            "for the requested change, then synthesize the architectural context "
-            "supported by those files.\n"
             "Treat the current directory as the project root.\n"
             f"For reproducibility, write the final response in {eval_language}. "
             "Preserve existing user-authored language, identifiers, and quoted text.\n"
