@@ -75,7 +75,6 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
 
     def test_grafana_no_extract_adapter_does_not_enable_retrieval_telemetry(self):
         command = GRAFANA_BENCHMARK.adapter_command(
-            "accelerated",
             "model",
             "medium",
             instrument_retrieval=False,
@@ -238,7 +237,7 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
             GROW_GRAFANA_BENCHMARK.navigation_file_count(sample),
         )
 
-    def test_grow_grafana_valid_extract_sample_rejects_fallback(self):
+    def test_grow_grafana_valid_extract_sample_rejects_malformed_output(self):
         valid = {
             "agent_runs": [{
                 "retrieval_attempts": [{
@@ -250,8 +249,8 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
                 }]
             }]
         }
-        fallback = json.loads(json.dumps(valid))
-        fallback["agent_runs"][0]["retrieval_attempts"][0].update(
+        malformed = json.loads(json.dumps(valid))
+        malformed["agent_runs"][0]["retrieval_attempts"][0].update(
             failure_kind="malformed_output",
             mode="unknown",
             production_output_utf8_bytes=27,
@@ -260,19 +259,18 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
             GROW_GRAFANA_BENCHMARK.valid_extract_sample(valid)
         )
         self.assertFalse(
-            GROW_GRAFANA_BENCHMARK.valid_extract_sample(fallback)
+            GROW_GRAFANA_BENCHMARK.valid_extract_sample(malformed)
         )
 
-    def test_three_fixed_arms_use_current_extract_cases(self):
+    def test_two_fixed_arms_use_current_extract_cases(self):
         self.assertEqual(
-            ["no-extract", "fallback", "accelerated"],
+            ["no-extract", "accelerated"],
             [label for label, *_ in BENCHMARK.ARMS],
         )
         command, report = BENCHMARK.report_command(
             Path("/reports"),
-            "fallback",
-            "fallback",
-            "fallback",
+            "accelerated",
+            "extract",
             samples=2,
             jobs=3,
             model="model",
@@ -280,11 +278,11 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
             timestamp="stamp",
         )
         rendered = " ".join(command)
-        self.assertIn("--execution-profile fallback", rendered)
-        self.assertIn("--retrieval-profile fallback", rendered)
+        self.assertIn("--execution-profile extract", rendered)
+        self.assertIn("--retrieval-telemetry minimal", rendered)
         self.assertNotIn("--ranking", rendered)
         self.assertNotIn("--graph-limit", rendered)
-        self.assertEqual(Path("/reports/fallback.json"), report)
+        self.assertEqual(Path("/reports/accelerated.json"), report)
         for case in BENCHMARK.CASES:
             self.assertIn(case, command)
 
@@ -293,7 +291,6 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
             Path("/reports"),
             "no-extract",
             "no-extract",
-            "accelerated",
             samples=1,
             jobs=1,
             model="model",
@@ -366,7 +363,6 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
             BENCHMARK.write_comparison(target, reports)
             text = target.read_text(encoding="utf-8")
         self.assertIn("No Extract", text)
-        self.assertIn("Extract fallback", text)
         self.assertIn("Accelerated Extract", text)
         self.assertIn("mean_total_tokens", text)
         self.assertIn("mean_uncached_input_tokens", text)

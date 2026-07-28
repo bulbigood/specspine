@@ -123,7 +123,7 @@ shows that the existing contract cannot solve the problem.
 
 Completed foundations include the four runtime skills, persistent project-agent
 bootstrap, mechanical checks, deterministic retrieval acceleration with native
-Markdown fallback, exhaustive brownfield orchestration, shared-resource
+Accelerated Markdown retrieval, exhaustive brownfield orchestration, shared-resource
 validation, and evaluation harnesses.
 
 Future work may add adapters for popular SDD frameworks while keeping the

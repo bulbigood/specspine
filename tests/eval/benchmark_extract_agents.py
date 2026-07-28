@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare direct navigation, Extract fallback, and accelerated Extract."""
+"""Compare direct navigation and accelerated Extract."""
 
 from __future__ import annotations
 
@@ -24,9 +24,8 @@ CASES = (
     "extract-pipeline-multislice-zh-cn",
 )
 ARMS = (
-    ("no-extract", "no-extract", "accelerated"),
-    ("fallback", "fallback", "fallback"),
-    ("accelerated", "extract", "accelerated"),
+    ("no-extract", "no-extract"),
+    ("accelerated", "extract"),
 )
 
 
@@ -34,7 +33,6 @@ def report_command(
     output_dir: Path,
     label: str,
     execution_profile: str,
-    retrieval_profile: str,
     *,
     samples: int,
     jobs: int,
@@ -45,10 +43,9 @@ def report_command(
     report = output_dir / f"{label}.json"
     adapter = (
         f"{sys.executable} {EVAL_DIR / 'adapters' / 'codex.py'} "
-        f"--model {model} --reasoning-effort {reasoning_effort} "
-        f"--retrieval-profile {retrieval_profile}"
+        f"--model {model} --reasoning-effort {reasoning_effort}"
     )
-    if execution_profile != "no-extract":
+    if execution_profile == "extract":
         adapter += " --retrieval-telemetry minimal"
     command = [
         sys.executable,
@@ -234,7 +231,7 @@ def format_value(value: Any) -> str:
 def write_comparison(
     output: Path,
     reports: dict[str, dict[str, Any]],
-    arms: tuple[tuple[str, str, str], ...] = ARMS,
+    arms: tuple[tuple[str, str], ...] = ARMS,
 ) -> None:
     case_sets = [set(report.get("cases", {})) for report in reports.values()]
     if not case_sets or any(case_set != case_sets[0] for case_set in case_sets[1:]):
@@ -265,7 +262,6 @@ def write_comparison(
     )
     display_names = {
         "no-extract": "No Extract",
-        "fallback": "Extract fallback",
         "accelerated": "Accelerated Extract",
     }
     labels = [label for label, *_ in arms]
@@ -329,12 +325,11 @@ def main() -> int:
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     reports: dict[str, dict[str, Any]] = {}
     failed = False
-    for label, execution_profile, retrieval_profile in ARMS:
+    for label, execution_profile in ARMS:
         command, report_path = report_command(
             args.output_dir,
             label,
             execution_profile,
-            retrieval_profile,
             samples=args.samples,
             jobs=args.jobs,
             model=args.model,

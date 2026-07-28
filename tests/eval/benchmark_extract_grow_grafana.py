@@ -184,8 +184,6 @@ def adapter_command(
         model,
         "--reasoning-effort",
         reasoning_effort,
-        "--retrieval-profile",
-        "accelerated",
     ]
     if with_extract:
         command.extend(("--retrieval-telemetry", "minimal"))

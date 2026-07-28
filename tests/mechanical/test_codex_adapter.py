@@ -697,7 +697,7 @@ class CodexAdapterTests(unittest.TestCase):
         )
         output = "\n".join(
             [
-                '<<<SPECSPINE_RESULT {"version":2,"mode":"sqlite-fts5",'
+                '<<<SPECSPINE_RESULT {"version":2,"mode":"closure",'
                 '"ranking":"normalized","graph_depth":1,'
                 '"graph_limit":2,"truncated":true}>>>',
                 '<<<SPECSPINE_SLICE {"id":"retry-owner","status":"matched",'

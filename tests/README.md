@@ -65,7 +65,7 @@ python3 tests/eval/run.py \
 The raw report retains responses, retrieval attempts, deterministic byte/cycle
 costs, tool-call counts, and model token counters.
 
-Compare direct navigation, Extract fallback, and accelerated Extract:
+Compare direct navigation and accelerated Extract:
 
 ```text
 python3 tests/eval/benchmark_extract_agents.py \

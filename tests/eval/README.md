@@ -195,7 +195,6 @@ python3 tests/eval/benchmark_extract_grafana.py \
   --output-dir "$report_dir" --samples 1 --jobs 6
 ```
 
-The fallback arm remains commented out in `benchmark_extract_grafana.py`.
 The scenarios cover resource migration, plugin backend requests, alert
 evaluation and delivery, frontend API boundaries, session authorization,
 resource schema publication, and folder cascade deletion. Documentation arms
@@ -300,7 +299,7 @@ The report preserves bounded responses, retrieval attempts, effective fixed
 ranking/graph policy, deterministic byte ledgers, tool cycles, and token
 counters.
 
-To compare the complete agent workflow—not ranking variants—run the three fixed
+To compare the complete agent workflow—not ranking variants—run the two fixed
 arms against the same EN/RU/ZH cases:
 
 ```bash
@@ -309,12 +308,10 @@ python3 tests/eval/benchmark_extract_agents.py \
   --output-dir "$report_dir" --samples 3 --jobs 6
 ```
 
-The arms are direct documentation navigation without Extract, Extract with an
-intentionally unavailable disposable accelerator, and production accelerated
-Extract. The benchmark writes one raw JSON report per arm and `comparison.md`
+The arms are direct documentation navigation without Extract and production
+accelerated Extract. The benchmark writes one raw JSON report per arm and `comparison.md`
 with behavioral success, duration, tokens, project reads, tool cycles, and
-retrieval bytes. `--retrieval-profile` is evaluator-only and is never exposed
-by the production skill or search CLI.
+retrieval bytes.
 
 Case manifests in `cases/*.json` define fixtures, prompts and deterministic
 assertions. A manifest may instead define ordered `stages`; agent stages run a

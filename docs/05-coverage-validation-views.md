@@ -107,17 +107,7 @@ Generated diagrams and reports are disposable views:
 
 None is the canonical storage model.
 
-## Graceful degradation
-
-If SQLite FTS5 or the retrieval cache is unavailable:
-
-1. open the root `README.md`;
-2. inspect `Coverage`;
-3. use the architecture map;
-4. follow relative Markdown links;
-5. read Responsibility, Boundaries, Relationships, and applicable Known
-   divergences;
-6. assemble the minimal context manually.
+## Canonical source resilience
 
 If a parser does not understand a new relation type, the Markdown remains
 readable, the relationship is preserved, the checker warns, and the target

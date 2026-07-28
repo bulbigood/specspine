@@ -19,9 +19,9 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class RunnerTests(unittest.TestCase):
-    def test_runner_supports_three_extract_benchmark_profiles(self):
+    def test_runner_supports_two_extract_benchmark_profiles(self):
         self.assertEqual(
-            {"extract", "fallback", "no-extract"},
+            {"extract", "no-extract"},
             RUNNER.EXECUTION_PROFILES,
         )
 
@@ -793,11 +793,11 @@ class RunnerTests(unittest.TestCase):
         )
         self.assertFalse(unknown.passed)
 
-    def test_trace_condition_limits_reads_only_in_fts_mode(self):
+    def test_trace_condition_limits_reads_only_in_selected_mode(self):
         assertion = {
             "type": "max_files_read",
             "max": 12,
-            "when_trace": {"retrieval_mode": "sqlite-fts5"},
+            "when_trace": {"retrieval_mode": "closure"},
         }
         enabled = RUNNER.evaluate_assertion(
             assertion,
@@ -805,35 +805,35 @@ class RunnerTests(unittest.TestCase):
             {},
             {},
             "",
-            {"retrieval_mode": "sqlite-fts5", "files_read": [f"{index}.md" for index in range(13)]},
+            {"retrieval_mode": "closure", "files_read": [f"{index}.md" for index in range(13)]},
         )
-        fallback = RUNNER.evaluate_assertion(
+        other_mode = RUNNER.evaluate_assertion(
             assertion,
             Path("."),
             {},
             {},
             "",
-            {"retrieval_mode": "fallback", "files_read": [f"{index}.md" for index in range(32)]},
+            {"retrieval_mode": "unknown", "files_read": [f"{index}.md" for index in range(32)]},
         )
         missing_trace = RUNNER.evaluate_assertion(
             assertion, Path("."), {}, {}, "", None
         )
 
         self.assertFalse(enabled.passed)
-        self.assertTrue(fallback.passed)
+        self.assertTrue(other_mode.passed)
         self.assertFalse(missing_trace.passed)
 
     def test_trace_equals_checks_observed_runtime_value(self):
         assertion = {
             "type": "trace_equals",
             "field": "retrieval_mode",
-            "value": "sqlite-fts5",
+            "value": "closure",
         }
         passed = RUNNER.evaluate_assertion(
-            assertion, Path("."), {}, {}, "", {"retrieval_mode": "sqlite-fts5"}
+            assertion, Path("."), {}, {}, "", {"retrieval_mode": "closure"}
         )
         failed = RUNNER.evaluate_assertion(
-            assertion, Path("."), {}, {}, "", {"retrieval_mode": "fallback"}
+            assertion, Path("."), {}, {}, "", {"retrieval_mode": "unknown"}
         )
 
         self.assertTrue(passed.passed)
@@ -876,7 +876,7 @@ class RunnerTests(unittest.TestCase):
         self.assertTrue(passed.passed)
         self.assertFalse(failed.passed)
 
-    def test_retrieval_attempt_valid_rejects_echo_fallback(self):
+    def test_retrieval_attempt_valid_rejects_malformed_output(self):
         assertion = {
             "type": "retrieval_attempt_valid",
             "count": 1,
@@ -891,7 +891,7 @@ class RunnerTests(unittest.TestCase):
                 "query_slices": [{"id": "change"}],
             }]
         }
-        echo_fallback = {
+        malformed = {
             "retrieval_attempts": [{
                 "exit_code": 0,
                 "failure_kind": "malformed_output",
@@ -907,7 +907,7 @@ class RunnerTests(unittest.TestCase):
         )
         self.assertFalse(
             RUNNER.evaluate_assertion(
-                assertion, Path("."), {}, {}, "", echo_fallback
+                assertion, Path("."), {}, {}, "", malformed
             ).passed
         )
 
@@ -1576,7 +1576,7 @@ class RunnerTests(unittest.TestCase):
             sample_number=2,
             agent_runs=(
                 {
-                    "retrieval_mode": "sqlite-fts5",
+                    "retrieval_mode": "closure",
                     "duration_seconds": 10.0,
                     "environment_invalid": False,
                     "files_read": 5,

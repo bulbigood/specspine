@@ -2247,12 +2247,6 @@ def main() -> int:
         choices=("minimal", "full"),
         help="observe staged retrieval out of band; omitted matches production",
     )
-    parser.add_argument(
-        "--retrieval-profile",
-        choices=("accelerated", "fallback"),
-        default="accelerated",
-        help="benchmark-only: make the disposable accelerator available or unavailable",
-    )
     args = parser.parse_args()
     subagent_model, subagent_reasoning_effort = SUBAGENT_ROLE_CONFIG[
         args.subagent_role
@@ -2422,7 +2416,6 @@ def main() -> int:
                     "rollout" if rollout_calls else "exec-jsonl"
                 ),
                 "retrieval_telemetry": args.retrieval_telemetry,
-                "retrieval_profile": args.retrieval_profile,
                 "ranking_system": "normalized",
                 "graph_depth": 1,
                 "graph_limit": 2,

@@ -35,9 +35,8 @@ AGENT_BENCHMARK = load_module(
     "specspine_extract_agent_benchmark", EVAL_DIR / "benchmark_extract_agents.py"
 )
 ARMS = (
-    ("no-extract", "no-extract", "accelerated"),
-    # ("fallback", "fallback", "fallback"),
-    ("accelerated", "extract", "accelerated"),
+    ("no-extract", "no-extract"),
+    ("accelerated", "extract"),
 )
 SCENARIOS = (
     {
@@ -175,12 +174,12 @@ def grafana_case(
             {
                 "type": "read_only",
                 "paths": ["specspine/**"],
-                "profiles": ["extract", "fallback", "no-extract"],
+                "profiles": ["extract", "no-extract"],
             },
             {
                 "type": "command_includes",
                 "value": "search_spine.py",
-                "profiles": ["extract", "fallback"],
+                "profiles": ["extract"],
             },
             {
                 "type": "command_excludes",
@@ -204,7 +203,6 @@ def grafana_case(
 
 
 def adapter_command(
-    retrieval_profile: str,
     model: str,
     reasoning_effort: str,
     *,
@@ -217,8 +215,6 @@ def adapter_command(
         model,
         "--reasoning-effort",
         reasoning_effort,
-        "--retrieval-profile",
-        retrieval_profile,
     ]
     if instrument_retrieval:
         command.extend(("--retrieval-telemetry", "minimal"))
@@ -230,7 +226,6 @@ def run_arm(
     fixture: Path,
     label: str,
     execution_profile: str,
-    retrieval_profile: str,
     *,
     samples: int,
     jobs: int,
@@ -243,10 +238,9 @@ def run_arm(
         grafana_case(fixture, execution_profile, scenario) for scenario in scenarios
     ]
     command = adapter_command(
-        retrieval_profile,
         model,
         reasoning_effort,
-        instrument_retrieval=execution_profile in {"extract", "fallback"},
+        instrument_retrieval=execution_profile == "extract",
     )
     queued = __import__("time").monotonic()
     reports = []
@@ -334,13 +328,12 @@ def main() -> int:
             )
         except ValueError as error:
             parser.error(str(error))
-        for label, execution_profile, retrieval_profile in selected_arms:
+        for label, execution_profile in selected_arms:
             report, arm_passed = run_arm(
                 args.output_dir,
                 documentation_fixture,
                 label,
                 execution_profile,
-                retrieval_profile,
                 samples=args.samples,
                 jobs=args.jobs,
                 model=args.model,

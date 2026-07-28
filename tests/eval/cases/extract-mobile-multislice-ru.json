@@ -27,7 +27,7 @@
   "assertions": [
     {"type": "max_changed_files", "max": 0},
     {"type": "read_only", "paths": ["specspine/**"]},
-    {"type": "command_includes", "value": "search_spine.py", "profiles": ["extract", "fallback"]},
+    {"type": "command_includes", "value": "search_spine.py", "profiles": ["extract"]},
     {"type": "command_excludes", "value": "search_spine.py", "profiles": ["no-extract"]},
     {"type": "trace_equals", "field": "retrieval_attempt_count", "value": 1, "profiles": ["extract"]},
     {"type": "retrieval_query_terms_include", "groups": [["покуп", "оплат", "банк"], ["ссыл", "билет", "навигац"]], "profiles": ["extract"]},

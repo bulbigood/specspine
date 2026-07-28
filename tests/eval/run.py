@@ -49,7 +49,7 @@ NO_SKILL_BOUNDARY_INSTRUCTIONS = (
     "information is absent, report that it is unavailable. The `.eval` directory is "
     "evaluator-owned and contains no skill for this profile; never inspect it.\n"
 )
-EXECUTION_PROFILES = {"extract", "fallback", "no-extract"}
+EXECUTION_PROFILES = {"extract", "no-extract"}
 SPECSPINE_BEGIN_MARKER = "<!-- specspine:begin -->"
 SPECSPINE_END_MARKER = "<!-- specspine:end -->"
 SEMANTIC_ID_ERROR_CODES = {
@@ -140,7 +140,6 @@ def compact_agent_trace(trace: dict[str, Any] | None) -> dict[str, Any]:
         "graph_depth": trace.get("graph_depth"),
         "graph_limit": trace.get("graph_limit"),
         "retrieval_telemetry": trace.get("retrieval_telemetry"),
-        "retrieval_profile": trace.get("retrieval_profile"),
         "retrieval_mode": trace.get("retrieval_mode"),
         "retrieval_attempts": attempts if isinstance(attempts, list) else [],
         "retrieval_attempt_count": trace.get("retrieval_attempt_count"),
@@ -722,7 +721,7 @@ def write_fixture(case: dict[str, Any], workspace: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
     (workspace / ".eval").mkdir(exist_ok=True)
-    if "stages" not in case and execution_profile(case) in {"extract", "fallback"}:
+    if "stages" not in case and execution_profile(case) == "extract":
         install_stage_skill(case, workspace)
 
 
@@ -2313,7 +2312,7 @@ def main() -> int:
         "--execution-profile",
         choices=sorted(EXECUTION_PROFILES),
         default="extract",
-        help="run accelerated Extract, Extract fallback, or a direct-documentation baseline",
+        help="run accelerated Extract or a direct-documentation baseline",
     )
     parser.add_argument(
         "--jobs",
