@@ -4,12 +4,10 @@
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import json
 import os
 import re
 import shutil
-import sys
 import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -21,17 +19,11 @@ DOCUMENT_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 IDENTITY_RE = re.compile(
     r"^\*\*ID:\*\*\s+`([^`]+)`\s+·\s+\*\*Kind:\*\*\s+`([^`]+)`\s*$"
 )
-ID_CANDIDATE_RE = re.compile(r"^(?:DEC|CON|OBS|INF|OQ)-.+$")
 DEFINITION_RE = re.compile(r"^ {0,3}[-+*]\s+\*\*([^*\n]+)\*\*\s+—\s+")
-FILENAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
-DIRECTORY_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FENCE_RE = re.compile(r"^ {0,3}(?:>\s*)?(`{3,}|~{3,})")
 ATX_HEADING_RE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$")
 REFERENCE_DEFINITION_RE = re.compile(
     r'^ {0,3}\[([^\]]+)\]:\s*(?:<([^>]+)>|(\S+?))(?:\s+(?:"[^"]*"|\'[^\']*\'|\([^)]*\)))?\s*$'
-)
-BASELINE_RE = re.compile(
-    r"^<!-- specspine:evidence-baseline source=([^;<>]+); inspected=(\d{4}-\d{2}-\d{2}) -->$"
 )
 ID_REGION_BEGIN = "<!-- specspine:semantic-ids:begin -->"
 ID_REGION_END = "<!-- specspine:semantic-ids:end -->"
@@ -44,15 +36,6 @@ SECTION_PREFIXES = {
     "Inferred": "INF",
     "Open questions": "OQ",
 }
-WORKFLOW_STATE_HEADINGS = {
-    "Coverage frontier",
-    "Source coverage",
-}
-WORKFLOW_STATE_PHRASES = (
-    "same-branch continuation",
-    "candidate parent (to add during publication)",
-    "fork candidate",
-)
 CORE_KINDS = {
     "index", "system", "subsystem", "component", "capability", "behavior",
     "interface", "data", "policy", "invariant", "decision", "deployment",
@@ -284,268 +267,6 @@ def local_target(source: Path, raw_target: str, root: Path) -> tuple[str, Path |
     return "inside", resolved
 
 
-def _legacy_check(root: Path) -> list[Finding]:
-    root = root.resolve()
-    findings: list[Finding] = []
-    if not root.is_dir():
-        return [Finding("error", "ROOT_MISSING", ".", None, f"SpecSpine root does not exist: {root}")]
-
-    index = root / "README.md"
-    index_resolved = index.resolve(strict=False)
-    index_is_internal = within(index_resolved, root)
-    if not index_is_internal or not index.is_file():
-        add(findings, "error", "INDEX_MISSING", index, root, "README.md architecture index is missing")
-
-    files: list[Path] = []
-    for candidate in sorted(root.rglob("*.md")):
-        resolved = candidate.resolve(strict=False)
-        if not within(resolved, root):
-            add(findings, "note", "OUT_OF_SCOPE_ENTRY", candidate, root, "Markdown entry resolves outside the SpecSpine")
-            continue
-        if candidate.is_file():
-            files.append(candidate)
-
-    definitions: dict[tuple[Path, str], list[int]] = {}
-    references: list[tuple[Path, int, str, str]] = []
-    graph: dict[Path, set[Path]] = {path.resolve(): set() for path in files}
-    invalid_directories: set[Path] = set()
-
-    for path in files:
-        relative = path.relative_to(root)
-        current = root
-        for directory in relative.parts[:-1]:
-            current /= directory
-            if not DIRECTORY_RE.fullmatch(directory):
-                invalid_directories.add(current)
-        if relative != Path("README.md") and not FILENAME_RE.fullmatch(path.name):
-            add(findings, "warning", "INVALID_FILENAME", path, root, "filename should use lowercase kebab-case")
-
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError) as error:
-            add(findings, "error", "READ_ERROR", path, root, f"cannot read Markdown as UTF-8: {error}")
-            continue
-
-        lines = text.splitlines()
-        section = ""
-        section_line = 0
-        section_has_content = True
-        visible_lines: list[tuple[int, str]] = []
-        reference_definitions: dict[str, str] = {}
-        in_fence = False
-        fence_char = ""
-        fence_length = 0
-        in_comment = False
-        code_delimiter = 0
-        id_region_depth = 0
-        id_regions = 0
-        region_definitions = 0
-        observed_content = False
-        observed_id_content = False
-        baselines: list[tuple[int, str, str]] = []
-        h1_count = 0
-
-        for line_number, raw_line in enumerate(lines, 1):
-            fence = FENCE_RE.match(raw_line)
-            if in_fence:
-                if fence and fence.group(1)[0] == fence_char and len(fence.group(1)) >= fence_length:
-                    in_fence = False
-                continue
-            if fence and not in_comment and code_delimiter == 0:
-                in_fence = True
-                fence_char = fence.group(1)[0]
-                fence_length = len(fence.group(1))
-                continue
-
-            stripped = raw_line.strip()
-            if not in_comment and code_delimiter == 0 and stripped == ID_REGION_BEGIN:
-                if id_region_depth:
-                    add(findings, "error", "ID_REGION_NESTED", path, root, "semantic-ID regions must not nest", line_number)
-                else:
-                    id_regions += 1
-                id_region_depth += 1
-                continue
-            if not in_comment and code_delimiter == 0 and stripped == ID_REGION_END:
-                if not id_region_depth:
-                    add(findings, "error", "ID_REGION_END", path, root, "semantic-ID region ends without a matching begin", line_number)
-                else:
-                    id_region_depth -= 1
-                continue
-            if not in_comment and code_delimiter == 0 and stripped.startswith("<!-- specspine:evidence-baseline"):
-                baseline = BASELINE_RE.fullmatch(stripped)
-                if not baseline:
-                    add(findings, "warning", "INVALID_BASELINE", path, root, "invalid evidence-baseline syntax", line_number)
-                else:
-                    baselines.append((line_number, baseline.group(1).strip(), baseline.group(2)))
-                    try:
-                        dt.date.fromisoformat(baseline.group(2))
-                    except ValueError:
-                        add(findings, "warning", "INVALID_BASELINE_DATE", path, root, "invalid evidence-baseline date", line_number)
-                continue
-
-            masked, code_delimiter = mask_code_spans(raw_line, code_delimiter)
-            line, in_comment = strip_comments(masked, in_comment)
-            if not line.strip():
-                continue
-            visible_lines.append((line_number, line))
-
-            heading = ATX_HEADING_RE.match(line)
-            if heading:
-                level = len(heading.group(1))
-                title = re.sub(r"[ \t]+#+[ \t]*$", "", heading.group(2) or "").strip()
-                if level == 1:
-                    h1_count += 1
-                if level == 2:
-                    if section and not section_has_content:
-                        add(findings, "warning", "EMPTY_SECTION", path, root, f"section '{section}' is empty", section_line)
-                    section = title
-                    section_line = line_number
-                    section_has_content = False
-                if title in WORKFLOW_STATE_HEADINGS:
-                    add(
-                        findings,
-                        "error",
-                        "WORKFLOW_STATE_LEAK",
-                        path,
-                        root,
-                        f"mapping workflow state must not be published: '{title}'",
-                        line_number,
-                    )
-                continue
-
-            lowered = line.casefold()
-            leaked_phrase = next(
-                (
-                    phrase
-                    for phrase in WORKFLOW_STATE_PHRASES
-                    if phrase in lowered
-                ),
-                None,
-            )
-            if leaked_phrase:
-                add(
-                    findings,
-                    "error",
-                    "WORKFLOW_STATE_LEAK",
-                    path,
-                    root,
-                    f"mapping workflow state must not be published: '{leaked_phrase}'",
-                    line_number,
-                )
-
-            if section:
-                section_has_content = True
-                if section == "Observed":
-                    observed_content = True
-
-            definition = DEFINITION_RE.match(line)
-            if definition:
-                identifier = definition.group(1).strip()
-                looks_like_id = bool(ID_CANDIDATE_RE.fullmatch(identifier))
-                if id_region_depth:
-                    region_definitions += 1
-                    looks_like_id = True
-                if looks_like_id:
-                    if not id_region_depth:
-                        add(findings, "warning", "ID_OUTSIDE_REGION", path, root, f"semantic ID is outside the marker region: {identifier}", line_number)
-                    if not ID_RE.fullmatch(identifier):
-                        add(findings, "error", "INVALID_ID", path, root, f"invalid semantic ID: {identifier}", line_number)
-                    else:
-                        expected = SECTION_PREFIXES.get(section)
-                        actual = identifier.split("-", 1)[0]
-                        if actual == "OBS":
-                            observed_id_content = True
-                        if not section:
-                            add(findings, "error", "ID_SECTION", path, root, f"{identifier} is not under a semantic section", line_number)
-                        elif expected is None:
-                            add(findings, "note", "ID_SECTION_UNVERIFIED", path, root, f"cannot mechanically verify the section for {identifier}: '{section}'", line_number)
-                        elif expected != actual:
-                            add(findings, "error", "ID_SECTION", path, root, f"{identifier} does not belong under '{section}'", line_number)
-                        if id_region_depth:
-                            definitions.setdefault((path.resolve(), identifier), []).append(line_number)
-
-        if h1_count == 0:
-            add(findings, "warning", "MISSING_H1", path, root, "document has no level-one heading", 1)
-        if id_region_depth:
-            add(findings, "error", "ID_REGION_UNCLOSED", path, root, "semantic-ID region is not closed")
-        if id_regions > 1:
-            add(findings, "error", "MULTIPLE_ID_REGIONS", path, root, "use at most one semantic-ID region")
-        if id_regions and not region_definitions:
-            add(findings, "warning", "EMPTY_ID_REGION", path, root, "semantic-ID region defines no IDs")
-        if len(baselines) > 1:
-            add(findings, "warning", "MULTIPLE_BASELINES", path, root, "use at most one evidence baseline", baselines[1][0])
-        if (observed_content or observed_id_content) and not baselines:
-            add(findings, "warning", "MISSING_BASELINE", path, root, "Observed content has no evidence baseline")
-        if section and not section_has_content:
-            add(findings, "warning", "EMPTY_SECTION", path, root, f"section '{section}' is empty", section_line)
-
-        reference_definition_lines: set[int] = set()
-        for line_number, line in visible_lines:
-            match = REFERENCE_DEFINITION_RE.match(line)
-            if match:
-                reference_definitions.setdefault(
-                    normalize_reference(match.group(1)),
-                    unescape_markdown(match.group(2) or match.group(3)),
-                )
-                reference_definition_lines.add(line_number)
-
-        for line_number, line in visible_lines:
-            if line_number in reference_definition_lines:
-                continue
-            for link in markdown_links(line):
-                raw_target = link.target
-                if raw_target is None and link.reference is not None:
-                    raw_target = reference_definitions.get(link.reference)
-                if raw_target is None:
-                    continue
-                if ID_CANDIDATE_RE.fullmatch(link.label):
-                    references.append((path, line_number, link.label, raw_target))
-                    if not ID_RE.fullmatch(link.label):
-                        add(findings, "error", "INVALID_ID_REFERENCE", path, root, f"invalid referenced semantic ID: {link.label}", line_number)
-                    if "#" in raw_target:
-                        add(findings, "error", "ID_FRAGMENT", path, root, "semantic-ID reference must not use a Markdown fragment", line_number)
-
-                scope, target = local_target(path, raw_target, root)
-                if scope == "remote":
-                    continue
-                if scope == "outside":
-                    add(findings, "note", "OUT_OF_SCOPE_LINK", path, root, f"local link points outside the SpecSpine and was not checked: {raw_target}", line_number)
-                    continue
-                assert target is not None
-                if not target.exists():
-                    add(findings, "error", "BROKEN_LINK", path, root, f"link target does not exist: {raw_target}", line_number)
-                elif target.is_file() and target.suffix == ".md":
-                    graph[path.resolve()].add(target.resolve())
-
-    for directory in sorted(invalid_directories):
-        add(findings, "note", "INVALID_DIRECTORY", directory, root, "directory should use lowercase kebab-case")
-
-    for (path, identifier), line_numbers in definitions.items():
-        if len(line_numbers) > 1:
-            add(findings, "error", "DUPLICATE_ID", path, root, f"semantic ID is defined more than once: {identifier}", line_numbers[1])
-
-    for source, line_number, identifier, raw_target in references:
-        scope, target = local_target(source, raw_target, root)
-        if scope == "inside" and target is not None and target.exists() and len(definitions.get((target, identifier), [])) != 1:
-            add(findings, "error", "UNRESOLVED_ID", source, root, f"target does not define {identifier}: {raw_target}", line_number)
-
-    if index_is_internal and index.is_file():
-        reachable: set[Path] = set()
-        pending = [index.resolve()]
-        while pending:
-            current = pending.pop()
-            if current in reachable:
-                continue
-            reachable.add(current)
-            pending.extend(graph.get(current, set()) - reachable)
-        for path in files:
-            if path.resolve() not in reachable:
-                add(findings, "warning", "UNREACHABLE_SPEC", path, root, "specification is not reachable from README.md")
-
-    order = {"error": 0, "warning": 1, "note": 2}
-    return sorted(findings, key=lambda item: (order[item.severity], item.path, item.line or 0, item.code))
-
-
 @dataclass
 class _Node:
     path: Path
@@ -639,6 +360,16 @@ def _parse_v2_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
         end = next((candidate - 1 for candidate, candidate_level, _ in headings[index + 1:] if candidate_level <= 2), len(lines))
         body = lines[number:end]
         node.sections[title] = (number, body)
+        if not any(line.strip() for line in body):
+            add(
+                findings,
+                "warning",
+                "EMPTY_SECTION",
+                path,
+                root,
+                f"section '{title}' is empty",
+                number,
+            )
 
     if node.identity_line is not None:
         cursor = node.identity_line
@@ -720,7 +451,7 @@ def _parse_v2_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
 
 
 def check(root: Path) -> list[Finding]:
-    """Validate the v2 canonical Markdown graph. Legacy documents are invalid."""
+    """Validate the canonical Markdown graph."""
     root = root.resolve()
     findings: list[Finding] = []
     if not root.is_dir():
@@ -879,20 +610,6 @@ def check(root: Path) -> list[Finding]:
         for node in nodes:
             if node.path.resolve() not in reachable:
                 add(findings, "error", "UNREACHABLE_SPEC", node.path, root, "specification is not reachable from README.md")
-    supplemental_codes = {
-        "INVALID_FILENAME", "INVALID_DIRECTORY", "WORKFLOW_STATE_LEAK",
-        "ID_REGION_NESTED", "EMPTY_ID_REGION", "INVALID_BASELINE",
-        "INVALID_BASELINE_DATE", "MULTIPLE_BASELINES", "MISSING_BASELINE",
-        "EMPTY_SECTION", "OUT_OF_SCOPE_ENTRY", "INVALID_ID_REFERENCE",
-    }
-    existing = {
-        (item.code, item.path, item.line, item.message) for item in findings
-    }
-    for item in _legacy_check(root):
-        key = (item.code, item.path, item.line, item.message)
-        if item.code in supplemental_codes and key not in existing:
-            findings.append(item)
-            existing.add(key)
     order = {"error": 0, "warning": 1, "note": 2}
     return sorted(findings, key=lambda item: (order[item.severity], item.path, item.line or 0, item.code))
 

@@ -94,9 +94,7 @@ field unless every document was read:
 integration pass (or source pass for the first integration). The command
 independently hashes the live Spine and rejects missing, extra, or mislabeled
 paths. It records the verified delta in persistent campaign history and returns
-it in the integration receipt; use that receipt for the operator update. On
-first use with a legacy campaign lacking a saved integration snapshot, the
-verified delta is cumulative from its documentation seed.
+it in the integration receipt; use that receipt for the operator update.
 
 Every task in `published` or `review` needs one `task_reviews` row. A published
 draft requires `integrated`; a `covered` receipt requires

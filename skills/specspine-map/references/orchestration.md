@@ -63,8 +63,7 @@ Finalize script: <map-skill-root>/scripts/producer_finalize.py
 Do not message other agents. Terminate after the atomic handoff.
 ```
 
-On resume, ignore any legacy generated instruction artifact in the run root; it
-is not required by the ledger. Producers invoke neither `campaign.py` nor Doctor.
+Producers invoke neither `campaign.py` nor Doctor.
 
 ## Generate the source frontier
 

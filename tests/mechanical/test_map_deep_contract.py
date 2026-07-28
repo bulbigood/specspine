@@ -197,7 +197,7 @@ class MapExhaustiveContractTests(unittest.TestCase):
             protocol,
         )
         self.assertIn("Do not read SKILL.md or any other Map reference", protocol)
-        self.assertIn("ignore any legacy generated instruction artifact", protocol)
+        self.assertNotIn("legacy generated instruction artifact", protocol)
         self.assertIn("targeted `rg` and narrow excerpts", producer)
         self.assertIn("at most 10,000 output tokens per call", producer)
 
@@ -206,8 +206,8 @@ class MapExhaustiveContractTests(unittest.TestCase):
         selection = " ".join(self.selection.split())
         self.assertIn("ready <campaign> --limit <wave-size>", protocol)
         self.assertIn("todo --limit <n>", protocol)
-        self.assertIn("producer-contract metadata", selection)
-        self.assertIn("--adopt-producer-contract", selection)
+        self.assertIn("create a unique new run", selection)
+        self.assertNotIn("--adopt-producer-contract", selection)
         self.assertIn("PRODUCER_CONTRACT_VERSION", self.campaign)
         self.assertIn("require_current_producer_contract", self.campaign)
 

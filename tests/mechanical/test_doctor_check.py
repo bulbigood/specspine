@@ -117,7 +117,7 @@ class DoctorCheckerV2Tests(unittest.TestCase):
         self.assertNotIn("BROKEN_LINK", codes)
         self.assertNotIn("ID_OUTSIDE_REGION", codes)
 
-    def test_legacy_identity_is_rejected(self):
+    def test_missing_identity_is_rejected(self):
         root = self.spine(payment="# Payments\n\n## Responsibility\n\n- owns payments.\n")
         self.assertTrue({"MISSING_DOCUMENT_ID", "MISSING_SUMMARY"} <= self.codes(root))
 

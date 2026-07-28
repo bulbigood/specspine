@@ -307,7 +307,6 @@ class MapCampaignTests(unittest.TestCase):
             hashlib.sha256(contract.read_bytes()).hexdigest(),
             ledger["producer_contract_digest"],
         )
-        self.assertEqual("init", ledger["producer_contract_history"][0]["reason"])
         self.assertEqual({}, ledger["tasks"])
         self.assertEqual(0o600, self.ledger.stat().st_mode & 0o777)
 
@@ -583,27 +582,19 @@ class MapCampaignTests(unittest.TestCase):
             ledger["resume_history"][-1]["released_orphaned_tasks"],
         )
 
-    def test_resume_session_migrates_legacy_contract_metadata(self):
+    def test_resume_session_rejects_missing_contract_metadata(self):
         ledger = self.ledger_value()
         del ledger["producer_contract_version"]
         del ledger["producer_contract_digest"]
-        del ledger["producer_contract_history"]
         self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
 
-        receipt = self.cli("resume-session", str(self.ledger))
-
-        self.assertEqual(
-            "legacy-migration",
-            receipt["producer_contract_change"]["reason"],
-        )
-        migrated = self.ledger_value()
-        self.assertEqual(1, migrated["producer_contract_version"])
-        self.assertEqual(
-            migrated["producer_contract_digest"],
-            receipt["producer_contract"]["digest"],
+        error = self.cli("resume-session", str(self.ledger), expected=2)
+        self.assertIn(
+            "campaign producer contract metadata is invalid",
+            error["error"],
         )
 
-    def test_resume_session_requires_approval_for_contract_change(self):
+    def test_contract_change_requires_new_campaign(self):
         self.source_pass()
         task_id, _ = self.task_for_unit("src/identity")
         ledger = self.ledger_value()
@@ -616,19 +607,9 @@ class MapCampaignTests(unittest.TestCase):
             task_id,
             expected=2,
         )
-        self.assertIn("--adopt-producer-contract", packet_error["error"])
+        self.assertIn("start a new campaign", packet_error["error"])
         error = self.cli("resume-session", str(self.ledger), expected=2)
-        self.assertIn("--adopt-producer-contract", error["error"])
-
-        receipt = self.cli(
-            "resume-session",
-            str(self.ledger),
-            "--adopt-producer-contract",
-        )
-        self.assertEqual(
-            "operator-adopted",
-            receipt["producer_contract_change"]["reason"],
-        )
+        self.assertIn("start a new campaign", error["error"])
 
     def test_changed_source_disables_and_refuses_resume(self):
         self.source_pass()
@@ -1178,21 +1159,18 @@ class MapCampaignTests(unittest.TestCase):
             error["error"],
         )
 
-    def test_legacy_campaign_uses_last_integration_as_change_snapshot(self):
+    def test_integration_rejects_missing_spine_snapshot(self):
         self.source_pass()
         self.integrate()
         ledger = self.ledger_value()
         ledger.pop("spine_snapshot")
         self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
         (self.spine / "README.md").write_text(
-            "# Architecture\n\nChanged after legacy integration.\n",
+            "# Architecture\n\nChanged after integration.\n",
             encoding="utf-8",
         )
-        result = self.integrate()
-        self.assertEqual(
-            [{"path": "README.md", "operation": "changed"}],
-            result["changed_documents"],
-        )
+        error = self.integrate(expected=2)
+        self.assertIn("campaign Spine snapshot is invalid", error["error"])
 
     def test_integration_must_review_every_covered_task(self):
         self.source_pass()

@@ -15,9 +15,8 @@ python3 <map-skill-root>/scripts/campaign.py discover \
 ```
 
 Discovery is read-only. It ignores completed, terminally blocked, unrelated,
-unbound, invalid, and symlinked ledgers. For legacy campaigns without
-timestamps it uses the ledger modification time. `source_current: false` means
-the immutable source snapshot changed and the campaign cannot be resumed.
+unbound, invalid, and symlinked ledgers. `source_current: false` means the
+immutable source snapshot changed and the campaign cannot be resumed.
 
 If no campaign is returned, initialize a new one. If one or more incomplete
 campaigns are returned, do not initialize or edit the Spine. Show each exact
@@ -42,8 +41,5 @@ python3 <map-skill-root>/scripts/campaign.py next-action <campaign>
 `resume-session` refuses a changed source snapshot and returns every `assigned`
 task to `todo`, because producer handles from another session are not live in
 the new session. Preserve their private work packages for diagnosis and use
-fresh producers. It migrates a legacy ledger without producer-contract metadata.
-If recorded contract metadata differs from the current contract, stop for
-operator approval, then rerun with `--adopt-producer-contract`; never adopt
-silently. If the operator chooses new, create a unique run and do not modify old
-ledgers.
+fresh producers. If recorded contract metadata differs from the current
+contract, create a unique new run and do not modify the old ledger.

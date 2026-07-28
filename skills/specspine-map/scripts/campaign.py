@@ -51,12 +51,6 @@ SOURCE_CLASSIFICATIONS = {
     "test-only",
     "repository-support",
 }
-TERMINAL_CLASSIFICATIONS = {
-    "generated",
-    "vendored",
-    "test-only",
-    "repository-support",
-}
 REVIEW_DISPOSITIONS = {
     "integrated",
     "already_canonical",
@@ -205,11 +199,9 @@ def producer_contract() -> dict[str, Any]:
     }
 
 
-def ledger_producer_contract(ledger: dict[str, Any]) -> dict[str, Any] | None:
+def ledger_producer_contract(ledger: dict[str, Any]) -> dict[str, Any]:
     version = ledger.get("producer_contract_version")
     digest = ledger.get("producer_contract_digest")
-    if version is None and digest is None:
-        return None
     if (
         not isinstance(version, int)
         or isinstance(version, bool)
@@ -224,15 +216,8 @@ def ledger_producer_contract(ledger: dict[str, Any]) -> dict[str, Any] | None:
 def require_current_producer_contract(ledger: dict[str, Any]) -> dict[str, Any]:
     recorded = ledger_producer_contract(ledger)
     current = producer_contract()
-    if recorded is None:
-        raise CampaignError(
-            "campaign has no producer contract metadata; run resume-session first"
-        )
     if recorded != current:
-        raise CampaignError(
-            "producer contract changed; run resume-session "
-            "--adopt-producer-contract after operator approval"
-        )
+        raise CampaignError("producer contract changed; start a new campaign")
     return current
 
 
@@ -332,16 +317,6 @@ def spine_changes(
 
 def ledger_spine_snapshot(ledger: dict[str, Any]) -> dict[str, str]:
     raw = ledger.get("spine_snapshot")
-    if raw is None:
-        integration = ledger.get("integration_pass")
-        raw = (
-            integration.get("documents")
-            if isinstance(integration, dict)
-            else None
-        )
-    if raw is None:
-        seed = ledger.get("documentation_seed")
-        raw = seed.get("documents", {}) if isinstance(seed, dict) else {}
     if (
         not isinstance(raw, dict)
         or any(
@@ -419,6 +394,10 @@ def load(path: Path) -> dict[str, Any]:
         )
     if not isinstance(ledger.get("tasks"), dict):
         raise CampaignError("campaign tasks are missing")
+    if parse_timestamp(ledger.get("created_at")) is None:
+        raise CampaignError("campaign created_at timestamp is invalid")
+    if parse_timestamp(ledger.get("updated_at")) is None:
+        raise CampaignError("campaign updated_at timestamp is invalid")
     ledger_producer_contract(ledger)
     return ledger
 
@@ -999,15 +978,6 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         "spine_state": args.spine_state,
         "producer_contract_version": contract["version"],
         "producer_contract_digest": contract["digest"],
-        "producer_contract_history": [
-            {
-                "version": contract["version"],
-                "digest": contract["digest"],
-                "activated_at": timestamp,
-                "activated_revision": 0,
-                "reason": "init",
-            }
-        ],
         "tasks": {},
         "used_producers": {},
         "publication_epoch": 0,
@@ -1266,11 +1236,8 @@ def command_discover(args: argparse.Namespace) -> dict[str, Any]:
         reason = incomplete_reason(ledger)
         if reason is None:
             continue
-        activity = (
-            parse_timestamp(ledger.get("updated_at"))
-            or parse_timestamp(ledger.get("created_at"))
-            or datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
-        )
+        activity = parse_timestamp(ledger["updated_at"])
+        assert activity is not None
         age_seconds = max(0, int((now - activity).total_seconds()))
         source_current: bool | None = (
             current_inventory(ledger)
@@ -1326,38 +1293,7 @@ def command_resume_session(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(
                 "campaign source snapshot changed; start a new campaign"
             )
-        recorded_contract = ledger_producer_contract(ledger)
-        current_contract = producer_contract()
-        contract_change = None
-        if recorded_contract is None:
-            contract_change = {
-                "from": None,
-                "to": current_contract,
-                "reason": "legacy-migration",
-            }
-        elif recorded_contract != current_contract:
-            if not args.adopt_producer_contract:
-                raise CampaignError(
-                    "producer contract changed; resume requires operator-approved "
-                    "--adopt-producer-contract"
-                )
-            contract_change = {
-                "from": recorded_contract,
-                "to": current_contract,
-                "reason": "operator-adopted",
-            }
-        if contract_change is not None:
-            ledger["producer_contract_version"] = current_contract["version"]
-            ledger["producer_contract_digest"] = current_contract["digest"]
-            ledger.setdefault("producer_contract_history", []).append(
-                {
-                    "version": current_contract["version"],
-                    "digest": current_contract["digest"],
-                    "activated_at": utc_timestamp(),
-                    "activated_revision": ledger["revision"] + 1,
-                    "reason": contract_change["reason"],
-                }
-            )
+        current_contract = require_current_producer_contract(ledger)
         released = sorted(
             task["id"]
             for task in ledger["tasks"].values()
@@ -1372,7 +1308,6 @@ def command_resume_session(args: argparse.Namespace) -> dict[str, Any]:
             {
                 "resumed_at": resumed_at,
                 "released_orphaned_tasks": released,
-                "producer_contract_change": contract_change,
             }
         )
         save_locked(args.ledger, ledger)
@@ -1382,7 +1317,6 @@ def command_resume_session(args: argparse.Namespace) -> dict[str, Any]:
             "resumed_at": resumed_at,
             "released_orphaned_tasks": released,
             "producer_contract": current_contract,
-            "producer_contract_change": contract_change,
             "revision": ledger["revision"],
         }
 
@@ -2621,7 +2555,6 @@ def parser() -> argparse.ArgumentParser:
 
     resume = sub.add_parser("resume-session")
     resume.add_argument("ledger", type=Path)
-    resume.add_argument("--adopt-producer-contract", action="store_true")
 
     seed = sub.add_parser("seed-from-spine")
     seed.add_argument("ledger", type=Path)
