@@ -24,8 +24,8 @@ reports evidence; it never creates accepted intent or changes readiness.
 1. Resolve `<spine-root>` and require its `README.md`.
 2. Run the mechanical checker. Stop on errors that make the selected closure
    invalid.
-3. Resolve the primary owner, normative claims, owned contracts, verification
-   assets, known divergences, and blocking questions.
+3. Resolve implementation freedom, the primary owner, normative claims, owned
+   contracts, verification assets, known divergences, and blocking questions.
 4. Select only implementation evidence needed for the requested scope: public
    surfaces, configuration, tests, build results, or runtime observations.
 5. Run owned conformance checks when safe and authorized. Treat their output as
@@ -48,6 +48,8 @@ to invent as a specification gap.
 ## Boundaries
 
 - Never infer a requirement from `OBS`, code, tests, or runtime repetition.
+- Evaluate only the equivalence promised by `implementation_freedom`; do not
+  require source or internal similarity from a contract-equivalent result.
 - Never change manifest facets or blockers; Grow owns accepted specification
   changes.
 - Never claim untested statements are verified.

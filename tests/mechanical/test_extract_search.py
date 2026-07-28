@@ -47,6 +47,14 @@ Owns provider payment retries and results.
 ## Open questions
 
 - **OQ-retry-limit** — What retry bound is accepted?
+
+## Observed
+
+- **OBS-provider-retries** — The current provider client retries failures.
+
+## Inferred
+
+- **INF-provider-backoff** — Retry delays appear to use bounded backoff.
 <!-- specspine:semantic-ids:end -->
 
 ## Relationships
@@ -151,6 +159,27 @@ class ExtractTests(unittest.TestCase):
             item["id"] for item in result["constraints"]
         ])
         self.assertEqual("partial", result["status"]["facets"]["architecture"])
+        self.assertEqual(
+            "contract-equivalent",
+            result["status"]["implementation_freedom"],
+        )
+        self.assertEqual(["failure"], result["status"]["requested_facets"])
+        self.assertEqual(
+            ["failure"],
+            result["status"]["incomplete_requested_facets"],
+        )
+
+    def test_returns_observations_and_inferences_as_separate_orientation(self):
+        result = self.query()
+
+        self.assertEqual(
+            ["OBS-provider-retries"],
+            [item["id"] for item in result["observations"]],
+        )
+        self.assertEqual(
+            ["INF-provider-backoff"],
+            [item["id"] for item in result["inferences"]],
+        )
 
     def test_returns_v3_normative_claims_and_computed_status(self):
         self.write_manifest(payment_status="complete")
@@ -295,12 +324,25 @@ Defines the system retry ceiling.
             ["retry-policy"],
             [item["id"] for item in result["required"]],
         )
+        self.assertEqual(
+            ["behavior", "data", "failure"],
+            result["status"]["requested_facets"],
+        )
 
     def test_typed_closure_recognizes_hyphenated_facet_phrases(self):
         result = self.query(facets=["failure-boundary", "migration-lifecycle"])
         self.assertEqual(
             ["retry-policy"],
             [item["id"] for item in result["required"]],
+        )
+
+    def test_requested_not_applicable_facet_is_not_silently_complete(self):
+        result = self.query(facets=["data-mutation"])
+
+        self.assertEqual(["data"], result["status"]["requested_facets"])
+        self.assertEqual(
+            ["data"],
+            result["status"]["incomplete_requested_facets"],
         )
 
     def test_closure_returns_complete_files_with_named_separators(self):
@@ -524,6 +566,11 @@ Defines the system retry ceiling.
         result = self.query(token_budget=128)
         self.assertEqual("truncated", result["status"]["code"])
         self.assertEqual("incomplete", result["status"]["area_code"])
+        self.assertEqual(
+            "contract-equivalent",
+            result["status"]["implementation_freedom"],
+        )
+        self.assertEqual(["failure"], result["status"]["requested_facets"])
         self.assertTrue(result["omitted"])
         self.assertLessEqual(SEARCH._estimated_tokens(result), 128)
 

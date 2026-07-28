@@ -37,8 +37,10 @@ Look for architectural risks supported by the inspected specifications:
   prose makes the reader reconstruct despite the format's visual criterion;
 - diagrams that are the only source of important meaning;
 - semantic IDs used indiscriminately or changed after external reference.
-- computed `ready` status without closed normative behavior, registered contracts,
-  verification, or resolution of applicable blocking questions.
+- computed `ready` status without closed normative behavior, registered
+  contracts, verification, resolution of applicable blocking questions, or an
+  owned execution contract when exact toolchains, build units, generators, or
+  entry points constrain reconstruction.
 
 Describe each material risk with its evidence, likely impact, confidence, and a
 next action. Use framework terms when they clarify the issue, but do not force a

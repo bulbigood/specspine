@@ -155,10 +155,12 @@ Structured script-only extraction resolves document IDs, semantic IDs, paths,
 literal synonym groups, task facets, and a token budget. It selects a canonical
 owner, follows typed edges according to their semantics, includes incoming
 impact, manifest completeness and blockers, normative claims,
-registered assets, divergences, and blocking questions. It returns one status
-object whose code is `ready`, `incomplete`, `blocked`, `no-match`, `truncated`,
-or `invalid`. `ready` requires complete applicable facets and no blocker; it
-never proves current-code conformance.
+registered assets, observations, inferences, divergences, and blocking
+questions. It returns one status object whose code is `ready`, `incomplete`,
+`blocked`, `no-match`, `truncated`, or `invalid`. The status preserves
+`implementation_freedom`, the aggregate facets, and the normalized requested
+facets. `ready` requires complete applicable facets and no blocker; it never
+proves current-code conformance.
 
 C4 is an optional generated topology view, arc42 is a review lens for missing
 concerns, and ICOM is a functional diagnostic lens. None is a canonical storage

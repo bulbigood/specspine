@@ -28,6 +28,9 @@ For a reconstructable owner, add only applicable normative sections:
 
 Link exact OpenAPI, Protobuf, JSON Schema, CUE, scenario, or fixture assets
 owned by this specification instead of paraphrasing their full content.
+When reconstruction genuinely depends on exact toolchains, runtime versions,
+build units, generators, or entry points, link one owned machine-readable
+`execution-contract` and explain why those choices are normative.
 
 ## Relationships
 

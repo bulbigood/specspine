@@ -73,8 +73,8 @@ FACET_NAME_SET = set(FACET_NAMES)
 FACET_VALUES = {"complete", "partial", "missing", "not-applicable"}
 ASSET_KEYS = {"path", "owner", "role", "format", "normative", "verifies"}
 ASSET_ROLES = {
-    "interface-contract", "data-schema", "scenario", "fixture",
-    "verification",
+    "interface-contract", "data-schema", "execution-contract", "scenario",
+    "fixture", "verification",
 }
 KIND_REQUIRED_FACETS = {
     "system": {"architecture", "behavior", "failure", "verification"},
@@ -89,6 +89,37 @@ KIND_REQUIRED_FACETS = {
     "concept": {"architecture"},
 }
 NORMATIVE_PREFIXES = ("DEC-", "CON-", "REQ-", "GUA-", "INV-", "QLT-", "VER-")
+FACET_SUPPORT_SECTIONS = {
+    "behavior": {
+        "Behavior", "Lifecycle and invariants", "Requirements", "Guarantees",
+        "Invariants", "Decisions", "Constraints",
+    },
+    "interfaces": {
+        "Interfaces", "Configuration contract", "Compatibility",
+    },
+    "data": {
+        "Information model", "Data ownership", "Lifecycle and invariants",
+    },
+    "failure": {"Failure behavior", "Edge cases"},
+    "quality": {"Quality attributes", "Quality constraints"},
+}
+FACET_SUPPORT_PREFIXES = {
+    "behavior": {"DEC-", "CON-", "REQ-", "GUA-", "INV-"},
+    "quality": {"QLT-"},
+}
+FACET_SUPPORT_ASSET_ROLES = {
+    "behavior": {"scenario", "fixture"},
+    "interfaces": {"interface-contract"},
+    "data": {"data-schema"},
+    "failure": {"scenario", "fixture"},
+}
+FACET_SUPPORT_RELATIONS = {
+    "interfaces": {
+        "exposes", "consumes", "publishes", "specified-by",
+        "compatible-with",
+    },
+    "data": {"reads-from", "writes-to", "owns-data"},
+}
 
 
 @dataclass(frozen=True)
@@ -634,6 +665,7 @@ def check(root: Path) -> list[Finding]:
     registered_assets: set[Path] = set()
     area_owners: set[str] = set()
     area_facets: dict[str, dict[str, str]] = {}
+    owner_asset_roles: dict[str, set[str]] = {}
     verification_support: set[str] = {
         node.document_id
         for node in nodes
@@ -743,6 +775,8 @@ def check(root: Path) -> list[Finding]:
                     )
                 ):
                     verification_support.add(owner)
+                if isinstance(owner, str) and isinstance(asset.get("role"), str):
+                    owner_asset_roles.setdefault(owner, set()).add(asset["role"])
 
     changed = True
     while changed:
@@ -763,6 +797,40 @@ def check(root: Path) -> list[Finding]:
                 f"{owner} marks verification complete without VER claims, "
                 "a verification asset, or a verified-by owner",
             )
+        node = by_id[owner]
+        sections = set((node.sections or {}).keys())
+        identifiers = set((node.statements or {}).keys())
+        outgoing_relations = {
+            relation
+            for source, relation, _, _, _ in edges
+            if source.document_id == owner
+        }
+        asset_roles = owner_asset_roles.get(owner, set())
+        for facet in ("behavior", "interfaces", "data", "failure", "quality"):
+            if facets.get(facet) != "complete":
+                continue
+            supported = bool(sections & FACET_SUPPORT_SECTIONS.get(facet, set()))
+            supported = supported or any(
+                identifier.startswith(prefix)
+                for identifier in identifiers
+                for prefix in FACET_SUPPORT_PREFIXES.get(facet, set())
+            )
+            supported = supported or bool(
+                asset_roles & FACET_SUPPORT_ASSET_ROLES.get(facet, set())
+            )
+            supported = supported or bool(
+                outgoing_relations & FACET_SUPPORT_RELATIONS.get(facet, set())
+            )
+            if not supported:
+                add(
+                    findings,
+                    "warning",
+                    "MANIFEST_FACET_SUPPORT_UNVERIFIED",
+                    node.path,
+                    root,
+                    f"{owner} marks {facet} complete without machine-resolvable "
+                    "support; translated or prose-only support requires semantic review",
+                )
 
     for node in nodes:
         if node.kind != "index" and node.document_id not in area_owners:

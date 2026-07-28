@@ -24,6 +24,12 @@ Every asset has one Markdown owner and is linked from it. Implementation source,
 build output, plans, delivery state, and implementation-specific tests remain
 outside the bundle.
 
+When exact toolchains, runtime versions, build units, generators, or
+verification entry points constrain reconstruction, a canonical deployment or
+system owner records their meaning and may own a machine-readable
+`execution-contract` asset. Incidental build mechanics and dependency lockfiles
+remain outside the bundle unless compatibility makes them normative.
+
 ## Readiness
 
 Status is derived:

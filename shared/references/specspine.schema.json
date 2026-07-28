@@ -97,6 +97,7 @@
           "enum": [
             "interface-contract",
             "data-schema",
+            "execution-contract",
             "scenario",
             "fixture",
             "verification"

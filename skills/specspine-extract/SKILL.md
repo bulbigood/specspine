@@ -46,8 +46,9 @@ the SpecSpine itself.
 ```
 
 In the answer, cite returned paths as `<spine-root>/<returned-path>`. Preserve
-the single status object, facets, blockers, normative claims, registered
-assets, omissions, conflicts, evidence labels, and open questions. Treat `OBS`
-as orientation rather than a requirement. Never upgrade `incomplete` or
-`blocked` by inference and never claim code/spec conformance. Use the user's
-requested format; otherwise return a concise direct answer.
+the single status object, implementation freedom, aggregate and requested
+facets, blockers, normative claims, registered assets, observations,
+inferences, omissions, conflicts, evidence labels, and open questions. Treat
+`OBS` and `INF` as orientation rather than requirements. Never upgrade
+`incomplete` or `blocked` by inference and never claim code/spec conformance.
+Use the user's requested format; otherwise return a concise direct answer.

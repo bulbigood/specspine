@@ -273,6 +273,29 @@ class DoctorCheckerV3Tests(unittest.TestCase):
 
         self.assertIn("MANIFEST_VERIFICATION_UNSUPPORTED", self.codes(root))
 
+    def test_warns_when_complete_facet_has_no_resolvable_support(self):
+        root = self.spine()
+        findings = CHECKER.check(root)
+
+        self.assertTrue(any(
+            item.code == "MANIFEST_FACET_SUPPORT_UNVERIFIED"
+            and "failure" in item.message
+            for item in findings
+        ))
+
+        (root / "payments.md").write_text(
+            PAYMENTS
+            + "\n## Failure behavior\n\n"
+            + "Provider timeouts preserve the pending payment state.\n",
+            encoding="utf-8",
+        )
+        findings = CHECKER.check(root)
+        self.assertFalse(any(
+            item.code == "MANIFEST_FACET_SUPPORT_UNVERIFIED"
+            and "failure" in item.message
+            for item in findings
+        ))
+
     def test_requires_markdown_owner_for_specification_assets(self):
         root = self.spine()
         contracts = root / "contracts"
@@ -296,6 +319,36 @@ class DoctorCheckerV3Tests(unittest.TestCase):
             "verifies": [],
         })
         (root / "specspine.json").write_text(json.dumps(manifest))
+        self.assertNotIn("UNREGISTERED_SPEC_ASSET", self.codes(root))
+
+    def test_accepts_owned_execution_contract_asset(self):
+        root = self.spine()
+        contracts = root / "contracts"
+        contracts.mkdir()
+        asset = contracts / "reconstruction.json"
+        asset.write_text(
+            '{"toolchains":[{"name":"go","version":">=1.24"}]}',
+            encoding="utf-8",
+        )
+        (root / "payments.md").write_text(
+            PAYMENTS
+            + "\n## Configuration contract\n\n"
+            + "[Reconstruction environment](contracts/reconstruction.json) "
+            + "defines the normative toolchain.\n",
+            encoding="utf-8",
+        )
+        manifest = json.loads((root / "specspine.json").read_text())
+        manifest["assets"].append({
+            "path": "contracts/reconstruction.json",
+            "owner": "payments",
+            "role": "execution-contract",
+            "format": "specspine-execution-contract-json-v1",
+            "normative": True,
+            "verifies": [],
+        })
+        (root / "specspine.json").write_text(json.dumps(manifest))
+
+        self.assertNotIn("MANIFEST_ASSET_ROLE", self.codes(root))
         self.assertNotIn("UNREGISTERED_SPEC_ASSET", self.codes(root))
 
     def test_unreachable_node_is_error(self):

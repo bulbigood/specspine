@@ -42,6 +42,15 @@ CORE_RELATIONS = {
     "related-to", "refines", "satisfies", "verified-by", "specified-by",
     "compatible-with", "migrates-from",
 }
+MANIFEST_FACET_ALIASES = {
+    "architecture": {"architecture"},
+    "behavior": {"behavior", "event", "lifecycle"},
+    "interfaces": {"interface", "interfaces", "external-contract", "event"},
+    "data": {"data", "data-mutation", "lifecycle"},
+    "failure": {"failure"},
+    "quality": {"quality"},
+    "verification": {"verification"},
+}
 
 
 def load_checker_module():
@@ -413,8 +422,21 @@ def _manifest(root: Path) -> dict[str, object]:
     return json.loads((root / "specspine.json").read_text(encoding="utf-8"))
 
 
+def _requested_manifest_facets(raw_facets: list[str]) -> list[str]:
+    requested: set[str] = set()
+    for raw in raw_facets:
+        normalized = raw.casefold().strip()
+        tokens = {normalized, *re.findall(r"[a-z0-9]+", normalized)}
+        for facet, aliases in MANIFEST_FACET_ALIASES.items():
+            if normalized in aliases or tokens & aliases:
+                requested.add(facet)
+    return sorted(requested)
+
+
 def _area_status(
-    manifest: dict[str, object], owners: set[str]
+    manifest: dict[str, object],
+    owners: set[str],
+    requested_facets: list[str],
 ) -> dict[str, object]:
     selected = [
         item
@@ -444,12 +466,20 @@ def _area_status(
     else:
         code = "incomplete"
         reason = "specification_facets_incomplete"
+    incomplete_requested = [
+        facet
+        for facet in requested_facets
+        if facets.get(facet) != "complete"
+    ]
     return {
         "code": code,
         "reason": reason,
+        "implementation_freedom": manifest["implementation_freedom"],
         "owners": sorted(owners),
         "facets": facets,
         "blockers": blockers,
+        "requested_facets": requested_facets,
+        "incomplete_requested_facets": incomplete_requested,
     }
 
 
@@ -515,8 +545,17 @@ def _attach_concatenated_files(
                     "area_code": area_status.get(
                         "area_code", area_status.get("code")
                     ),
+                    "implementation_freedom": area_status.get(
+                        "implementation_freedom"
+                    ),
                     "owners": area_status.get("owners", []),
                     "blockers": area_status.get("blockers", []),
+                    "requested_facets": area_status.get(
+                        "requested_facets", []
+                    ),
+                    "incomplete_requested_facets": area_status.get(
+                        "incomplete_requested_facets", []
+                    ),
                 }
                 if isinstance(area_status, dict)
                 else {}
@@ -875,9 +914,16 @@ def _apply_token_budget(
         **(
             {
                 "area_code": area_status.get("code"),
+                "implementation_freedom": area_status.get(
+                    "implementation_freedom"
+                ),
                 "owners": area_status.get("owners", []),
                 "facets": area_status.get("facets", {}),
                 "blockers": area_status.get("blockers", []),
+                "requested_facets": area_status.get("requested_facets", []),
+                "incomplete_requested_facets": area_status.get(
+                    "incomplete_requested_facets", []
+                ),
             }
             if isinstance(area_status, dict)
             else {}
@@ -922,6 +968,8 @@ def _apply_token_budget(
         "invariants": [],
         "quality_constraints": [],
         "verification": [],
+        "observations": [],
+        "inferences": [],
         "assets": [],
         "known_divergences": [],
         "blocking_questions": [],
@@ -944,7 +992,14 @@ def _apply_token_budget(
             "code": "truncated",
             "reason": "token_budget_exceeded",
             "area_code": result["status"].get("area_code"),
+            "implementation_freedom": result["status"].get(
+                "implementation_freedom"
+            ),
             "blockers": result["status"].get("blockers", []),
+            "requested_facets": result["status"].get("requested_facets", []),
+            "incomplete_requested_facets": result["status"].get(
+                "incomplete_requested_facets", []
+            ),
         },
         "primary": (
             {"id": compact["primary"].get("id")}
@@ -960,6 +1015,8 @@ def _apply_token_budget(
         "invariants": [],
         "quality_constraints": [],
         "verification": [],
+        "observations": [],
+        "inferences": [],
         "assets": [],
         "known_divergences": [],
         "blocking_questions": [],
@@ -980,6 +1037,7 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
         "potentially_affected": [], "decisions": [], "constraints": [],
         "requirements": [], "guarantees": [], "invariants": [],
         "quality_constraints": [], "verification": [],
+        "observations": [], "inferences": [],
         "assets": [],
         "known_divergences": [], "blocking_questions": [], "omitted": [],
         "sources": [],
@@ -1064,6 +1122,10 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
             "status": {
                 "code": "no-match",
                 "reason": "primary_owner_not_found",
+                "implementation_freedom": manifest["implementation_freedom"],
+                "requested_facets": _requested_manifest_facets(
+                    query["facets"]
+                ),
             },
             "sources": ["README.md"],
         })
@@ -1125,7 +1187,11 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
     }
     potential.update(strong_task_matches - {primary_id, *required})
     selected_ids = {primary_id, *required}
-    status = _area_status(manifest, selected_ids)
+    status = _area_status(
+        manifest,
+        selected_ids,
+        _requested_manifest_facets(query["facets"]),
+    )
     statements = {
         identifier: (str(document["id"]), statement)
         for document in documents.values()
@@ -1138,6 +1204,8 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
     invariants = []
     quality_constraints = []
     verification = []
+    observations = []
+    inferences = []
     questions = []
     divergences = []
     claim_owner_ids = {str(index["id"]), *selected_ids}
@@ -1159,6 +1227,10 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
                 quality_constraints.append(item)
             elif identifier.startswith("VER-"):
                 verification.append(item)
+            elif identifier.startswith("OBS-"):
+                observations.append(item)
+            elif identifier.startswith("INF-"):
+                inferences.append(item)
             elif identifier.startswith("OQ-"):
                 questions.append(item)
     for document in documents.values():
@@ -1218,6 +1290,8 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
         "invariants": invariants,
         "quality_constraints": quality_constraints,
         "verification": verification,
+        "observations": observations,
+        "inferences": inferences,
         "assets": assets,
         "known_divergences": divergences, "blocking_questions": questions,
         "task_context": task_context,

@@ -130,6 +130,13 @@ A `complete` verification facet requires at least one owned `VER-*` claim, an
 owned verification asset, or a `verified-by` relation to a document that owns
 `VER-*` claims.
 
+For every other `complete` facet, the owner MUST contain semantic support in
+its applicable prose, claims, relationships, or registered assets. The checker
+reports conventional machine-resolvable support gaps as warnings because
+translated headings and prose-only contracts require semantic review. A
+warning does not downgrade the stored facet, and a mechanically supported
+facet is not proof of semantic completeness.
+
 Each blocker is the globally unique `OQ-*` ID of an unresolved choice that a
 reconstruction agent MUST NOT invent. Non-blocking questions remain in
 Markdown but are absent from `blockers`.
@@ -141,8 +148,8 @@ Each record has exactly:
 
 - `path`: unique root-relative path;
 - `owner`: non-index document ID;
-- `role`: `interface-contract`, `data-schema`, `scenario`, `fixture`, or
-  `verification`;
+- `role`: `interface-contract`, `data-schema`, `execution-contract`,
+  `scenario`, `fixture`, or `verification`;
 - `format`: nonempty precise format identifier;
 - `normative`: whether conformance depends on the asset;
 - `verifies`: zero or more globally unique `VER-*` IDs.
@@ -150,6 +157,14 @@ Each record has exactly:
 The file MUST exist and its owner MUST link to it using a relative Markdown
 link. Registration establishes identity and machine retrieval; the owner
 explains purpose, scope, versioning, and authority.
+
+Use an `execution-contract` only when reconstruction depends on exact
+toolchains or versions, deployable or build units, required generators, or
+build and verification entry points. Its Markdown owner explains which fields
+are normative and why. Do not register ordinary lockfiles, build output,
+implementation scripts, or incidental local tooling. Connect the affected
+owner through a precise relation such as `specified-by`, `constrained-by`, or
+`depends-on` so task closure retrieves the contract when it applies.
 
 ## Root index
 
