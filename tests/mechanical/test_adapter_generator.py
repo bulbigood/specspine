@@ -244,6 +244,25 @@ class AdapterGeneratorTests(unittest.TestCase):
         self.assertIn("read-only investigation", modes)
         self.assertIn("after required approval", modes)
 
+    def test_doctor_reviews_flat_layout_as_navigation_not_hierarchy(self):
+        source = PROJECT_ROOT / "skills/specspine-doctor"
+        skill = (source / "SKILL.md").read_text(encoding="utf-8")
+        method = (source / "references/review-method.md").read_text(
+            encoding="utf-8"
+        )
+        instructions = skill + "\n" + method
+        self.assertIn("directory decomposition independently", instructions)
+        self.assertIn("not a defect or a fixed threshold", instructions)
+        self.assertIn("navigation aids, not ownership", instructions)
+        self.assertIn("Do not require every specification", instructions)
+        self.assertIn("review every specification's placement", instructions)
+        self.assertIn("do not infer either from the path", instructions)
+        self.assertIn("cross-cutting or intentionally root-level", instructions)
+        self.assertIn("do not claim directory-placement", instructions)
+        self.assertIn("exact moves and every affected", instructions)
+        self.assertIn("Preserve document IDs, canonical ownership", instructions)
+        self.assertIn("several destinations are plausible", instructions)
+
     def test_doctor_connection_contract_covers_selected_root_edge_states(self):
         contract = (
             PROJECT_ROOT

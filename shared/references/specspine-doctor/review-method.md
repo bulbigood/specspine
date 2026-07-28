@@ -25,6 +25,8 @@ Look for architectural risks supported by the inspected specifications:
 - open questions silently answered elsewhere;
 - specifications mixing independently evolving responsibilities;
 - fragmentation without independent responsibility or navigation value;
+- a flat root whose growing list of specifications has become hard to scan even
+  though several documents form stable, cohesive subject areas;
 - stale overview text or links after decomposition;
 - important direct relationships hidden behind unnecessary navigation hops;
 - feature-specific scope, acceptance criteria, tasks, or status;
@@ -44,6 +46,38 @@ independently evolving responsibilities, explicitly say whether decomposition
 is a useful next action or why the current evidence is insufficient to decide.
 Repeated ownership claims do not authorize Doctor to select an owner. Plausible
 implementation evidence does not turn an inference into accepted intent.
+
+Review directory decomposition independently from specification decomposition.
+For a whole-Spine review, inspect the distribution of Markdown files by
+directory and the root index's navigation surface. A large root-level file
+count is a prompt to inspect navigation, not a defect or a fixed threshold.
+Report a directory-decomposition risk only when the flat layout creates
+concrete orientation cost and the documents provide evidence for a few stable,
+cohesive areas.
+
+Directories are navigation aids, not ownership, containment, or architectural
+hierarchy. Do not require every specification to belong to a directory, mirror
+the source tree, recursively classify concepts, or infer relationships from
+paths. Prefer a small number of broad subject directories and keep cross-area
+graph links explicit. A mixed flat-and-grouped layout is valid when it is
+easier to navigate.
+
+When directories exist, review every specification's placement. Derive the
+document's subject from its declared responsibility, boundaries, summary, and
+canonical claims; derive a directory's navigation purpose from the documents
+it contains and any explicit overview text; do not infer either from the path
+name alone. Classify each inspected document as:
+
+- clearly aligned with its directory;
+- clearly misplaced relative to an established cohesive area;
+- cross-cutting or intentionally root-level; or
+- ambiguous because the directory purpose or document responsibility is not
+  sufficiently established.
+
+Report only evidence-backed mismatches. A dependency on another area,
+cross-area relationship, or implementation location does not by itself make a
+document misplaced. For a whole-Spine review, do not claim directory-placement
+coverage until every Markdown specification has been classified.
 
 Use absence sparingly. Missing detail is a finding only when the document's
 stated purpose and the loaded stopping rules require it.
@@ -80,6 +114,20 @@ make ownership, navigation, and affected paths explicit. Ask for a decision
 when a repair would choose ownership or boundaries, change a decision or
 constraint, resolve a conflict or open question, or infer intent from
 repository evidence.
+
+For directory decomposition, propose the exact moves and every affected
+Markdown link. Preserve document IDs, canonical ownership, accepted claims, and
+graph relationships. Do not introduce directory index files or new
+containment relationships unless they add independently justified navigation
+value. Moving an already coherent set of specifications is
+meaning-preserving; deciding ambiguous group membership requires operator
+approval.
+
+A clearly misplaced document may be included in an approved repair batch only
+when one existing destination directory has an established matching navigation
+purpose. If several destinations are plausible, the current directory has no
+established purpose, or moving the document would decide an architectural
+boundary, present the alternatives and request an operator decision.
 
 Keep mechanical results separate from semantic judgments. Semantic review is
 necessarily incomplete; absence of findings does not establish validity,

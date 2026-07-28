@@ -80,8 +80,11 @@ neighborhood and expand only where ownership or conflicts cross the boundary.
    specifications. Treat risks as evidence-backed judgments, not pass/fail
    results. Do not turn missing detail or optional formatting into defects
    unless the document's purpose and stopping rules require it. Check ownership,
-   claim classification, and decomposition independently so an obvious finding
-   in one dimension does not hide a material risk in another.
+   claim classification, document decomposition, and directory decomposition
+   independently. When directories exist, classify every inspected
+   specification's placement from documented responsibilities and the
+   directory's navigation purpose. Directories aid navigation; they are not
+   architectural hierarchy.
 4. Report reproducible checker findings separately from semantic risks. Include
    locations, evidence, impact, and a useful next action. State what was and was
    not inspected.
