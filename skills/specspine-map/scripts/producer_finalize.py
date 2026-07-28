@@ -240,12 +240,12 @@ def validate_covered_owner(
 
 def validate_task_outcome(checkpoint: dict[str, Any], task: dict[str, Any]) -> None:
     outcome = checkpoint["outcome"]
-    inventory_task = bool(task.get("units"))
-    if outcome in {"covered", "supporting"} and not inventory_task:
+    scope_task = bool(task.get("units"))
+    if outcome in {"covered", "supporting"} and not scope_task:
         raise PreflightError(
-            f"{outcome} is valid only for inventory verification tasks"
+            f"{outcome} is valid only for scope verification tasks"
         )
-    if outcome in {"answered", "unresolved"} and inventory_task:
+    if outcome in {"answered", "unresolved"} and scope_task:
         raise PreflightError(
             f"{outcome} is valid only for integration-derived tasks"
         )

@@ -101,16 +101,21 @@ the named source. Do not remap the whole repository for a local change.
 
 ## Coverage and depth
 
-For exhaustive brownfield mapping, the mechanical inventory emits a flat list
-of text production files. It terminally records structurally recognizable
-vendored/generated trees, dependency locks, tests, repository support, and
-opaque static assets; they remain retrievable evidence but do not independently
-justify architecture owners. Tests remain useful evidence for behavior and
-failures. Neutral pagination bounds planning-agent context without expressing
-architecture. Fresh planning agents propose topics; one final synthesis pass
-merges the complete candidate list, checks each topic against existing
-canonical SpecSpine coverage, and assigns every production file before
-`source-pass` creates producer ToDo only for uncovered topics.
+Every exhaustive campaign closes an operator-defined semantic scope. Discovery
+starts broad, expands each in-scope lead by one semantic level with a fresh
+scout, and uses a fresh curator between waves to merge duplicate child leads
+before they multiply. The whole repository is the same workflow with a broad
+scope. A mechanical flat list of text production files may accelerate that
+initial discovery; it does not define topics, owners, coverage, or completion.
+
+Each scout classifies its seed evidence and proposes only directly exposed
+in-scope children. Discovery ends when every proposal is queued and expanded,
+merged with an equivalent lead, or rejected by the explicit exclusion rule.
+Safety budgets establish blockage, never closure. One final synthesis pass
+merges the complete candidate corpus, reopens discovery for missing boundaries,
+checks every closed topic against canonical SpecSpine coverage, and assigns
+every evidence file before `source-pass` creates producer ToDo only for
+uncovered topics.
 
 Existing path references produce candidate owners, never terminal coverage.
 Each synthesized topic remains open until a one-shot producer either publishes
@@ -119,8 +124,8 @@ and existing owner semantic IDs. Root must not replace semantic synthesis with
 regex ownership, directory-name inference, a broad fallback owner, or prose
 classification.
 
-The inventory and its pages are discovery lower bounds, not architecture
-models. One synthesized topic does not imply one document: several topics may
+Discovery leads, hierarchy, and inventory pages are provenance, not
+architecture models. One synthesized topic does not imply one document: several topics may
 converge on one canonical owner, while one topic may expose several genuinely
 independent responsibilities. A producer maps only its assigned question and
 suggests narrower directions.

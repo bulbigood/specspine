@@ -3,10 +3,10 @@
 
 The campaign deliberately separates four authorities:
 
-* deterministic repository inventory defines the lower bound of discovery;
+* scoped discovery builds and closes the semantic evidence frontier;
 * one-shot producers verify one bounded task and stage missing observations;
 * the root orchestrator publishes and integrates accepted results;
-* the ledger derives completion from inventory, ToDo, and integration state.
+* the ledger derives completion from scope evidence, ToDo, and integration state.
 
 Producer prose is never treated as proof of coverage or saturation.
 """
@@ -31,10 +31,17 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 PRODUCER_CONTRACT_VERSION = 5
+DISCOVERY_CONTRACT_VERSION = 1
 MAX_UNIT_FILES = 80
 MAX_CANDIDATE_DOCUMENTS = 12
+DISCOVERY_TERMINAL_STATUSES = {
+    "expanded",
+    "leaf",
+    "duplicate",
+    "out_of_scope",
+}
 TASK_STATES = {"todo", "assigned", "review", "published", "complete", "blocked"}
 CHECKPOINT_STATUSES = {
     "draft",
@@ -1034,6 +1041,1010 @@ def repository_inventory(
     }
 
 
+def validate_scope_spec(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict) or set(value) != {
+        "kind",
+        "title",
+        "question",
+        "inclusion_rule",
+        "exclusion_rule",
+    }:
+        raise CampaignError(
+            "scope spec needs exactly kind, title, question, inclusion_rule, "
+            "and exclusion_rule"
+        )
+    if value["kind"] not in {"repository", "topic"}:
+        raise CampaignError("scope kind must be repository or topic")
+    for field in ("title", "question", "inclusion_rule", "exclusion_rule"):
+        if not isinstance(value[field], str) or not value[field].strip():
+            raise CampaignError(f"scope {field} must be nonempty")
+    return {
+        "kind": value["kind"],
+        "title": value["title"].strip(),
+        "question": value["question"].strip(),
+        "inclusion_rule": value["inclusion_rule"].strip(),
+        "exclusion_rule": value["exclusion_rule"].strip(),
+    }
+
+
+def normalize_discovery_lead(value: Any, *, field: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != {
+        "id",
+        "title",
+        "question",
+        "reason",
+        "parent_ids",
+        "seed_files",
+    }:
+        raise CampaignError(
+            f"{field} needs id, title, question, reason, parent_ids, and seed_files"
+        )
+    lead_id = validate_id(value["id"])
+    texts = (value["title"], value["question"], value["reason"])
+    if any(not isinstance(text, str) or not text.strip() for text in texts):
+        raise CampaignError(f"{field} {lead_id} has empty text")
+    parent_ids = [
+        validate_id(item)
+        for item in string_list(value["parent_ids"], f"{field} parent_ids")
+    ]
+    seed_files = [
+        validate_relative_path(item)
+        for item in string_list(value["seed_files"], f"{field} seed_files")
+    ]
+    if len(parent_ids) != len(set(parent_ids)):
+        raise CampaignError(f"{field} {lead_id} repeats parent_ids")
+    if len(seed_files) != len(set(seed_files)):
+        raise CampaignError(f"{field} {lead_id} repeats seed_files")
+    if len(seed_files) > MAX_UNIT_FILES:
+        raise CampaignError(
+            f"{field} {lead_id} exceeds {MAX_UNIT_FILES} seed files"
+        )
+    return {
+        "id": lead_id,
+        "title": value["title"].strip(),
+        "question": value["question"].strip(),
+        "reason": value["reason"].strip(),
+        "parent_ids": sorted(parent_ids),
+        "seed_files": sorted(seed_files),
+    }
+
+
+def discovery_packet(
+    seed: dict[str, Any],
+    lead: dict[str, Any],
+    *,
+    source_refs: list[str],
+) -> dict[str, Any]:
+    return {
+        "discovery_contract_version": DISCOVERY_CONTRACT_VERSION,
+        "repository_root": seed["repository_root"],
+        "spine_root": seed["spine_root"],
+        "scope": seed["scope"],
+        "lead": lead,
+        "source_refs": sorted(source_refs),
+    }
+
+
+def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
+    if args.output_dir.exists():
+        raise CampaignError(
+            f"discovery output directory already exists: {args.output_dir}"
+        )
+    repository_root = args.repository_root.resolve()
+    spine_root = args.spine_root.resolve()
+    if not repository_root.is_dir():
+        raise CampaignError(
+            f"repository root is not a directory: {repository_root}"
+        )
+    if not spine_root.is_dir():
+        raise CampaignError(f"Spine root is not a directory: {spine_root}")
+    scope = validate_scope_spec(read_json(args.scope_spec))
+    if args.inventory_accelerator and scope["kind"] != "repository":
+        raise CampaignError(
+            "flat inventory accelerator is valid only for repository scope"
+        )
+    inventory: dict[str, Any] | None = None
+    if args.inventory_accelerator:
+        inventory = repository_inventory(
+            repository_root,
+            spine_root=spine_root,
+        )
+    args.output_dir.mkdir(parents=True)
+    packets_dir = args.output_dir / "wave-0001"
+    packets_dir.mkdir()
+    leads: list[dict[str, Any]] = [
+        {
+            "id": "scope-root",
+            "title": scope["title"],
+            "question": scope["question"],
+            "reason": (
+                "Start broad semantic discovery from the operator-defined scope."
+            ),
+            "parent_ids": [],
+            "seed_files": [],
+        }
+    ]
+    if inventory is not None:
+        files = inventory["production_files"]
+        for offset in range(0, len(files), args.page_size):
+            index = offset // args.page_size + 1
+            leads.append(
+                {
+                    "id": f"inventory-page-{index:04d}",
+                    "title": f"Repository discovery page {index}",
+                    "question": scope["question"],
+                    "reason": (
+                        "Neutral flat-inventory pagination accelerates broad "
+                        "discovery without defining architecture."
+                    ),
+                    "parent_ids": [],
+                    "seed_files": files[offset : offset + args.page_size],
+                }
+            )
+    seed = {
+        "discovery_contract_version": DISCOVERY_CONTRACT_VERSION,
+        "repository_root": str(repository_root),
+        "spine_root": str(spine_root),
+        "scope": scope,
+        "accelerator": (
+            None
+            if inventory is None
+            else {
+                "kind": "flat-production-inventory",
+                "digest": inventory["digest"],
+                "production_files": inventory["production_files"],
+                "excluded": inventory["excluded"],
+                "excluded_directories": inventory["excluded_directories"],
+            }
+        ),
+        "initial_leads": [lead["id"] for lead in leads],
+    }
+    atomic_write(args.output_dir / "discovery-seed.json", seed)
+    packets: list[str] = []
+    for lead in leads:
+        path = packets_dir / f"lead-{lead['id']}.json"
+        atomic_write(path, discovery_packet(seed, lead, source_refs=[]))
+        packets.append(str(path.resolve()))
+    return {
+        "status": "written",
+        "seed": str((args.output_dir / "discovery-seed.json").resolve()),
+        "packets": packets,
+        "scope_kind": scope["kind"],
+        "inventory_accelerator": inventory is not None,
+        "seed_files": (
+            0 if inventory is None else len(inventory["production_files"])
+        ),
+    }
+
+
+def normalize_frontier_decision(
+    value: Any,
+    *,
+    index: int,
+) -> dict[str, Any]:
+    if not isinstance(value, dict) or "disposition" not in value:
+        raise CampaignError(f"frontier decision {index} is invalid")
+    disposition = value["disposition"]
+    if disposition == "queue":
+        expected = {"disposition", "sources", "lead"}
+    elif disposition == "duplicate":
+        expected = {"disposition", "sources", "target", "reason"}
+    elif disposition == "out_of_scope":
+        expected = {"disposition", "sources", "reason"}
+    else:
+        raise CampaignError(
+            f"frontier decision {index} has invalid disposition: {disposition}"
+        )
+    if set(value) != expected:
+        raise CampaignError(
+            f"frontier decision {index} needs exactly {sorted(expected)}"
+        )
+    sources = string_list(
+        value["sources"],
+        f"frontier decision {index} sources",
+        nonempty=True,
+    )
+    if len(sources) != len(set(sources)):
+        raise CampaignError(f"frontier decision {index} repeats sources")
+    if any(
+        re.fullmatch(
+            r"[a-z0-9]+(?:-[a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*",
+            source,
+        )
+        is None
+        for source in sources
+    ):
+        raise CampaignError(
+            f"frontier decision {index} has invalid proposal references"
+        )
+    normalized: dict[str, Any] = {
+        "disposition": disposition,
+        "sources": sorted(sources),
+    }
+    if disposition == "queue":
+        normalized["lead"] = normalize_discovery_lead(
+            value["lead"],
+            field=f"frontier decision {index} lead",
+        )
+    else:
+        reason = value["reason"]
+        if not isinstance(reason, str) or not reason.strip():
+            raise CampaignError(f"frontier decision {index} needs a reason")
+        normalized["reason"] = reason.strip()
+        if disposition == "duplicate":
+            normalized["target"] = validate_id(value["target"])
+    return normalized
+
+
+def command_discovery_packets(args: argparse.Namespace) -> dict[str, Any]:
+    seed = read_json(args.seed)
+    if (
+        not isinstance(seed, dict)
+        or seed.get("discovery_contract_version") != DISCOVERY_CONTRACT_VERSION
+    ):
+        raise CampaignError("discovery seed contract is invalid")
+    if args.output_dir.exists():
+        raise CampaignError(
+            f"discovery packet directory already exists: {args.output_dir}"
+        )
+    raw = read_json(args.frontier)
+    if not isinstance(raw, dict) or set(raw) != {"decisions"} or not isinstance(
+        raw["decisions"], list
+    ):
+        raise CampaignError("frontier needs exactly a decisions list")
+    decisions = [
+        normalize_frontier_decision(value, index=index)
+        for index, value in enumerate(raw["decisions"], start=1)
+    ]
+    seen_sources: set[str] = set()
+    queued_ids: set[str] = set()
+    for decision in decisions:
+        overlap = seen_sources & set(decision["sources"])
+        if overlap:
+            raise CampaignError(
+                f"frontier proposal references are repeated: {sorted(overlap)}"
+            )
+        seen_sources.update(decision["sources"])
+        if decision["disposition"] == "queue":
+            lead_id = decision["lead"]["id"]
+            if lead_id in queued_ids:
+                raise CampaignError(f"frontier repeats queued lead: {lead_id}")
+            queued_ids.add(lead_id)
+    args.output_dir.mkdir(parents=True)
+    atomic_write(args.output_dir / "_frontier.json", {"decisions": decisions})
+    packets: list[str] = []
+    for decision in decisions:
+        if decision["disposition"] != "queue":
+            continue
+        lead = decision["lead"]
+        path = args.output_dir / f"lead-{lead['id']}.json"
+        atomic_write(
+            path,
+            discovery_packet(
+                seed,
+                lead,
+                source_refs=decision["sources"],
+            ),
+        )
+        packets.append(str(path.resolve()))
+    return {
+        "status": "written",
+        "packets": packets,
+        "queued": len(packets),
+        "duplicate": sum(
+            value["disposition"] == "duplicate" for value in decisions
+        ),
+        "out_of_scope": sum(
+            value["disposition"] == "out_of_scope" for value in decisions
+        ),
+    }
+
+
+def command_discovery_reopen(args: argparse.Namespace) -> dict[str, Any]:
+    seed = read_json(args.seed)
+    if (
+        not isinstance(seed, dict)
+        or seed.get("discovery_contract_version") != DISCOVERY_CONTRACT_VERSION
+    ):
+        raise CampaignError("discovery seed contract is invalid")
+    if args.output_dir.exists():
+        raise CampaignError(
+            f"discovery packet directory already exists: {args.output_dir}"
+        )
+    plan = read_json(args.topic_plan)
+    if not isinstance(plan, dict) or set(plan) != {
+        "topics",
+        "covered",
+        "supporting",
+        "open_leads",
+    }:
+        raise CampaignError("synthesis topic plan shape is invalid")
+    if not isinstance(plan["open_leads"], list) or not plan["open_leads"]:
+        raise CampaignError("discovery-reopen requires nonempty open_leads")
+    decisions: list[dict[str, Any]] = []
+    proposals: list[str] = []
+    seen_ids: set[str] = set()
+    for index, value in enumerate(plan["open_leads"], start=1):
+        if not isinstance(value, dict) or set(value) != {
+            "id",
+            "title",
+            "question",
+            "reason",
+            "seed_files",
+        }:
+            raise CampaignError(
+                f"open discovery lead {index} has invalid shape"
+            )
+        lead_id = validate_id(value["id"])
+        if lead_id in seen_ids:
+            raise CampaignError(f"open discovery lead repeats id: {lead_id}")
+        seen_ids.add(lead_id)
+        texts = (value["title"], value["question"], value["reason"])
+        if any(not isinstance(text, str) or not text.strip() for text in texts):
+            raise CampaignError(f"open discovery lead {lead_id} has empty text")
+        seed_files = [
+            validate_relative_path(item)
+            for item in string_list(
+                value["seed_files"],
+                f"open discovery lead {lead_id} seed_files",
+            )
+        ]
+        if len(seed_files) != len(set(seed_files)):
+            raise CampaignError(
+                f"open discovery lead {lead_id} repeats seed_files"
+            )
+        if len(seed_files) > MAX_UNIT_FILES:
+            raise CampaignError(
+                f"open discovery lead {lead_id} exceeds "
+                f"{MAX_UNIT_FILES} seed files"
+            )
+        validate_repository_files(
+            Path(seed["repository_root"]),
+            seed_files,
+            field=f"open discovery lead {lead_id} seed file",
+        )
+        source = f"synthesis/{lead_id}"
+        proposals.append(source)
+        decisions.append(
+            {
+                "disposition": "queue",
+                "sources": [source],
+                "lead": {
+                    "id": lead_id,
+                    "title": value["title"].strip(),
+                    "question": value["question"].strip(),
+                    "reason": value["reason"].strip(),
+                    "parent_ids": [],
+                    "seed_files": sorted(set(seed_files)),
+                },
+            }
+        )
+    args.output_dir.mkdir(parents=True)
+    atomic_write(
+        args.output_dir / "_synthesis-gaps.json",
+        {"proposals": sorted(proposals)},
+    )
+    atomic_write(args.output_dir / "_frontier.json", {"decisions": decisions})
+    packets: list[str] = []
+    for decision in decisions:
+        lead = decision["lead"]
+        path = args.output_dir / f"lead-{lead['id']}.json"
+        atomic_write(
+            path,
+            discovery_packet(seed, lead, source_refs=decision["sources"]),
+        )
+        packets.append(str(path.resolve()))
+    return {
+        "status": "written",
+        "packets": packets,
+        "reopened": len(packets),
+    }
+
+
+def normalize_candidate_topic(value: Any, *, field: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != {
+        "id",
+        "title",
+        "responsibility",
+        "reason",
+        "files",
+    }:
+        raise CampaignError(
+            f"{field} needs id, title, responsibility, reason, and files"
+        )
+    topic_id = validate_id(value["id"])
+    texts = (value["title"], value["responsibility"], value["reason"])
+    if any(not isinstance(text, str) or not text.strip() for text in texts):
+        raise CampaignError(f"{field} {topic_id} has empty text")
+    files = [
+        validate_relative_path(item)
+        for item in string_list(
+            value["files"],
+            f"{field} {topic_id} files",
+            nonempty=True,
+        )
+    ]
+    if len(files) != len(set(files)):
+        raise CampaignError(f"{field} {topic_id} repeats files")
+    if len(files) > MAX_UNIT_FILES:
+        raise CampaignError(
+            f"{field} {topic_id} exceeds {MAX_UNIT_FILES} files"
+        )
+    return {
+        "id": topic_id,
+        "title": value["title"].strip(),
+        "responsibility": value["responsibility"].strip(),
+        "reason": value["reason"].strip(),
+        "files": sorted(files),
+    }
+
+
+def validate_repository_files(
+    repository_root: Path,
+    values: list[str],
+    *,
+    field: str,
+) -> None:
+    root = repository_root.resolve()
+    for relative in values:
+        path = root / validate_relative_path(relative)
+        try:
+            path.resolve().relative_to(root)
+        except ValueError as error:
+            raise CampaignError(f"{field} escapes repository: {relative}") from error
+        if not path.is_file():
+            raise CampaignError(f"{field} does not exist: {relative}")
+        if not is_probably_text(path):
+            raise CampaignError(f"{field} is not UTF-8 text: {relative}")
+
+
+def validate_discovery_result(
+    packet: dict[str, Any],
+    raw: Any,
+    repository_root: Path,
+) -> dict[str, Any]:
+    expected = {
+        "lead_id",
+        "status",
+        "reason",
+        "inspected",
+        "topics",
+        "supporting",
+        "child_leads",
+    }
+    if not isinstance(raw, dict) or set(raw) != expected:
+        raise CampaignError(
+            "discovery result needs exactly lead_id, status, reason, inspected, "
+            "topics, supporting, and child_leads"
+        )
+    lead = normalize_discovery_lead(packet.get("lead"), field="discovery packet lead")
+    if raw["lead_id"] != lead["id"]:
+        raise CampaignError("discovery result lead_id does not match packet")
+    if raw["status"] not in DISCOVERY_TERMINAL_STATUSES:
+        raise CampaignError(
+            f"discovery result {lead['id']} has nonterminal status"
+        )
+    if not isinstance(raw["reason"], str) or not raw["reason"].strip():
+        raise CampaignError(f"discovery result {lead['id']} needs a reason")
+    inspected = raw["inspected"]
+    if not isinstance(inspected, dict) or set(inspected) != {"files", "queries"}:
+        raise CampaignError(
+            f"discovery result {lead['id']} inspected needs files and queries"
+        )
+    inspected_files = [
+        validate_relative_path(item)
+        for item in string_list(
+            inspected["files"],
+            f"discovery result {lead['id']} inspected files",
+        )
+    ]
+    queries = string_list(
+        inspected["queries"],
+        f"discovery result {lead['id']} queries",
+    )
+    if len(inspected_files) != len(set(inspected_files)):
+        raise CampaignError(
+            f"discovery result {lead['id']} repeats inspected files"
+        )
+    validate_repository_files(
+        repository_root,
+        inspected_files,
+        field=f"discovery result {lead['id']} inspected file",
+    )
+    if not isinstance(raw["topics"], list):
+        raise CampaignError(
+            f"discovery result {lead['id']} topics must be a list"
+        )
+    topics = [
+        normalize_candidate_topic(
+            value,
+            field=f"discovery result {lead['id']} topic",
+        )
+        for value in raw["topics"]
+    ]
+    supporting: list[dict[str, Any]] = []
+    supporting_files: set[str] = set()
+    if not isinstance(raw["supporting"], list):
+        raise CampaignError(
+            f"discovery result {lead['id']} supporting must be a list"
+        )
+    for index, value in enumerate(raw["supporting"], start=1):
+        if not isinstance(value, dict) or set(value) != {"reason", "files"}:
+            raise CampaignError(
+                f"discovery result {lead['id']} supporting {index} is invalid"
+            )
+        reason = value["reason"]
+        if not isinstance(reason, str) or not reason.strip():
+            raise CampaignError(
+                f"discovery result {lead['id']} supporting {index} needs a reason"
+            )
+        files = [
+            validate_relative_path(item)
+            for item in string_list(
+                value["files"],
+                f"discovery result {lead['id']} supporting {index} files",
+                nonempty=True,
+            )
+        ]
+        if len(files) != len(set(files)):
+            raise CampaignError(
+                f"discovery result {lead['id']} supporting {index} repeats files"
+            )
+        overlap = supporting_files & set(files)
+        if overlap:
+            raise CampaignError(
+                f"discovery result {lead['id']} repeats supporting files: "
+                f"{sorted(overlap)}"
+            )
+        supporting_files.update(files)
+        supporting.append({"reason": reason.strip(), "files": sorted(files)})
+    topic_files = {
+        path
+        for topic in topics
+        for path in topic["files"]
+    }
+    conflict = topic_files & supporting_files
+    if conflict:
+        raise CampaignError(
+            f"discovery result {lead['id']} classifies files as both topic "
+            f"and supporting: {sorted(conflict)}"
+        )
+    classified = topic_files | supporting_files
+    if not classified <= set(inspected_files):
+        raise CampaignError(
+            f"discovery result {lead['id']} classifies uninspected files: "
+            f"{sorted(classified - set(inspected_files))}"
+        )
+    missing_seed = set(lead["seed_files"]) - classified
+    if missing_seed:
+        raise CampaignError(
+            f"discovery result {lead['id']} leaves seed files unclassified: "
+            f"{sorted(missing_seed)}"
+        )
+    child_leads: list[dict[str, Any]] = []
+    if not isinstance(raw["child_leads"], list):
+        raise CampaignError(
+            f"discovery result {lead['id']} child_leads must be a list"
+        )
+    child_ids: set[str] = set()
+    for value in raw["child_leads"]:
+        if not isinstance(value, dict) or set(value) != {
+            "id",
+            "title",
+            "question",
+            "reason",
+            "seed_files",
+        }:
+            raise CampaignError(
+                f"discovery result {lead['id']} child lead is invalid"
+            )
+        child_id = validate_id(value["id"])
+        if child_id in child_ids:
+            raise CampaignError(
+                f"discovery result {lead['id']} repeats child lead {child_id}"
+            )
+        child_ids.add(child_id)
+        texts = (value["title"], value["question"], value["reason"])
+        if any(not isinstance(text, str) or not text.strip() for text in texts):
+            raise CampaignError(
+                f"discovery result {lead['id']} child lead {child_id} has empty text"
+            )
+        seed_files = [
+            validate_relative_path(item)
+            for item in string_list(
+                value["seed_files"],
+                f"discovery result {lead['id']} child lead {child_id} seed_files",
+            )
+        ]
+        validate_repository_files(
+            repository_root,
+            seed_files,
+            field=(
+                f"discovery result {lead['id']} child lead {child_id} seed file"
+            ),
+        )
+        unknown_seed = set(seed_files) - set(inspected_files)
+        if unknown_seed:
+            raise CampaignError(
+                f"discovery result {lead['id']} child lead {child_id} uses "
+                f"uninspected seed files: {sorted(unknown_seed)}"
+            )
+        if len(seed_files) != len(set(seed_files)):
+            raise CampaignError(
+                f"discovery result {lead['id']} child lead {child_id} "
+                "repeats seed files"
+            )
+        if len(seed_files) > MAX_UNIT_FILES:
+            raise CampaignError(
+                f"discovery result {lead['id']} child lead {child_id} "
+                f"exceeds {MAX_UNIT_FILES} seed files"
+            )
+        child_leads.append(
+            {
+                "id": child_id,
+                "title": value["title"].strip(),
+                "question": value["question"].strip(),
+                "reason": value["reason"].strip(),
+                "seed_files": sorted(set(seed_files)),
+            }
+        )
+    if raw["status"] in {"duplicate", "out_of_scope"} and (
+        topics or supporting or child_leads
+    ):
+        raise CampaignError(
+            f"discovery result {lead['id']} status {raw['status']} "
+            "cannot publish topics, supporting files, or child leads"
+        )
+    if raw["status"] == "expanded" and not child_leads:
+        raise CampaignError(
+            f"discovery result {lead['id']} expanded without child leads"
+        )
+    if raw["status"] == "leaf" and child_leads:
+        raise CampaignError(
+            f"discovery result {lead['id']} leaf cannot have child leads"
+        )
+    return {
+        "lead": lead,
+        "source_refs": packet.get("source_refs", []),
+        "status": raw["status"],
+        "reason": raw["reason"].strip(),
+        "inspected": {
+            "files": sorted(inspected_files),
+            "queries": queries,
+        },
+        "topics": topics,
+        "supporting": supporting,
+        "child_leads": child_leads,
+    }
+
+
+def evidence_files_digest(repository_root: Path, files: list[str]) -> str:
+    root = repository_root.resolve()
+    digest = hashlib.sha256()
+    for relative in sorted(files):
+        path = root / relative
+        digest.update(f"F\0{relative}\0".encode())
+        with path.open("rb") as stream:
+            while chunk := stream.read(1024 * 1024):
+                digest.update(chunk)
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
+    if args.output.exists():
+        raise CampaignError(f"discovery corpus already exists: {args.output}")
+    seed = read_json(args.seed)
+    if (
+        not isinstance(seed, dict)
+        or seed.get("discovery_contract_version") != DISCOVERY_CONTRACT_VERSION
+    ):
+        raise CampaignError("discovery seed contract is invalid")
+    repository_root = Path(seed["repository_root"]).resolve()
+    packet_paths = sorted(args.packets_root.rglob("lead-*.json"))
+    if not packet_paths:
+        raise CampaignError("discovery packet tree is empty")
+    packets: dict[str, dict[str, Any]] = {}
+    results: dict[str, dict[str, Any]] = {}
+    for packet_path in packet_paths:
+        packet = read_json(packet_path)
+        if (
+            packet.get("discovery_contract_version")
+            != DISCOVERY_CONTRACT_VERSION
+            or packet.get("repository_root") != seed["repository_root"]
+            or packet.get("spine_root") != seed["spine_root"]
+            or packet.get("scope") != seed["scope"]
+        ):
+            raise CampaignError(
+                f"discovery packet metadata is invalid: {packet_path}"
+            )
+        lead = normalize_discovery_lead(
+            packet.get("lead"),
+            field=f"discovery packet {packet_path.name} lead",
+        )
+        lead_id = lead["id"]
+        if lead_id in packets:
+            raise CampaignError(f"discovery repeats packet lead: {lead_id}")
+        packets[lead_id] = packet
+        relative = packet_path.relative_to(args.packets_root)
+        result_path = args.results_root / relative
+        if not result_path.is_file():
+            raise CampaignError(f"missing discovery result: {result_path}")
+        results[lead_id] = validate_discovery_result(
+            packet,
+            read_json(result_path),
+            repository_root,
+        )
+    extra = sorted(
+        path.relative_to(args.results_root).as_posix()
+        for path in args.results_root.rglob("lead-*.json")
+        if not (args.packets_root / path.relative_to(args.results_root)).is_file()
+    )
+    if extra:
+        raise CampaignError(f"discovery results have unknown packets: {extra}")
+
+    proposals = {
+        f"{lead_id}/{child['id']}"
+        for lead_id, result in results.items()
+        for child in result["child_leads"]
+    }
+    for gaps_path in sorted(args.packets_root.rglob("_synthesis-gaps.json")):
+        raw = read_json(gaps_path)
+        if not isinstance(raw, dict) or set(raw) != {"proposals"}:
+            raise CampaignError(f"invalid synthesis-gap artifact: {gaps_path}")
+        proposals.update(
+            string_list(
+                raw["proposals"],
+                f"synthesis-gap proposals in {gaps_path}",
+                nonempty=True,
+            )
+        )
+    decisions: list[dict[str, Any]] = []
+    decision_sources: set[str] = set()
+    for frontier_path in sorted(args.packets_root.rglob("_frontier.json")):
+        raw = read_json(frontier_path)
+        if not isinstance(raw, dict) or set(raw) != {"decisions"}:
+            raise CampaignError(f"invalid frontier artifact: {frontier_path}")
+        for index, value in enumerate(raw["decisions"], start=1):
+            decision = normalize_frontier_decision(value, index=index)
+            overlap = decision_sources & set(decision["sources"])
+            if overlap:
+                raise CampaignError(
+                    f"frontier decisions repeat proposals: {sorted(overlap)}"
+                )
+            decision_sources.update(decision["sources"])
+            decisions.append(decision)
+    if proposals != decision_sources:
+        raise CampaignError(
+            "discovery frontier is not closed: "
+            f"undispositioned={sorted(proposals - decision_sources)}, "
+            f"unknown={sorted(decision_sources - proposals)}"
+        )
+    queued: dict[str, set[str]] = {}
+    for decision in decisions:
+        if decision["disposition"] == "queue":
+            lead_id = decision["lead"]["id"]
+            queued.setdefault(lead_id, set()).update(decision["sources"])
+            if lead_id not in packets:
+                raise CampaignError(
+                    f"queued discovery lead has no packet: {lead_id}"
+                )
+            if set(packets[lead_id].get("source_refs", [])) != set(
+                decision["sources"]
+            ):
+                raise CampaignError(
+                    f"queued discovery lead source refs differ: {lead_id}"
+                )
+        elif decision["disposition"] == "duplicate":
+            if decision["target"] not in packets:
+                raise CampaignError(
+                    "duplicate discovery decision targets unknown lead: "
+                    f"{decision['target']}"
+                )
+    initial = set(seed.get("initial_leads", []))
+    unknown_initial = initial - set(packets)
+    if unknown_initial:
+        raise CampaignError(
+            f"discovery initial leads have no packets: {sorted(unknown_initial)}"
+        )
+    for lead_id, packet in packets.items():
+        if lead_id not in initial and lead_id not in queued:
+            raise CampaignError(
+                f"discovery packet is neither initial nor queued: {lead_id}"
+            )
+        parents = set(packet["lead"]["parent_ids"])
+        if not parents <= set(packets):
+            raise CampaignError(
+                f"discovery lead {lead_id} has unknown parents: "
+                f"{sorted(parents - set(packets))}"
+            )
+        if lead_id in initial and parents:
+            raise CampaignError(
+                f"initial discovery lead must not have parents: {lead_id}"
+            )
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(lead_id: str) -> None:
+        if lead_id in visiting:
+            raise CampaignError(f"discovery lead graph has a cycle at {lead_id}")
+        if lead_id in visited:
+            return
+        visiting.add(lead_id)
+        for parent_id in packets[lead_id]["lead"]["parent_ids"]:
+            visit(parent_id)
+        visiting.remove(lead_id)
+        visited.add(lead_id)
+
+    for lead_id in packets:
+        visit(lead_id)
+
+    topics = [
+        topic
+        for result in results.values()
+        for topic in result["topics"]
+    ]
+    supporting = [
+        value
+        for result in results.values()
+        for value in result["supporting"]
+    ]
+    evidence_files = sorted(
+        {
+            path
+            for topic in topics
+            for path in topic["files"]
+        }
+        | {
+            path
+            for value in supporting
+            for path in value["files"]
+        }
+    )
+    snapshot: dict[str, Any]
+    accelerator = seed.get("accelerator")
+    if isinstance(accelerator, dict):
+        snapshot = {
+            "kind": "repository",
+            "digest": accelerator["digest"],
+        }
+    else:
+        snapshot = {
+            "kind": "evidence-files",
+            "digest": evidence_files_digest(repository_root, evidence_files),
+        }
+    corpus = {
+        "discovery_contract_version": DISCOVERY_CONTRACT_VERSION,
+        "repository_root": seed["repository_root"],
+        "spine_root": seed["spine_root"],
+        "scope": seed["scope"],
+        "snapshot": snapshot,
+        "leads": sorted(results.values(), key=lambda value: value["lead"]["id"]),
+        "frontier_decisions": decisions,
+        "topics": topics,
+        "supporting": supporting,
+        "evidence_files": evidence_files,
+    }
+    corpus["digest"] = digest_json(corpus)
+    atomic_write(args.output, corpus)
+    return {
+        "status": "written",
+        "corpus": str(args.output.resolve()),
+        "scope_kind": seed["scope"]["kind"],
+        "leads": len(results),
+        "candidate_topics": len(topics),
+        "evidence_files": len(evidence_files),
+    }
+
+
+def load_discovery_corpus(
+    path: Path,
+    repository_root: Path,
+    spine_root: Path,
+) -> dict[str, Any]:
+    corpus = read_json(path)
+    expected = {
+        "discovery_contract_version",
+        "repository_root",
+        "spine_root",
+        "scope",
+        "snapshot",
+        "leads",
+        "frontier_decisions",
+        "topics",
+        "supporting",
+        "evidence_files",
+        "digest",
+    }
+    if not isinstance(corpus, dict) or set(corpus) != expected:
+        raise CampaignError("discovery corpus shape is invalid")
+    if corpus["discovery_contract_version"] != DISCOVERY_CONTRACT_VERSION:
+        raise CampaignError("discovery corpus contract version is invalid")
+    if corpus["repository_root"] != str(repository_root.resolve()):
+        raise CampaignError("discovery corpus repository root differs")
+    if corpus["spine_root"] != str(spine_root.resolve()):
+        raise CampaignError("discovery corpus Spine root differs")
+    validate_scope_spec(corpus["scope"])
+    files = [
+        validate_relative_path(value)
+        for value in string_list(
+            corpus["evidence_files"],
+            "discovery corpus evidence_files",
+        )
+    ]
+    if files != sorted(set(files)):
+        raise CampaignError("discovery corpus evidence_files are not canonical")
+    validate_repository_files(
+        repository_root,
+        files,
+        field="discovery corpus evidence file",
+    )
+    digest = corpus["digest"]
+    unsigned = dict(corpus)
+    unsigned.pop("digest")
+    if digest != digest_json(unsigned):
+        raise CampaignError("discovery corpus digest is invalid")
+    snapshot = corpus["snapshot"]
+    if not isinstance(snapshot, dict) or set(snapshot) != {"kind", "digest"}:
+        raise CampaignError("discovery corpus snapshot is invalid")
+    if snapshot["kind"] == "repository":
+        current_digest = repository_inventory(
+            repository_root,
+            spine_root=spine_root,
+        )["digest"]
+    elif snapshot["kind"] == "evidence-files":
+        current_digest = evidence_files_digest(repository_root, files)
+    else:
+        raise CampaignError("discovery corpus snapshot kind is invalid")
+    if current_digest != snapshot["digest"]:
+        raise CampaignError(
+            "discovery corpus source snapshot changed; restart discovery"
+        )
+    if not isinstance(corpus["topics"], list) or not isinstance(
+        corpus["supporting"], list
+    ):
+        raise CampaignError("discovery corpus candidate lists are invalid")
+    candidate_files = {
+        path
+        for index, value in enumerate(corpus["topics"], start=1)
+        for path in normalize_candidate_topic(
+            value,
+            field=f"discovery corpus topic {index}",
+        )["files"]
+    }
+    supporting_files: set[str] = set()
+    for index, value in enumerate(corpus["supporting"], start=1):
+        if not isinstance(value, dict) or set(value) != {"reason", "files"}:
+            raise CampaignError(
+                f"discovery corpus supporting {index} is invalid"
+            )
+        if not isinstance(value["reason"], str) or not value["reason"].strip():
+            raise CampaignError(
+                f"discovery corpus supporting {index} needs a reason"
+            )
+        supporting_files.update(
+            validate_relative_path(item)
+            for item in string_list(
+                value["files"],
+                f"discovery corpus supporting {index} files",
+                nonempty=True,
+            )
+        )
+    if candidate_files | supporting_files != set(files):
+        raise CampaignError(
+            "discovery corpus evidence_files differ from candidate disposition"
+        )
+    if not isinstance(corpus["leads"], list) or not corpus["leads"]:
+        raise CampaignError("discovery corpus needs terminal discovery leads")
+    for value in corpus["leads"]:
+        if (
+            not isinstance(value, dict)
+            or value.get("status") not in DISCOVERY_TERMINAL_STATUSES
+        ):
+            raise CampaignError("discovery corpus contains nonterminal leads")
+    return corpus
+
+
 def validate_integration_evidence(
     spine_root: Path,
     inspected: Any,
@@ -1184,206 +2195,29 @@ def command_inventory(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def command_planning_packets(args: argparse.Namespace) -> dict[str, Any]:
-    inventory = read_json(args.inventory)
-    files = string_list(
-        inventory.get("production_files"),
-        "inventory production_files",
-    )
-    repository_root = inventory.get("repository_root")
-    digest = inventory.get("digest")
-    if not isinstance(repository_root, str) or not isinstance(digest, str):
-        raise CampaignError("planning inventory metadata is invalid")
-    if args.output_dir.exists():
-        raise CampaignError(f"planning packet directory already exists: {args.output_dir}")
-    args.output_dir.mkdir(parents=True)
-    packets: list[str] = []
-    for offset in range(0, len(files), args.page_size):
-        index = offset // args.page_size + 1
-        packet = {
-            "planning_contract_version": 1,
-            "repository_root": repository_root,
-            "inventory_digest": digest,
-            "page": index,
-            "production_files": files[offset : offset + args.page_size],
-        }
-        path = args.output_dir / f"page-{index:04d}.json"
-        atomic_write(path, packet)
-        packets.append(str(path.resolve()))
-    return {
-        "status": "written",
-        "packets": packets,
-        "packet_count": len(packets),
-        "production_files": len(files),
-    }
-
-
-def validate_planning_result(
-    packet: dict[str, Any],
-    result: dict[str, Any],
-) -> dict[str, Any]:
-    if set(result) != {"page", "topics", "supporting"}:
-        raise CampaignError("planning result needs exactly page, topics, and supporting")
-    if result["page"] != packet.get("page"):
-        raise CampaignError("planning result page does not match its packet")
-    assigned = set(
-        string_list(
-            packet.get("production_files"),
-            "planning packet production_files",
-        )
-    )
-    if not isinstance(result["topics"], list) or not isinstance(
-        result["supporting"], list
-    ):
-        raise CampaignError("planning result topics and supporting must be lists")
-    topics: list[dict[str, Any]] = []
-    topic_ids: set[str] = set()
-    topic_files: set[str] = set()
-    for value in result["topics"]:
-        if not isinstance(value, dict) or set(value) != {
-            "id",
-            "title",
-            "responsibility",
-            "reason",
-            "files",
-        }:
-            raise CampaignError(
-                "planning topic needs id, title, responsibility, reason, and files"
-            )
-        topic_id = validate_id(value["id"])
-        if topic_id in topic_ids:
-            raise CampaignError(f"duplicate planning topic id: {topic_id}")
-        topic_ids.add(topic_id)
-        texts = [value["title"], value["responsibility"], value["reason"]]
-        if any(not isinstance(text, str) or not text.strip() for text in texts):
-            raise CampaignError(f"planning topic {topic_id} has empty text")
-        files = [
-            validate_relative_path(item)
-            for item in string_list(
-                value["files"],
-                f"planning topic {topic_id} files",
-                nonempty=True,
-            )
-        ]
-        unknown = sorted(set(files) - assigned)
-        if unknown:
-            raise CampaignError(
-                f"planning topic {topic_id} uses files outside its page: {unknown}"
-            )
-        topic_files.update(files)
-        topics.append(
-            {
-                "id": topic_id,
-                "title": value["title"].strip(),
-                "responsibility": value["responsibility"].strip(),
-                "reason": value["reason"].strip(),
-                "files": sorted(set(files)),
-            }
-        )
-    supporting: list[dict[str, Any]] = []
-    supporting_files: set[str] = set()
-    for index, value in enumerate(result["supporting"], start=1):
-        if not isinstance(value, dict) or set(value) != {"reason", "files"}:
-            raise CampaignError("planning supporting entry needs reason and files")
-        reason = value["reason"]
-        if not isinstance(reason, str) or not reason.strip():
-            raise CampaignError(f"planning supporting entry {index} needs a reason")
-        files = [
-            validate_relative_path(item)
-            for item in string_list(
-                value["files"],
-                f"planning supporting entry {index} files",
-                nonempty=True,
-            )
-        ]
-        unknown = sorted(set(files) - assigned)
-        if unknown:
-            raise CampaignError(
-                f"planning supporting entry {index} uses files outside its page: {unknown}"
-            )
-        overlap = sorted(set(files) & supporting_files)
-        if overlap:
-            raise CampaignError(f"planning supporting files are repeated: {overlap}")
-        supporting_files.update(files)
-        supporting.append({"reason": reason.strip(), "files": sorted(set(files))})
-    conflict = sorted(topic_files & supporting_files)
-    if conflict:
-        raise CampaignError(
-            f"planning files cannot be both topic and supporting: {conflict}"
-        )
-    missing = sorted(assigned - topic_files - supporting_files)
-    if missing:
-        raise CampaignError(f"planning result leaves page files uncovered: {missing}")
-    return {
-        "page": packet["page"],
-        "topics": topics,
-        "supporting": supporting,
-    }
-
-
-def command_planning_collect(args: argparse.Namespace) -> dict[str, Any]:
-    if args.output.exists():
-        raise CampaignError(f"planning corpus output already exists: {args.output}")
-    packet_paths = sorted(args.packets_dir.glob("page-*.json"))
-    if not packet_paths:
-        raise CampaignError("planning packet directory is empty")
-    pages: list[dict[str, Any]] = []
-    repository_root: str | None = None
-    inventory_digest: str | None = None
-    for packet_path in packet_paths:
-        result_path = args.results_dir / packet_path.name
-        if not result_path.is_file():
-            raise CampaignError(f"missing planning result: {result_path}")
-        packet = read_json(packet_path)
-        if repository_root is None:
-            repository_root = packet.get("repository_root")
-            inventory_digest = packet.get("inventory_digest")
-        elif (
-            packet.get("repository_root") != repository_root
-            or packet.get("inventory_digest") != inventory_digest
-        ):
-            raise CampaignError("planning packets do not share one inventory snapshot")
-        pages.append(validate_planning_result(packet, read_json(result_path)))
-    extra = sorted(
-        path.name
-        for path in args.results_dir.glob("page-*.json")
-        if not (args.packets_dir / path.name).is_file()
-    )
-    if extra:
-        raise CampaignError(f"planning results have unknown pages: {extra}")
-    corpus = {
-        "planning_contract_version": 1,
-        "repository_root": repository_root,
-        "inventory_digest": inventory_digest,
-        "pages": pages,
-    }
-    atomic_write(args.output, corpus)
-    return {
-        "status": "written",
-        "corpus": str(args.output.resolve()),
-        "pages": len(pages),
-        "candidate_topics": sum(len(value["topics"]) for value in pages),
-    }
-
-
 def validate_topic_plan(
     path: Path,
-    production_files: list[str],
+    evidence_files: list[str],
     spine_root: Path,
 ) -> dict[str, Any]:
     raw = read_json(path)
-    if set(raw) != {"topics", "covered", "supporting"}:
+    if set(raw) != {"topics", "covered", "supporting", "open_leads"}:
         raise CampaignError(
-            "topic plan needs exactly topics, covered, and supporting"
+            "topic plan needs exactly topics, covered, supporting, and open_leads"
         )
     if any(
         not isinstance(raw[field], list)
-        for field in ("topics", "covered", "supporting")
+        for field in ("topics", "covered", "supporting", "open_leads")
     ):
         raise CampaignError(
-            "topic plan topics, covered, and supporting must be lists"
+            "topic plan topics, covered, supporting, and open_leads must be lists"
         )
-    production = set(production_files)
+    if raw["open_leads"]:
+        raise CampaignError(
+            "topic plan has open discovery leads; return them to discovery "
+            "before source-pass"
+        )
+    evidence = set(evidence_files)
     topics: list[dict[str, Any]] = []
     topic_ids: set[str] = set()
     topic_files: set[str] = set()
@@ -1426,9 +2260,9 @@ def validate_topic_plan(
         if len(files) > MAX_UNIT_FILES:
             raise CampaignError(
                 f"{field} topic {topic_id} exceeds "
-                f"{MAX_UNIT_FILES} production files"
+                f"{MAX_UNIT_FILES} evidence files"
             )
-        unknown = sorted(set(files) - production)
+        unknown = sorted(set(files) - evidence)
         if unknown:
             raise CampaignError(
                 f"{field} topic {topic_id} has unknown files: {unknown}"
@@ -1567,7 +2401,7 @@ def validate_topic_plan(
         ]
         if len(files) != len(set(files)):
             raise CampaignError(f"supporting entry {index} contains duplicate files")
-        unknown = sorted(set(files) - production)
+        unknown = sorted(set(files) - evidence)
         if unknown:
             raise CampaignError(f"supporting entry {index} has unknown files: {unknown}")
         overlap = sorted(set(files) & supporting_files)
@@ -1581,9 +2415,9 @@ def validate_topic_plan(
             f"files cannot be both topic-covered and supporting: {conflict}"
         )
     accounted = topic_files | covered_files | supporting_files
-    missing = sorted(production - accounted)
+    missing = sorted(evidence - accounted)
     if missing:
-        raise CampaignError(f"topic plan leaves production files uncovered: {missing}")
+        raise CampaignError(f"topic plan leaves evidence files uncovered: {missing}")
     normalized_topics = sorted(topics, key=lambda value: value["id"])
     normalized_covered = sorted(
         covered_topics,
@@ -1597,12 +2431,14 @@ def validate_topic_plan(
         "topics": normalized_topics,
         "covered": normalized_covered,
         "supporting": normalized_supporting,
-        "production_files": sorted(production),
+        "evidence_files": sorted(evidence),
+        "open_leads": [],
         "digest": digest_json(
             {
                 "topics": normalized_topics,
                 "covered": normalized_covered,
                 "supporting": normalized_supporting,
+                "open_leads": [],
             }
         ),
     }
@@ -1612,25 +2448,28 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
     current = load(args.ledger)
     if current["spine_state"] == "existing" and current["documentation_seed"] is None:
         raise CampaignError("seed-from-spine is required before source-pass")
+    if args.discovery_corpus is None:
+        raise CampaignError("source-pass requires --discovery-corpus")
+    if args.topic_plan is None:
+        raise CampaignError("source-pass requires a synthesized --topic-plan")
     run_checker(
         args.checker,
         args.spine_root.resolve(),
         repository_root=args.repository_root.resolve(),
         allowed_findings=checker_baseline_fingerprints(current),
     )
-    inventory = repository_inventory(
+    corpus = load_discovery_corpus(
+        args.discovery_corpus,
         args.repository_root,
-        spine_root=args.spine_root,
+        args.spine_root,
     )
     evidence_baseline = repository_evidence_baseline(
         args.repository_root,
-        inventory["digest"],
+        corpus["snapshot"]["digest"],
     )
-    if args.topic_plan is None:
-        raise CampaignError("source-pass requires a synthesized --topic-plan")
     plan = validate_topic_plan(
         args.topic_plan,
-        inventory["production_files"],
+        corpus["evidence_files"],
         args.spine_root,
     )
     raw_todo: list[dict[str, Any]] = []
@@ -1671,11 +2510,12 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
         ledger["source_pass"] = {
             "repository_root": str(args.repository_root.resolve()),
             "spine_root": str(args.spine_root.resolve()),
-            "inventory_digest": inventory["digest"],
+            "scope": corpus["scope"],
+            "scope_snapshot": corpus["snapshot"],
+            "discovery_digest": corpus["digest"],
+            "discovery_corpus": corpus,
             "evidence_baseline": evidence_baseline,
-            "production_files": inventory["production_files"],
-            "excluded": inventory["excluded"],
-            "excluded_directories": inventory["excluded_directories"],
+            "evidence_files": corpus["evidence_files"],
             "topic_plan": plan,
             "topic_tasks": topic_tasks,
             "todo": sorted(value["id"] for value in raw_todo),
@@ -1687,7 +2527,9 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
         save_locked(args.ledger, ledger)
         return {
             "status": "recorded",
-            "production_files": len(inventory["production_files"]),
+            "scope_kind": corpus["scope"]["kind"],
+            "evidence_files": len(corpus["evidence_files"]),
+            "discovery_leads": len(corpus["leads"]),
             "topics": len(plan["topics"]),
             "covered_topics": len(plan["covered"]),
             "supporting_groups": len(plan["supporting"]),
@@ -1906,7 +2748,7 @@ def command_discover(args: argparse.Namespace) -> dict[str, Any]:
         assert activity is not None
         age_seconds = max(0, int((now - activity).total_seconds()))
         source_current: bool | None = (
-            current_inventory(ledger)
+            current_scope_snapshot(ledger)
             if isinstance(ledger.get("source_pass"), dict)
             else None
         )
@@ -1955,7 +2797,10 @@ def command_resume_session(args: argparse.Namespace) -> dict[str, Any]:
     with locked_ledger(args.ledger) as ledger:
         if incomplete_reason(ledger) is None:
             raise CampaignError("campaign is not resumable")
-        if isinstance(ledger.get("source_pass"), dict) and not current_inventory(ledger):
+        if (
+            isinstance(ledger.get("source_pass"), dict)
+            and not current_scope_snapshot(ledger)
+        ):
             raise CampaignError(
                 "campaign source snapshot changed; start a new campaign"
             )
@@ -2337,12 +3182,12 @@ def validate_coverage_result(
 
 
 def validate_task_outcome(task: dict[str, Any], outcome: str) -> None:
-    inventory_task = bool(task.get("units"))
-    if outcome in {"covered", "supporting"} and not inventory_task:
+    scope_task = bool(task.get("units"))
+    if outcome in {"covered", "supporting"} and not scope_task:
         raise CampaignError(
-            f"{outcome} is valid only for inventory verification tasks"
+            f"{outcome} is valid only for scope verification tasks"
         )
-    if outcome in {"answered", "unresolved"} and inventory_task:
+    if outcome in {"answered", "unresolved"} and scope_task:
         raise CampaignError(
             f"{outcome} is valid only for integration-derived tasks"
         )
@@ -3348,7 +4193,7 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
             anchor_review = normalized_reviews[task_id]["anchor_disposition"]
             if anchor is None and anchor_review is not None:
                 raise CampaignError(
-                    f"inventory task must not have anchor_disposition: {task_id}"
+                    f"scope task must not have anchor_disposition: {task_id}"
                 )
             if anchor is not None and normalized_reviews[task_id]["disposition"] != "retry":
                 if anchor_review is None:
@@ -3543,18 +4388,27 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
         }
 
 
-def current_inventory(ledger: dict[str, Any]) -> bool:
+def current_scope_snapshot(ledger: dict[str, Any]) -> bool:
     source = ledger.get("source_pass")
     if not isinstance(source, dict):
         return False
     try:
-        current = repository_inventory(
-            Path(source["repository_root"]),
-            spine_root=Path(source["spine_root"]),
-        )
+        snapshot = source["scope_snapshot"]
+        if snapshot["kind"] == "repository":
+            digest = repository_inventory(
+                Path(source["repository_root"]),
+                spine_root=Path(source["spine_root"]),
+            )["digest"]
+        elif snapshot["kind"] == "evidence-files":
+            digest = evidence_files_digest(
+                Path(source["repository_root"]),
+                source["evidence_files"],
+            )
+        else:
+            return False
     except (CampaignError, KeyError, OSError):
         return False
-    return current["digest"] == source.get("inventory_digest")
+    return digest == snapshot.get("digest")
 
 
 def current_integration(ledger: dict[str, Any]) -> bool:
@@ -3596,8 +4450,8 @@ def terminal_gates(ledger: dict[str, Any]) -> dict[str, bool]:
         "no_blocked_tasks": not any(
             task["state"] == "blocked" for task in tasks
         ),
-        "source_inventory_current": current_inventory(ledger),
-        "inventory_units_verified": (
+        "scope_snapshot_current": current_scope_snapshot(ledger),
+        "scope_units_verified": (
             isinstance(source_pass, dict) and units_verified
         ),
         "integration_current": current_integration(ledger),
@@ -3621,7 +4475,7 @@ def command_summary(args: argparse.Namespace) -> dict[str, Any]:
     }
     terminal: str | None = None
     if all(gates.values()):
-        terminal = "inventory_verified"
+        terminal = "scope_verified"
     elif (
         gates["todo_empty"]
         and gates["producers_finished"]
@@ -3644,10 +4498,10 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
     summary = command_summary(args)
     states = summary["states"]
     gates = summary["terminal_gates"]
-    if summary["terminal"] == "inventory_verified":
+    if summary["terminal"] == "scope_verified":
         action = "finalize"
         may_finish = True
-        reason = "inventory_verified"
+        reason = "scope_verified"
     elif summary["terminal"] == "blocked":
         action = "report_blocked"
         may_finish = True
@@ -3672,7 +4526,7 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
         action == "dispatch"
         and gates["producers_finished"]
         and gates["publications_integrated"]
-        and gates["source_inventory_current"]
+        and gates["scope_snapshot_current"]
         and gates["integration_current"]
         and gates["spine_v3_clean"]
     )
@@ -3704,15 +4558,6 @@ def command_coverage_report(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
     summary = command_summary(args)
     source = ledger.get("source_pass", {})
-    excluded = source.get("excluded", {}) if isinstance(source, dict) else {}
-    counts = {
-        classification: (
-            len(source.get("production_files", []))
-            if classification == "queued"
-            else len(excluded.get(classification, []))
-        )
-        for classification in sorted(SOURCE_CLASSIFICATIONS)
-    }
     verified_units = sum(
         ledger["tasks"].get(task_id, {}).get("state") == "complete"
         for task_id in source.get("todo", [])
@@ -3725,14 +4570,19 @@ def command_coverage_report(args: argparse.Namespace) -> dict[str, Any]:
         "task_states": {
             state: len(values) for state, values in summary["states"].items()
         },
-        "inventory_classifications": counts,
+        "scope_kind": source.get("scope", {}).get("kind"),
+        "scope_title": source.get("scope", {}).get("title"),
+        "evidence_files": len(source.get("evidence_files", [])),
+        "discovery_leads": len(
+            source.get("discovery_corpus", {}).get("leads", [])
+        ),
         "verified_topics": verified_units,
         "existing_spine_covered_topics": len(
             source.get("topic_plan", {}).get("covered", [])
         ),
         "coverage_claim": (
-            "inventory_verified"
-            if summary["terminal"] == "inventory_verified"
+            "scope_verified"
+            if summary["terminal"] == "scope_verified"
             else "blocked"
             if summary["terminal"] == "blocked"
             else "partial"
@@ -3781,24 +4631,42 @@ def parser() -> argparse.ArgumentParser:
     inventory.add_argument("--spine-root", type=Path)
     inventory.add_argument("--output", type=Path)
 
-    planning_packets = sub.add_parser("planning-packets")
-    planning_packets.add_argument("inventory", type=Path)
-    planning_packets.add_argument("output_dir", type=Path)
-    planning_packets.add_argument(
+    discovery_start = sub.add_parser("discovery-start")
+    discovery_start.add_argument("repository_root", type=Path)
+    discovery_start.add_argument("spine_root", type=Path)
+    discovery_start.add_argument("scope_spec", type=Path)
+    discovery_start.add_argument("output_dir", type=Path)
+    discovery_start.add_argument(
+        "--inventory-accelerator",
+        action="store_true",
+    )
+    discovery_start.add_argument(
         "--page-size",
         type=positive_int,
         default=MAX_UNIT_FILES,
     )
 
-    planning_collect = sub.add_parser("planning-collect")
-    planning_collect.add_argument("packets_dir", type=Path)
-    planning_collect.add_argument("results_dir", type=Path)
-    planning_collect.add_argument("output", type=Path)
+    discovery_packets = sub.add_parser("discovery-packets")
+    discovery_packets.add_argument("seed", type=Path)
+    discovery_packets.add_argument("frontier", type=Path)
+    discovery_packets.add_argument("output_dir", type=Path)
+
+    discovery_reopen = sub.add_parser("discovery-reopen")
+    discovery_reopen.add_argument("seed", type=Path)
+    discovery_reopen.add_argument("topic_plan", type=Path)
+    discovery_reopen.add_argument("output_dir", type=Path)
+
+    discovery_collect = sub.add_parser("discovery-collect")
+    discovery_collect.add_argument("seed", type=Path)
+    discovery_collect.add_argument("packets_root", type=Path)
+    discovery_collect.add_argument("results_root", type=Path)
+    discovery_collect.add_argument("output", type=Path)
 
     source = sub.add_parser("source-pass")
     source.add_argument("ledger", type=Path)
     source.add_argument("repository_root", type=Path)
     source.add_argument("spine_root", type=Path)
+    source.add_argument("--discovery-corpus", type=Path)
     source.add_argument("--topic-plan", type=Path)
     source.add_argument(
         "--checker",
@@ -3930,8 +4798,10 @@ def main() -> int:
         "resume-session": command_resume_session,
         "seed-from-spine": command_seed_from_spine,
         "inventory": command_inventory,
-        "planning-packets": command_planning_packets,
-        "planning-collect": command_planning_collect,
+        "discovery-start": command_discovery_start,
+        "discovery-packets": command_discovery_packets,
+        "discovery-reopen": command_discovery_reopen,
+        "discovery-collect": command_discovery_collect,
         "source-pass": command_source_pass,
         "todo-add": command_todo_add,
         "todo": command_todo,

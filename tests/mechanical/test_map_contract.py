@@ -17,8 +17,11 @@ class MapExhaustiveContractTests(unittest.TestCase):
         cls.producer = (
             ROOT / "skills/specspine-map/references/producer-task.md"
         ).read_text(encoding="utf-8")
-        cls.planner = (
-            ROOT / "skills/specspine-map/references/planning-task.md"
+        cls.discovery = (
+            ROOT / "skills/specspine-map/references/discovery-task.md"
+        ).read_text(encoding="utf-8")
+        cls.curator = (
+            ROOT / "skills/specspine-map/references/frontier-curation.md"
         ).read_text(encoding="utf-8")
         cls.synthesis = (
             ROOT / "skills/specspine-map/references/topic-synthesis.md"
@@ -40,11 +43,15 @@ class MapExhaustiveContractTests(unittest.TestCase):
             ROOT / "skills/specspine-map/scripts/campaign.py"
         ).read_text(encoding="utf-8")
 
-    def test_whole_project_completion_selects_exhaustive_mode(self):
+    def test_completion_selects_one_exhaustive_campaign_for_any_scope(self):
         normalized = " ".join(self.entrypoint.split())
-        self.assertIn("Use **bounded mode** for an explicitly limited", normalized)
-        self.assertIn("Use **exhaustive mode** for completion intent", normalized)
-        self.assertIn("cover/document this whole project", normalized)
+        self.assertIn("Use **bounded-step mode** for an explicitly limited", normalized)
+        self.assertIn("Use an **exhaustive campaign** for completion intent", normalized)
+        self.assertIn("fully document Kafka and related services", normalized)
+        self.assertIn(
+            "whole repository is one exhaustive scope, not a separate campaign type",
+            normalized,
+        )
 
     def test_bounded_contract_remains_free_of_campaign_state(self):
         self.assertNotIn("campaign.py", self.mapper)
@@ -74,8 +81,8 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("fix every candidate-caused finding", producer)
         self.assertIn("Root independently repeats all acceptance checks", producer)
         self.assertIn("campaign.py packet", protocol)
-        self.assertIn("Do not inspect or accept `producer-work`", protocol)
-        self.assertIn("never trust the producer receipt", protocol)
+        self.assertIn("Never inspect or accept `producer-work`", protocol)
+        self.assertIn("Root reruns every acceptance check", protocol)
         self.assertIn("def command_packet", self.campaign)
 
     def test_exhaustive_requires_medium_tier_producers(self):
@@ -105,40 +112,47 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("evidence baseline and at least one v3 semantic", normalized)
         self.assertIn("all `OBS-*`", normalized)
 
-    def test_inventory_is_a_deterministic_completion_gate(self):
+    def test_discovery_scope_is_the_completion_gate(self):
         normalized = " ".join(self.protocol.split())
-        self.assertIn("flat mechanical source inventory", normalized)
+        self.assertIn("closes one operator-defined semantic scope", normalized)
         self.assertIn(
-            "creates one immutable producer ToDo per semantic topic",
+            "creates one immutable producer ToDo per uncovered semantic topic",
             normalized,
         )
-        self.assertIn("Candidate owners do not close work", normalized)
-        self.assertIn("inventory_verified", normalized)
-        self.assertIn("flat list of text production files", normalized)
-        self.assertIn("does not group production paths", normalized)
-        self.assertIn("explicit evidence obligation", normalized)
-        self.assertIn("planning-collect", normalized)
+        self.assertIn("Candidate owners never close work", normalized)
+        self.assertIn("scope_verified", normalized)
+        self.assertIn("flat production-file inventory", normalized)
+        self.assertIn("only a repository-scope accelerator", normalized)
+        self.assertIn("discovery-collect", normalized)
+        self.assertIn("discovery-reopen", normalized)
         self.assertIn("topic-plan.json", normalized)
-        self.assertIn("whole-list pass", normalized)
-        self.assertIn("transport pagination", " ".join(self.planner.split()))
+        discovery = " ".join(self.discovery.split())
+        self.assertIn("one semantic expansion step", discovery)
+        self.assertIn("Read `<spine-root>/README.md`", self.discovery)
+        self.assertIn("Every seed file", discovery)
+        curator = " ".join(self.curator.split())
+        self.assertIn("compare every child-lead proposal", curator)
+        self.assertIn("Disposition every proposal exactly once", curator)
         synthesis = " ".join(self.synthesis.split())
-        self.assertIn("ignore page boundaries", synthesis)
-        self.assertIn("process every topic one at a time", synthesis)
+        self.assertIn("process every semantic topic one at a time", synthesis)
         self.assertIn("existing `<spine-root>`", synthesis)
         self.assertIn("semantic discovery/extraction workflow", synthesis)
-        self.assertIn("Only `topics` becomes the producer frontier", synthesis)
+        self.assertIn("Only `topics` becomes the producer", synthesis)
+        self.assertIn("`open_leads`", self.synthesis)
         self.assertIn("def repository_inventory", self.campaign)
+        self.assertIn("def command_discovery_start", self.campaign)
+        self.assertIn("def command_discovery_collect", self.campaign)
         self.assertIn("verification_task_id", self.campaign)
         self.assertNotIn("OWNER_CLASSIFICATIONS", self.campaign)
 
     def test_turn_boundary_cannot_complete_an_active_campaign(self):
         entrypoint = " ".join(self.entrypoint.split())
         protocol = " ".join(self.protocol.split())
-        self.assertIn("Before any final answer", entrypoint)
+        self.assertIn("before any final answer", entrypoint)
         self.assertIn("`may_finish: true`", entrypoint)
         self.assertIn("`may_pause: true`", entrypoint)
         self.assertIn("The durable campaign is the unit of completion", protocol)
-        self.assertIn("`may_finish: false` normally forbids a final answer", protocol)
+        self.assertIn("`may_finish: false` forbids a final answer", protocol)
         self.assertIn("`may_pause: true`", protocol)
         self.assertIn("continue_in_same_turn_no_final_response", self.campaign)
         self.assertIn("def command_next_action", self.campaign)
@@ -216,7 +230,7 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("complete producer instruction set", producer)
         self.assertIn("do not load the Map `SKILL.md`", producer)
         self.assertIn("Do not message root or any other agent", producer)
-        self.assertIn("Give each producer only this minimal launch command", protocol)
+        self.assertIn("Give each fresh producer only", protocol)
         self.assertIn(
             "references/producer-task.md completely; it is your sole Map contract",
             protocol,
@@ -229,7 +243,6 @@ class MapExhaustiveContractTests(unittest.TestCase):
         protocol = " ".join(self.protocol.split())
         selection = " ".join(self.selection.split())
         self.assertIn("ready <campaign> --limit <wave-size>", protocol)
-        self.assertIn("todo --limit <n>", protocol)
         self.assertIn("create a unique new run", selection)
         self.assertNotIn("--adopt-producer-contract", selection)
         self.assertIn("PRODUCER_CONTRACT_VERSION", self.campaign)
@@ -240,21 +253,13 @@ class MapExhaustiveContractTests(unittest.TestCase):
         protocol = " ".join(self.protocol.split())
         self.assertIn("Dispatch strict waves of at most five producers", entrypoint)
         self.assertIn(
-            "smallest of ready ToDo, available producer slots, and five",
+            "Precompute the entire wave and emit spawn calls back-to-back",
             protocol,
         )
-        self.assertIn("emit all spawn calls back-to-back", protocol)
-        self.assertIn("no reasoning, status checks, assignments, waits, or other tools", protocol)
-        self.assertIn("harvest every available atomic handoff", protocol)
-        self.assertIn("must not mutate the ledger or live Spine", protocol)
-        self.assertIn("predeclared deadline", protocol)
-        self.assertIn("never invent a timeout after launch", protocol)
-        self.assertIn("after every wave member is completed, failed, or cancelled", protocol)
+        self.assertIn("After every wave member is completed, failed, or cancelled", protocol)
         self.assertIn("campaign.py harvest-wave", protocol)
         self.assertIn("campaign.py accept-wave", protocol)
-        self.assertIn("never construct or parse shell-delimited task records", protocol)
         self.assertIn("without refill", protocol)
-        self.assertIn("batch acceptance", protocol)
         self.assertNotIn("fill every available producer slot", protocol)
 
     def test_producers_cannot_write_shared_navigation(self):
@@ -266,10 +271,11 @@ class MapExhaustiveContractTests(unittest.TestCase):
         self.assertIn("producer must not publish README.md", self.campaign)
 
     def test_prompt_files_stay_bounded(self):
-        self.assertLessEqual(len(self.entrypoint.splitlines()), 105)
+        self.assertLessEqual(len(self.entrypoint.splitlines()), 110)
         self.assertLessEqual(len(self.producer.splitlines()), 135)
-        self.assertLessEqual(len(self.planner.splitlines()), 80)
-        self.assertLessEqual(len(self.synthesis.splitlines()), 90)
+        self.assertLessEqual(len(self.discovery.splitlines()), 90)
+        self.assertLessEqual(len(self.curator.splitlines()), 80)
+        self.assertLessEqual(len(self.synthesis.splitlines()), 100)
         self.assertLessEqual(len(self.protocol.splitlines()), 315)
         self.assertLessEqual(len(self.documentation_first.splitlines()), 100)
         self.assertLessEqual(len(self.integration.splitlines()), 175)

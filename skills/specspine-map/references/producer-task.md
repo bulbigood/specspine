@@ -77,7 +77,7 @@ Existing owner:
 }
 ```
 
-Use `covered` only for a source-pass inventory task. The cited claims must
+Use `covered` only for a source-pass scope task. The cited claims must
 cover the assigned semantic topic and all of its evidence obligations, not
 merely mention a neighboring concept.
 
@@ -105,14 +105,14 @@ operations in JSON; the preflight and `campaign.py` derive both from staging
 and the live Spine.
 
 Use `"outcome": "supporting"` with `evidence`, `summary`, `reason`, and empty
-`directions` only after every stratum proves the inventory unit has no durable
+`directions` only after every stratum proves the scope unit has no durable
 responsibility. Use `"outcome": "retry"` with `evidence`, `summary`, and
 nonempty `need` when ownership remains unclear. Use `"outcome": "blocked"` with
 `evidence`, `summary`, and `reason` only for a concrete external dependency.
 
 `draft`, `covered`, `answered`, `unresolved`, and `supporting` must cite at
 least one concrete member from every evidence stratum. `covered` is valid only
-for inventory tasks; `answered` and `unresolved` are valid only for anchored
+for scope tasks; `answered` and `unresolved` are valid only for anchored
 integration-derived tasks. For `covered` or `answered`, the owner document must
 exist, every claim must be a semantic ID in it, the document must reference the
 unit or inspected evidence, and the summary must explain the exact boundary or

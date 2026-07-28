@@ -187,10 +187,84 @@ class MapCampaignTests(unittest.TestCase):
             )
         plan = self.run / "topic-plan.json"
         plan.write_text(
-            json.dumps({"topics": topics, "covered": [], "supporting": []}),
+            json.dumps(
+                {
+                    "topics": topics,
+                    "covered": [],
+                    "supporting": [],
+                    "open_leads": [],
+                }
+            ),
             encoding="utf-8",
         )
         return plan
+
+    def discovery_corpus_path(self):
+        corpus = self.run / "discovery-corpus.json"
+        if corpus.exists():
+            return corpus
+        scope = self.run / "scope.json"
+        scope.write_text(
+            json.dumps(
+                {
+                    "kind": "repository",
+                    "title": "Whole repository",
+                    "question": "Map the whole repository",
+                    "inclusion_rule": "All repository architecture is in scope.",
+                    "exclusion_rule": "Only mechanically excluded support is out of scope.",
+                }
+            ),
+            encoding="utf-8",
+        )
+        discovery = self.run / "discovery"
+        self.cli(
+            "discovery-start",
+            str(self.repository),
+            str(self.spine),
+            str(scope),
+            str(discovery),
+            "--inventory-accelerator",
+        )
+        results = self.run / "discovery-results"
+        for packet_path in sorted(discovery.rglob("lead-*.json")):
+            packet = json.loads(packet_path.read_text(encoding="utf-8"))
+            lead = packet["lead"]
+            result_path = results / packet_path.relative_to(discovery)
+            result_path.parent.mkdir(parents=True, exist_ok=True)
+            result_path.write_text(
+                json.dumps(
+                    {
+                        "lead_id": lead["id"],
+                        "status": "leaf",
+                        "reason": "Fixture discovery leaf.",
+                        "inspected": {
+                            "files": lead["seed_files"],
+                            "queries": [],
+                        },
+                        "topics": [],
+                        "supporting": (
+                            [
+                                {
+                                    "reason": "Fixture disposition.",
+                                    "files": lead["seed_files"],
+                                }
+                            ]
+                            if lead["seed_files"]
+                            else []
+                        ),
+                        "child_leads": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+        self.cli(
+            "discovery-collect",
+            str(discovery / "discovery-seed.json"),
+            str(discovery),
+            str(results),
+            str(corpus),
+        )
+        return corpus
 
     def source_pass(self, *, expected=0):
         plan = self.topic_plan_path()
@@ -199,6 +273,8 @@ class MapCampaignTests(unittest.TestCase):
             str(self.ledger),
             str(self.repository),
             str(self.spine),
+            "--discovery-corpus",
+            str(self.discovery_corpus_path()),
             "--topic-plan",
             str(plan),
             expected=expected,
@@ -507,9 +583,9 @@ class MapCampaignTests(unittest.TestCase):
             )
         self.integrate()
 
-    def test_init_uses_schema_five_and_private_ledger(self):
+    def test_init_uses_current_schema_and_private_ledger(self):
         ledger = self.ledger_value()
-        self.assertEqual(10, ledger["schema_version"])
+        self.assertEqual(11, ledger["schema_version"])
         contract = ROOT / "skills/specspine-map/references/producer-task.md"
         self.assertEqual(5, ledger["producer_contract_version"])
         self.assertEqual(
@@ -542,17 +618,18 @@ class MapCampaignTests(unittest.TestCase):
             first["excluded"]["test-only"],
         )
 
-    def test_source_pass_queues_semantic_topics_over_flat_inventory(self):
+    def test_source_pass_queues_semantic_topics_over_discovery_scope(self):
         receipt = self.source_pass()
-        self.assertEqual(2, receipt["production_files"])
+        self.assertEqual("repository", receipt["scope_kind"])
+        self.assertEqual(2, receipt["evidence_files"])
         self.assertEqual(2, receipt["topics"])
         self.assertEqual(2, receipt["verification_todo"])
         self.assertEqual(2, receipt["added_todo_count"])
         self.assertNotIn("added_todo", receipt)
         ledger = self.ledger_value()
         self.assertEqual(
-            ["tests/session_test.py"],
-            ledger["source_pass"]["excluded"]["test-only"],
+            "repository",
+            ledger["source_pass"]["scope"]["kind"],
         )
         self.assertTrue(
             all(ledger["tasks"][task_id]["state"] == "todo"
@@ -628,7 +705,7 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual(401, len(files))
         self.assertEqual(401, len(set(files)))
 
-    def test_planning_packets_are_neutral_pagination_not_semantic_groups(self):
+    def test_repository_discovery_uses_flat_inventory_as_neutral_accelerator(self):
         for directory in ("alpha", "beta"):
             root = self.repository / "packages/big" / directory
             root.mkdir(parents=True)
@@ -637,142 +714,341 @@ class MapCampaignTests(unittest.TestCase):
                     f"export const value{index} = {index};\n",
                     encoding="utf-8",
                 )
+        scope = self.run / "scope.json"
+        scope.write_text(
+            json.dumps(
+                {
+                    "kind": "repository",
+                    "title": "Repository",
+                    "question": "Map the repository",
+                    "inclusion_rule": "All architecture is in scope.",
+                    "exclusion_rule": "Mechanical support files are excluded.",
+                }
+            ),
+            encoding="utf-8",
+        )
+        discovery = self.run / "discovery"
+        receipt = self.cli(
+            "discovery-start",
+            str(self.repository),
+            str(self.spine),
+            str(scope),
+            str(discovery),
+            "--inventory-accelerator",
+            "--page-size",
+            "80",
+        )
+        packets = [json.loads(Path(path).read_text()) for path in receipt["packets"]]
         inventory = self.cli(
             "inventory",
             str(self.repository),
             "--spine-root",
             str(self.spine),
         )
-        inventory_path = self.run / "inventory.json"
-        inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
-        packets_root = self.run / "planning-packets"
-        receipt = self.cli(
-            "planning-packets",
-            str(inventory_path),
-            str(packets_root),
-            "--page-size",
-            "80",
-        )
-        packets = [json.loads(Path(path).read_text()) for path in receipt["packets"]]
-        paged = [path for packet in packets for path in packet["production_files"]]
+        paged = [
+            path
+            for packet in packets
+            for path in packet["lead"]["seed_files"]
+        ]
         self.assertEqual(inventory["production_files"], paged)
         self.assertTrue(
             all(
                 set(packet)
                 == {
-                    "planning_contract_version",
+                    "discovery_contract_version",
                     "repository_root",
-                    "inventory_digest",
-                    "page",
-                    "production_files",
+                    "spine_root",
+                    "scope",
+                    "lead",
+                    "source_refs",
                 }
                 for packet in packets
             )
         )
 
-    def test_planning_collect_requires_complete_page_local_results(self):
-        inventory = self.cli(
-            "inventory",
-            str(self.repository),
-            "--spine-root",
-            str(self.spine),
-        )
-        inventory_path = self.run / "inventory.json"
-        inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
-        packets_root = self.run / "planning-packets"
-        self.cli(
-            "planning-packets",
-            str(inventory_path),
-            str(packets_root),
-            "--page-size",
-            "1",
-        )
-        results_root = self.run / "planning-results"
-        results_root.mkdir()
-        first = json.loads((packets_root / "page-0001.json").read_text())
-        only_file = first["production_files"][0]
-        (results_root / "page-0001.json").write_text(
+    def test_topic_discovery_starts_without_repository_inventory(self):
+        scope = self.run / "scope.json"
+        scope.write_text(
             json.dumps(
                 {
-                    "page": 1,
-                    "topics": [
-                        {
-                            "id": "first-responsibility",
-                            "title": "First responsibility",
-                            "responsibility": "Owns the first observed responsibility.",
-                            "reason": "The listed file supplies its implementation.",
-                            "files": [only_file],
-                        }
-                    ],
-                    "supporting": [],
+                    "kind": "topic",
+                    "title": "Session lifecycle",
+                    "question": "Fully map session lifecycle and related services",
+                    "inclusion_rule": "Direct session lifecycle responsibilities.",
+                    "exclusion_rule": "Unrelated runtime services.",
                 }
             ),
             encoding="utf-8",
         )
-
-        error = self.cli(
-            "planning-collect",
-            str(packets_root),
-            str(results_root),
-            str(self.run / "planning-corpus.json"),
-            expected=2,
-        )
-        self.assertIn("missing planning result", error["error"])
-
-    def test_planning_collect_rejects_file_outside_page(self):
-        inventory = self.cli(
-            "inventory",
+        discovery = self.run / "discovery"
+        receipt = self.cli(
+            "discovery-start",
             str(self.repository),
-            "--spine-root",
             str(self.spine),
+            str(scope),
+            str(discovery),
         )
-        inventory_path = self.run / "inventory.json"
-        inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
-        packets_root = self.run / "planning-packets"
-        self.cli(
-            "planning-packets",
-            str(inventory_path),
-            str(packets_root),
-            "--page-size",
-            "1",
-        )
-        results_root = self.run / "planning-results"
-        results_root.mkdir()
-        for index, packet_path in enumerate(
-            sorted(packets_root.glob("page-*.json")),
-            start=1,
-        ):
-            packet = json.loads(packet_path.read_text())
-            path = packet["production_files"][0]
-            if index == 1:
-                path = "not/in/packet.py"
-            (results_root / packet_path.name).write_text(
-                json.dumps(
-                    {
-                        "page": index,
-                        "topics": [
-                            {
-                                "id": f"responsibility-{index}",
-                                "title": f"Responsibility {index}",
-                                "responsibility": "Owns an observed responsibility.",
-                                "reason": "The listed file supplies its implementation.",
-                                "files": [path],
-                            }
-                        ],
-                        "supporting": [],
-                    }
-                ),
-                encoding="utf-8",
-            )
+        self.assertFalse(receipt["inventory_accelerator"])
+        self.assertEqual(0, receipt["seed_files"])
+        packet = json.loads(Path(receipt["packets"][0]).read_text())
+        self.assertEqual("scope-root", packet["lead"]["id"])
+        self.assertEqual([], packet["lead"]["seed_files"])
 
+    def test_discovery_collect_requires_every_seed_result(self):
+        self.discovery_corpus_path()
+        discovery = self.run / "discovery"
+        results = self.run / "discovery-results"
+        first = sorted(results.rglob("lead-*.json"))[0]
+        first.unlink()
+        corpus = self.run / "second-corpus.json"
         error = self.cli(
-            "planning-collect",
-            str(packets_root),
-            str(results_root),
-            str(self.run / "planning-corpus.json"),
+            "discovery-collect",
+            str(discovery / "discovery-seed.json"),
+            str(discovery),
+            str(results),
+            str(corpus),
             expected=2,
         )
-        self.assertIn("outside its page", error["error"])
+        self.assertIn("missing discovery result", error["error"])
+
+    def test_discovery_collect_rejects_unclosed_child_frontier(self):
+        scope = self.run / "scope.json"
+        scope.write_text(
+            json.dumps(
+                {
+                    "kind": "topic",
+                    "title": "Sessions",
+                    "question": "Map sessions",
+                    "inclusion_rule": "Session responsibilities.",
+                    "exclusion_rule": "Unrelated services.",
+                }
+            ),
+            encoding="utf-8",
+        )
+        discovery = self.run / "discovery"
+        self.cli(
+            "discovery-start",
+            str(self.repository),
+            str(self.spine),
+            str(scope),
+            str(discovery),
+        )
+        packet_path = next(discovery.rglob("lead-*.json"))
+        results = self.run / "results"
+        result_path = results / packet_path.relative_to(discovery)
+        result_path.parent.mkdir(parents=True)
+        result_path.write_text(
+            json.dumps(
+                {
+                    "lead_id": "scope-root",
+                    "status": "expanded",
+                    "reason": "A child responsibility was exposed.",
+                    "inspected": {
+                        "files": ["src/identity/session.py"],
+                        "queries": ["session"],
+                    },
+                    "topics": [
+                        {
+                            "id": "sessions",
+                            "title": "Sessions",
+                            "responsibility": "Owns session lifecycle.",
+                            "reason": "Session evidence.",
+                            "files": ["src/identity/session.py"],
+                        }
+                    ],
+                    "supporting": [],
+                    "child_leads": [
+                        {
+                            "id": "session-storage",
+                            "title": "Session storage",
+                            "question": "Who stores sessions?",
+                            "reason": "The lifecycle references durable state.",
+                            "seed_files": ["src/identity/session.py"],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        error = self.cli(
+            "discovery-collect",
+            str(discovery / "discovery-seed.json"),
+            str(discovery),
+            str(results),
+            str(self.run / "corpus.json"),
+            expected=2,
+        )
+        self.assertIn("frontier is not closed", error["error"])
+
+    def test_topic_discovery_closes_recursive_semantic_frontier(self):
+        scope = self.run / "scope.json"
+        scope.write_text(
+            json.dumps(
+                {
+                    "kind": "topic",
+                    "title": "Sessions",
+                    "question": "Fully map sessions and related services",
+                    "inclusion_rule": "Direct session lifecycle responsibilities.",
+                    "exclusion_rule": "Unrelated services.",
+                }
+            ),
+            encoding="utf-8",
+        )
+        discovery = self.run / "discovery"
+        self.cli(
+            "discovery-start",
+            str(self.repository),
+            str(self.spine),
+            str(scope),
+            str(discovery),
+        )
+        root_packet = next(discovery.rglob("lead-*.json"))
+        results = self.run / "results"
+        root_result = results / root_packet.relative_to(discovery)
+        root_result.parent.mkdir(parents=True)
+        root_result.write_text(
+            json.dumps(
+                {
+                    "lead_id": "scope-root",
+                    "status": "expanded",
+                    "reason": "Session persistence needs one deeper pass.",
+                    "inspected": {
+                        "files": [
+                            "pyproject.toml",
+                            "src/identity/session.py",
+                        ],
+                        "queries": ["session"],
+                    },
+                    "topics": [
+                        {
+                            "id": "session-lifecycle",
+                            "title": "Session lifecycle",
+                            "responsibility": "Owns session lifecycle.",
+                            "reason": "Runtime evidence.",
+                            "files": ["src/identity/session.py"],
+                        }
+                    ],
+                    "supporting": [],
+                    "child_leads": [
+                        {
+                            "id": "runtime-manifest",
+                            "title": "Session runtime manifest",
+                            "question": "How is the session runtime composed?",
+                            "reason": "The runtime dependency remains unclassified.",
+                            "seed_files": ["pyproject.toml"],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        frontier = self.run / "frontier.json"
+        frontier.write_text(
+            json.dumps(
+                {
+                    "decisions": [
+                        {
+                            "disposition": "queue",
+                            "sources": ["scope-root/runtime-manifest"],
+                            "lead": {
+                                "id": "session-runtime-manifest",
+                                "title": "Session runtime manifest",
+                                "question": "How is the session runtime composed?",
+                                "reason": "The runtime dependency needs classification.",
+                                "parent_ids": ["scope-root"],
+                                "seed_files": ["pyproject.toml"],
+                            },
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        wave = discovery / "wave-0002"
+        receipt = self.cli(
+            "discovery-packets",
+            str(discovery / "discovery-seed.json"),
+            str(frontier),
+            str(wave),
+        )
+        child_packet = Path(receipt["packets"][0])
+        child_result = results / child_packet.relative_to(discovery.resolve())
+        child_result.parent.mkdir(parents=True)
+        child_result.write_text(
+            json.dumps(
+                {
+                    "lead_id": "session-runtime-manifest",
+                    "status": "leaf",
+                    "reason": "The manifest is supporting composition evidence.",
+                    "inspected": {
+                        "files": ["pyproject.toml"],
+                        "queries": ["project"],
+                    },
+                    "topics": [],
+                    "supporting": [
+                        {
+                            "reason": "Supporting runtime manifest.",
+                            "files": ["pyproject.toml"],
+                        }
+                    ],
+                    "child_leads": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        corpus = self.run / "topic-corpus.json"
+        collected = self.cli(
+            "discovery-collect",
+            str(discovery / "discovery-seed.json"),
+            str(discovery),
+            str(results),
+            str(corpus),
+        )
+        self.assertEqual("topic", collected["scope_kind"])
+        self.assertEqual(2, collected["leads"])
+        self.assertEqual(2, collected["evidence_files"])
+
+    def test_synthesis_open_leads_reopen_discovery_and_block_source_pass(self):
+        plan = self.run / "open-topic-plan.json"
+        plan.write_text(
+            json.dumps(
+                {
+                    "topics": [],
+                    "covered": [],
+                    "supporting": [],
+                    "open_leads": [
+                        {
+                            "id": "session-recovery",
+                            "title": "Session recovery",
+                            "question": "Who owns session recovery?",
+                            "reason": "Discovery exposed an unexpanded failure boundary.",
+                            "seed_files": ["src/identity/session.py"],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        corpus = self.discovery_corpus_path()
+        error = self.cli(
+            "source-pass",
+            str(self.ledger),
+            str(self.repository),
+            str(self.spine),
+            "--discovery-corpus",
+            str(corpus),
+            "--topic-plan",
+            str(plan),
+            expected=2,
+        )
+        self.assertIn("open discovery leads", error["error"])
+        reopened = self.cli(
+            "discovery-reopen",
+            str(self.run / "discovery/discovery-seed.json"),
+            str(plan),
+            str(self.run / "discovery/wave-0002"),
+        )
+        self.assertEqual(1, reopened["reopened"])
 
     def test_source_pass_rejects_incomplete_or_conflicting_topic_plan(self):
         incomplete = self.run / "incomplete-topic-plan.json"
@@ -790,6 +1066,7 @@ class MapCampaignTests(unittest.TestCase):
                     ],
                     "covered": [],
                     "supporting": [],
+                    "open_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -799,11 +1076,13 @@ class MapCampaignTests(unittest.TestCase):
             str(self.ledger),
             str(self.repository),
             str(self.spine),
+            "--discovery-corpus",
+            str(self.discovery_corpus_path()),
             "--topic-plan",
             str(incomplete),
             expected=2,
         )
-        self.assertIn("leaves production files uncovered", error["error"])
+        self.assertIn("leaves evidence files uncovered", error["error"])
 
         conflict = self.run / "conflicting-topic-plan.json"
         conflict.write_text(
@@ -825,6 +1104,7 @@ class MapCampaignTests(unittest.TestCase):
                             "files": ["src/identity/session.py", "pyproject.toml"],
                         }
                     ],
+                    "open_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -834,6 +1114,8 @@ class MapCampaignTests(unittest.TestCase):
             str(self.ledger),
             str(self.repository),
             str(self.spine),
+            "--discovery-corpus",
+            str(self.discovery_corpus_path()),
             "--topic-plan",
             str(conflict),
             expected=2,
@@ -866,6 +1148,7 @@ class MapCampaignTests(unittest.TestCase):
                     ],
                     "covered": [],
                     "supporting": [],
+                    "open_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -876,6 +1159,8 @@ class MapCampaignTests(unittest.TestCase):
             str(self.ledger),
             str(self.repository),
             str(self.spine),
+            "--discovery-corpus",
+            str(self.discovery_corpus_path()),
             "--topic-plan",
             str(plan),
         )
@@ -911,6 +1196,7 @@ class MapCampaignTests(unittest.TestCase):
                         }
                     ],
                     "supporting": [],
+                    "open_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -921,6 +1207,8 @@ class MapCampaignTests(unittest.TestCase):
             str(self.ledger),
             str(self.repository),
             str(self.spine),
+            "--discovery-corpus",
+            str(self.discovery_corpus_path()),
             "--topic-plan",
             str(plan),
         )
@@ -958,6 +1246,7 @@ class MapCampaignTests(unittest.TestCase):
                         }
                     ],
                     "supporting": [],
+                    "open_leads": [],
                 }
             ),
             encoding="utf-8",
@@ -968,6 +1257,8 @@ class MapCampaignTests(unittest.TestCase):
             str(self.ledger),
             str(self.repository),
             str(self.spine),
+            "--discovery-corpus",
+            str(self.discovery_corpus_path()),
             "--topic-plan",
             str(plan),
             expected=2,
@@ -1005,8 +1296,13 @@ class MapCampaignTests(unittest.TestCase):
         (root / "messages.pb.go").write_text("package identity", encoding="utf-8")
         (root / "service_mock.go").write_text("package identity", encoding="utf-8")
 
-        self.source_pass()
-        generated = self.ledger_value()["source_pass"]["excluded"]["generated"]
+        inventory = self.cli(
+            "inventory",
+            str(self.repository),
+            "--spine-root",
+            str(self.spine),
+        )
+        generated = inventory["excluded"]["generated"]
 
         self.assertIn("src/identity/messages.pb.go", generated)
         self.assertIn("src/identity/service_mock.go", generated)
@@ -1020,8 +1316,12 @@ class MapCampaignTests(unittest.TestCase):
         (root / "test-data/case.json").write_text("{}", encoding="utf-8")
         (root / "generated/client.ts").write_text("export {}", encoding="utf-8")
         (root / "session_test.go").write_text("package identity", encoding="utf-8")
-        self.source_pass()
-        source = self.ledger_value()["source_pass"]
+        source = self.cli(
+            "inventory",
+            str(self.repository),
+            "--spine-root",
+            str(self.spine),
+        )
         terminal_members = {
             path for values in source["excluded"].values() for path in values
         }
@@ -1113,8 +1413,12 @@ class MapCampaignTests(unittest.TestCase):
         editor = self.repository / ".vscode"
         editor.mkdir()
         (editor / "settings.json").write_text("{}", encoding="utf-8")
-        self.source_pass()
-        source = self.ledger_value()["source_pass"]
+        source = self.cli(
+            "inventory",
+            str(self.repository),
+            "--spine-root",
+            str(self.spine),
+        )
         self.assertIn(
             ".vscode/settings.json",
             source["excluded"]["repository-support"],
@@ -1242,13 +1546,13 @@ class MapCampaignTests(unittest.TestCase):
 
     def test_previous_campaign_schema_is_rejected_without_migration(self):
         ledger = self.ledger_value()
-        ledger["schema_version"] = 9
+        ledger["schema_version"] = 10
         self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
 
         error = self.cli("summary", str(self.ledger), expected=2)
 
         self.assertIn("unsupported campaign schema", error["error"])
-        self.assertIn("expected 10", error["error"])
+        self.assertIn("expected 11", error["error"])
 
     def test_contract_change_requires_new_campaign(self):
         self.source_pass()
@@ -1324,6 +1628,8 @@ class MapCampaignTests(unittest.TestCase):
             str(ledger),
             str(self.repository),
             str(self.spine),
+            "--discovery-corpus",
+            str(self.discovery_corpus_path()),
             "--topic-plan",
             str(self.topic_plan_path()),
             expected=2,
@@ -1354,6 +1660,8 @@ class MapCampaignTests(unittest.TestCase):
             str(ledger),
             str(self.repository),
             str(self.spine),
+            "--discovery-corpus",
+            str(self.discovery_corpus_path()),
             "--topic-plan",
             str(self.topic_plan_path()),
         )
@@ -1420,6 +1728,8 @@ class MapCampaignTests(unittest.TestCase):
             str(ledger),
             str(self.repository),
             str(self.spine),
+            "--discovery-corpus",
+            str(self.discovery_corpus_path()),
             "--topic-plan",
             str(self.topic_plan_path()),
         )
@@ -1457,6 +1767,10 @@ class MapCampaignTests(unittest.TestCase):
             str(ledger),
             str(self.repository),
             str(self.spine),
+            "--discovery-corpus",
+            str(self.discovery_corpus_path()),
+            "--topic-plan",
+            str(self.topic_plan_path()),
             expected=2,
         )
 
@@ -2294,16 +2608,16 @@ class MapCampaignTests(unittest.TestCase):
         error = self.integrate(report, expected=2)
         self.assertIn("every settled producer task", error["error"])
 
-    def test_inventory_verified_requires_every_unit_and_empty_integration(self):
+    def test_scope_verified_requires_every_unit_and_empty_integration(self):
         self.verify_all_source_units()
         summary = self.cli("summary", str(self.ledger))
-        self.assertEqual("inventory_verified", summary["terminal"])
+        self.assertEqual("scope_verified", summary["terminal"])
         self.assertTrue(all(summary["terminal_gates"].values()))
         next_action = self.cli("next-action", str(self.ledger))
         self.assertTrue(next_action["may_finish"])
         self.assertEqual("finalize", next_action["action"])
         coverage = self.cli("coverage-report", str(self.ledger))
-        self.assertEqual("inventory_verified", coverage["coverage_claim"])
+        self.assertEqual("scope_verified", coverage["coverage_claim"])
 
     def test_unclean_v3_integration_requires_repair_before_finalize(self):
         self.verify_all_source_units()
@@ -2348,14 +2662,14 @@ class MapCampaignTests(unittest.TestCase):
         error = self.integrate(report, expected=2)
         self.assertIn("only workspace Markdown documents", error["error"])
 
-    def test_repository_content_change_invalidates_inventory(self):
+    def test_repository_content_change_invalidates_scope_snapshot(self):
         self.verify_all_source_units()
         (self.repository / "src/identity/session.py").write_text(
             "SESSION = False\nRECOVERY = True\n",
             encoding="utf-8",
         )
         summary = self.cli("summary", str(self.ledger))
-        self.assertFalse(summary["terminal_gates"]["source_inventory_current"])
+        self.assertFalse(summary["terminal_gates"]["scope_snapshot_current"])
         self.assertIsNone(summary["terminal"])
 
     def test_live_spine_change_invalidates_integration(self):
@@ -2368,7 +2682,7 @@ class MapCampaignTests(unittest.TestCase):
         self.assertFalse(summary["terminal_gates"]["integration_current"])
         self.assertIsNone(summary["terminal"])
 
-    def test_finalize_requires_inventory_verified(self):
+    def test_finalize_requires_scope_verified(self):
         self.verify_all_source_units()
         receipt = self.cli(
             str(self.ledger),
@@ -2378,7 +2692,7 @@ class MapCampaignTests(unittest.TestCase):
             script=FINALIZE,
         )
         self.assertEqual("finalized", receipt["status"])
-        self.assertEqual("inventory_verified", receipt["terminal"])
+        self.assertEqual("scope_verified", receipt["terminal"])
         self.assertEqual([], receipt["changed_documents"])
         self.assertEqual([], receipt["document_change_history"])
 

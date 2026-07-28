@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Issue a final exhaustive Map receipt for an inventory-verified campaign."""
+"""Issue a final exhaustive Map receipt for a scope-verified campaign."""
 
 from __future__ import annotations
 
@@ -21,9 +21,9 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
     ledger = campaign.load(args.ledger)
     summary_args = argparse.Namespace(ledger=args.ledger)
     summary = campaign.command_summary(summary_args)
-    if summary["terminal"] != "inventory_verified":
+    if summary["terminal"] != "scope_verified":
         raise FinalizeError(
-            "campaign is not inventory_verified: "
+            "campaign is not scope_verified: "
             + json.dumps(summary["terminal_gates"], ensure_ascii=False)
         )
 
@@ -96,15 +96,6 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
     )
     ledger_digest = hashlib.sha256(campaign.canonical_json(ledger)).hexdigest()
     source = ledger["source_pass"]
-    excluded = source.get("excluded", {})
-    inventory_counts = {
-        classification: (
-            len(source.get("production_files", []))
-            if classification == "queued"
-            else len(excluded.get(classification, []))
-        )
-        for classification in sorted(campaign.SOURCE_CLASSIFICATIONS)
-    }
     verified_units = sum(
         ledger["tasks"].get(task_id, {}).get("state") == "complete"
         for task_id in source.get("todo", [])
@@ -127,7 +118,11 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
             "document_change_events": len(document_change_history),
             "markdown_total": len(actual_documents),
         },
-        "inventory_classifications": inventory_counts,
+        "scope": source.get("scope"),
+        "evidence_files": len(source.get("evidence_files", [])),
+        "discovery_leads": len(
+            source.get("discovery_corpus", {}).get("leads", [])
+        ),
         "verified_topics": verified_units,
         "existing_spine_covered_topics": len(
             source.get("topic_plan", {}).get("covered", [])

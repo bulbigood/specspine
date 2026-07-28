@@ -191,7 +191,7 @@ class ProducerFinalizeTests(unittest.TestCase):
         self.assertTrue(self.work.is_dir())
         self.assertFalse(self.handoff.exists())
 
-    def test_integration_task_rejects_inventory_covered_outcome(self):
+    def test_integration_task_rejects_scope_covered_outcome(self):
         packet = json.loads(self.packet.read_text(encoding="utf-8"))
         packet["task"]["origin"] = "integration-1"
         packet["task"]["units"] = []
@@ -216,7 +216,7 @@ class ProducerFinalizeTests(unittest.TestCase):
 
         error = self.execute(expected=2)
 
-        self.assertIn("covered is valid only for inventory", error["error"])
+        self.assertIn("covered is valid only for scope verification", error["error"])
         self.assertTrue(self.work.is_dir())
 
     def test_integration_task_accepts_answered_outcome(self):

@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Map"
-  short_description: "Map brownfield architecture with bounded tasks"
-  default_prompt: "Use $specspine-map to map this repository’s architecture; in exhaustive mode inventory all text production files, synthesize semantic topics, and verify each topic with a fresh one-shot producer."
+  short_description: "Map brownfield architecture by semantic scope"
+  default_prompt: "Use $specspine-map to completely map the requested architecture scope through recursive discovery, synthesis, and verified producers."
