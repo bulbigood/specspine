@@ -62,19 +62,25 @@ Discovery finds evidence; synthesis alone defines semantic topics and checks
 existing coverage; producers verify one topic and stage private output; root
 alone chooses canonical ownership and publishes a checked workspace. Discovery
 hierarchy, inventory pages, paths, and filenames never define architecture.
+Scouts write semantic drafts; `discovery_finalize.py` alone derives and
+atomically publishes canonical discovery results.
 
 Use a flat production-file inventory only as a neutral accelerator for
 repository scope. It grants no grouping, ownership, coverage, or completion.
 
-For exhaustive work, use fresh isolated medium-tier scouts, curators,
-synthesizer, and one-shot producers in strict waves of at most five without
-refill. An increment may execute the same contracts serially in root. If the
-required execution tier is unavailable, preserve the campaign and report it
-blocked.
+For exhaustive work, use fresh isolated weak-tier scouts and medium-tier
+curators, synthesizer, and one-shot producers. Scout subwaves contain at most
+ten and must also fit the runtime's available subagent slots; reserve the root
+slot when capacity includes it. Producer waves contain at most five. Never
+refill a settled strict wave. An increment may execute the same contracts
+serially in root. If the required execution tier is unavailable, preserve the
+campaign and report it blocked.
 
 Keep the operation durable. Run `campaign.py next-action` before every final
 answer. `may_finish: false` forbids finishing; pause only when it also returns
 `may_pause: true`. Never stop with assigned, review, or unpublished work.
+On resume, harvest retained assigned tasks before releasing only those without
+a valid atomic handoff; never restart accepted or harvestable work.
 
 Producer acceptance never edits the live Spine. Integrate accepted handoffs in
 one private workspace, run the v3 checker, then publish the workspace and

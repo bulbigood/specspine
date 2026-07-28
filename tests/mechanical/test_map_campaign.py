@@ -1015,6 +1015,92 @@ class MapCampaignTests(unittest.TestCase):
             )
         )
 
+    def test_discovery_start_rejects_oversized_pages_before_writing(self):
+        discovery = self.run / "oversized-discovery"
+        error = self.cli(
+            "discovery-start",
+            str(self.ledger),
+            str(self.repository),
+            str(self.spine),
+            str(discovery),
+            "--inventory-accelerator",
+            "--page-size",
+            str(CAMPAIGN_MODULE.MAX_UNIT_FILES + 1),
+            expected=2,
+        )
+
+        self.assertIn(
+            f"page size exceeds {CAMPAIGN_MODULE.MAX_UNIT_FILES}",
+            error["error"],
+        )
+        self.assertFalse(discovery.exists())
+        self.assertIsNone(self.ledger_value()["discovery"])
+
+    def test_discovery_validate_requires_exact_result_path(self):
+        self.set_semantic_operation()
+        discovery = self.run / "discovery"
+        receipt = self.cli(
+            "discovery-start",
+            str(self.ledger),
+            str(self.repository),
+            str(self.spine),
+            str(discovery),
+        )
+        packet = Path(receipt["packets"][0])
+        results = self.run / "results"
+        results.mkdir()
+        wrong_result = results / packet.name
+        wrong_result.write_text(
+            json.dumps(
+                {
+                    "lead_id": "scope-root",
+                    "status": "leaf",
+                    "reason": "The session responsibility is classified.",
+                    "inspected": {
+                        "files": ["src/identity/session.py"],
+                        "queries": ["session"],
+                    },
+                    "topics": [
+                        {
+                            "id": "session-lifecycle",
+                            "title": "Session lifecycle",
+                            "responsibility": "Owns the session lifecycle.",
+                            "reason": "The runtime exposes a session boundary.",
+                            "files": ["src/identity/session.py"],
+                        }
+                    ],
+                    "supporting": [],
+                    "child_leads": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        error = self.cli(
+            "discovery-validate",
+            str(discovery / "discovery-seed.json"),
+            str(discovery),
+            str(results),
+            str(packet),
+            expected=2,
+        )
+        expected_result = results.resolve() / packet.resolve().relative_to(
+            discovery.resolve()
+        )
+        self.assertIn(str(expected_result), error["error"])
+
+        expected_result.parent.mkdir(parents=True)
+        wrong_result.rename(expected_result)
+        validated = self.cli(
+            "discovery-validate",
+            str(discovery / "discovery-seed.json"),
+            str(discovery),
+            str(results),
+            str(packet),
+        )
+        self.assertEqual("valid", validated["status"])
+        self.assertEqual(1, validated["count"])
+        self.assertEqual("scope-root", validated["validated"][0]["lead_id"])
+
     def test_topic_discovery_starts_without_repository_inventory(self):
         self.set_semantic_operation()
         discovery = self.run / "discovery"
@@ -1674,7 +1760,7 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual("new", campaign["recommendation"])
         self.assertTrue(campaign["requires_operator_choice"])
 
-    def test_resume_session_releases_orphaned_assigned_producers(self):
+    def test_resume_session_retains_assigned_tasks_for_handoff_recovery(self):
         self.source_pass()
         task_id, _ = self.task_for_unit("src/identity")
         self.assign(task_id)
@@ -1682,14 +1768,88 @@ class MapCampaignTests(unittest.TestCase):
         receipt = self.cli("resume-session", str(self.ledger))
 
         self.assertEqual("resumed", receipt["status"])
-        self.assertEqual([task_id], receipt["released_orphaned_tasks"])
+        self.assertEqual([task_id], receipt["retained_assigned_tasks"])
         ledger = self.ledger_value()
-        self.assertEqual("todo", ledger["tasks"][task_id]["state"])
-        self.assertIsNone(ledger["tasks"][task_id]["owner"])
+        self.assertEqual("assigned", ledger["tasks"][task_id]["state"])
+        self.assertEqual("/root/producer-1", ledger["tasks"][task_id]["owner"])
         self.assertEqual(
             [task_id],
-            ledger["resume_history"][-1]["released_orphaned_tasks"],
+            ledger["resume_history"][-1]["retained_assigned_tasks"],
         )
+        self.assertEqual(
+            "wait",
+            self.cli("next-action", str(self.ledger))["action"],
+        )
+
+    def test_resume_harvests_completed_handoff_without_new_producer(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+        self.checkpoint.write_text(
+            json.dumps(
+                self.checkpoint_payload(
+                    outcome="covered",
+                    evidence=["src/identity/session.py"],
+                )
+            ),
+            encoding="utf-8",
+        )
+        handoffs = self.run / "resume-handoffs"
+        package = handoffs / f"{task_id}-1"
+        package.mkdir(parents=True)
+        shutil.copy2(self.checkpoint, package / "checkpoint.json")
+        shutil.copytree(self.staging, package / "staging")
+        harvest_root = self.run / "resume-harvest"
+
+        resumed = self.cli("resume-session", str(self.ledger))
+        self.assertEqual([task_id], resumed["retained_assigned_tasks"])
+        harvested = self.cli(
+            "harvest-wave",
+            str(self.ledger),
+            str(handoffs),
+            str(self.spine),
+            str(harvest_root),
+            "--checker",
+            str(self.checker),
+        )
+        self.assertEqual([task_id], harvested["harvested_tasks"])
+        accepted = self.cli(
+            "accept-wave",
+            str(self.ledger),
+            str(handoffs),
+            str(self.spine),
+            str(harvest_root),
+            "--checker",
+            str(self.checker),
+        )
+
+        task = self.ledger_value()["tasks"][task_id]
+        self.assertEqual("review", accepted["task_states"][task_id])
+        self.assertEqual(1, task["attempts"])
+        self.assertEqual("integrate", self.cli("next-action", str(self.ledger))["action"])
+
+    def test_resume_releases_only_task_without_atomic_handoff(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        self.assign(task_id)
+
+        self.cli("resume-session", str(self.ledger))
+        harvested = self.cli(
+            "harvest-wave",
+            str(self.ledger),
+            str(self.run / "missing-handoffs"),
+            str(self.spine),
+            str(self.run / "missing-harvest"),
+            "--checker",
+            str(self.checker),
+        )
+        self.assertEqual([task_id], harvested["pending_tasks"])
+        self.cli("release", str(self.ledger), task_id)
+
+        task = self.ledger_value()["tasks"][task_id]
+        self.assertEqual("todo", task["state"])
+        self.assertEqual(1, task["attempts"])
+        self.assertIn(task_id, self.cli("ready", str(self.ledger))["ready"])
 
     def test_resume_session_rejects_missing_contract_metadata(self):
         ledger = self.ledger_value()

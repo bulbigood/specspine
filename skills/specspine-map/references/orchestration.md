@@ -25,6 +25,20 @@ python3 <skill>/scripts/campaign.py resume-session <campaign>
 python3 <skill>/scripts/campaign.py next-action <campaign>
 ```
 
+Resume preserves every `assigned` task so finalized atomic handoffs are not
+lost. Before spawning producers, recover the interrupted wave:
+
+```text
+python3 <skill>/scripts/campaign.py harvest-wave \
+  <campaign> <handoffs> <spine-root> <harvest-receipts>
+```
+
+Cached receipts are reusable. Release each `pending_task` and rejected task;
+these have no acceptable atomic handoff and may be reassigned as a new attempt.
+Do not release harvested tasks. After the releases, run `accept-wave` for the
+remaining assigned tasks. If none remain, continue with `next-action`. Never
+read or accept an unfinished producer work directory.
+
 Otherwise create a unique private run directory and write `operation.json`:
 
 ```json
@@ -68,17 +82,41 @@ python3 <skill>/scripts/campaign.py discovery-start \
 ```
 
 Add `--inventory-accelerator` only for repository scope. The root packet and
-neutral inventory pages form the initial discovery layer. Give every fresh
-scout only:
+neutral inventory pages form the initial discovery layer. Keep the default
+page size; a page may never exceed the mechanical limit.
+
+Set the scout subwave size to the smaller of ten and the runtime's available
+subagent slots. If capacity includes root, reserve one slot. Do not assume ten
+slots exist. For each selected packet, derive:
+
+```text
+<draft> = <private-scout-work>/<lead-id>/draft.json
+<result> = <results>/<packet path relative to discovery>
+```
+
+Create at most that many fresh weak-tier scouts. Give each scout its packet,
+repository, Spine, private draft path, exact result path, and
+`discovery_finalize.py`:
 
 ```text
 Read <skill>/references/discovery-task.md completely; it is your sole Map
 contract. Analyze <packet> against <repository> and <spine-root>. Write the
-matching result under <results> and terminate.
+semantic draft to <draft>, finalize it to <result> with
+<skill>/scripts/discovery_finalize.py, and terminate only after it reports
+ready.
 ```
 
-After a settled layer, give one fresh curator the operation, results, and
-compact lead registry under `frontier-curation.md`.
+Wait for the complete subwave without refill, then validate exactly its packet
+list before trusting scout messages or starting more work:
+
+```text
+python3 <skill>/scripts/campaign.py discovery-validate \
+  <discovery-seed> <discovery> <results> <packet>...
+```
+
+Any failure invalidates the subwave; repair or rerun it before continuing.
+After all subwaves in a layer validate, give one fresh medium-tier curator the
+operation, results, and compact lead registry under `frontier-curation.md`.
 
 - Increment: disposition every unique in-scope continuation as `defer`; queue
   nothing.
@@ -91,8 +129,8 @@ python3 <skill>/scripts/campaign.py discovery-packets \
   <discovery-seed> <frontier.json> <discovery>/wave-NNNN
 ```
 
-Use strict scout subwaves of at most five. Safety limits establish blockage,
-never closure.
+Use the same adaptive scout limit, exact result paths, barrier, and validation
+for every later layer. Safety limits establish blockage, never closure.
 
 When the frontier is settled:
 
@@ -104,7 +142,7 @@ python3 <skill>/scripts/campaign.py discovery-collect \
 
 ## Synthesize
 
-Give the complete corpus to one fresh synthesizer under
+Give the complete corpus to one fresh medium-tier synthesizer under
 `topic-synthesis.md`. It writes exactly `topics`, `covered`, `supporting`,
 `open_leads`, and `deferred_leads`.
 
@@ -141,10 +179,10 @@ python3 <skill>/scripts/campaign.py assign \
   <campaign> <task-id> --owner <fresh-producer-id>
 ```
 
-Give each fresh producer only `producer-task.md`, its packet, repository,
-Spine, private work/handoff paths, and `producer_finalize.py`. Wait for the
-whole wave without refill. Producers atomically expose checked handoffs; never
-inspect their work directories.
+Create fresh medium-tier producers. Give each only `producer-task.md`, its
+packet, repository, Spine, private work/handoff paths, and
+`producer_finalize.py`. Wait for the whole wave without refill. Producers
+atomically expose checked handoffs; never inspect their work directories.
 
 Harvest the complete wave, inspect receipts only after the barrier, then accept
 or release tasks:

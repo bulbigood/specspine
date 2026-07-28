@@ -40,6 +40,9 @@ class NpxStandaloneInstallTests(unittest.TestCase):
                         self.assertTrue((installed / target).is_file(), f"{name}: missing {target}")
                 if name == "specspine-map":
                     self.assertTrue((installed / "scripts/campaign.py").is_file())
+                    self.assertTrue(
+                        (installed / "scripts/discovery_finalize.py").is_file()
+                    )
                     self.assertTrue((installed / "scripts/finalize_run.py").is_file())
                     self.assertTrue(
                         (installed / "scripts/producer_finalize.py").is_file()

@@ -69,6 +69,8 @@ class MapOperationContractTests(unittest.TestCase):
             "seed-from-spine",
             "discovery-start",
             "discovery-packets",
+            "discovery-validate",
+            "discovery_finalize.py",
             "discovery-collect",
             "discovery-reopen",
             "source-pass",
@@ -89,7 +91,7 @@ class MapOperationContractTests(unittest.TestCase):
         discovery = self.compact(self.discovery)
         curator = self.compact(self.curator)
         synthesis = self.compact(self.synthesis)
-        self.assertIn("Every seed file", discovery)
+        self.assertIn("Every packet seed file", discovery)
         self.assertIn("Disposition every proposal exactly once", curator)
         self.assertIn("Increment", protocol)
         self.assertIn("Exhaustive", protocol)
@@ -98,6 +100,22 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("Only `topics` becomes the producer", synthesis)
         self.assertIn("`open_leads`", synthesis)
         self.assertIn("`deferred_leads`", synthesis)
+
+    def test_scout_parallelism_is_adaptive_and_wave_checked(self):
+        protocol = self.compact(self.protocol)
+        entrypoint = self.compact(self.entrypoint)
+        self.assertIn("smaller of ten and the runtime's available subagent slots", protocol)
+        self.assertIn("reserve one slot", protocol)
+        self.assertIn("fresh weak-tier scouts", protocol)
+        self.assertIn("discovery_finalize.py", protocol)
+        self.assertIn("discovery-validate", protocol)
+        self.assertIn("exact result path", protocol)
+        self.assertIn("Do not write `lead_id`, `status`, or `inspected`", self.discovery)
+        self.assertIn("Never write or edit the result directly", self.discovery)
+        self.assertIn("discovery_finalize.py", self.entrypoint)
+        self.assertIn("weak-tier scouts", entrypoint)
+        self.assertIn("at most ten", entrypoint)
+        self.assertIn("Producer waves contain at most five", entrypoint)
 
     def test_mapping_method_prefers_responsibility_over_source_shape(self):
         text = self.compact(self.method)
@@ -114,7 +132,18 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("atomically renames the entire work package", producer)
         self.assertIn("Root independently repeats all acceptance checks", producer)
         self.assertIn("Wait for the whole wave without refill", protocol)
+        self.assertIn("fresh medium-tier producers", protocol)
         self.assertIn("one-shot producers", self.entrypoint)
+        self.assertIn("medium-tier", self.entrypoint)
+
+    def test_resume_recovers_atomic_handoffs_before_redispatch(self):
+        protocol = self.compact(self.protocol)
+        entrypoint = self.compact(self.entrypoint)
+        self.assertIn("Resume preserves every `assigned` task", protocol)
+        self.assertIn("Do not release harvested tasks", protocol)
+        self.assertIn("Never read or accept an unfinished producer work directory", protocol)
+        self.assertIn("harvest retained assigned tasks", entrypoint)
+        self.assertIn("never restart accepted or harvestable work", entrypoint)
 
     def test_integration_owns_canonical_publication_and_derived_todo(self):
         text = self.compact(self.integration)
@@ -136,6 +165,7 @@ class MapOperationContractTests(unittest.TestCase):
                 "discovery-start",
                 "discovery-packets",
                 "discovery-reopen",
+                "discovery-validate",
                 "discovery-collect",
                 "source-pass",
                 "ready",
@@ -157,7 +187,7 @@ class MapOperationContractTests(unittest.TestCase):
     def test_prompt_files_stay_small(self):
         limits = {
             "entrypoint": (self.entrypoint, 90),
-            "protocol": (self.protocol, 220),
+            "protocol": (self.protocol, 245),
             "method": (self.method, 110),
             "discovery": (self.discovery, 90),
             "curator": (self.curator, 80),

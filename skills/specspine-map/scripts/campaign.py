@@ -1162,6 +1162,10 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         raise CampaignError(
             f"discovery output directory already exists: {args.output_dir}"
         )
+    if args.page_size > MAX_UNIT_FILES:
+        raise CampaignError(
+            f"discovery page size exceeds {MAX_UNIT_FILES} files"
+        )
     repository_root = args.repository_root.resolve()
     spine_root = args.spine_root.resolve()
     if not repository_root.is_dir():
@@ -1821,6 +1825,77 @@ def evidence_files_digest(repository_root: Path, files: list[str]) -> str:
     return digest.hexdigest()
 
 
+def validate_discovery_packet_result(
+    seed: dict[str, Any],
+    packet_path: Path,
+    result_path: Path,
+) -> dict[str, Any]:
+    packet = read_json(packet_path)
+    if (
+        packet.get("discovery_contract_version")
+        != DISCOVERY_CONTRACT_VERSION
+        or packet.get("repository_root") != seed["repository_root"]
+        or packet.get("spine_root") != seed["spine_root"]
+        or packet.get("operation") != seed["operation"]
+    ):
+        raise CampaignError(
+            f"discovery packet metadata is invalid: {packet_path}"
+        )
+    if not result_path.is_file():
+        raise CampaignError(f"missing discovery result: {result_path}")
+    return validate_discovery_result(
+        packet,
+        read_json(result_path),
+        Path(seed["repository_root"]).resolve(),
+    )
+
+
+def command_discovery_validate(args: argparse.Namespace) -> dict[str, Any]:
+    seed = read_json(args.seed)
+    if (
+        not isinstance(seed, dict)
+        or seed.get("discovery_contract_version")
+        != DISCOVERY_CONTRACT_VERSION
+    ):
+        raise CampaignError("discovery seed contract is invalid")
+    packets_root = args.packets_root.resolve()
+    results_root = args.results_root.resolve()
+    validated: list[dict[str, Any]] = []
+    relative_paths: set[str] = set()
+    for raw_path in args.packets:
+        packet_path = raw_path.resolve()
+        try:
+            relative = packet_path.relative_to(packets_root)
+        except ValueError as error:
+            raise CampaignError(
+                f"discovery packet is outside packets root: {raw_path}"
+            ) from error
+        relative_name = relative.as_posix()
+        if relative_name in relative_paths:
+            raise CampaignError(
+                f"discovery validation repeats packet: {relative_name}"
+            )
+        relative_paths.add(relative_name)
+        result_path = results_root / relative
+        result = validate_discovery_packet_result(
+            seed,
+            packet_path,
+            result_path,
+        )
+        validated.append(
+            {
+                "lead_id": result["lead"]["id"],
+                "packet": str(packet_path),
+                "result": str(result_path),
+            }
+        )
+    return {
+        "status": "valid",
+        "validated": validated,
+        "count": len(validated),
+    }
+
+
 def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
     if args.output.exists():
         raise CampaignError(f"discovery corpus already exists: {args.output}")
@@ -1848,34 +1923,17 @@ def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
     packets: dict[str, dict[str, Any]] = {}
     results: dict[str, dict[str, Any]] = {}
     for packet_path in packet_paths:
-        packet = read_json(packet_path)
-        if (
-            packet.get("discovery_contract_version")
-            != DISCOVERY_CONTRACT_VERSION
-            or packet.get("repository_root") != seed["repository_root"]
-            or packet.get("spine_root") != seed["spine_root"]
-            or packet.get("operation") != seed["operation"]
-        ):
-            raise CampaignError(
-                f"discovery packet metadata is invalid: {packet_path}"
-            )
-        lead = normalize_discovery_lead(
-            packet.get("lead"),
-            field=f"discovery packet {packet_path.name} lead",
+        relative = packet_path.relative_to(args.packets_root)
+        result = validate_discovery_packet_result(
+            seed,
+            packet_path,
+            args.results_root / relative,
         )
-        lead_id = lead["id"]
+        lead_id = result["lead"]["id"]
         if lead_id in packets:
             raise CampaignError(f"discovery repeats packet lead: {lead_id}")
-        packets[lead_id] = packet
-        relative = packet_path.relative_to(args.packets_root)
-        result_path = args.results_root / relative
-        if not result_path.is_file():
-            raise CampaignError(f"missing discovery result: {result_path}")
-        results[lead_id] = validate_discovery_result(
-            packet,
-            read_json(result_path),
-            repository_root,
-        )
+        packets[lead_id] = read_json(packet_path)
+        results[lead_id] = result
     extra = sorted(
         path.relative_to(args.results_root).as_posix()
         for path in args.results_root.rglob("lead-*.json")
@@ -2939,20 +2997,16 @@ def command_resume_session(args: argparse.Namespace) -> dict[str, Any]:
                 "campaign source snapshot changed; start a new campaign"
             )
         current_contract = require_current_producer_contract(ledger)
-        released = sorted(
+        retained = sorted(
             task["id"]
             for task in ledger["tasks"].values()
             if task["state"] == "assigned"
         )
-        for task_id in released:
-            task = ledger["tasks"][task_id]
-            task["state"] = "todo"
-            task["owner"] = None
         resumed_at = utc_timestamp()
         ledger.setdefault("resume_history", []).append(
             {
                 "resumed_at": resumed_at,
-                "released_orphaned_tasks": released,
+                "retained_assigned_tasks": retained,
             }
         )
         save_locked(args.ledger, ledger)
@@ -2960,7 +3014,7 @@ def command_resume_session(args: argparse.Namespace) -> dict[str, Any]:
             "status": "resumed",
             "campaign_id": ledger["campaign_id"],
             "resumed_at": resumed_at,
-            "released_orphaned_tasks": released,
+            "retained_assigned_tasks": retained,
             "producer_contract": current_contract,
             "revision": ledger["revision"],
         }
@@ -4730,6 +4784,12 @@ def parser() -> argparse.ArgumentParser:
     discovery_reopen.add_argument("topic_plan", type=Path)
     discovery_reopen.add_argument("output_dir", type=Path)
 
+    discovery_validate = sub.add_parser("discovery-validate")
+    discovery_validate.add_argument("seed", type=Path)
+    discovery_validate.add_argument("packets_root", type=Path)
+    discovery_validate.add_argument("results_root", type=Path)
+    discovery_validate.add_argument("packets", nargs="+", type=Path)
+
     discovery_collect = sub.add_parser("discovery-collect")
     discovery_collect.add_argument("ledger", type=Path)
     discovery_collect.add_argument("seed", type=Path)
@@ -4821,6 +4881,7 @@ def main() -> int:
         "discovery-start": command_discovery_start,
         "discovery-packets": command_discovery_packets,
         "discovery-reopen": command_discovery_reopen,
+        "discovery-validate": command_discovery_validate,
         "discovery-collect": command_discovery_collect,
         "source-pass": command_source_pass,
         "ready": command_ready,

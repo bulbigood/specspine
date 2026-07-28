@@ -14,9 +14,11 @@ another result.
 
 Classify inspected files into provisional architectural topics or `supporting`.
 Propose a child lead only for an in-scope responsibility or boundary that needs
-another focused expansion. A child is discovery work, not a producer task.
-Never suppress a child merely because a broad existing Spine document mentions
-its parent; coverage is decided only after the complete corpus is synthesized.
+another focused expansion. Its question must name the unresolved facet; never
+repeat a provisional topic as its own child. A child is discovery work, not a
+producer task. Never suppress a child merely because a broad existing Spine
+document mentions its parent; coverage is decided only after the complete
+corpus is synthesized.
 
 Use durable responsibilities, capabilities, runtimes, integrations, data
 ownership, or project-specific cross-cutting contracts. Do not mirror
@@ -24,17 +26,16 @@ directories, generic `models`/`utils`/`services` layers, individual classes,
 static assets, or local implementation details. Repository evidence establishes
 observations only.
 
-Write the result matching the packet path under `<discovery-results>`:
+Write only the supplied private draft. `mapped` means the lead produced a
+classification; use `duplicate` or `out_of_scope` only as a terminal semantic
+refusal. Do not write `lead_id`, `status`, or `inspected`; the finalizer derives
+them.
 
 ```json
 {
-  "lead_id": "kafka-consumer-lifecycle",
-  "status": "expanded",
+  "disposition": "mapped",
   "reason": "Consumer registration exposes recovery and offset ownership.",
-  "inspected": {
-    "files": ["pkg/kafka/consumer.go", "services/alerts/events.go"],
-    "queries": ["consumer group", "CommitMessages", "retry"]
-  },
+  "queries": ["consumer group", "CommitMessages", "retry"],
   "topics": [
     {
       "id": "provisional-consumer-lifecycle",
@@ -62,10 +63,18 @@ Write the result matching the packet path under `<discovery-results>`:
 }
 ```
 
-Use `expanded` when new leads were exposed and `leaf` when additional reading
-would only reproduce local implementation. `duplicate` and `out_of_scope` are
-terminal refusals and must contain no topics, supporting files, or child leads.
-Every seed file must occur in a topic or supporting entry. Every classified
-file must occur in `inspected.files`. Reread the result for unsupported intent,
-missing seed files, source-shaped topics, and unjustified scope expansion, then
-terminate without messaging other agents.
+Every packet seed file must occur in a topic or supporting entry.
+`duplicate` and `out_of_scope` require empty topics, supporting, and child
+leads. Reread the draft for unsupported intent, missing seed files,
+source-shaped topics, and unjustified scope expansion.
+
+Run:
+
+```text
+python3 <discovery-finalize-script> <packet> <draft> <exact-result>
+```
+
+The script canonicalizes paths and publishes the exact result atomically.
+If it rejects a semantic omission, correct only the private draft and retry.
+Never write or edit the result directly; terminate after `status: ready`
+without messaging other agents.
