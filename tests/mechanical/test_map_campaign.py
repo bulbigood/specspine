@@ -635,8 +635,6 @@ class MapCampaignTests(unittest.TestCase):
             str(handoffs),
             str(self.spine),
             str(harvest_root),
-            "--checker",
-            str(self.checker),
         )
         if settled.get("rejected"):
             self.assertEqual(2, expected)
@@ -2444,8 +2442,6 @@ class MapCampaignTests(unittest.TestCase):
             str(handoffs),
             str(self.spine),
             str(harvest_root),
-            "--checker",
-            str(self.checker),
         )
         self.assertEqual([task_id], settled["harvest"]["harvested_tasks"])
 
@@ -2466,8 +2462,6 @@ class MapCampaignTests(unittest.TestCase):
             str(self.run / "handoffs"),
             str(self.spine),
             str(self.run / "missing-harvest"),
-            "--checker",
-            str(self.checker),
         )
         self.assertEqual("waiting_for_handoffs", settled["status"])
         self.assertEqual([task_id], settled["pending_tasks"])
@@ -2823,8 +2817,6 @@ class MapCampaignTests(unittest.TestCase):
             str(handoffs),
             str(self.spine),
             str(harvest),
-            "--checker",
-            str(self.checker),
         )
         self.assertEqual("settled_wave", settled["status"])
         self.assertEqual(2, settled["harvest"]["harvested"])
@@ -2863,8 +2855,6 @@ class MapCampaignTests(unittest.TestCase):
             str(handoffs),
             str(self.spine),
             str(harvest),
-            "--checker",
-            str(self.checker),
         )
 
         self.assertEqual("needs_mechanical_repair", result["status"])
@@ -3061,19 +3051,23 @@ class MapCampaignTests(unittest.TestCase):
                 owner=owner,
             )
 
-        workspace = self.run / "automatic-assembly"
-        report = self.run / "automatic-assembly-report.json"
         result = self.cli(
             "assemble-integration",
             str(self.ledger),
             str(self.spine),
-            str(workspace),
-            str(report),
             "--checker",
             str(ROOT / "skills/specspine-map/scripts/check_spine.py"),
         )
 
         self.assertEqual("assembled_and_integrated", result["status"])
+        self.assertEqual(
+            str((self.run / "integration-workspace").resolve()),
+            result["workspace"],
+        )
+        self.assertEqual(
+            str((self.run / "integration-report.json").resolve()),
+            result["report"],
+        )
         first_task = next(
             task
             for task in self.ledger_value()["tasks"].values()
@@ -3094,8 +3088,6 @@ class MapCampaignTests(unittest.TestCase):
             "assemble-integration",
             str(self.ledger),
             str(self.spine),
-            str(workspace),
-            str(report),
             "--checker",
             str(ROOT / "skills/specspine-map/scripts/check_spine.py"),
         )

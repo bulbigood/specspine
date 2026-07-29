@@ -286,24 +286,31 @@ python3 <skill>/scripts/campaign.py settle-wave \
 It harvests and accepts every atomic handoff after the barrier. Mechanical
 failures return `needs_mechanical_repair`; incomplete agents return
 `waiting_for_handoffs`. Semantic doubts are notes, not rejection. Acceptance
-validates evidence and staging but never publishes. Do not integrate between
-waves. Continue until every producer task is settled.
+validates evidence, checkpoint shape, digests, and path conflicts but does not
+rerun the candidate checker already completed by `producer_finalize.py`.
+Immediately dispatch the next wave. Do not integrate between waves; continue
+until every producer task is settled.
 ## Integrate
 
 Run deterministic assembly:
 
 ```text
 python3 <skill>/scripts/campaign.py assemble-integration \
-  <campaign> <spine-root> <workspace> <report.json>
+  <campaign> <spine-root>
 ```
 
 It requires all waves settled, enforces canonical producer paths, materializes
 synthesized relationships, README navigation, conservative manifest facets, task
-reviews, and the exact delta, then checks and publishes atomically. Repeat it
-after interruption; matching inputs are idempotent. If it returns
+reviews, and the exact delta, then checks and publishes atomically. It owns the
+campaign-local workspace and report paths; the orchestrator never creates,
+reads, or edits them for a clean run. Repeat it after interruption; matching
+inputs are idempotent. If it returns
 `needs_semantic_review`, read `integration-pass.md` and use
 `prepare-integration` plus `integration-pass` only for the reported ownership,
-direction, conflict, or graph exceptions. Never manually review clean drafts.
+coverage, granularity, anchor, direction, or graph conflict. A producer
+`covered` or `supporting` result contradicts the synthesized production plan
+and is therefore an exception, not a routine review. Never manually review
+clean drafts.
 ## Finish
 
 Before every response:

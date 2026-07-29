@@ -4069,20 +4069,12 @@ def harvest_receipt(
     staging: dict[str, Path],
     staging_root: Path,
     spine_root: Path,
-    checker: Path,
 ) -> dict[str, Any]:
     task = require_task(ledger, task_id)
     status, directions, coverage = validate_checkpoint(raw, staging)
     if status == "draft":
         validate_draft_semantics(staging, task)
     candidates = infer_candidates(staging, spine_root)
-    if candidates:
-        run_checker(
-            checker,
-            spine_root,
-            candidates_root=staging_root,
-            repository_root=repository_root_from_ledger(ledger),
-        )
     if task["state"] != "assigned":
         raise CampaignError(f"harvest requires assigned task: {task_id}")
     if task["owner"] != owner:
@@ -4126,7 +4118,6 @@ def harvest_handoff(
     staging_root: Path,
     spine_root: Path,
     receipt_path: Path,
-    checker: Path,
 ) -> dict[str, Any]:
     raw = read_json(checkpoint)
     staging = candidate_files(staging_root)
@@ -4138,7 +4129,6 @@ def harvest_handoff(
         staging,
         staging_root.resolve(),
         spine_root.resolve(),
-        checker,
     )
     if receipt_path.exists():
         existing = read_json(receipt_path)
@@ -4228,7 +4218,6 @@ def command_harvest_wave(args: argparse.Namespace) -> dict[str, Any]:
                 staging_root=staging_root,
                 spine_root=args.spine_root,
                 receipt_path=receipt,
-                checker=args.checker,
             )
         except CampaignError as error:
             rejected.append({"task": task["id"], "error": str(error)})
@@ -4427,7 +4416,6 @@ def command_accept_wave(args: argparse.Namespace) -> dict[str, Any]:
             staging,
             staging_root.resolve(),
             args.spine_root.resolve(),
-            args.checker,
         )
         recorded_receipt = read_json(receipt)
         if recorded_receipt != fresh_receipt:
@@ -4770,10 +4758,18 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
     exceptions: list[dict[str, Any]] = []
     for task in settled.values():
         if task["state"] != "published":
+            outcome = task.get("checkpoint_outcome")
+            code = {
+                "covered": "synthesis-coverage-conflict",
+                "supporting": "synthesis-granularity-conflict",
+                "answered": "derived-answer-needs-anchor-update",
+                "unresolved": "derived-uncertainty-needs-preservation",
+            }.get(outcome, "producer-outcome-conflict")
             exceptions.append(
                 {
                     "task": task["id"],
-                    "code": "non-draft-outcome",
+                    "code": code,
+                    "outcome": outcome,
                     "state": task["state"],
                 }
             )
@@ -4783,8 +4779,9 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
     plan = source_pass["topic_plan"]
     topics = {topic["id"]: topic for topic in plan["topics"] + plan["covered"]}
     topic_tasks = source_pass["topic_tasks"]
-    workspace = args.workspace.resolve()
-    report_path = args.report.resolve()
+    runtime = args.ledger.resolve().parent
+    workspace = runtime / "integration-workspace"
+    report_path = runtime / "integration-report.json"
     repository_root = repository_root_from_ledger(current)
     require_map_runtime_path(
         workspace, repository_root, field="integration workspace"
@@ -6123,11 +6120,6 @@ def parser() -> argparse.ArgumentParser:
     settle_wave.add_argument("handoffs_root", type=Path)
     settle_wave.add_argument("spine_root", type=Path)
     settle_wave.add_argument("harvest_root", type=Path)
-    settle_wave.add_argument(
-        "--checker",
-        type=Path,
-        default=Path(__file__).with_name("check_spine.py"),
-    )
 
     prepare_integration = sub.add_parser("prepare-integration")
     prepare_integration.add_argument("ledger", type=Path)
@@ -6147,8 +6139,6 @@ def parser() -> argparse.ArgumentParser:
     assemble = sub.add_parser("assemble-integration")
     assemble.add_argument("ledger", type=Path)
     assemble.add_argument("spine_root", type=Path)
-    assemble.add_argument("workspace", type=Path)
-    assemble.add_argument("report", type=Path)
     assemble.add_argument(
         "--checker",
         type=Path,
