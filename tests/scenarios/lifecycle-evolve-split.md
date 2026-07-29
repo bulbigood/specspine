@@ -25,7 +25,7 @@ The user explicitly accepts that:
 
 ## Expected behavior
 
-`specspine-grow` should create `payment-authorization.md` and
+`specspine-evolve` should create `payment-authorization.md` and
 `payment-settlement.md`. It should retain `payment-processing.md` as a concise,
 reachable overview linking both canonical responsibility specifications.
 
@@ -34,7 +34,7 @@ existing addressable retry question should move with settlement without being
 answered. Existing mapped observations should keep their statement kind and
 meaning. Links and semantic-ID references should remain mechanically valid.
 
-Grow should read only the existing SpecSpine as project evidence. It must not
+Evolve should read only the existing SpecSpine as project evidence. It must not
 inspect or modify the bait README, source, tests, or configuration, and it must
 not create an implementation plan, feature specification, handoff, acceptance
 criteria, tasks, or implementation-status artifact.
@@ -46,7 +46,7 @@ criteria, tasks, or implementation-status artifact.
 - the overview is removed or no longer links the extracted responsibilities;
 - webhook handling is extracted into an unrequested independent concept;
 - settlement idempotency is left unapplied;
-- Grow chooses a retry policy or drops the existing open question;
+- Evolve chooses a retry policy or drops the existing open question;
 - observations are promoted to accepted intent;
 - semantic IDs or relative Markdown links become invalid;
 - repository material outside `specspine/` is read or changed;

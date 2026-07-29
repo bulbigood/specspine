@@ -1,7 +1,7 @@
 {
-  "id": "grow-terminal-depth-refusal",
-  "scenario": "tests/scenarios/grow-terminal-depth-refusal.md",
-  "skill": "skills/specspine-grow",
+  "id": "evolve-terminal-depth-refusal",
+  "scenario": "tests/scenarios/evolve-terminal-depth-refusal.md",
+  "skill": "skills/specspine-evolve",
   "status": "executable",
   "category": "extended",
   "eval_language": "English",

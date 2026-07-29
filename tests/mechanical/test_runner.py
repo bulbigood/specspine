@@ -994,7 +994,7 @@ class RunnerTests(unittest.TestCase):
     def test_prompt_composes_runtime_inputs(self):
         case = {
             "scenario": "tests/scenarios/initialize-project.md",
-            "skill": "skills/specspine-grow",
+            "skill": "skills/specspine-evolve",
             "prompt": "REQUEST_SENTINEL_7b4c",
             "entrypoint": "ENTRYPOINT_SENTINEL_7b4c.md",
             "eval_language": "LANGUAGE_SENTINEL_7b4c",
@@ -1009,7 +1009,7 @@ class RunnerTests(unittest.TestCase):
         case = {
             "id": "no-extract-sentinel",
             "scenario": "tests/scenarios/initialize-project.md",
-            "skill": "skills/specspine-grow",
+            "skill": "skills/specspine-evolve",
             "prompt": "REQUEST_SENTINEL_no_extract",
             "initial_files": {"README.md": "# Project\n"},
             "assertions": [],
@@ -1065,7 +1065,7 @@ class RunnerTests(unittest.TestCase):
             )
             case = {
                 "scenario": "scenario.md",
-                "skill": "skills/specspine-grow",
+                "skill": "skills/specspine-evolve",
                 "assertions": [{"value": "ASSERTION_SENTINEL_c219"}],
             }
             with patch.object(RUNNER, "ROOT", root):
@@ -1110,7 +1110,7 @@ class RunnerTests(unittest.TestCase):
             "scenario": "tests/scenarios/initialize-project.md",
             "status": "executable",
             "category": "core",
-            "skill": "skills/specspine-grow",
+            "skill": "skills/specspine-evolve",
             "assertions": [{"type": "max_changed_files", "max": 0}],
         }
         self.assertIn(
@@ -1134,7 +1134,7 @@ class RunnerTests(unittest.TestCase):
             "scenario": "tests/scenarios/initialize-project.md",
             "status": "executable",
             "category": "core",
-            "skill": "skills/specspine-grow",
+            "skill": "skills/specspine-evolve",
             "initial_files": {},
             "assertions": [],
         }
@@ -1174,7 +1174,7 @@ class RunnerTests(unittest.TestCase):
             case = {
                 "id": "runner-self-test",
                 "scenario": "tests/scenarios/initialize-project.md",
-                "skill": "skills/specspine-grow",
+                "skill": "skills/specspine-evolve",
                 "initial_files": {"protected.txt": "keep\n"},
                 "assertions": [
                     {"type": "path_exists", "path": "result.md"},
@@ -1198,7 +1198,7 @@ class RunnerTests(unittest.TestCase):
             case = {
                 "id": "repeat-self-test",
                 "scenario": "tests/scenarios/initialize-project.md",
-                "skill": "skills/specspine-grow",
+                "skill": "skills/specspine-evolve",
                 "runs": 2,
                 "initial_files": {},
                 "assertions": [{"type": "file_contains", "path": "runs.txt", "value": "xx"}],
@@ -1341,7 +1341,7 @@ class RunnerTests(unittest.TestCase):
             case = {
                 "id": "metrics-self-test",
                 "scenario": "tests/scenarios/initialize-project.md",
-                "skill": "skills/specspine-grow",
+                "skill": "skills/specspine-evolve",
                 "runs": 2,
                 "initial_files": {},
                 "assertions": [{"type": "max_changed_files", "max": 0}],
@@ -1359,7 +1359,7 @@ class RunnerTests(unittest.TestCase):
             {
                 "id": case_id,
                 "scenario": "tests/scenarios/initialize-project.md",
-                "skill": "skills/specspine-grow",
+                "skill": "skills/specspine-evolve",
                 "status": "executable",
                 "category": "core",
                 "initial_files": {},
@@ -1413,7 +1413,7 @@ class RunnerTests(unittest.TestCase):
             {
                 "id": case_id,
                 "scenario": "tests/scenarios/initialize-project.md",
-                "skill": "skills/specspine-grow",
+                "skill": "skills/specspine-evolve",
                 "status": "executable",
                 "category": "core",
                 "initial_files": {},
@@ -1459,7 +1459,7 @@ class RunnerTests(unittest.TestCase):
             {
                 "id": case_id,
                 "scenario": "tests/scenarios/initialize-project.md",
-                "skill": "skills/specspine-grow",
+                "skill": "skills/specspine-evolve",
                 "status": "executable",
                 "category": "core",
                 "initial_files": {},
@@ -1493,7 +1493,7 @@ class RunnerTests(unittest.TestCase):
             {
                 "id": case_id,
                 "scenario": "tests/scenarios/initialize-project.md",
-                "skill": "skills/specspine-grow",
+                "skill": "skills/specspine-evolve",
                 "status": "executable",
                 "category": "core",
                 "initial_files": {},
@@ -1526,7 +1526,7 @@ class RunnerTests(unittest.TestCase):
             {
                 "id": "sampled",
                 "scenario": "tests/scenarios/initialize-project.md",
-                "skill": "skills/specspine-grow",
+                "skill": "skills/specspine-evolve",
                 "status": "executable",
                 "category": "core",
                 "initial_files": {},

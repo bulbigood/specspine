@@ -1,6 +1,6 @@
 {
-  "id": "lifecycle-grow-bounded-depth",
-  "scenario": "tests/scenarios/lifecycle-grow-bounded-depth.md",
+  "id": "lifecycle-evolve-bounded-depth",
+  "scenario": "tests/scenarios/lifecycle-evolve-bounded-depth.md",
   "status": "executable",
   "category": "extended",
   "eval_language": "English",
@@ -16,8 +16,8 @@
   },
   "stages": [
     {
-      "id": "grow-payment-and-inventory-safety",
-      "skill": "skills/specspine-grow",
+      "id": "evolve-payment-and-inventory-safety",
+      "skill": "skills/specspine-evolve",
       "prompt": "Evolve only the existing SpecSpine with these accepted rules. Each logical payment attempt has one stable idempotency identity across provider retries; record `DEC-payment-attempt-idempotency` in the payment owner. Retry timing and attempt limits remain unresolved as `OQ-payment-retry-policy`. Inventory reservations expire unless checkout completes; record `CON-inventory-reservation-expiry` in the inventory owner. Checkout releases its reservation after a terminal payment failure; record `DEC-checkout-terminal-failure-release` in the checkout owner. Payment processing reports the terminal outcome but does not own inventory compensation. Keep the existing four-document graph concise, consolidate boundaries instead of repeating the purchase workflow, and add no specifications or implementation detail. Use only this request and files under specspine/.",
       "assertions": [
         {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["**DEC-payment-attempt-idempotency**", "**OQ-payment-retry-policy**"]},
@@ -32,8 +32,8 @@
       ]
     },
     {
-      "id": "grow-provider-event-safety",
-      "skill": "skills/specspine-grow",
+      "id": "evolve-provider-event-safety",
+      "skill": "skills/specspine-evolve",
       "prompt": "Deepen payment processing once more. Accept `CON-provider-event-deduplication`: duplicate provider events cannot cause duplicate payment transitions. Accept `CON-provider-event-ordering`: an older provider event cannot replace a newer terminal outcome. Keep provider-event audit retention unresolved as `OQ-provider-event-audit-retention`. These belong to the existing payment outcome owner. Preserve every previous ID and open question across checkout, payment, and inventory. Keep the four-document graph concise; add no specification, algorithm, schema, configuration copy, or downstream work artifact. Use only this request and files under specspine/.",
       "assertions": [
         {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["**DEC-payment-attempt-idempotency**", "**OQ-payment-retry-policy**", "**CON-provider-event-deduplication**", "**CON-provider-event-ordering**", "**OQ-provider-event-audit-retention**"]},

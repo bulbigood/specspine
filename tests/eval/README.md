@@ -217,10 +217,10 @@ repeated samples are release-level evidence. Successful reports include only
 the explicitly requested `specspine/**/*.md` snapshots needed by the blind
 judge.
 
-### Extract → Grow Grafana A/B benchmark
+### Extract → Evolve Grafana A/B benchmark
 
-`benchmark_extract_grow_grafana.py` extends the external Grafana benchmark with
-a mutation outcome. Both arms load production Grow, receive the same Grafana
+`benchmark_extract_evolve_grafana.py` extends the external Grafana benchmark with
+a mutation outcome. Both arms load production Evolve, receive the same Grafana
 SpecSpine snapshot and scenario, use the same model settings, and may change
 exactly one preselected canonical specification. The treatment arm also
 installs Extract as a companion skill; the baseline navigates SpecSpine
@@ -233,8 +233,8 @@ constraints from the SpecSpine. This reflects normal refinement work while
 keeping architecture invention and document decomposition out of the result.
 
 ```bash
-report_dir=$(mktemp -d -t specspine-extract-grow-grafana.XXXXXX)
-python3 tests/eval/benchmark_extract_grow_grafana.py \
+report_dir=$(mktemp -d -t specspine-extract-evolve-grafana.XXXXXX)
+python3 tests/eval/benchmark_extract_evolve_grafana.py \
   --grafana-root ~/projects/grafana \
   --output-dir "$report_dir" --samples 1 --jobs 6
 ```
@@ -246,7 +246,7 @@ reasoning. Keep the key hidden until the judge returns `judgments.json`, then
 merge blind quality into the comparison:
 
 ```bash
-python3 tests/eval/benchmark_extract_grow_grafana.py \
+python3 tests/eval/benchmark_extract_evolve_grafana.py \
   --output-dir "$report_dir" \
   --judgments /path/to/judgments.json
 ```

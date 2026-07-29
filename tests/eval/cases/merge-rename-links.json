@@ -1,7 +1,7 @@
 {
   "id": "merge-rename-links",
   "scenario": "tests/scenarios/merge-rename-links.md",
-  "skill": "skills/specspine-grow",
+  "skill": "skills/specspine-evolve",
   "status": "executable",
   "category": "extended",
   "initial_files": {

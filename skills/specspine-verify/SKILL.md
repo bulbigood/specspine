@@ -50,7 +50,7 @@ to invent as a specification gap.
 - Never infer a requirement from `OBS`, code, tests, or runtime repetition.
 - Evaluate only the equivalence promised by `implementation_freedom`; do not
   require source or internal similarity from a contract-equivalent result.
-- Never change manifest facets or blockers; Grow owns accepted specification
+- Never change manifest facets or blockers; Evolve owns accepted specification
   changes.
 - Never claim untested statements are verified.
 - Never modify implementation or SpecSpine without a separate explicit request.

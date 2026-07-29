@@ -1,15 +1,15 @@
 ---
-name: specspine-grow
+name: specspine-evolve
 description: Create or evolve accepted architecture and durable system specifications in a linked SpecSpine from explicit user intent and existing specifications. Use for greenfield initialization, accepted requirements and contracts, architectural changes, SDD promotion, impact analysis, and specification restructuring. Do not use for repository discovery, implementation, or code/spec conformance.
 ---
 
-# SpecSpine Grow
+# SpecSpine Evolve
 
 Maintain a linked network of architecture and durable system specifications.
 Record stable responsibilities, requirements, guarantees, invariants,
 interfaces, quality constraints, verification contracts, and uncertainty
 without turning the Spine into a delivery or implementation workflow. This file
-owns Grow's authority and editing procedure; the linked format and semantics
+owns Evolve's authority and editing procedure; the linked format and semantics
 references own document structure and claim meaning.
 
 ## Resources
@@ -21,7 +21,7 @@ references own document structure and claim meaning.
 - Read [references/spec-semantics.md](references/spec-semantics.md) before
   adding, reclassifying, conflicting, or resolving an architectural claim. It
   is the canonical owner of claim kinds, authority, and conflict handling.
-- Read [references/grow-examples.md](references/grow-examples.md) when the right
+- Read [references/evolve-examples.md](references/evolve-examples.md) when the right
   specification boundary is unclear.
 - When creating files, start from the templates under `assets/templates/` and
   omit empty sections. Create and maintain mandatory `specspine.json` from its
@@ -44,7 +44,7 @@ For an uninitialized Spine, do not list, search, or read any existing project
 file outside `<spine-root>`, including a root README, even to seek context.
 Derive only the smallest useful starting structure from the request.
 
-Grow owns organization and intentional evolution of the specification network.
+Evolve owns organization and intentional evolution of the specification network.
 It does not:
 
 - discover repository architecture or verify code/spec conformance;
@@ -53,16 +53,16 @@ It does not:
 - manufacture normative behavior from observations or unaccepted drafts;
 - decide product or architecture choices for the user.
 
-Grow may promote explicitly accepted SDD meaning into canonical owners,
+Evolve may promote explicitly accepted SDD meaning into canonical owners,
 including durable `REQ`, `GUA`, `INV`, `QLT`, and `VER` claims and owned
 machine-readable contracts. Keep implementation-specific tests and source out
 of the Spine.
 
 Use `specspine-map` for repository discovery and drift, `specspine-doctor` for
-health review, and `specspine-extract` for a downstream context handoff. Grow
+health review, and `specspine-extract` for a downstream context handoff. Evolve
 must remain usable without those skills.
 
-When the request explicitly composes Extract with Grow, treat Extract's
+When the request explicitly composes Extract with Evolve, treat Extract's
 machine-selected complete files as the project-source reads required below.
 When that request requires Extract and its companion is available, invoke its
 search exactly once before directly reading project specifications; do not
@@ -88,14 +88,14 @@ starting a second navigation pass.
    For refinement, perform the terminal-depth check immediately after reading
    the index and relevant specification. Compare the requested material with
    the terminal-detail boundary in `references/spec-format.md`. If the request
-   adds no durable normative or architectural meaning within Grow's scope and
+   adds no durable normative or architectural meaning within Evolve's scope and
    only asks for implementation mechanics, stop without editing or seeking
    implementation evidence.
 3. Choose owners and decomposition using `references/spec-format.md`. Reuse an
    existing owner when possible; do not create a specification merely because a
    file is long or a feature is new.
 4. Treat an explicit in-scope operation or architectural decision as approval.
-   Approval does not override Grow's scope or terminal-detail boundary. Apply
+   Approval does not override Evolve's scope or terminal-detail boundary. Apply
    navigation, evidence-only, and clearly meaning-preserving edits directly.
    Ask the user only before introducing unapproved normative intent, resolving
    a conflict or blocking question, choosing among plausible owners, or making
@@ -111,7 +111,7 @@ starting a second navigation pass.
 6. After every write batch, run the bundled checker against the whole resolved
    Spine. If it reports an error, correct only defects caused by the approved
    operation and rerun it. If an error is pre-existing or needs new
-   architectural authority, stop and report it; never claim the Grow operation
+   architectural authority, stop and report it; never claim the Evolve operation
    succeeded while the checker fails.
 7. Report changed files, structural choices, checker outcome, and unresolved
    architectural questions concisely.

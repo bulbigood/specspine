@@ -12,7 +12,7 @@ from pathlib import Path
 
 PACKAGES = (
     "specspine-extract",
-    "specspine-grow",
+    "specspine-evolve",
     "specspine-map",
     "specspine-doctor",
     "specspine-verify",
@@ -22,7 +22,7 @@ IGNORED_NAMES = {
     "__pycache__",
 }
 SKILL_REFERENCES = {
-    "specspine-grow": {
+    "specspine-evolve": {
         "spec-format.md": "spec-format.md",
         "spec-semantics.md": "spec-semantics.md",
         "specspine.schema.json": "specspine.schema.json",
@@ -47,7 +47,7 @@ SKILL_SCRIPTS = {
     "specspine-extract": {
         "check_spine.py": "check_spine.py",
     },
-    "specspine-grow": {
+    "specspine-evolve": {
         "check_spine.py": "check_spine.py",
     },
     "specspine-map": {
@@ -63,7 +63,7 @@ SKILL_SCRIPTS = {
     },
 }
 SKILL_ASSETS = {
-    "specspine-grow": {
+    "specspine-evolve": {
         "templates/specspine.json": "templates/specspine.json",
     },
     "specspine-map": {

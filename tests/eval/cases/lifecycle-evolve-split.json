@@ -1,6 +1,6 @@
 {
-  "id": "lifecycle-grow-split",
-  "scenario": "tests/scenarios/lifecycle-grow-split.md",
+  "id": "lifecycle-evolve-split",
+  "scenario": "tests/scenarios/lifecycle-evolve-split.md",
   "status": "executable",
   "category": "extended",
   "eval_language": "English",
@@ -17,8 +17,8 @@
   },
   "stages": [
     {
-      "id": "grow-accepted-payment-split",
-      "skill": "skills/specspine-grow",
+      "id": "evolve-accepted-payment-split",
+      "skill": "skills/specspine-evolve",
       "prompt": "Evolve the existing SpecSpine using only this request and files inside `specspine/` as project architecture sources. I accept these architectural decisions: payment authorization and payment settlement evolve independently; `payment-processing.md` remains their concise overview and navigation point; provider webhook result handling remains a boundary described in that overview; settlement processing is idempotent. Split the independent responsibilities into `specspine/payment-authorization.md` and `specspine/payment-settlement.md`. Make the accepted decisions addressable in their canonical owners as `DEC-authorization-independent-evolution`, `DEC-settlement-independent-evolution`, `DEC-webhook-overview-boundary`, and `DEC-settlement-idempotency`. Preserve existing mapped observations without changing their statement kinds or meaning, moving canonical content as appropriate. Preserve `OQ-settlement-retry-policy` in the settlement owner: retry policy remains unspecified and open. Maintain valid navigation, incoming links, relative Markdown links, and semantic-ID references. Do not inspect project-specific README, source, tests, or configuration outside `specspine/`. Do not modify code or create a feature specification, implementation plan, acceptance criteria, tasks, handoff, or implementation-status artifact. Apply the explicitly accepted split without requesting approval again.",
       "assertions": [
         {"type": "path_exists", "path": "specspine/payment-processing.md"},

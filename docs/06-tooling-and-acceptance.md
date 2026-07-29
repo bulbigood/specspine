@@ -17,7 +17,7 @@ weights are not canonical specification data.
 - Checker owns deterministic integrity findings.
 - Extract owns deterministic structured retrieval.
 - Map records repository observations without manufacturing intent.
-- Grow creates and evolves accepted specification.
+- Evolve creates and evolves accepted specification.
 - Doctor diagnoses and repairs Spine health within authorization.
 - Verify assesses implementation or reconstruction conformance.
 

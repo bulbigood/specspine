@@ -1,4 +1,4 @@
-# Scenario: grow an existing specification
+# Scenario: evolve an existing specification
 
 ## Initial state
 

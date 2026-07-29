@@ -1,4 +1,4 @@
-# External Grafana Grow scenario: session recovery policy
+# External Grafana Evolve scenario: session recovery policy
 
 ## User request
 
@@ -27,6 +27,6 @@ Observed claims; запиши решения как intended architecture, не 
 persistence, implementation или delivery decisions, тесты либо сроки.
 
 Сначала собери минимальный архитектурный контекст из SpecSpine, затем выполни
-изменение через Grow. Если в изолированном окружении доступен Extract, используй
+изменение через Evolve. Если в изолированном окружении доступен Extract, используй
 его для этапа сбора контекста; если его нет, найди тот же контекст обычной
 навигацией по SpecSpine.

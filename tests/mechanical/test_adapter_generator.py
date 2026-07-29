@@ -27,7 +27,7 @@ class AdapterGeneratorTests(unittest.TestCase):
 
     def test_shared_resources_have_canonical_sources_and_skill_symlinks(self):
         skills_root = PROJECT_ROOT / "skills"
-        files = GENERATOR.shared_files(PROJECT_ROOT, "specspine-grow")
+        files = GENERATOR.shared_files(PROJECT_ROOT, "specspine-evolve")
         self.assertEqual(
             PROJECT_ROOT / "shared/references/spec-format.md",
             files["references/spec-format.md"],
@@ -53,13 +53,13 @@ class AdapterGeneratorTests(unittest.TestCase):
         self.assertTrue(
             (
                 PROJECT_ROOT
-                / "skills/specspine-grow/references/grow-examples.md"
+                / "skills/specspine-evolve/references/evolve-examples.md"
             ).is_file()
         )
         self.assertFalse(
             (
                 PROJECT_ROOT
-                / "skills/specspine-grow/references/grow-examples.md"
+                / "skills/specspine-evolve/references/evolve-examples.md"
             ).is_symlink()
         )
         for name in ("connection-contract.md", "review-method.md"):
@@ -67,16 +67,16 @@ class AdapterGeneratorTests(unittest.TestCase):
             self.assertTrue(private.is_file())
             self.assertFalse(private.is_symlink())
 
-    def test_grow_requires_the_whole_spine_mechanical_gate_after_writes(self):
+    def test_evolve_requires_the_whole_spine_mechanical_gate_after_writes(self):
         skill = (
-            PROJECT_ROOT / "skills/specspine-grow/SKILL.md"
+            PROJECT_ROOT / "skills/specspine-evolve/SKILL.md"
         ).read_text(encoding="utf-8")
         self.assertIn("scripts/check_spine.py <spine-root>", skill)
         self.assertIn("after every write batch", skill)
         self.assertIn("whole resolved", skill)
-        self.assertIn("never claim the Grow operation", skill)
+        self.assertIn("never claim the Evolve operation", skill)
 
-    def test_grow_checker_rejects_nested_unreachable_specification(self):
+    def test_evolve_checker_rejects_nested_unreachable_specification(self):
         index = (
             PROJECT_ROOT
             / "skills/specspine-doctor/assets/templates/spine-index.md"
@@ -103,7 +103,7 @@ Owns an unreachable architectural responsibility.
                     sys.executable,
                     str(
                         PROJECT_ROOT
-                        / "skills/specspine-grow/scripts/check_spine.py"
+                        / "skills/specspine-evolve/scripts/check_spine.py"
                     ),
                     str(spine),
                 ],

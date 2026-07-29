@@ -83,11 +83,11 @@ class CodexAdapterTests(unittest.TestCase):
     def test_retrieval_entrypoint_can_come_from_extract_companion(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            grow = root / ".eval" / "skill"
+            evolve = root / ".eval" / "skill"
             extract = root / ".eval" / "companions" / "specspine-extract"
-            grow.mkdir(parents=True)
+            evolve.mkdir(parents=True)
             (extract / "scripts").mkdir(parents=True)
-            (grow / "SKILL.md").write_text("# Grow\n", encoding="utf-8")
+            (evolve / "SKILL.md").write_text("# Evolve\n", encoding="utf-8")
             (extract / "SKILL.md").write_text(
                 "python3 <skill-root>/scripts/search_spine.py\n",
                 encoding="utf-8",
@@ -99,11 +99,11 @@ class CodexAdapterTests(unittest.TestCase):
     def test_enables_retrieval_telemetry_for_extract_companion(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            grow = root / ".eval" / "skill"
+            evolve = root / ".eval" / "skill"
             extract = root / ".eval" / "companions" / "specspine-extract"
-            grow.mkdir(parents=True)
+            evolve.mkdir(parents=True)
             (extract / "scripts").mkdir(parents=True)
-            (grow / "SKILL.md").write_text("# Grow\n", encoding="utf-8")
+            (evolve / "SKILL.md").write_text("# Evolve\n", encoding="utf-8")
             extract_skill = extract / "SKILL.md"
             extract_skill.write_text(
                 "python3 <skill-root>/scripts/search_spine.py\n",

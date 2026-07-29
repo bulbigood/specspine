@@ -20,10 +20,10 @@ assert GRAFANA_SPEC.loader is not None
 GRAFANA_SPEC.loader.exec_module(GRAFANA_BENCHMARK)
 
 GROW_GRAFANA_SCRIPT = (
-    Path(__file__).parents[1] / "eval" / "benchmark_extract_grow_grafana.py"
+    Path(__file__).parents[1] / "eval" / "benchmark_extract_evolve_grafana.py"
 )
 GROW_GRAFANA_SPEC = importlib.util.spec_from_file_location(
-    "benchmark_extract_grow_grafana", GROW_GRAFANA_SCRIPT
+    "benchmark_extract_evolve_grafana", GROW_GRAFANA_SCRIPT
 )
 GROW_GRAFANA_BENCHMARK = importlib.util.module_from_spec(GROW_GRAFANA_SPEC)
 assert GROW_GRAFANA_SPEC.loader is not None
@@ -92,7 +92,7 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
             [scenario["id"] for scenario in selected],
         )
 
-    def test_grow_grafana_ab_has_two_arms_and_three_fixed_scenarios(self):
+    def test_evolve_grafana_ab_has_two_arms_and_three_fixed_scenarios(self):
         self.assertEqual(
             [("without-extract", False), ("with-extract", True)],
             list(GROW_GRAFANA_BENCHMARK.ARMS),
@@ -108,7 +108,7 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
             ),
         )
 
-    def test_grow_grafana_treatment_changes_only_extract_availability(self):
+    def test_evolve_grafana_treatment_changes_only_extract_availability(self):
         fixture = Path("/fixtures/grafana")
         scenario = GROW_GRAFANA_BENCHMARK.SCENARIOS[0]
         baseline = GROW_GRAFANA_BENCHMARK.grow_case(fixture, False, scenario)
@@ -140,7 +140,7 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
             treatment["assertions"],
         )
 
-    def test_grow_grafana_blind_package_scores_hidden_arms(self):
+    def test_evolve_grafana_blind_package_scores_hidden_arms(self):
         scenario = GROW_GRAFANA_BENCHMARK.SCENARIOS[0]
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -205,7 +205,7 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
             )
             self.assertEqual(1, sum(values["blind_wins"] for values in scores.values()))
 
-    def test_grow_grafana_navigation_reads_exclude_checker_and_diff(self):
+    def test_evolve_grafana_navigation_reads_exclude_checker_and_diff(self):
         sample = {
             "agent_runs": [{
                 "event_metrics": {
@@ -237,7 +237,7 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
             GROW_GRAFANA_BENCHMARK.navigation_file_count(sample),
         )
 
-    def test_grow_grafana_valid_extract_sample_rejects_malformed_output(self):
+    def test_evolve_grafana_valid_extract_sample_rejects_malformed_output(self):
         valid = {
             "agent_runs": [{
                 "retrieval_attempts": [{

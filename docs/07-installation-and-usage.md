@@ -8,7 +8,7 @@ SpecSpine is delivered as five coordinated skills:
   specification health.
 - `specspine-extract` retrieves the smallest task-specific architecture
   closure.
-- `specspine-grow` creates and evolves accepted architecture and durable
+- `specspine-evolve` creates and evolves accepted architecture and durable
   system specifications.
 - `specspine-map` records observed brownfield architecture from repository
   evidence.
@@ -33,7 +33,7 @@ route degrades to direct navigation from the Markdown index.
 Install another individual skill:
 
 ```bash
-npx skills add bulbigood/specspine --skill specspine-grow
+npx skills add bulbigood/specspine --skill specspine-evolve
 npx skills add bulbigood/specspine --skill specspine-map
 npx skills add bulbigood/specspine --skill specspine-verify
 ```
@@ -49,7 +49,7 @@ Install all runtime skills:
 ```bash
 npx skills add bulbigood/specspine --skill specspine-doctor
 npx skills add bulbigood/specspine --skill specspine-extract
-npx skills add bulbigood/specspine --skill specspine-grow
+npx skills add bulbigood/specspine --skill specspine-evolve
 npx skills add bulbigood/specspine --skill specspine-map
 npx skills add bulbigood/specspine --skill specspine-verify
 ```
@@ -79,14 +79,14 @@ and are not copied into either project artifact.
 
 ## Start or evolve intended architecture
 
-Ask Grow to initialize a small Spine:
+Ask Evolve to initialize a small Spine:
 
 ```text
 Create a SpecSpine for a SaaS application that lets teams manage customers,
 subscriptions, and invoices.
 ```
 
-Grow creates the smallest useful initial architecture. Early specifications may
+Evolve creates the smallest useful initial architecture. Early specifications may
 be intentionally short and preserve open questions.
 
 Refine an area:
@@ -95,7 +95,7 @@ Refine an area:
 Refine the authentication architecture.
 ```
 
-Grow follows existing links and proposes a split only after independent
+Evolve follows existing links and proposes a split only after independent
 responsibilities emerge. An overview may remain as a concise navigation point.
 
 Apply a cross-cutting accepted change:
@@ -104,11 +104,11 @@ Apply a cross-cutting accepted change:
 Add Google Sign-In.
 ```
 
-Grow identifies the smallest justified create/modify set. It asks for a
+Evolve identifies the smallest justified create/modify set. It asks for a
 decision only when the request does not establish required intent, canonical
 ownership is genuinely ambiguous, or a conflict must be resolved.
 
-By default, Grow treats the user request and files under `<spine-root>` as the
+By default, Evolve treats the user request and files under `<spine-root>` as the
 only project-specific authorities. It may consult general external references
 but does not inspect project code or modify source files.
 
@@ -178,4 +178,4 @@ guess architectural intent. Repository drift analysis belongs to Map.
 
 For a handoff-specific check, Doctor may invoke Extract directly. Extract is
 the preferred downstream retrieval gateway, not a mandatory intermediary for
-every Grow, Map, or Doctor operation.
+every Evolve, Map, or Doctor operation.

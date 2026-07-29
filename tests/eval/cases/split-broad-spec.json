@@ -1,7 +1,7 @@
 {
   "id": "split-broad-spec",
   "scenario": "tests/scenarios/split-broad-spec.md",
-  "skill": "skills/specspine-grow",
+  "skill": "skills/specspine-evolve",
   "status": "planned",
   "category": "planned",
   "initial_files": {

@@ -1,4 +1,4 @@
-# External Grafana Grow scenario: cascade failure boundary
+# External Grafana Evolve scenario: cascade failure boundary
 
 ## User request
 
@@ -31,6 +31,6 @@ Observed claims; добавь решения как intended architecture без
 implementation, persistence или delivery decisions, тесты либо сроки.
 
 Сначала собери минимальный архитектурный контекст из SpecSpine, затем выполни
-изменение через Grow. Если в изолированном окружении доступен Extract, используй
+изменение через Evolve. Если в изолированном окружении доступен Extract, используй
 его для этапа сбора контекста; если его нет, найди тот же контекст обычной
 навигацией по SpecSpine.

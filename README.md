@@ -102,7 +102,7 @@ Expose this project's SpecSpine to agents through persistent project instruction
 Create intended architecture:
 
 ```bash
-npx skills add bulbigood/specspine --skill specspine-grow
+npx skills add bulbigood/specspine --skill specspine-evolve
 ```
 
 Map a brownfield repository:

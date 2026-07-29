@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A/B-test Grow with and without Extract on an external Grafana SpecSpine."""
+"""A/B-test Evolve with and without Extract on an external Grafana SpecSpine."""
 
 from __future__ import annotations
 
@@ -33,13 +33,13 @@ def load_module(name: str, path: Path) -> Any:
     return module
 
 
-RUNNER = load_module("specspine_eval_run_grow_ab", EVAL_DIR / "run.py")
+RUNNER = load_module("specspine_eval_run_evolve_ab", EVAL_DIR / "run.py")
 ADAPTER_BENCHMARK = load_module(
-    "specspine_extract_agent_benchmark_grow_ab",
+    "specspine_extract_agent_benchmark_evolve_ab",
     EVAL_DIR / "benchmark_extract_agents.py",
 )
 GRAFANA_BENCHMARK = load_module(
-    "specspine_extract_grafana_benchmark_grow_ab",
+    "specspine_extract_grafana_benchmark_evolve_ab",
     EVAL_DIR / "benchmark_extract_grafana.py",
 )
 
@@ -50,8 +50,8 @@ ARMS = (
 
 SCENARIOS = (
     {
-        "id": "extract-grow-grafana-plugin-capability",
-        "scenario": "tests/eval/extract-grow-grafana-plugin-capability.md",
+        "id": "extract-evolve-grafana-plugin-capability",
+        "scenario": "tests/eval/extract-evolve-grafana-plugin-capability.md",
         "target": "specspine/plugins/plugin-backend-protocol.md",
         "required_terms": [
             "ErrMethodNotImplemented",
@@ -64,8 +64,8 @@ SCENARIOS = (
         ],
     },
     {
-        "id": "extract-grow-grafana-session-recovery",
-        "scenario": "tests/eval/extract-grow-grafana-session-recovery.md",
+        "id": "extract-evolve-grafana-session-recovery",
+        "scenario": "tests/eval/extract-evolve-grafana-session-recovery.md",
         "target": "specspine/identity-access/authentication-sessions.md",
         "required_terms": [
             "best-effort",
@@ -81,8 +81,8 @@ SCENARIOS = (
         ],
     },
     {
-        "id": "extract-grow-grafana-folder-cascade",
-        "scenario": "tests/eval/extract-grow-grafana-folder-cascade.md",
+        "id": "extract-evolve-grafana-folder-cascade",
+        "scenario": "tests/eval/extract-evolve-grafana-folder-cascade.md",
         "target": "specspine/content/folder-cascade-deletion.md",
         "required_terms": [
             "depth-first",
@@ -159,7 +159,7 @@ def grow_case(
     return {
         "id": scenario["id"],
         "scenario": scenario["scenario"],
-        "skill": "skills/specspine-grow",
+        "skill": "skills/specspine-evolve",
         "companion_skills": (
             ["skills/specspine-extract"] if with_extract else []
         ),
@@ -234,7 +234,7 @@ def run_arm(
         cases,
         samples,
         jobs,
-        run_id=f"extract-grow-grafana-{timestamp}-{label}",
+        run_id=f"extract-evolve-grafana-{timestamp}-{label}",
         started_at=started_at.isoformat(),
         finished_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
     )
@@ -312,7 +312,7 @@ def run_paired_arms(
             cases_by_label[label],
             samples,
             jobs,
-            run_id=f"extract-grow-grafana-{timestamp}-{label}",
+            run_id=f"extract-evolve-grafana-{timestamp}-{label}",
             started_at=started_at.isoformat(),
             finished_at=finished_at,
         )
@@ -650,7 +650,7 @@ def write_comparison(
     )
     labels = [label for label, _ in ARMS]
     lines = [
-        "# Extract → Grow Grafana A/B benchmark",
+        "# Extract → Evolve Grafana A/B benchmark",
         "",
         "| Metric | Without Extract | With Extract |",
         "|---|---:|---:|",
@@ -736,7 +736,7 @@ def main() -> int:
     reports: dict[str, dict[str, Any]] = {}
     passed = True
     with tempfile.TemporaryDirectory(
-        prefix="specspine-grow-grafana-fixture-"
+        prefix="specspine-evolve-grafana-fixture-"
     ) as directory:
         try:
             fixture = GRAFANA_BENCHMARK.materialize_fixture(

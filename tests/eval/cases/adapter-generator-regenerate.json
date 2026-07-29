@@ -11,6 +11,6 @@
     {"type": "path_exists", "path": "skills/specspine-map/references/spec-semantics.md"},
     {"type": "path_exists", "path": "skills/specspine-map/references/orchestration.md"},
     {"type": "path_exists", "path": "skills/specspine-doctor/references/spec-semantics.md"},
-    {"type": "changed_only", "paths": ["skills/specspine-grow/references/**", "skills/specspine-map/references/**", "skills/specspine-map/scripts/check_spine.py", "skills/specspine-doctor/references/**", "skills/specspine-doctor/scripts/check_spine.py"]}
+    {"type": "changed_only", "paths": ["skills/specspine-evolve/references/**", "skills/specspine-map/references/**", "skills/specspine-map/scripts/check_spine.py", "skills/specspine-doctor/references/**", "skills/specspine-doctor/scripts/check_spine.py"]}
   ]
 }

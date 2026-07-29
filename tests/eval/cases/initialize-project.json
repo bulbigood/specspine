@@ -1,7 +1,7 @@
 {
   "id": "initialize-project",
   "scenario": "tests/scenarios/initialize-project.md",
-  "skill": "skills/specspine-grow",
+  "skill": "skills/specspine-evolve",
   "status": "executable",
   "category": "core",
   "initial_files": {

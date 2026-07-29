@@ -8,7 +8,7 @@ classified.
 
 | Area | Documented scenarios | Executable fixtures |
 |---|---:|---:|
-| `specspine-grow` | 9 | 7 |
+| `specspine-evolve` | 9 | 7 |
 | `specspine-map` | 8 | 4 |
 | `specspine-extract` | 4 | 4 |
 | `specspine-doctor` | 7 | 6 |
@@ -74,9 +74,9 @@ Core and extended cases currently cover:
 - staged lifecycle transitions covering survey, deepening, intentional split,
   downstream repository evolution, drift refresh, supersession, removal, and
   bounded Doctor repair.
-- repeated Grow deepening with per-document and whole-Spine word budgets while
+- repeated Evolve deepening with per-document and whole-Spine word budgets while
   preserving addressable architectural meaning.
-- Grow refusal when a specification already has terminal architectural detail
+- Evolve refusal when a specification already has terminal architectural detail
   and the request asks only for implementation-manual content.
 
 Deterministic runtime-skill generation and drift detection remain covered by
@@ -97,7 +97,7 @@ Potential gaps:
 - agent navigation efficiency on larger-than-small documentation graphs;
 - large-Map report-discovered backlog growth beyond the controlled
   rolling-publication case;
-- custom `<spine-root>` handling in `grow` and `map`;
+- custom `<spine-root>` handling in `evolve` and `map`;
 - broken links, unreachable specifications, duplicate IDs, and duplicate
   canonical ownership introduced by an agent.
 

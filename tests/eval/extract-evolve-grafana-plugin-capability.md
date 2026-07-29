@@ -1,4 +1,4 @@
-# External Grafana Grow scenario: optional backend capability
+# External Grafana Evolve scenario: optional backend capability
 
 ## User request
 
@@ -27,6 +27,6 @@ Observed claims; добавь принятый контракт как intended 
 или сроки.
 
 Сначала собери минимальный архитектурный контекст из SpecSpine, затем выполни
-изменение через Grow. Если в изолированном окружении доступен Extract, используй
+изменение через Evolve. Если в изолированном окружении доступен Extract, используй
 его для этапа сбора контекста; если его нет, найди тот же контекст обычной
 навигацией по SpecSpine.

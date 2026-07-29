@@ -14,7 +14,7 @@ and contains:
 The payment overview and settlement specification both link to the old owner.
 Repository documentation, source, configuration, and tests outside
 `specspine/` contain distracting claims and are not authorized project
-architecture sources for Grow.
+architecture sources for Evolve.
 
 This scenario exercises two intentional transitions in one workspace:
 
@@ -29,7 +29,7 @@ The user explicitly accepts bounded exponential retry and moves canonical
 ownership of settlement retry coordination from webhook handling to payment
 settlement.
 
-`specspine-grow` should:
+`specspine-evolve` should:
 
 - make settlement the single canonical owner of retry coordination;
 - record the accepted bounded exponential policy as
@@ -43,7 +43,7 @@ settlement.
 - update overview and settlement navigation and semantic-ID references;
 - preserve webhook delivery as a boundary rather than a retry owner.
 
-The old synchronous rule must not remain active intent. Grow must not inspect
+The old synchronous rule must not remain active intent. Evolve must not inspect
 or modify project material outside `specspine/`, invent downstream work, or ask
 for confirmation of the explicit decisions.
 
@@ -54,7 +54,7 @@ The user then explicitly requests removal of the now-obsolete standalone
 summarized by the payment overview; it does not regain retry ownership.
 
 Because the old externally referenced decision must remain traceable after its
-former file is removed, Grow should retain the old
+former file is removed, Evolve should retain the old
 `DEC-webhook-synchronous-retry` identifier as a short tombstone in the
 successor canonical owner, linked to
 `DEC-settlement-bounded-exponential-retry`. It should update all incoming links
@@ -86,5 +86,5 @@ orphan or broken reference.
 - the obsolete file remains after the explicit removal stage;
 - an observation is promoted to accepted intent or claimed as implemented;
 - a link or semantic-ID reference becomes invalid;
-- Grow reads or changes project material outside `specspine/`;
+- Evolve reads or changes project material outside `specspine/`;
 - downstream implementation or feature-work artifacts are produced.

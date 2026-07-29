@@ -13,7 +13,7 @@ specspine/
 ├── skills/
 │   ├── specspine-doctor/
 │   ├── specspine-extract/
-│   ├── specspine-grow/
+│   ├── specspine-evolve/
 │   └── specspine-map/
 ├── tools/
 │   ├── specspine-adapter-generator/
@@ -50,7 +50,7 @@ cd specspine
 npx skills add . --list
 npx skills add . --skill specspine-doctor
 npx skills add . --skill specspine-extract
-npx skills add . --skill specspine-grow
+npx skills add . --skill specspine-evolve
 npx skills add . --skill specspine-map
 ```
 

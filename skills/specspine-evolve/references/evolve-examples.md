@@ -1,6 +1,6 @@
-# SpecSpine Grow examples
+# SpecSpine Evolve examples
 
-These examples demonstrate the expected behavior of `specspine-grow`.
+These examples demonstrate the expected behavior of `specspine-evolve`.
 
 They are behavioral examples, not rigid output requirements.
 

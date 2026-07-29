@@ -1,4 +1,4 @@
-# Scenario: repeated Grow deepening remains lightweight
+# Scenario: repeated Evolve deepening remains lightweight
 
 ## Lifecycle position
 
@@ -19,7 +19,7 @@ owners should remain easy to scan after every step.
 
 ## Expected behavior
 
-`specspine-grow` should preserve a compact four-document graph while adding the
+`specspine-evolve` should preserve a compact four-document graph while adding the
 addressable decisions, constraints, and open questions requested at each
 stage. It should consolidate related statements instead of appending a fresh
 explanation of the complete workflow on every run.

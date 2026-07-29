@@ -26,8 +26,8 @@ class LifecycleRunnerTests(unittest.TestCase):
             "initial_files": {"seed.txt": "seed\n"},
             "stages": [
                 {
-                    "id": "grow",
-                    "skill": "skills/specspine-grow",
+                    "id": "evolve",
+                    "skill": "skills/specspine-evolve",
                     "prompt": "Create the first lifecycle marker.",
                     "assertions": [
                         {"type": "path_exists", "path": "first.txt"},
@@ -164,7 +164,7 @@ class LifecycleRunnerTests(unittest.TestCase):
                 "from pathlib import Path\n"
                 "prompt = sys.stdin.read()\n"
                 "stage = os.environ['SPECSPINE_EVAL_STAGE']\n"
-                "if stage == 'grow':\n"
+                "if stage == 'evolve':\n"
                 "    Path('first.txt').write_text(prompt, encoding='utf-8')\n"
                 "    reads = []\n"
                 "elif stage == 'map':\n"
@@ -200,7 +200,7 @@ class LifecycleRunnerTests(unittest.TestCase):
             )
             self.assertFalse((workspace / "seed.txt").exists())
             self.assertEqual("implemented\n", (workspace / "src/runtime.txt").read_text(encoding="utf-8"))
-            self.assertTrue((workspace / ".eval/stages/01-grow/response.md").is_file())
+            self.assertTrue((workspace / ".eval/stages/01-evolve/response.md").is_file())
             self.assertTrue((workspace / ".eval/stages/03-map/trace.json").is_file())
 
 

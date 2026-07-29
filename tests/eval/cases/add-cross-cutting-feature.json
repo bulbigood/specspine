@@ -1,7 +1,7 @@
 {
   "id": "add-cross-cutting-feature",
   "scenario": "tests/scenarios/add-cross-cutting-feature.md",
-  "skill": "skills/specspine-grow",
+  "skill": "skills/specspine-evolve",
   "status": "executable",
   "category": "core",
   "initial_files": {

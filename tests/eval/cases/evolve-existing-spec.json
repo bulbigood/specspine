@@ -1,7 +1,7 @@
 {
-  "id": "grow-existing-spec",
-  "scenario": "tests/scenarios/grow-existing-spec.md",
-  "skill": "skills/specspine-grow",
+  "id": "evolve-existing-spec",
+  "scenario": "tests/scenarios/evolve-existing-spec.md",
+  "skill": "skills/specspine-evolve",
   "status": "planned",
   "category": "planned",
   "initial_files": {

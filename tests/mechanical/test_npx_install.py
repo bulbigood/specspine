@@ -9,7 +9,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parents[2]
 SKILLS = (
     "specspine-extract",
-    "specspine-grow",
+    "specspine-evolve",
     "specspine-map",
     "specspine-doctor",
 )
