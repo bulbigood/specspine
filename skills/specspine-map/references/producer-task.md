@@ -8,11 +8,14 @@ instruction set: do not load the Map `SKILL.md` or any other Map reference.
 Start with targeted `rg` and narrow excerpts, target at most 10,000 output tokens per call, and never dump complete large files; exceed the target only for a concrete unresolved boundary.
 
 `architecture_unit`, `planned_document`, and `planned_relationships` come from
-the reviewed semantic graph. Verify the responsibility against every evidence
+the synthesized semantic graph. Verify the responsibility against every evidence
 stratum. A draft publishes exactly `planned_document` and defines the planned
 owner ID. Do not add, remove, or render graph edges: deterministic assembly
-owns `Relationships`. If evidence contradicts ownership or an edge, return
-`retry` with the exact correction needed. Copy `evidence_baseline` exactly.
+owns `Relationships`. If an edge or part of the proposed boundary is weak,
+publish the coherent evidence-backed core and record the doubt as a concise
+`directions` question. Do not reject an otherwise useful document because the
+semantic graph may need later Doctor or Evolve refinement. Copy
+`evidence_baseline` exactly.
 
 Write Markdown only in staging; write checkpoint to `<work-package>/checkpoint.json`.
 Do not edit the live Spine, repository source, tests, README, or campaign state;
@@ -50,10 +53,11 @@ If it reports findings, fix every candidate-caused finding and rerun it. Never
 ask root to accept private work. Do not message root or any other agent; after
 atomic handoff, report only in the producer's final response and terminate.
 
-If available evidence cannot establish a clean result, remove draft Markdown
-and return `retry` naming missing evidence. Use `blocked` only for a concrete
-external dependency, not a draft defect. Root independently repeats all
-acceptance checks; preflight never grants publication authority.
+Use `retry` only when unavailable or inaccessible evidence prevents any
+coherent evidence-backed document, and name the missing evidence. Use
+`blocked` only for a concrete external dependency, not a semantic doubt or
+draft defect. Root repeats mechanical acceptance checks; preflight never
+grants publication authority.
 
 ## Result
 
@@ -106,7 +110,8 @@ and the live Spine.
 Use `"outcome": "supporting"` with `evidence`, `summary`, `reason`, and empty
 `directions` only after every stratum proves the scope unit has no durable
 responsibility. Use `"outcome": "retry"` with `evidence`, `summary`, and
-nonempty `need` when ownership remains unclear. Use `"outcome": "blocked"` with
+nonempty `need` only when required evidence is unavailable or inaccessible.
+Use `"outcome": "blocked"` with
 `evidence`, `summary`, and `reason` only for a concrete external dependency.
 
 `draft`, `covered`, `answered`, `unresolved`, and `supporting` must cite at

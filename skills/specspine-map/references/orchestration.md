@@ -10,11 +10,13 @@ Only root runs `campaign.py`, edits the integration workspace, and publishes
 the live Spine. Run `next-action` after every state transition.
 ## Start or resume
 
-Choose the platform's persistent private runtime-data root outside the project
-and OS temporary storage; never use a hidden/gitignored project path. Inspect it:
+Use exactly `<workspace>/.specspine/map` as the campaign home. `campaign.py`
+creates it and `<workspace>/.specspine/.gitignore` when absent. Never place Map
+state elsewhere. Inspect it:
 
 ```text
-python3 <skill>/scripts/campaign.py discover <campaign-home> <repository>
+python3 <skill>/scripts/campaign.py discover \
+  <workspace>/.specspine/map <workspace>
 ```
 
 If incomplete, require that campaign or a new run. Resume the selection:
@@ -25,7 +27,7 @@ python3 <skill>/scripts/campaign.py recover <campaign> [existing-path options]
 python3 <skill>/scripts/campaign.py next-action <campaign>
 ```
 Path options: `--discovery-results`, `--synthesis-packets`, `--reducer-results`,
-`--global-packet`, `--mapping`, `--review`, `--topic-plan`, `--handoffs-root`.
+`--global-packet`, `--mapping`, `--topic-plan`, `--handoffs-root`.
 `recover` records supplied paths, validates results, and
 returns missing/invalid work; later resumes use ledger paths. Discard AI drafts.
 
@@ -33,16 +35,20 @@ Resume preserves every `assigned` task so finalized atomic handoffs are not
 lost. Before spawning producers, recover the interrupted wave:
 
 ```text
-python3 <skill>/scripts/campaign.py harvest-wave \
+python3 <skill>/scripts/campaign.py settle-wave \
   <campaign> <handoffs> <spine-root> <harvest-receipts>
 ```
 
-Cached receipts are reusable. Release each `pending_task` and rejected task;
-they may be reassigned. Do not release harvested tasks. Then run `accept-wave`
-for remaining assigned tasks and `next-action` if none remain. Never read or
-accept an unfinished producer work directory.
+Cached receipts are reusable. Release each `pending_task`; it may be
+reassigned. Repair only `rejected_tasks`, which represent mechanical handoff
+failures. Never read or accept an unfinished producer work directory.
 
-Otherwise create a unique private run directory and write `operation.json`:
+Otherwise create a unique run directory under
+`<workspace>/.specspine/map/<run-name>/` and write `operation.json` there:
+
+Keep `campaign.json`, `operation.json`, discovery, synthesis, producer work,
+handoffs, receipts, and integration work inside that run directory. Only
+`<repository>` and `<spine-root>` name live project data.
 
 ```json
 {
@@ -226,26 +232,21 @@ Give the global packet to one fresh strong-tier synthesizer under
 canonical `document` and typed `relationships`; synthesis produces the future
 Spine graph before production.
 
-Give that mapping and the same global packet to one fresh medium-tier reviewer
-under `topic-review.md`. The reviewer returns compact `accept` or a complete
-`replace`, both with the required review attestation. Materialize the
-provisional mapping plus reviewer result directly to the campaign's sole
-canonical `topic-plan.json`; never create `fixed`, `repaired`, or alternate
-plans:
+Materialize the synthesizer mapping directly to the campaign's sole canonical
+`topic-plan.json`; never create `fixed`, `repaired`, or alternate plans:
 
 ```text
 python3 <skill>/scripts/synthesis.py materialize \
-  <discovery-corpus.json> <provisional-mapping.json> <reviewer-result.json> \
-  <campaign>/topic-plan.json
+  <discovery-corpus.json> <semantic-mapping.json> <campaign>/topic-plan.json
 ```
 
 Never handwrite or repair `topic-plan.json`. Repair reducer or semantic mapping
 artifacts and rerun the deterministic commands. Closed materialization
 validates a private temporary plan before atomically replacing the canonical
 path; a plan containing open leads is only an atomic input to discovery reopen.
-Inspect diagnostics before `source-pass`: `zero-existing-coverage`,
-`high-singleton-ratio`, or `low-semantic-reduction` requires a focused reviewer
-recheck, not mechanical topic deletion.
+Record diagnostics such as `zero-existing-coverage`, `high-singleton-ratio`,
+or `low-semantic-reduction`, but do not block production. Doctor or Evolve may
+refine ownership and granularity later.
 
 - Increment reproduces the corpus `deferred_leads` exactly and returns no
   `open_leads`.
@@ -288,19 +289,18 @@ that returned handoff path, and
 `producer_finalize.py`. Wait for the whole wave without refill. Producers
 atomically expose checked handoffs; never inspect their work directories.
 
-Harvest the complete wave, inspect receipts only after the barrier, then accept
-or release tasks:
+Settle the complete wave with one idempotent command:
 
 ```text
-python3 <skill>/scripts/campaign.py harvest-wave \
-  <campaign> <handoffs> <spine-root> <harvest-receipts>
-python3 <skill>/scripts/campaign.py accept-wave \
+python3 <skill>/scripts/campaign.py settle-wave \
   <campaign> <handoffs> <spine-root> <harvest-receipts>
 ```
 
-Acceptance validates evidence and staging but never publishes. Waves are only
-concurrency barriers: do not integrate between them. Continue until every
-producer task is settled.
+It harvests and accepts every atomic handoff after the barrier. Mechanical
+failures return `needs_mechanical_repair`; incomplete agents return
+`waiting_for_handoffs`. Semantic doubts are notes, not rejection. Acceptance
+validates evidence and staging but never publishes. Do not integrate between
+waves. Continue until every producer task is settled.
 ## Integrate
 
 Run deterministic assembly:
@@ -311,7 +311,7 @@ python3 <skill>/scripts/campaign.py assemble-integration \
 ```
 
 It requires all waves settled, enforces canonical producer paths, materializes
-reviewed relationships, README navigation, conservative manifest facets, task
+synthesized relationships, README navigation, conservative manifest facets, task
 reviews, and the exact delta, then checks and publishes atomically. Repeat it
 after interruption; matching inputs are idempotent. If it returns
 `needs_semantic_review`, read `integration-pass.md` and use

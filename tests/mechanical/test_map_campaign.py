@@ -70,7 +70,7 @@ class MapCampaignTests(unittest.TestCase):
             "[project]\nname='fixture'\n",
             encoding="utf-8",
         )
-        self.run = self.root / "run"
+        self.run = self.repository / ".specspine" / "map" / "test-run"
         self.ledger = self.run / "campaign.json"
         self.staging = self.run / "staging"
         self.staging.mkdir(parents=True)
@@ -152,12 +152,6 @@ class MapCampaignTests(unittest.TestCase):
             self.enrich_graph_mapping(Path(arguments[option + 1]))
         if script == SYNTHESIS and arguments and arguments[0] == "materialize":
             self.enrich_graph_mapping(Path(arguments[2]))
-            review = Path(arguments[3])
-            if review.is_file():
-                value = json.loads(review.read_text(encoding="utf-8"))
-                if isinstance(value.get("mapping"), dict):
-                    self.enrich_graph_value(value["mapping"])
-                    review.write_text(json.dumps(value), encoding="utf-8")
         result = subprocess.run(
             [sys.executable, str(script), *arguments],
             text=True,
@@ -470,7 +464,7 @@ class MapCampaignTests(unittest.TestCase):
         self.assertIn(relative.as_posix(), recovered["scouts"]["complete"])
         self.assertGreater(len(recovered["scouts"]["missing"]), 0)
 
-    def test_discovery_rejects_runtime_state_inside_repository(self):
+    def test_discovery_rejects_state_outside_canonical_workspace_root(self):
         error = self.cli(
             "discovery-start",
             str(self.ledger),
@@ -481,11 +475,11 @@ class MapCampaignTests(unittest.TestCase):
             expected=2,
         )
         self.assertIn(
-            "persistent agent runtime storage outside the repository",
+            "workspace Map runtime root",
             error["error"],
         )
 
-    def test_init_rejects_campaign_ledger_inside_repository(self):
+    def test_init_rejects_campaign_ledger_outside_canonical_workspace_root(self):
         error = self.cli(
             "init",
             str(self.repository / ".hidden-map" / "campaign.json"),
@@ -495,8 +489,18 @@ class MapCampaignTests(unittest.TestCase):
             expected=2,
         )
         self.assertIn(
-            "campaign ledger must be in persistent agent runtime storage",
+            "campaign ledger must be under the workspace Map runtime root",
             error["error"],
+        )
+
+    def test_init_creates_workspace_local_runtime_root_and_ignore(self):
+        runtime_root = self.repository / ".specspine" / "map"
+        self.assertTrue(self.ledger.is_relative_to(runtime_root))
+        self.assertEqual(
+            "*\n",
+            (self.repository / ".specspine" / ".gitignore").read_text(
+                encoding="utf-8"
+            ),
         )
 
     def test_synthesis_prepare_is_idempotent_and_recorded(self):
@@ -625,8 +629,8 @@ class MapCampaignTests(unittest.TestCase):
         shutil.copy2(self.checkpoint, package / "checkpoint.json")
         shutil.copytree(self.staging, package / "staging")
         harvest_root = self.run / f"harvest-{task_id}-{attempt}"
-        harvest = self.cli(
-            "harvest-wave",
+        settled = self.cli(
+            "settle-wave",
             str(self.ledger),
             str(handoffs),
             str(self.spine),
@@ -634,25 +638,15 @@ class MapCampaignTests(unittest.TestCase):
             "--checker",
             str(self.checker),
         )
-        if harvest["rejected"]:
+        if settled.get("rejected"):
             self.assertEqual(2, expected)
-            return {"error": harvest["rejected_tasks"][0]["error"]}
-        accepted = self.cli(
-            "accept-wave",
-            str(self.ledger),
-            str(handoffs),
-            str(self.spine),
-            str(harvest_root),
-            "--checker",
-            str(self.checker),
-            expected=expected,
-        )
+            return {"error": settled["rejected_tasks"][0]["error"]}
         if expected:
-            return accepted
+            return settled
         task = self.ledger_value()["tasks"][task_id]
         return {
             "status": "accepted",
-            "task_state": accepted["task_states"][task_id],
+            "task_state": settled["task_states"][task_id],
             "suggestions_pending_review": [
                 value["id"] for value in task["producer_suggestions"]
             ],
@@ -1849,28 +1843,12 @@ class MapCampaignTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        reviewer = self.run / "reviewer-result.json"
-        reviewer.write_text(
-            json.dumps(
-                {
-                    "decision": "accept",
-                    "review": {
-                        "existing_coverage_checked": True,
-                        "cross_batch_duplicates_checked": True,
-                        "granularity_checked": True,
-                        "notes": "One source forms one fixture responsibility.",
-                    },
-                }
-            ),
-            encoding="utf-8",
-        )
         plan = self.run / "materialized-topic-plan.json"
         plan.write_text("stale plan", encoding="utf-8")
         materialized = self.cli(
             "materialize",
             str(corpus),
             str(mapping),
-            str(reviewer),
             str(plan),
             script=SYNTHESIS,
         )
@@ -2001,138 +1979,15 @@ class MapCampaignTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        reviewer = self.run / "reviewer-result.json"
-        reviewer.write_text(
-            json.dumps(
-                {
-                    "decision": "accept",
-                    "review": {
-                        "existing_coverage_checked": True,
-                        "cross_batch_duplicates_checked": True,
-                        "granularity_checked": True,
-                        "notes": "Fixture intentionally leaves the source undispositioned.",
-                    },
-                }
-            ),
-            encoding="utf-8",
-        )
         failed = self.cli(
             "materialize",
             str(corpus),
             str(mapping),
-            str(reviewer),
             str(self.run / "plan.json"),
             script=SYNTHESIS,
             expected=2,
         )
         self.assertIn("does not disposition every source topic", failed["error"])
-
-    def test_synthesis_materializer_rejects_unreviewed_mapping(self):
-        corpus = self.semantic_discovery_corpus_path()
-        mapping = self.run / "unreviewed-mapping.json"
-        mapping.write_text(
-            json.dumps(
-                {
-                    "topics": [],
-                    "covered": [],
-                    "supporting": [],
-                    "open_leads": [],
-                    "deferred_leads": [],
-                }
-            ),
-            encoding="utf-8",
-        )
-        plan = self.run / "topic-plan.json"
-        plan.write_text("preserved plan", encoding="utf-8")
-        reviewer = self.run / "reviewer-result.json"
-        reviewer.write_text("{}", encoding="utf-8")
-        failed = self.cli(
-            "materialize",
-            str(corpus),
-            str(mapping),
-            str(reviewer),
-            str(plan),
-            script=SYNTHESIS,
-            expected=2,
-        )
-        self.assertIn("decision must be accept or replace", failed["error"])
-        self.assertEqual("preserved plan", plan.read_text(encoding="utf-8"))
-
-    def test_synthesis_reviewer_can_replace_provisional_mapping(self):
-        corpus = self.semantic_discovery_corpus_path()
-        packets = self.run / "replace-packets"
-        prepared = self.cli(
-            "prepare",
-            str(corpus),
-            str(packets),
-            script=SYNTHESIS,
-        )
-        packet = json.loads(
-            Path(prepared["packets"][0]).read_text(encoding="utf-8")
-        )
-        source_id = packet["source_topics"][0]["source_id"]
-        mapping = self.run / "provisional-mapping.json"
-        mapping.write_text(
-            json.dumps(
-                {
-                    "topics": [
-                        {
-                            "id": "session-lifecycle",
-                            "title": "Session lifecycle",
-                            "responsibility": "Owns sessions.",
-                            "reason": "Provisional classification.",
-                            "source_topic_ids": [source_id],
-                        }
-                    ],
-                    "covered": [],
-                    "supporting": [],
-                    "open_leads": [],
-                    "deferred_leads": [],
-                }
-            ),
-            encoding="utf-8",
-        )
-        reviewer = self.run / "replacement-review.json"
-        reviewer.write_text(
-            json.dumps(
-                {
-                    "decision": "replace",
-                    "mapping": {
-                        "topics": [],
-                        "covered": [],
-                        "supporting": [
-                            {
-                                "reason": "No independent architectural owner.",
-                                "source_topic_ids": [source_id],
-                            }
-                        ],
-                        "open_leads": [],
-                        "deferred_leads": [],
-                    },
-                    "review": {
-                        "existing_coverage_checked": True,
-                        "cross_batch_duplicates_checked": True,
-                        "granularity_checked": True,
-                        "notes": "The provisional topic is supporting evidence.",
-                    },
-                }
-            ),
-            encoding="utf-8",
-        )
-        plan = self.run / "replacement-topic-plan.json"
-        receipt = self.cli(
-            "materialize",
-            str(corpus),
-            str(mapping),
-            str(reviewer),
-            str(plan),
-            script=SYNTHESIS,
-        )
-        self.assertEqual("replace", receipt["review_decision"])
-        self.assertEqual(
-            [],
-            json.loads(plan.read_text(encoding="utf-8"))["topics"],
-        )
 
     def test_synthesis_diagnostics_flag_suspicious_semantic_result(self):
         self.add_spine_candidate(
@@ -2588,7 +2443,7 @@ class MapCampaignTests(unittest.TestCase):
 
         result = self.cli(
             "discover",
-            str(self.root),
+            str(self.run.parent),
             str(self.repository),
         )
 
@@ -2604,7 +2459,7 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual(1, campaign["states"]["assigned"])
 
     def test_discover_finds_campaign_interrupted_before_source_pass(self):
-        early_ledger = self.root / "early" / "campaign.json"
+        early_ledger = self.run.parent / "early" / "campaign.json"
         self.cli(
             "init",
             str(early_ledger),
@@ -2615,7 +2470,7 @@ class MapCampaignTests(unittest.TestCase):
 
         result = self.cli(
             "discover",
-            str(self.root),
+            str(self.run.parent),
             str(self.repository),
         )
 
@@ -2638,7 +2493,7 @@ class MapCampaignTests(unittest.TestCase):
 
         result = self.cli(
             "discover",
-            str(self.root),
+            str(self.run.parent),
             str(self.repository),
         )
 
@@ -2690,8 +2545,8 @@ class MapCampaignTests(unittest.TestCase):
 
         resumed = self.cli("resume-session", str(self.ledger))
         self.assertEqual([task_id], resumed["retained_assigned_tasks"])
-        harvested = self.cli(
-            "harvest-wave",
+        settled = self.cli(
+            "settle-wave",
             str(self.ledger),
             str(handoffs),
             str(self.spine),
@@ -2699,19 +2554,10 @@ class MapCampaignTests(unittest.TestCase):
             "--checker",
             str(self.checker),
         )
-        self.assertEqual([task_id], harvested["harvested_tasks"])
-        accepted = self.cli(
-            "accept-wave",
-            str(self.ledger),
-            str(handoffs),
-            str(self.spine),
-            str(harvest_root),
-            "--checker",
-            str(self.checker),
-        )
+        self.assertEqual([task_id], settled["harvest"]["harvested_tasks"])
 
         task = self.ledger_value()["tasks"][task_id]
-        self.assertEqual("review", accepted["task_states"][task_id])
+        self.assertEqual("review", settled["task_states"][task_id])
         self.assertEqual(1, task["attempts"])
         self.assertEqual("dispatch", self.cli("next-action", str(self.ledger))["action"])
 
@@ -2721,8 +2567,8 @@ class MapCampaignTests(unittest.TestCase):
         self.assign(task_id)
 
         self.cli("resume-session", str(self.ledger))
-        harvested = self.cli(
-            "harvest-wave",
+        settled = self.cli(
+            "settle-wave",
             str(self.ledger),
             str(self.run / "handoffs"),
             str(self.spine),
@@ -2730,7 +2576,8 @@ class MapCampaignTests(unittest.TestCase):
             "--checker",
             str(self.checker),
         )
-        self.assertEqual([task_id], harvested["pending_tasks"])
+        self.assertEqual("waiting_for_handoffs", settled["status"])
+        self.assertEqual([task_id], settled["pending_tasks"])
         self.cli("release", str(self.ledger), task_id)
 
         task = self.ledger_value()["tasks"][task_id]
@@ -2789,7 +2636,7 @@ class MapCampaignTests(unittest.TestCase):
 
         result = self.cli(
             "discover",
-            str(self.root),
+            str(self.run.parent),
             str(self.repository),
         )
         campaign = result["campaigns"][0]
@@ -2804,7 +2651,11 @@ class MapCampaignTests(unittest.TestCase):
         unrelated = self.root / "unrelated"
         unrelated.mkdir()
 
-        result = self.cli("discover", str(self.root), str(unrelated))
+        result = self.cli(
+            "discover",
+            str(unrelated / ".specspine" / "map"),
+            str(unrelated),
+        )
 
         self.assertFalse(result["requires_operator_choice"])
         self.assertEqual([], result["campaigns"])
@@ -3049,73 +2900,7 @@ class MapCampaignTests(unittest.TestCase):
             next_action["terminal_gates"]["publications_integrated"]
         )
 
-    def test_harvest_wave_is_read_only_and_accept_wave_rejects_changed_handoff(self):
-        self.source_pass()
-        task_id, _ = self.task_for_unit("src/identity")
-        self.assign(task_id)
-        staged = self.staging / "identity.md"
-        staged.write_text(
-            "# Identity\n\n- **OBS-identity-owner** — `src/identity/session.py`.\n"
-            + self.draft_evidence(task_id),
-            encoding="utf-8",
-        )
-        self.checkpoint.write_text(
-            json.dumps(
-                self.checkpoint_payload(
-                    outcome="draft",
-                    evidence=["src/identity/session.py"],
-                )
-            ),
-            encoding="utf-8",
-        )
-        handoffs = self.run / "handoffs"
-        package = handoffs / f"{task_id}-1"
-        package.mkdir(parents=True)
-        shutil.copy2(self.checkpoint, package / "checkpoint.json")
-        shutil.copytree(self.staging, package / "staging")
-        harvest_root = self.run / "harvest"
-        before = self.ledger_value()
-        receipt = self.cli(
-            "harvest-wave",
-            str(self.ledger),
-            str(handoffs),
-            str(self.spine),
-            str(harvest_root),
-            "--checker",
-            str(self.checker),
-        )
-        self.assertEqual(before, self.ledger_value())
-        self.assertEqual(1, receipt["harvested"])
-        repeated = self.cli(
-            "harvest-wave",
-            str(self.ledger),
-            str(handoffs),
-            str(self.spine),
-            str(harvest_root),
-            "--checker",
-            str(self.checker),
-        )
-        self.assertEqual(1, repeated["already_harvested"])
-        self.assertEqual(before, self.ledger_value())
-        handed_off = package / "staging" / "identity.md"
-        handed_off.write_text(
-            handed_off.read_text(encoding="utf-8") + "\nChanged after harvest.\n",
-            encoding="utf-8",
-        )
-        error = self.cli(
-            "accept-wave",
-            str(self.ledger),
-            str(handoffs),
-            str(self.spine),
-            str(harvest_root),
-            "--checker",
-            str(self.checker),
-            expected=2,
-        )
-        self.assertIn("changed after wave harvest", error["error"])
-        self.assertEqual("assigned", self.ledger_value()["tasks"][task_id]["state"])
-
-    def test_wave_commands_derive_paths_without_shell_parsing(self):
+    def test_settle_wave_derives_paths_without_shell_parsing(self):
         self.source_pass()
         ledger = self.ledger_value()
         handoffs = self.run / "handoffs with spaces"
@@ -3139,9 +2924,8 @@ class MapCampaignTests(unittest.TestCase):
             )
             assigned.append(task["id"])
 
-        before = self.ledger_value()
-        harvested = self.cli(
-            "harvest-wave",
+        settled = self.cli(
+            "settle-wave",
             str(self.ledger),
             str(handoffs),
             str(self.spine),
@@ -3149,36 +2933,15 @@ class MapCampaignTests(unittest.TestCase):
             "--checker",
             str(self.checker),
         )
-        self.assertEqual(2, harvested["harvested"])
-        self.assertEqual(0, harvested["pending"])
-        self.assertEqual(before, self.ledger_value())
-
-        repeated = self.cli(
-            "harvest-wave",
-            str(self.ledger),
-            str(handoffs),
-            str(self.spine),
-            str(harvest),
-            "--checker",
-            str(self.checker),
-        )
-        self.assertEqual(2, repeated["already_harvested"])
-        accepted = self.cli(
-            "accept-wave",
-            str(self.ledger),
-            str(handoffs),
-            str(self.spine),
-            str(harvest),
-            "--checker",
-            str(self.checker),
-        )
-        self.assertEqual(2, accepted["accepted"])
+        self.assertEqual("settled_wave", settled["status"])
+        self.assertEqual(2, settled["harvest"]["harvested"])
+        self.assertEqual(2, settled["accepted"])
         self.assertEqual(
             {task_id: "review" for task_id in assigned},
-            accepted["task_states"],
+            settled["task_states"],
         )
 
-    def test_harvest_wave_reports_invalid_handoff_without_hiding_valid_sibling(self):
+    def test_settle_wave_reports_invalid_handoff_without_hiding_valid_sibling(self):
         self.source_pass()
         ledger = self.ledger_value()
         handoffs = self.run / "handoffs"
@@ -3202,7 +2965,7 @@ class MapCampaignTests(unittest.TestCase):
             )
 
         result = self.cli(
-            "harvest-wave",
+            "settle-wave",
             str(self.ledger),
             str(handoffs),
             str(self.spine),
@@ -3211,6 +2974,7 @@ class MapCampaignTests(unittest.TestCase):
             str(self.checker),
         )
 
+        self.assertEqual("needs_mechanical_repair", result["status"])
         self.assertEqual(1, result["harvested"])
         self.assertEqual(1, result["rejected"])
         self.assertIn(
@@ -3359,7 +3123,7 @@ class MapCampaignTests(unittest.TestCase):
         self.integrate(workspace=workspace)
         self.assertTrue((self.spine / "identity.md").is_file())
 
-    def test_assembly_materializes_reviewed_graph_and_publishes_once(self):
+    def test_assembly_materializes_synthesized_graph_and_publishes_once(self):
         self.source_pass()
         ledger = self.ledger_value()
         topics = {
@@ -3395,6 +3159,11 @@ class MapCampaignTests(unittest.TestCase):
                 self.checkpoint_payload(
                     outcome="draft",
                     evidence=evidence,
+                    directions=(
+                        ["Should this synthesized dependency be refined later?"]
+                        if index == 0
+                        else []
+                    ),
                 ),
                 owner=owner,
             )
@@ -3412,6 +3181,16 @@ class MapCampaignTests(unittest.TestCase):
         )
 
         self.assertEqual("assembled_and_integrated", result["status"])
+        first_task = next(
+            task
+            for task in self.ledger_value()["tasks"].values()
+            if task["producer_suggestions"]
+        )
+        suggestion_id = first_task["producer_suggestions"][0]["id"]
+        self.assertEqual(
+            "rejected",
+            first_task["suggestion_reviews"][suggestion_id]["disposition"],
+        )
         readme = (self.spine / "README.md").read_text(encoding="utf-8")
         self.assertIn("specspine:generated-map:start", readme)
         for topic in topics.values():

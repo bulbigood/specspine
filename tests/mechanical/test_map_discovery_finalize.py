@@ -36,7 +36,9 @@ class DiscoveryFinalizeTests(unittest.TestCase):
         )
         self.spine = self.root / "specspine"
         self.spine.mkdir()
-        self.packet = self.root / "packet.json"
+        runtime = self.repository / ".specspine" / "map" / "test-run"
+        runtime.mkdir(parents=True)
+        self.packet = runtime / "packet.json"
         self.packet.write_text(
             json.dumps(
                 {
@@ -71,8 +73,8 @@ class DiscoveryFinalizeTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        self.draft = self.root / "draft.json"
-        self.result = self.root / "results/lead-identity-runtime.json"
+        self.draft = runtime / "draft.json"
+        self.result = runtime / "results/lead-identity-runtime.json"
 
     def tearDown(self):
         self.temporary.cleanup()

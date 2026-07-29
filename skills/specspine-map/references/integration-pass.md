@@ -1,7 +1,7 @@
 # Root integration and ToDo derivation
 
 Use this manual pass only when `assemble-integration` reports semantic
-exceptions. Clean producer drafts are assembled directly from the reviewed
+exceptions. Clean producer drafts are assembled directly from the synthesized
 graph plan. Acceptance proves checkpoint shape and evidence references; this
 fallback resolves only reported ownership, direction, conflict, or graph
 disagreement.

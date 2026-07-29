@@ -91,9 +91,10 @@ in several final topics only for genuine independently useful responsibilities.
 Assign every semantic topic one unique canonical Spine-relative Markdown
 `document`. Define the complete directed graph now: `relationships` contains
 only `type`, target owner `id`, and concrete `reason`. Every topic in a
-multi-topic plan needs an incoming or outgoing edge. Targets are topics in the
-same mapping or owner IDs already defined in SpecSpine. Use canonical
-predicates and never add reciprocal navigation edges. Reread the result for duplicates, missing
-boundaries, isolated nodes, weak edges, source-tree mirroring, and unsupported
-coverage. Do not edit the Spine, corpus, campaign, or repository. This is a
-provisional mapping: do not add `review`; only the reviewer may attest it.
+multi-topic plan may remain temporarily isolated when no high-confidence edge
+is supported. Targets are topics in the same mapping or owner IDs already
+defined in SpecSpine. Use canonical predicates, omit doubtful edges, and never
+add reciprocal navigation edges. Reread the result for duplicates, missing
+boundaries, weak edges, source-tree mirroring, and unsupported coverage. Do
+not edit the Spine, corpus, campaign, or repository. This mapping becomes the
+canonical production plan after deterministic materialization.

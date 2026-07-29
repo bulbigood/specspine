@@ -133,7 +133,7 @@ COLLAPSED_DIRECTORIES = {
     "target",
     "vendor",
     "venv",
-    ".specspine-map",
+    ".specspine",
 }
 VENDORED_DIRECTORIES = {"node_modules", "vendor"}
 GENERATED_DIRECTORIES = {
@@ -144,7 +144,7 @@ GENERATED_DIRECTORIES = {
     "dist",
     "target",
     "venv",
-    ".specspine-map",
+    ".specspine",
     "__generated__",
     "generated",
     "gen",
@@ -454,21 +454,36 @@ def validate_relative_path(value: Any) -> str:
     return path.as_posix()
 
 
-def require_outside_repository(
+def map_runtime_root(repository_root: Path) -> Path:
+    return repository_root.resolve() / ".specspine" / "map"
+
+
+def ensure_map_runtime_root(repository_root: Path) -> Path:
+    root = map_runtime_root(repository_root)
+    root.mkdir(parents=True, exist_ok=True)
+    ignore = root.parent / ".gitignore"
+    if not ignore.exists():
+        ignore.write_text("*\n", encoding="utf-8")
+    elif not ignore.is_file():
+        raise CampaignError(f"workspace state ignore path is not a file: {ignore}")
+    return root
+
+
+def require_map_runtime_path(
     path: Path,
     repository_root: Path | None,
     *,
     field: str,
 ) -> Path:
-    """Keep private Map runtime state out of the inspected source tree."""
+    """Keep every Map runtime artifact under the workspace-local state root."""
     resolved = path.resolve()
     if repository_root is None:
         return resolved
-    repository = repository_root.resolve()
-    if resolved == repository or repository in resolved.parents:
+    runtime_root = map_runtime_root(repository_root)
+    if resolved != runtime_root and runtime_root not in resolved.parents:
         raise CampaignError(
-            f"{field} must be in persistent agent runtime storage outside "
-            f"the repository: {resolved}"
+            f"{field} must be under the workspace Map runtime root "
+            f"{runtime_root}: {resolved}"
         )
     return resolved
 
@@ -634,7 +649,7 @@ def load(path: Path) -> dict[str, Any]:
     ledger_producer_contract(ledger)
     repository_value = ledger.get("repository_root")
     if isinstance(repository_value, str):
-        require_outside_repository(
+        require_map_runtime_path(
             path,
             Path(repository_value),
             field="campaign ledger",
@@ -1396,7 +1411,7 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         )
     if not spine_root.is_dir():
         raise CampaignError(f"Spine root is not a directory: {spine_root}")
-    require_outside_repository(
+    require_map_runtime_path(
         args.output_dir,
         repository_root,
         field="discovery output",
@@ -1431,7 +1446,7 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
             "--initial-plan is valid only for semantic scope"
         )
     if args.initial_plan is not None:
-        require_outside_repository(
+        require_map_runtime_path(
             args.initial_plan,
             repository_root,
             field="initial discovery plan",
@@ -1662,7 +1677,7 @@ def command_discovery_packets(args: argparse.Namespace) -> dict[str, Any]:
         or seed.get("discovery_contract_version") != DISCOVERY_CONTRACT_VERSION
     ):
         raise CampaignError("discovery seed contract is invalid")
-    require_outside_repository(
+    require_map_runtime_path(
         args.output_dir,
         Path(seed["repository_root"]),
         field="discovery packet output",
@@ -1759,7 +1774,7 @@ def command_discovery_reopen(args: argparse.Namespace) -> dict[str, Any]:
         or seed.get("discovery_contract_version") != DISCOVERY_CONTRACT_VERSION
     ):
         raise CampaignError("discovery seed contract is invalid")
-    require_outside_repository(
+    require_map_runtime_path(
         args.output_dir,
         Path(seed["repository_root"]),
         field="reopened discovery output",
@@ -2324,7 +2339,7 @@ def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
         (args.results_root, "discovery result root"),
         (args.output, "discovery corpus"),
     ):
-        require_outside_repository(path, repository_root, field=field)
+        require_map_runtime_path(path, repository_root, field=field)
     operation = validate_operation_spec(seed["operation"])
     current = load(args.ledger)
     if current["operation"] != operation:
@@ -2736,10 +2751,16 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
     if args.ledger.exists():
         raise CampaignError(f"campaign already exists: {args.ledger}")
     if args.repository_root is not None:
-        require_outside_repository(
+        ensure_map_runtime_root(args.repository_root)
+        require_map_runtime_path(
             args.ledger,
             args.repository_root,
             field="campaign ledger",
+        )
+        require_map_runtime_path(
+            args.operation_spec,
+            args.repository_root,
+            field="operation specification",
         )
     timestamp = utc_timestamp()
     contract = producer_contract()
@@ -3532,6 +3553,11 @@ def command_discover(args: argparse.Namespace) -> dict[str, Any]:
     if not math.isfinite(args.recent_hours) or args.recent_hours <= 0:
         raise CampaignError("recent-hours must be positive")
     repository_root = args.repository_root.resolve()
+    expected_home = ensure_map_runtime_root(repository_root)
+    if args.campaign_home.resolve() != expected_home:
+        raise CampaignError(
+            f"campaign home must be the workspace Map runtime root: {expected_home}"
+        )
     now = utc_now()
     recent_seconds = args.recent_hours * 3600
     campaigns: list[dict[str, Any]] = []
@@ -3645,7 +3671,7 @@ def command_packet(args: argparse.Namespace) -> dict[str, Any]:
     }
     if args.output is None:
         return packet
-    require_outside_repository(
+    require_map_runtime_path(
         args.output,
         repository_root_from_ledger(ledger),
         field="producer packet",
@@ -3662,7 +3688,7 @@ def command_packet(args: argparse.Namespace) -> dict[str, Any]:
 
 def command_assign(args: argparse.Namespace) -> dict[str, Any]:
     with locked_ledger(args.ledger) as ledger:
-        require_outside_repository(
+        require_map_runtime_path(
             args.handoffs_root,
             repository_root_from_ledger(ledger),
             field="producer handoff root",
@@ -4162,7 +4188,7 @@ def command_harvest_wave(args: argparse.Namespace) -> dict[str, Any]:
         (args.handoffs_root, "producer handoff root"),
         (args.harvest_root, "harvest receipt root"),
     ):
-        require_outside_repository(
+        require_map_runtime_path(
             path,
             repository_root_from_ledger(ledger),
             field=field,
@@ -4354,7 +4380,7 @@ def command_accept_wave(args: argparse.Namespace) -> dict[str, Any]:
         (args.handoffs_root, "producer handoff root"),
         (args.harvest_root, "harvest receipt root"),
     ):
-        require_outside_repository(
+        require_map_runtime_path(
             path,
             repository_root_from_ledger(ledger),
             field=field,
@@ -4493,6 +4519,30 @@ def command_accept_wave(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def command_settle_wave(args: argparse.Namespace) -> dict[str, Any]:
+    harvested = command_harvest_wave(args)
+    if harvested["rejected"]:
+        return {
+            **harvested,
+            "status": "needs_mechanical_repair",
+        }
+    if harvested["pending"]:
+        return {
+            **harvested,
+            "status": "waiting_for_handoffs",
+        }
+    accepted = command_accept_wave(args)
+    return {
+        "status": "settled_wave",
+        "harvest": harvested,
+        **{
+            key: value
+            for key, value in accepted.items()
+            if key != "status"
+        },
+    }
+
+
 def accepted_candidates(task: dict[str, Any]) -> dict[str, Path]:
     root_value = task.get("accepted_staging_root")
     expected_digest = task.get("accepted_staging_digest")
@@ -4517,7 +4567,7 @@ def command_prepare_integration(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
     spine_root = args.spine_root.resolve()
     workspace = args.workspace.resolve()
-    require_outside_repository(
+    require_map_runtime_path(
         workspace,
         repository_root_from_ledger(ledger),
         field="integration workspace",
@@ -4727,14 +4777,6 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                     "state": task["state"],
                 }
             )
-        if task.get("producer_suggestions"):
-            exceptions.append(
-                {
-                    "task": task["id"],
-                    "code": "producer-directions",
-                    "suggestions": task["producer_suggestions"],
-                }
-            )
     if exceptions:
         return {"status": "needs_semantic_review", "exceptions": exceptions}
 
@@ -4744,10 +4786,10 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
     workspace = args.workspace.resolve()
     report_path = args.report.resolve()
     repository_root = repository_root_from_ledger(current)
-    require_outside_repository(
+    require_map_runtime_path(
         workspace, repository_root, field="integration workspace"
     )
-    require_outside_repository(
+    require_map_runtime_path(
         report_path, repository_root, field="integration report"
     )
     input_digest = digest_json(
@@ -4906,23 +4948,35 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                         "disposition": "integrated",
                         "reason": (
                             "Canonical owner and graph edges were accepted by "
-                            "the reviewed synthesis plan."
+                            "the synthesized production plan."
                         ),
                     }
                     for task in sorted(settled.values(), key=lambda row: row["id"])
                 ],
-                "suggestion_reviews": [],
+                "suggestion_reviews": [
+                    {
+                        "task": task["id"],
+                        "suggestion": suggestion["id"],
+                        "disposition": "rejected",
+                        "reason": (
+                            "Map records semantic doubt without blocking fast "
+                            "publication; Doctor or Evolve may refine it later."
+                        ),
+                    }
+                    for task in sorted(settled.values(), key=lambda row: row["id"])
+                    for suggestion in task.get("producer_suggestions", [])
+                ],
                 "todo": [],
                 "organization": {
                     "status": "flat_sufficient",
                     "reason": (
-                        "Canonical paths and navigation are fixed by the reviewed "
+                        "Canonical paths and navigation are fixed by the synthesized "
                         "semantic graph."
                     ),
                 },
                 "terminal_reason": (
-                    "no integration-derived ToDo: producers emitted no semantic "
-                    "exceptions and the complete synthesized graph was assembled"
+                    "no integration-derived ToDo: the synthesized graph and every "
+                    "mechanically valid producer draft were assembled"
                 ),
             }
             atomic_write(report_path, report)
@@ -5751,7 +5805,7 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
     elif states["published"] or states["review"]:
         action = "integrate"
         may_finish = False
-        reason = "all producer waves settled; assemble the reviewed graph"
+        reason = "all producer waves settled; assemble the synthesized graph"
     else:
         action = "repair"
         may_finish = False
@@ -5805,12 +5859,11 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
         (args.reducer_results, "reducer result root"),
         (args.global_packet, "global synthesis packet"),
         (args.mapping, "synthesis mapping"),
-        (args.review, "synthesis review"),
         (args.topic_plan, "topic plan"),
         (args.handoffs_root, "producer handoff root"),
     ):
         if path is not None:
-            require_outside_repository(path, repository_root, field=field)
+            require_map_runtime_path(path, repository_root, field=field)
     discovery = current.get("discovery")
     packet_root = (
         Path(discovery["root"])
@@ -5878,7 +5931,6 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
     for name, supplied in (
         ("global-packet", args.global_packet),
         ("mapping", args.mapping),
-        ("review", args.review),
         ("topic-plan", args.topic_plan),
     ):
         path = supplied or recorded_artifact_path(current, "synthesis", name)
@@ -5946,7 +5998,6 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
         for name, supplied in (
             ("global-packet", args.global_packet),
             ("mapping", args.mapping),
-            ("review", args.review),
             ("topic-plan", args.topic_plan),
         ):
             if supplied is not None and supplied.is_file():
@@ -6111,23 +6162,12 @@ def parser() -> argparse.ArgumentParser:
     release.add_argument("ledger", type=Path)
     release.add_argument("id")
 
-    harvest_wave = sub.add_parser("harvest-wave")
-    harvest_wave.add_argument("ledger", type=Path)
-    harvest_wave.add_argument("handoffs_root", type=Path)
-    harvest_wave.add_argument("spine_root", type=Path)
-    harvest_wave.add_argument("harvest_root", type=Path)
-    harvest_wave.add_argument(
-        "--checker",
-        type=Path,
-        default=Path(__file__).with_name("check_spine.py"),
-    )
-
-    accept_wave = sub.add_parser("accept-wave")
-    accept_wave.add_argument("ledger", type=Path)
-    accept_wave.add_argument("handoffs_root", type=Path)
-    accept_wave.add_argument("spine_root", type=Path)
-    accept_wave.add_argument("harvest_root", type=Path)
-    accept_wave.add_argument(
+    settle_wave = sub.add_parser("settle-wave")
+    settle_wave.add_argument("ledger", type=Path)
+    settle_wave.add_argument("handoffs_root", type=Path)
+    settle_wave.add_argument("spine_root", type=Path)
+    settle_wave.add_argument("harvest_root", type=Path)
+    settle_wave.add_argument(
         "--checker",
         type=Path,
         default=Path(__file__).with_name("check_spine.py"),
@@ -6169,7 +6209,6 @@ def parser() -> argparse.ArgumentParser:
     recover.add_argument("--reducer-results", type=Path)
     recover.add_argument("--global-packet", type=Path)
     recover.add_argument("--mapping", type=Path)
-    recover.add_argument("--review", type=Path)
     recover.add_argument("--topic-plan", type=Path)
     recover.add_argument("--handoffs-root", type=Path)
 
@@ -6194,8 +6233,7 @@ def main() -> int:
         "packet": command_packet,
         "assign": command_assign,
         "release": command_release,
-        "harvest-wave": command_harvest_wave,
-        "accept-wave": command_accept_wave,
+        "settle-wave": command_settle_wave,
         "prepare-integration": command_prepare_integration,
         "integration-pass": command_integration_pass,
         "assemble-integration": command_assemble_integration,

@@ -40,13 +40,6 @@ CORE_RELATIONS = {
     "compatible-with",
     "migrates-from",
 }
-REVIEW_KEYS = {
-    "existing_coverage_checked",
-    "cross_batch_duplicates_checked",
-    "granularity_checked",
-    "notes",
-}
-
 
 def source_topics(
     corpus: dict[str, Any],
@@ -209,10 +202,10 @@ def normalize_relationships(value: Any, *, field: str) -> list[dict[str, str]]:
 def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
     corpus = load_corpus(args.corpus)
     repository_root = Path(corpus["repository_root"])
-    campaign.require_outside_repository(
+    campaign.require_map_runtime_path(
         args.corpus, repository_root, field="discovery corpus"
     )
-    campaign.require_outside_repository(
+    campaign.require_map_runtime_path(
         args.output_dir, repository_root, field="synthesis packet root"
     )
     topics, _, leads = source_topics(corpus)
@@ -376,7 +369,7 @@ def command_merge(args: argparse.Namespace) -> dict[str, Any]:
         (args.results_dir, "reducer result root"),
         (args.output, "global synthesis packet"),
     ):
-        campaign.require_outside_repository(path, repository_root, field=field)
+        campaign.require_map_runtime_path(path, repository_root, field=field)
     topics, _, leads = source_topics(corpus)
     known = {value["source_id"] for value in topics}
     packets = sorted(args.packets_dir.glob("batch-*.json"))
@@ -566,23 +559,6 @@ def normalize_coverage(
     return reason, sorted(normalized, key=lambda item: item["document"])
 
 
-def normalize_review(value: Any) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != REVIEW_KEYS:
-        raise campaign.CampaignError(
-            "review needs existing_coverage_checked, "
-            "cross_batch_duplicates_checked, granularity_checked, and notes"
-        )
-    for field in REVIEW_KEYS - {"notes"}:
-        if value[field] is not True:
-            raise campaign.CampaignError(f"review {field} must be true")
-    return {
-        "existing_coverage_checked": True,
-        "cross_batch_duplicates_checked": True,
-        "granularity_checked": True,
-        "notes": clean_text(value["notes"], "review notes"),
-    }
-
-
 def synthesis_diagnostics(
     *,
     corpus: dict[str, Any],
@@ -680,59 +656,20 @@ def normalize_mapping(value: Any, *, field: str) -> dict[str, Any]:
     return value
 
 
-def reviewed_mapping(
-    mapping_path: Path,
-    review_path: Path,
-) -> tuple[dict[str, Any], dict[str, Any], str]:
-    provisional = normalize_mapping(
-        campaign.read_json(mapping_path),
-        field="provisional semantic mapping",
-    )
-    raw_review = campaign.read_json(review_path)
-    if not isinstance(raw_review, dict) or raw_review.get("decision") not in {
-        "accept",
-        "replace",
-    }:
-        raise campaign.CampaignError(
-            "reviewer result decision must be accept or replace"
-        )
-    decision = raw_review["decision"]
-    expected = (
-        {"decision", "review"}
-        if decision == "accept"
-        else {"decision", "mapping", "review"}
-    )
-    if set(raw_review) != expected:
-        raise campaign.CampaignError(
-            f"reviewer {decision} result has invalid shape"
-        )
-    review = normalize_review(raw_review["review"])
-    mapping = (
-        provisional
-        if decision == "accept"
-        else normalize_mapping(
-            raw_review["mapping"],
-            field="reviewer replacement mapping",
-        )
-    )
-    return mapping, review, decision
-
-
 def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
     corpus = load_corpus(args.corpus)
     repository_root = Path(corpus["repository_root"])
     for path, field in (
         (args.corpus, "discovery corpus"),
         (args.mapping, "synthesis mapping"),
-        (args.review, "synthesis review"),
         (args.output, "topic plan"),
     ):
-        campaign.require_outside_repository(path, repository_root, field=field)
+        campaign.require_map_runtime_path(path, repository_root, field=field)
     topics, file_map, _ = source_topics(corpus)
     known = set(file_map)
-    raw, review, review_decision = reviewed_mapping(
-        args.mapping,
-        args.review,
+    raw = normalize_mapping(
+        campaign.read_json(args.mapping),
+        field="semantic mapping",
     )
     final_topics: list[dict[str, Any]] = []
     final_covered: list[dict[str, Any]] = []
@@ -915,21 +852,6 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
                 raise campaign.CampaignError(
                     f"topic {topic['id']} cannot relate to itself"
                 )
-    if len(semantic_topics) > 1:
-        connected = {
-            topic["id"]
-            for topic in semantic_topics
-            if topic["relationships"]
-        } | {
-            relationship["target"]
-            for topic in semantic_topics
-            for relationship in topic["relationships"]
-        }
-        missing = sorted(semantic_ids - connected)
-        if missing:
-            raise campaign.CampaignError(
-                f"semantic graph has isolated topics: {missing}"
-            )
     if not open_leads:
         publish_validated_plan(args.output, plan, corpus=corpus)
     else:
@@ -951,8 +873,6 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
         "final_topics": len(final_topics) + len(final_covered),
         "singleton_topics": singleton_passthrough,
         "open_leads": len(open_leads),
-        "review_decision": review_decision,
-        "review": review,
         "diagnostics": diagnostics,
         "output": str(args.output.resolve()),
     }
@@ -985,7 +905,6 @@ def parser() -> argparse.ArgumentParser:
     materialize = sub.add_parser("materialize")
     materialize.add_argument("corpus", type=Path)
     materialize.add_argument("mapping", type=Path)
-    materialize.add_argument("review", type=Path)
     materialize.add_argument("output", type=Path)
     return result
 

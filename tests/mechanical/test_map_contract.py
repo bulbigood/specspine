@@ -20,7 +20,6 @@ class MapOperationContractTests(unittest.TestCase):
         cls.curator = read("references/frontier-curation.md")
         cls.synthesis = read("references/topic-synthesis.md")
         cls.reduction = read("references/topic-reduction.md")
-        cls.review = read("references/topic-review.md")
         cls.producer = read("references/producer-task.md")
         cls.integration = read("references/integration-pass.md")
         cls.campaign = read("scripts/campaign.py")
@@ -83,8 +82,7 @@ class MapOperationContractTests(unittest.TestCase):
             "ready",
             "packet",
             "assign",
-            "harvest-wave",
-            "accept-wave",
+            "settle-wave",
             "prepare-integration",
             "integration-pass",
             "next-action",
@@ -115,11 +113,6 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("Disposition every input `source_id` exactly once", self.reduction)
         self.assertIn("`passthrough`", self.reduction)
         self.assertIn("`merged`", self.reduction)
-        self.assertIn("Do not copy or invent file paths", self.review)
-        review = self.compact(self.review)
-        self.assertIn("existing_coverage_checked", review)
-        self.assertIn("rejects an unreviewed synthesizer result", review)
-        self.assertIn('"decision": "accept"', review)
         self.assertIn("source_topic_ids", synthesis)
         self.assertIn("merged_source_topics", synthesis)
         self.assertIn("source_topics(corpus", self.synthesis_script)
@@ -128,7 +121,8 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("fresh strong-tier synthesizer", protocol)
         self.assertIn("strong-tier global synthesizer", entrypoint)
         self.assertIn("medium-tier topic reducers", protocol)
-        self.assertIn("fresh medium-tier reviewer", protocol)
+        self.assertIn("do not block production", protocol)
+        self.assertIn("may remain temporarily isolated", synthesis)
 
     def test_scout_parallelism_is_adaptive_and_wave_checked(self):
         protocol = self.compact(self.protocol)
@@ -168,7 +162,7 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("exactly one bounded ToDo", producer)
         self.assertIn("complete producer instruction set", producer)
         self.assertIn("atomically renames the entire work package", producer)
-        self.assertIn("Root independently repeats all acceptance checks", producer)
+        self.assertIn("Root repeats mechanical acceptance checks", producer)
         self.assertIn("Wait for the whole wave without refill", protocol)
         self.assertIn("fresh strong-tier producers", protocol)
         self.assertIn("one-shot producers", self.entrypoint)
@@ -178,12 +172,14 @@ class MapOperationContractTests(unittest.TestCase):
         protocol = self.compact(self.protocol)
         entrypoint = self.compact(self.entrypoint)
         self.assertIn("Resume preserves every `assigned` task", protocol)
-        self.assertIn("Do not release harvested tasks", protocol)
+        self.assertIn("Repair only `rejected_tasks`", protocol)
         self.assertIn("Never read or accept an unfinished producer work directory", protocol)
         self.assertIn("harvest retained assigned tasks", entrypoint)
         self.assertIn("never restart accepted or harvestable work", entrypoint)
-        self.assertIn("persistent private runtime-data root", protocol)
-        self.assertIn("never use a hidden/gitignored project path", protocol)
+        self.assertIn("<workspace>/.specspine/map", protocol)
+        self.assertIn("Never place Map state elsewhere", protocol)
+        self.assertIn('".specspine"', self.campaign)
+        self.assertIn("ensure_map_runtime_root", self.campaign)
 
     def test_integration_owns_canonical_publication_and_derived_todo(self):
         text = self.compact(self.integration)
@@ -213,8 +209,7 @@ class MapOperationContractTests(unittest.TestCase):
                 "packet",
                 "assign",
                 "release",
-                "harvest-wave",
-                "accept-wave",
+                "settle-wave",
                 "prepare-integration",
                 "integration-pass",
                 "assemble-integration",
@@ -229,14 +224,13 @@ class MapOperationContractTests(unittest.TestCase):
 
     def test_prompt_files_stay_small(self):
         limits = {
-            "entrypoint": (self.entrypoint, 110),
+            "entrypoint": (self.entrypoint, 115),
             "protocol": (self.protocol, 340),
             "method": (self.method, 110),
             "discovery": (self.discovery, 105),
             "curator": (self.curator, 85),
             "synthesis": (self.synthesis, 100),
             "reduction": (self.reduction, 50),
-            "review": (self.review, 50),
             "producer": (self.producer, 135),
             "integration": (self.integration, 175),
         }

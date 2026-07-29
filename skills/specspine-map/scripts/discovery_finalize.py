@@ -278,6 +278,16 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
         raise campaign.CampaignError(
             f"discovery repository root is not a directory: {repository_root}"
         )
+    for path, field in (
+        (args.packet, "discovery packet"),
+        (args.draft, "discovery draft"),
+        (args.result, "discovery result"),
+    ):
+        campaign.require_map_runtime_path(
+            path,
+            repository_root,
+            field=field,
+        )
     draft = campaign.read_json(args.draft)
     result, normalization = canonical_result(packet, draft)
     campaign.atomic_write(args.result, result)

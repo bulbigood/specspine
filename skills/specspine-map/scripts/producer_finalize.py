@@ -315,6 +315,18 @@ def validate_draft_semantics(
 def finalize(args: argparse.Namespace) -> dict[str, Any]:
     work = args.work_package.resolve()
     handoff = args.handoff_package.resolve()
+    repository_root = args.repository_root.resolve()
+    runtime_root = repository_root / ".specspine" / "map"
+    for path, field in (
+        (args.task_packet.resolve(), "producer task packet"),
+        (work, "producer work package"),
+        (handoff, "producer handoff package"),
+    ):
+        if path != runtime_root and runtime_root not in path.parents:
+            raise PreflightError(
+                f"{field} must be under the workspace Map runtime root "
+                f"{runtime_root}: {path}"
+            )
     if not work.is_dir():
         raise PreflightError(f"work package is not a directory: {work}")
     if handoff.exists():
@@ -329,7 +341,6 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
     checkpoint = read_object(checkpoint_path)
     evidence = validate_checkpoint(checkpoint, task, staged)
     validate_task_outcome(checkpoint, task)
-    repository_root = args.repository_root.resolve()
     spine_root = args.spine_root.resolve()
     validate_repository_evidence(repository_root, evidence)
     validate_covered_owner(checkpoint, task, spine_root, evidence)

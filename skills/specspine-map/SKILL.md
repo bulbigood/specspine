@@ -53,7 +53,6 @@ Neither terminal claims that no conceivable architectural concept exists.
   [frontier-curation.md](references/frontier-curation.md),
   [topic-reduction.md](references/topic-reduction.md),
   [topic-synthesis.md](references/topic-synthesis.md),
-  [topic-review.md](references/topic-review.md), or
   [producer-task.md](references/producer-task.md).
 - Read [integration-pass.md](references/integration-pass.md) before publishing.
 - Start new files from `assets/templates/`; omit empty sections.
@@ -73,7 +72,7 @@ It is exhaustive by default; an explicit test-only limit creates a truncated
 vertical slice that cannot support a repository completeness claim.
 
 For exhaustive work, use fresh isolated weak-tier scouts; medium-tier
-curators, topic reducers, and reviewers; strong-tier one-shot producers; and
+curators and topic reducers; strong-tier one-shot producers; and
 one strong-tier global synthesizer. Scout subwaves contain at most
 ten and must also fit the runtime's available subagent slots; reserve the root
 slot when capacity includes it. Producer waves contain at most ten and must
@@ -90,8 +89,10 @@ neutral inventory accelerator without a duplicate whole-repository scout.
 Complete and validate every initial packet
 before frontier curation.
 
-Keep campaign state in the platform's persistent private runtime-data root,
-never the project or OS temporary storage. Run `campaign.py next-action`
+Keep every Map campaign and temporary artifact under
+`<workspace>/.specspine/map`; never use agent-global or OS temporary storage.
+The runtime directory is excluded from discovery and may contain multiple
+named campaign directories. Run `campaign.py next-action`
 before final answers; `may_finish: false` forbids finishing unless `may_pause:
 true`. On resume, harvest
 retained assigned tasks before releasing only those without a valid
@@ -105,5 +106,7 @@ ledger transition atomically. Do not invoke Doctor inside Map.
 Synthesis agents operate on scout descriptions and provenance IDs, never on
 bulk file lists. `synthesis.py` alone copies singleton semantics, validates
 reducer coverage, exposes original descriptions only for reducer merges,
-resolves IDs back to corpus evidence, requires independent review attestation,
-reports suspicious coverage or granularity, and atomically writes the sole canonical topic plan.
+resolves IDs back to corpus evidence, reports suspicious coverage or
+granularity, and atomically writes the sole
+canonical topic plan. Semantic diagnostics are advisory: Map favors prompt
+coverage and leaves later graph refinement to Doctor or Evolve.

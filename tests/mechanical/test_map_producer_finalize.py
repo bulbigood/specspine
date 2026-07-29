@@ -24,10 +24,11 @@ class ProducerFinalizeTests(unittest.TestCase):
             "SESSION = True\n",
             encoding="utf-8",
         )
-        self.work = self.root / "work" / "task-1"
+        runtime = self.repository / ".specspine" / "map" / "test-run"
+        self.work = runtime / "work" / "task-1"
         (self.work / "staging").mkdir(parents=True)
-        self.handoff = self.root / "handoffs" / "task-1"
-        self.packet = self.root / "packet.json"
+        self.handoff = runtime / "handoffs" / "task-1"
+        self.packet = runtime / "packet.json"
         self.packet.write_text(
             json.dumps(
                 {
@@ -116,6 +117,17 @@ class ProducerFinalizeTests(unittest.TestCase):
         self.assertFalse(self.work.exists())
         self.assertTrue((self.handoff / "checkpoint.json").is_file())
         self.assertTrue((self.handoff / "staging" / "identity.md").is_file())
+
+    def test_rejects_work_outside_workspace_map_root(self):
+        outside = self.root / "outside" / "task-1"
+        shutil.copytree(self.work, outside)
+        self.work = outside
+        self.candidate()
+        self.checkpoint()
+
+        error = self.execute(expected=2)
+
+        self.assertIn("workspace Map runtime root", error["error"])
 
     def test_checker_failure_keeps_private_work_and_exposes_no_handoff(self):
         self.candidate()
