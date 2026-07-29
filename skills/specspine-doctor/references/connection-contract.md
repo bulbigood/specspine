@@ -49,8 +49,9 @@ root, the script must not create or modify `.gitignore`. Persist the same root
 and language in the managed block. Create no
 concept specifications and never overwrite an existing root file. Use the
 bundled root-index template only as bootstrap input. It contains the fixed
-SpecSpine purpose and scope statements. After creating the root pair, run
-`rebuild_indexes.py`; nested indexes contain only deterministic navigation.
+SpecSpine purpose, scope, and compact reading guide. After creating the root
+pair, run `rebuild_indexes.py`; the root remains self-describing and nested
+indexes contain only deterministic navigation.
 
 ## Selected-root states
 
@@ -191,9 +192,11 @@ bindings, adapters, or downstream workflow instructions. Naming
 the user asks what project architecture documentation says without naming
 SpecSpine, is part of this contract, not workflow adaptation.
 
-Do not copy a general explanation of SpecSpine into the managed block. The
-root index contains only the canonical fixed purpose statement; nested indexes
-contain no framework explanation.
+Do not copy a general explanation of SpecSpine into the managed block. The root
+index contains the canonical fixed purpose, scope, and compact reading guide;
+nested indexes contain no framework explanation. The guide is the portable
+fallback for agents without installed skills and remains deterministic rather
+than project-authored.
 
 The documentation language also guides Extract's retrieval query language.
 Exact paths, semantic IDs, API names, and other identifiers are never

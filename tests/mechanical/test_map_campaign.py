@@ -1038,6 +1038,9 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual(["_INDEX.md", "specspine.json"], first["created"])
         self.assertEqual("already_ready", second["status"])
         self.assertEqual([], second["created"])
+        index = (spine / "_INDEX.md").read_text(encoding="utf-8")
+        self.assertIn("## How to use this Spine", index)
+        self.assertIn("`OBS` records confirmed implementation evidence", index)
 
     def test_empty_spine_bootstrap_recovers_its_missing_manifest(self):
         spine = self.run / "partial-empty-spine"

@@ -183,7 +183,7 @@ changing canonical Markdown.
 
 An optional `index` mapping configures only deterministic index text:
 `root-title` (containing `{project}` exactly once), `purpose`, `scope`,
-`contents-heading`, `nested-heading`, and `empty`.
+`guide-heading`, `guide`, `contents-heading`, `nested-heading`, and `empty`.
 
 The profile MUST NOT change document identity, kinds, facets, statement
 prefixes, relations, assets, blockers, authority, or reconstruction semantics.
@@ -287,8 +287,12 @@ Root `_INDEX.md` is the entry point. Every `_INDEX.md` contains:
 
 The root uses ID `project-architecture`. Nested index IDs are derived
 deterministically from their root-relative directory paths. Only the root
-index contains the fixed SpecSpine purpose statement, project name, and scope
-statement.
+index contains the fixed SpecSpine purpose statement, project name, scope
+statement, and compact reading guide. The guide makes the committed Spine
+self-describing for agents and people without installed SpecSpine skills. It
+explains authority, navigation, identifier families, divergence handling, and
+canonical ownership; skills optimize retrieval and maintenance but are not
+required to interpret the format.
 
 Use this scope statement when creating an index, translated when needed:
 

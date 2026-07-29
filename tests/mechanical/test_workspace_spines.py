@@ -83,6 +83,8 @@ class WorkspaceSpinesTests(unittest.TestCase):
                 "root-title": "Архитектура {project}",
                 "purpose": "Долговременная спецификация проекта.",
                 "scope": "Архитектурные намерения и наблюдения.",
+                "guide-heading": "Как читать этот Spine",
+                "guide": "- Следуйте ссылкам к владельцу области.",
                 "contents-heading": "Содержание",
                 "nested-heading": "Вложенные SpecSpine",
                 "empty": "Нет элементов.",
@@ -93,7 +95,18 @@ class WorkspaceSpinesTests(unittest.TestCase):
         index = (root / "_INDEX.md").read_text()
         self.assertIn("# Архитектура demo", index)
         self.assertIn("## Содержание", index)
+        self.assertIn("## Как читать этот Spine", index)
+        self.assertIn("Следуйте ссылкам к владельцу области.", index)
         self.assertIn("Долговременная спецификация проекта.", index)
+
+    def test_default_root_index_is_self_describing_without_skills(self):
+        root = self.root("specspine", "demo")
+        index = (root / "_INDEX.md").read_text()
+        self.assertIn("## How to use this Spine", index)
+        self.assertIn("SpecSpine owns accepted durable intent", index)
+        self.assertIn("`DEC`, `CON`, `REQ`, `GUA`, `INV`, `QLT`, and `VER`", index)
+        self.assertIn("`OBS` records confirmed implementation evidence", index)
+        self.assertIn("Do not silently turn code", index)
 
     def test_workspace_graph_connects_nested_roots_and_keeps_siblings(self):
         parent = self.root("docs/specspine", "parent")

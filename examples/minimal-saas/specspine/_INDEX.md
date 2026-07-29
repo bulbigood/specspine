@@ -1,4 +1,4 @@
-# map-modes-six-area architecture
+# minimal-saas architecture
 
 **ID:** `project-architecture` · **Kind:** `index`
 
@@ -17,5 +17,8 @@ This directory contains the project's long-lived architectural intent and archit
 
 ## Contents
 
-- [runtime.md](runtime.md)
+- [application.md](application.md)
+- [billing.md](billing.md)
+- [identity.md](identity.md)
+- [operations.md](operations.md)
 - [specspine.json](specspine.json)

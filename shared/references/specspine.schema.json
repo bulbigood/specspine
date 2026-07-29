@@ -96,6 +96,8 @@
             "root-title": {"type": "string", "minLength": 1},
             "purpose": {"type": "string", "minLength": 1},
             "scope": {"type": "string", "minLength": 1},
+            "guide-heading": {"type": "string", "minLength": 1},
+            "guide": {"type": "string", "minLength": 1},
             "contents-heading": {"type": "string", "minLength": 1},
             "nested-heading": {"type": "string", "minLength": 1},
             "empty": {"type": "string", "minLength": 1}

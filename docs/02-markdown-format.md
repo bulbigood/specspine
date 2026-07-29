@@ -2,8 +2,8 @@
 
 ## Root index
 
-`<spine-root>/README.md` is the entry point and curated architecture map. It is
-not the semantic parent of every specification.
+`<spine-root>/_INDEX.md` is the deterministic entry point and physical
+navigation map. It is not the semantic parent of every specification.
 
 The index MUST contain:
 
@@ -12,12 +12,12 @@ The index MUST contain:
 - a short scope statement explaining that the directory contains the project's
   long-lived architectural intent and architecture-relevant repository
   observations;
-- a short project purpose and architectural context;
-- a compact `Architecture map`.
+- the fixed compact guide for reading the Spine without installed skills;
+- an exhaustive `Contents` list of immediate files and child indexes.
 
-It SHOULD also contain the main external boundaries, system-wide decisions and
-constraints, and architecture-significant open questions. It MUST NOT become a
-catalog of every document.
+The root index is generated and MUST NOT own project decisions, constraints,
+observations, divergences, or open questions. Put those in their canonical
+non-index owners. Nested indexes contain only deterministic navigation.
 
 The root MUST also contain `specspine.json` with the exact schema defined by the
 shared format contract. Completeness, blockers, and assets MUST NOT be

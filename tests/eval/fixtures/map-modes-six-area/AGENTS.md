@@ -1,9 +1,12 @@
 <!-- specspine:begin -->
-## SpecSpine documentation
+## SpecSpine
 
-- SpecSpine index: `specspine/README.md`
-- SpecSpine documentation language: `en`
+- SpecSpine index: `specspine/_INDEX.md`
+- Documentation language: `English`
 
-For architecture-relevant work, read the SpecSpine index and follow the
-smallest set of relevant links. Decisions and constraints are accepted intent.
+Use installed `specspine-extract` for architecture, specification,
+reconstruction, planning, implementation, or review context. Skills are
+optional: when extraction is unavailable, read the self-describing index and
+follow relevant links. Preserve normative claims, observations, inferences,
+divergences, and blocking questions without conflating them.
 <!-- specspine:end -->

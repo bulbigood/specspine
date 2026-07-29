@@ -267,6 +267,9 @@ Owns an unreachable architectural responsibility.
         )
         instructions = skill + "\n" + contract
         index = (source / "assets/templates/spine-index.md").read_text(encoding="utf-8")
+        bootstrap = (source / "assets/templates/agent-bootstrap.md").read_text(
+            encoding="utf-8"
+        )
         for value in ("`specspine`", "`English`", "`AGENTS.md`"):
             self.assertIn(value, instructions)
         self.assertIn("<spine-root>/_INDEX.md", instructions)
@@ -280,7 +283,10 @@ Owns an unreachable architectural responsibility.
         self.assertIn("exact label accepted by the operator", instructions)
         self.assertIn("Do not translate its headings", instructions)
         self.assertIn("rebuild_indexes.py", instructions)
-        self.assertIn("SpecSpine purpose and scope statements", instructions)
+        self.assertIn(
+            "SpecSpine purpose, scope, and compact reading guide",
+            instructions,
+        )
         self.assertIn("deterministic navigation", instructions)
         self.assertIn("# Project architecture", index)
         self.assertIn(
@@ -293,6 +299,10 @@ Owns an unreachable architectural responsibility.
         )
         self.assertIn("SpecSpine is", index)
         self.assertNotIn("specspine-extract", index)
+        self.assertIn("## How to use this Spine", index)
+        self.assertIn("`OBS` records confirmed implementation evidence", index)
+        self.assertIn("Skills are", bootstrap)
+        self.assertIn("optional", bootstrap)
 
     def test_doctor_explains_modes_before_requesting_a_selection(self):
         source = PROJECT_ROOT / "skills/specspine-doctor"

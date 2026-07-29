@@ -92,6 +92,22 @@ DEFAULT_INDEX_TEXT = {
         "This directory contains the project's long-lived architectural intent and "
         "architecture-relevant repository observations."
     ),
+    "guide-heading": "How to use this Spine",
+    "guide": (
+        "- Start with `Contents`, then follow links to the canonical owner of the "
+        "area relevant to the task. Preserve stable document IDs when files move.\n"
+        "- SpecSpine owns accepted durable intent; source code owns the current "
+        "implementation. Neither alone proves that implementation conforms to intent.\n"
+        "- `specspine.json` records areas, completeness, inspection coverage, blockers, "
+        "and registered contract or verification assets.\n"
+        "- `DEC`, `CON`, `REQ`, `GUA`, `INV`, `QLT`, and `VER` identify accepted "
+        "claims. `OBS` records confirmed implementation evidence, `INF` an unconfirmed "
+        "inference, and `OQ` an unresolved question.\n"
+        "- `Known divergences` links accepted intent to conflicting observations. Do "
+        "not silently turn code, `OBS`, or `INF` into accepted intent.\n"
+        "- Update the canonical owner instead of copying a claim into another document; "
+        "preserve unresolved conflicts and blocking questions explicitly."
+    ),
     "contents-heading": "Contents",
     "nested-heading": "Nested SpecSpines",
     "empty": "No indexed entries.",

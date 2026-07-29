@@ -108,6 +108,10 @@ def render_index(
                 "",
                 index_text["scope"],
                 "",
+                f"## {index_text['guide-heading']}",
+                "",
+                index_text["guide"],
+                "",
             ]
         )
     lines.extend([f"## {index_text['contents-heading']}", ""])

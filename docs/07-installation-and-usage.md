@@ -79,11 +79,11 @@ temporary directory.
 Connection administration and health review are separate operations.
 
 The managed project-instruction block contains only the index location,
-documentation language, retrieval route, and compact authority rules. The root
-index contains only project-specific architectural context; completeness lives
-in `specspine.json`.
-General explanations of the SpecSpine framework remain in this documentation
-and are not copied into either project artifact.
+documentation language, retrieval route, and compact authority rules. The
+generated root index contains a compact deterministic reading guide so the
+committed Spine remains understandable when skills are unavailable;
+completeness lives in `specspine.json`. Full framework documentation remains
+here and is not copied into project artifacts.
 
 ## Start or evolve intended architecture
 
