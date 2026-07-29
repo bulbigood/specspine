@@ -149,7 +149,8 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("discovery_finalize.py", self.entrypoint)
         self.assertIn("weak-tier scouts", entrypoint)
         self.assertIn("at most ten", entrypoint)
-        self.assertIn("Producer waves contain at most five", entrypoint)
+        self.assertIn("Producer waves contain at most ten", entrypoint)
+        self.assertIn("MAX_PRODUCER_WAVE = 10", self.campaign)
         self.assertIn("MAX_SCOUT_SEED_FILES = 40", self.campaign)
         self.assertIn("MAX_INITIAL_SCOUTS = 10", self.campaign)
         self.assertIn("MAX_UNIT_FILES = 80", self.campaign)
@@ -169,9 +170,9 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("atomically renames the entire work package", producer)
         self.assertIn("Root independently repeats all acceptance checks", producer)
         self.assertIn("Wait for the whole wave without refill", protocol)
-        self.assertIn("fresh medium-tier producers", protocol)
+        self.assertIn("fresh strong-tier producers", protocol)
         self.assertIn("one-shot producers", self.entrypoint)
-        self.assertIn("medium-tier", self.entrypoint)
+        self.assertIn("strong-tier one-shot producers", self.entrypoint)
 
     def test_resume_recovers_atomic_handoffs_before_redispatch(self):
         protocol = self.compact(self.protocol)

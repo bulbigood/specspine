@@ -272,7 +272,7 @@ Only uncovered `topics` become producer tasks.
 For every `dispatch` action, create one strict resource wave:
 
 ```text
-python3 <skill>/scripts/campaign.py ready <campaign> --limit 5
+python3 <skill>/scripts/campaign.py ready <campaign> --limit 10
 python3 <skill>/scripts/campaign.py packet \
   <campaign> <task-id> --output <packet.json>
 python3 <skill>/scripts/campaign.py assign \
@@ -281,7 +281,8 @@ python3 <skill>/scripts/campaign.py assign \
 ```
 
 Use the exact `handoff_package` returned by `assign`; never construct or rename
-the attempt suffix manually. Create fresh medium-tier producers. Give each
+the attempt suffix manually. Set the producer wave size to the smaller of ten
+and available slots after reserving root. Create fresh strong-tier producers. Give each
 only `producer-task.md`, its packet, repository, Spine, private work path,
 that returned handoff path, and
 `producer_finalize.py`. Wait for the whole wave without refill. Producers

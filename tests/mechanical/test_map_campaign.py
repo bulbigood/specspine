@@ -1268,6 +1268,16 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual(2, ready["total"])
         self.assertEqual(1, len(ready["ready"]))
 
+    def test_ready_rejects_oversized_producer_wave(self):
+        error = self.cli(
+            "ready",
+            str(self.ledger),
+            "--limit",
+            str(CAMPAIGN_MODULE.MAX_PRODUCER_WAVE + 1),
+            expected=2,
+        )
+        self.assertIn("producer wave limit exceeds 10", error["error"])
+
     def test_ready_prioritizes_system_breadth_before_leaf_detail(self):
         (self.repository / "main.go").write_text("package main\n", encoding="utf-8")
         for relative in (

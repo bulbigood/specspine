@@ -37,6 +37,7 @@ DISCOVERY_CONTRACT_VERSION = 4
 MAX_UNIT_FILES = 80
 MAX_SCOUT_SEED_FILES = 40
 MAX_INITIAL_SCOUTS = 10
+MAX_PRODUCER_WAVE = 10
 MAX_CANDIDATE_DOCUMENTS = 12
 DISCOVERY_TERMINAL_STATUSES = {
     "unresolved",
@@ -3452,7 +3453,11 @@ def command_ready(args: argparse.Namespace) -> dict[str, Any]:
         ]
     )
     ready = [task["id"] for task in ordered]
-    limit = args.limit if args.limit is not None else len(ready)
+    limit = args.limit if args.limit is not None else MAX_PRODUCER_WAVE
+    if limit > MAX_PRODUCER_WAVE:
+        raise CampaignError(
+            f"producer wave limit exceeds {MAX_PRODUCER_WAVE}"
+        )
     selected: list[str] = []
     selected_units: set[str] = set()
     for task in ordered:

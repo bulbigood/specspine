@@ -72,11 +72,12 @@ repository scope. It grants no grouping, ownership, coverage, or completion.
 It is exhaustive by default; an explicit test-only limit creates a truncated
 vertical slice that cannot support a repository completeness claim.
 
-For exhaustive work, use fresh isolated weak-tier scouts, medium-tier
-curators, topic reducers, reviewers, and one-shot producers, and one fresh
-strong-tier global synthesizer. Scout subwaves contain at most
+For exhaustive work, use fresh isolated weak-tier scouts; medium-tier
+curators, topic reducers, and reviewers; strong-tier one-shot producers; and
+one strong-tier global synthesizer. Scout subwaves contain at most
 ten and must also fit the runtime's available subagent slots; reserve the root
-slot when capacity includes it. Producer waves contain at most five. Never
+slot when capacity includes it. Producer waves contain at most ten and must
+also fit available slots while reserving root. Never
 refill a settled strict wave. An increment may execute the same contracts
 serially in root. If the required execution tier is unavailable, preserve the
 campaign and report it blocked.
