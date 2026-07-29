@@ -50,6 +50,8 @@ delivery state, and implementation-specific testing.
   reconstruction blockers, implementation freedom, and exact assets once.
 - Readiness is derived as `ready`, `incomplete`, or `blocked`.
 - Derived indexes, graphs, diagrams, and handoffs are disposable.
+- Skills keep disposable runtime files under the ignored workspace-local
+  `.specspine/<skill>` directory.
 - Retrieval degrades to direct Markdown navigation when acceleration is
   unavailable.
 - No CLI, database, frontmatter, renderer, or vendor is required to understand

@@ -66,7 +66,15 @@ Doctor asks for the Spine root (`specspine` by default), documentation language,
 and project instruction file (`AGENTS.md` by default). It creates a missing
 root index and `specspine.json` together but does not modify an existing root
 or create concept specifications.
-It installs one bounded managed bootstrap and runs the mechanical checker.
+When the project workspace is a Git repository root, Doctor also adds the exact
+`.specspine` rule to its `.gitignore` without changing existing rules. It does
+not create or modify `.gitignore` outside a Git repository root. Doctor then
+installs one bounded managed bootstrap and runs the mechanical checker.
+
+`.specspine` is workspace-local disposable state for SpecSpine skills. Agents
+improving the framework should keep temporary files there, namespaced by skill
+(for example, `.specspine/map`), rather than in the repository tree or a global
+temporary directory.
 
 Connection administration and health review are separate operations.
 

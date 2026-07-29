@@ -3,10 +3,10 @@
 ## Purpose
 
 The connection records operator-owned SpecSpine configuration in persistent
-project-agent instructions and ensures the configured v3 root pair exists. The
-bootstrap gives every project agent a stable route to architectural context.
-It is project configuration, not architecture and not a downstream workflow
-adapter.
+project-agent instructions, ensures the configured v3 root pair exists, and
+keeps workspace-local skill state out of version control. The bootstrap gives
+every project agent a stable route to architectural context. It is project
+configuration, not architecture and not a downstream workflow adapter.
 
 | Artifact | Role | Load behavior |
 |---|---|---|
@@ -42,7 +42,11 @@ This ordering requires two user turns when neither root nor language is
 supplied: root selection, then confirmation of the root-dependent settings.
 After confirmation, create missing `_INDEX.md` and `specspine.json` as one root
 operation with `scripts/bootstrap_spine.py`; never write either root file
-directly. Persist the same root and language in the managed block. Create no
+directly. Pass the project workspace so the script also idempotently adds the
+exact `.specspine` rule to its root `.gitignore` when the workspace is a Git
+repository root, preserving all existing rules. When it is not a Git repository
+root, the script must not create or modify `.gitignore`. Persist the same root
+and language in the managed block. Create no
 concept specifications and never overwrite an existing root file. Use the
 bundled root-index template only as bootstrap input. It contains the fixed
 SpecSpine purpose and scope statements. After creating the root pair, run
@@ -70,14 +74,17 @@ Render the accepted index into a private temporary file, then run:
 
 ```text
 python3 <skill>/scripts/bootstrap_spine.py <spine-root> \
-  --project <project-name> --index-file <rendered-index>
+  --project <project-name> --index-file <rendered-index> \
+  --workspace <workspace>
 ```
 
 Pass `--index-file` whenever `_INDEX.md` is absent. The script creates only
 missing root files, rolls back its own partial pair on failure, preserves all
 existing files, and returns `created` or `already_ready`. Delete the rendered
-temporary input afterward. A script error blocks connection; do not emulate
-its writes manually.
+temporary input afterward. The workspace-local `.specspine` directory is the
+shared location for disposable skill runtime files; each skill must use its own
+subdirectory. A script error blocks connection; do not emulate its writes
+manually.
 
 Do not recursively inspect a selected directory merely to decide whether it is
 a SpecSpine. Workspace discovery is the explicit exception and recognizes only

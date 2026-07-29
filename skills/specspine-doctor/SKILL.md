@@ -28,8 +28,10 @@ implicitly.
   `--json` only when structured output is useful.
 - Run `scripts/workspace_spines.py <workspace>` for workspace-wide discovery
   and connectivity. Use `--rebuild` only for an authorized repair.
-- Use `scripts/bootstrap_spine.py` for root creation; never write the pair
-  directly.
+- Use `scripts/bootstrap_spine.py --workspace <workspace>` for project
+  initialization; it creates the root pair and idempotently adds `.specspine`
+  to the workspace `.gitignore` only when the workspace is a Git repository
+  root. Never write these artifacts directly.
 - Read [references/spec-semantics.md](references/spec-semantics.md) for a
   semantic review.
 - Read [references/review-method.md](references/review-method.md) for semantic
@@ -45,11 +47,14 @@ Follow the connection contract exactly. `connect` idempotently creates,
 refreshes, or changes the requested connection from observed state. Preserve
 recognized settings not explicitly changed.
 
-Connect may modify only that managed block and may create an absent root pair.
-Render the accepted-language index; `bootstrap_spine.py` writes it and the
-manifest. Preserve existing roots and project instructions. Disconnect removes
-only the managed block, never the Spine or instruction file. A satisfied target
-state causes no write.
+Connect may modify only that managed block, the exact `.specspine` ignore rule,
+and an absent root pair. Render the accepted-language index;
+`bootstrap_spine.py` writes the pair and ensures the workspace ignores
+`.specspine` when the workspace is a Git repository root; otherwise it leaves
+`.gitignore` absent or unchanged. Preserve existing roots, ignore rules, and
+project instructions. Disconnect removes only the managed block, never the
+Spine, workspace state, or instruction file. A satisfied target state causes no
+write.
 
 After a successful connection change, run the mechanical checker once and
 report its findings separately. Do not repair findings or begin semantic review
@@ -124,8 +129,9 @@ workspace wrapper. Never ask an AI agent to curate index entries.
 ## Boundaries
 
 - Never edit source code or other skills.
-- In connection mode, own only the managed project-instruction block and a new
-  root index; do not edit existing specifications.
+- In connection mode, own only the managed project-instruction block, the exact
+  `.specspine` ignore rule, and a new root pair; do not edit existing
+  specifications.
 - In health mode, inspect no project-specific file outside `<spine-root>` and
   do not edit project integration artifacts.
 - Do not edit specifications before operator approval.

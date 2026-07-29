@@ -43,6 +43,58 @@ class BootstrapSpineTests(unittest.TestCase):
         self.assertEqual(expected, result.returncode, result.stderr)
         return json.loads(result.stdout if expected == 0 else result.stderr)
 
+    def test_workspace_initialization_adds_gitignore_rule_idempotently(self):
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        ignore = self.root / ".gitignore"
+        ignore.write_text("dist/", encoding="utf-8")
+        first = self.cli(
+            "--index-file",
+            str(self.index),
+            "--workspace",
+            str(self.root),
+        )
+        second = self.cli("--workspace", str(self.root))
+        self.assertEqual("updated", first["workspace_gitignore"])
+        self.assertEqual("already_present", second["workspace_gitignore"])
+        self.assertEqual("dist/\n.specspine\n", ignore.read_text(encoding="utf-8"))
+
+    def test_workspace_initialization_creates_gitignore(self):
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        result = self.cli(
+            "--index-file",
+            str(self.index),
+            "--workspace",
+            str(self.root),
+        )
+        self.assertEqual("created", result["workspace_gitignore"])
+        self.assertEqual(
+            ".specspine\n",
+            (self.root / ".gitignore").read_text(encoding="utf-8"),
+        )
+
+    def test_workspace_initialization_skips_gitignore_without_repository(self):
+        result = self.cli(
+            "--index-file",
+            str(self.index),
+            "--workspace",
+            str(self.root),
+        )
+        self.assertEqual("not_git_repository", result["workspace_gitignore"])
+        self.assertFalse((self.root / ".gitignore").exists())
+
+    def test_workspace_initialization_does_not_write_from_repository_subdirectory(self):
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        nested = self.root / "nested"
+        nested.mkdir()
+        result = self.cli(
+            "--index-file",
+            str(self.index),
+            "--workspace",
+            str(nested),
+        )
+        self.assertEqual("not_git_repository", result["workspace_gitignore"])
+        self.assertFalse((nested / ".gitignore").exists())
+
     def test_creates_pair_and_is_idempotent(self):
         first = self.cli("--index-file", str(self.index))
         second = self.cli()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Idempotently create a SpecSpine v3 root pair without overwriting files."""
+"""Idempotently initialize a workspace and its SpecSpine v3 root pair."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -57,12 +58,52 @@ def exclusive_write(path: Path, content: bytes) -> None:
         raise
 
 
+def ensure_workspace_ignore(workspace: Path) -> str:
+    workspace = workspace.resolve()
+    if not workspace.is_dir():
+        raise BootstrapError(f"workspace is not a directory: {workspace}")
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(workspace), "rev-parse", "--show-toplevel"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return "not_git_repository"
+    if completed.returncode != 0:
+        return "not_git_repository"
+    try:
+        repository_root = Path(completed.stdout.strip()).resolve()
+    except (OSError, RuntimeError):
+        return "not_git_repository"
+    if repository_root != workspace:
+        return "not_git_repository"
+    ignore_path = workspace / ".gitignore"
+    rule = ".specspine"
+    if ignore_path.exists() and not ignore_path.is_file():
+        raise BootstrapError(f".gitignore is not a regular file: {ignore_path}")
+    try:
+        existing = ignore_path.read_text(encoding="utf-8") if ignore_path.exists() else ""
+    except (OSError, UnicodeError) as error:
+        raise BootstrapError(f"cannot read {ignore_path}: {error}") from error
+    if rule in existing.splitlines():
+        return "already_present"
+    separator = "" if not existing or existing.endswith("\n") else "\n"
+    with ignore_path.open("a", encoding="utf-8") as stream:
+        stream.write(f"{separator}{rule}\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    return "created" if not existing else "updated"
+
+
 def bootstrap(
     root: Path,
     project: str,
     index_file: Path | None,
     *,
     require_exact: bool = False,
+    workspace: Path | None = None,
 ) -> dict[str, Any]:
     project = project.strip()
     if not project:
@@ -98,6 +139,7 @@ def bootstrap(
                 raise BootstrapError(
                     "existing specspine.json differs from rendered bootstrap"
                 )
+    ignore_status = ensure_workspace_ignore(workspace) if workspace is not None else None
     root.mkdir(parents=True, exist_ok=True)
     manifest_bytes = (
         json.dumps(expected_manifest, ensure_ascii=False, indent=2).encode("utf-8")
@@ -115,11 +157,14 @@ def bootstrap(
         for name in created:
             (root / name).unlink(missing_ok=True)
         raise
-    return {
+    result = {
         "status": "created" if created else "already_ready",
         "spine_root": str(root),
         "created": created,
     }
+    if ignore_status is not None:
+        result["workspace_gitignore"] = ignore_status
+    return result
 
 
 def parser() -> argparse.ArgumentParser:
@@ -128,6 +173,11 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--project", required=True)
     result.add_argument("--index-file", type=Path)
     result.add_argument("--require-exact", action="store_true")
+    result.add_argument(
+        "--workspace",
+        type=Path,
+        help="ensure the workspace .gitignore contains the .specspine rule",
+    )
     return result
 
 
@@ -139,6 +189,7 @@ def main() -> int:
             args.project,
             args.index_file,
             require_exact=args.require_exact,
+            workspace=args.workspace,
         )
     except (BootstrapError, OSError) as error:
         print(json.dumps({"error": str(error)}, ensure_ascii=False), file=sys.stderr)
