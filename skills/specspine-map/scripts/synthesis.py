@@ -14,7 +14,8 @@ from typing import Any
 import campaign
 
 
-SYNTHESIS_CONTRACT_VERSION = 3
+SYNTHESIS_CONTRACT_VERSION = 4
+MAX_EVIDENCE_STRATA = 8
 
 def source_topics(
     corpus: dict[str, Any],
@@ -90,6 +91,43 @@ def source_ids(value: Any, known: set[str], field: str) -> list[str]:
     if unknown:
         raise campaign.CampaignError(f"{field} has unknown source topics: {unknown}")
     return sorted(values)
+
+
+def representative_evidence_strata(
+    source_topic_ids: list[str],
+    file_map: dict[str, list[str]],
+) -> list[dict[str, str]]:
+    """Choose bounded samples from semantic scout topics, not individual files."""
+    source_ids = sorted(source_topic_ids)
+    if len(source_ids) > MAX_EVIDENCE_STRATA:
+        last = len(source_ids) - 1
+        source_ids = [
+            source_ids[(index * last) // (MAX_EVIDENCE_STRATA - 1)]
+            for index in range(MAX_EVIDENCE_STRATA)
+        ]
+    used: set[str] = set()
+    result: list[dict[str, str]] = []
+    for source_id in source_ids:
+        candidates = sorted(
+            file_map[source_id],
+            key=lambda path: (
+                path in used,
+                ".test." in path or "/test/" in path or "/tests/" in path,
+                len(Path(path).parts),
+                path,
+            ),
+        )
+        if not candidates:
+            continue
+        sample = candidates[0]
+        used.add(sample)
+        result.append(
+            {
+                "id": f"semantic-source-{len(result) + 1:02d}",
+                "sample": sample,
+            }
+        )
+    return result
 
 
 def normalize_candidate(
@@ -193,6 +231,7 @@ def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
         "corpus_digest": corpus["digest"],
         "operation": corpus["operation"],
         "spine_root": corpus["spine_root"],
+        "allowed_relationship_types": sorted(campaign.CORE_RELATIONS),
         "source_topic_count": len(topics),
         "leads": leads,
         "source_topics": topics,
@@ -506,6 +545,11 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
                 "relationships",
             )
         } | {"files": files}
+        if not covered:
+            result["evidence_strata"] = representative_evidence_strata(
+                base["source_topic_ids"],
+                file_map,
+            )
         if covered:
             coverage_reason, coverage = normalize_coverage(
                 value,

@@ -291,6 +291,48 @@ class ProducerFinalizeTests(unittest.TestCase):
         self.assertEqual("clean", receipt["mechanical_preflight"])
         self.assertTrue((self.handoff / "staging" / "identity.md").is_file())
 
+    def test_real_checker_defers_index_for_new_candidate_directory(self):
+        shutil.rmtree(self.spine)
+        shutil.copytree(
+            ROOT / "tests/eval/fixtures/map-modes-six-area/specspine",
+            self.spine,
+        )
+        self.checker = ROOT / "skills/specspine-map/scripts/check_spine.py"
+        packet = json.loads(self.packet.read_text(encoding="utf-8"))
+        packet["task"]["planned_document"] = "identity/session-runtime.md"
+        self.packet.write_text(json.dumps(packet), encoding="utf-8")
+        candidate = self.work / "staging" / "identity" / "session-runtime.md"
+        candidate.parent.mkdir(parents=True)
+        candidate.write_text(
+            "# Session runtime\n\n"
+            "**ID:** `session-runtime` · **Kind:** `component`\n\n"
+            "Documents the observed identity session boundary.\n\n"
+            "## Responsibility\n\n"
+            "Owns the observed session lifecycle evidenced by "
+            "`src/identity/session.py`.\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "<!-- specspine:semantic-ids:begin -->\n"
+            "## Observed\n\n"
+            "- **OBS-session-runtime** — A session implementation exists. "
+            "Evidence: `src/identity/session.py`.\n"
+            "<!-- specspine:semantic-ids:end -->\n",
+            encoding="utf-8",
+        )
+        self.checkpoint()
+
+        receipt = self.execute()
+
+        self.assertEqual("clean", receipt["mechanical_preflight"])
+        self.assertTrue(
+            (
+                self.handoff
+                / "staging"
+                / "identity"
+                / "session-runtime.md"
+            ).is_file()
+        )
+
     def test_real_checker_rejects_shortened_candidate_evidence_path(self):
         shutil.rmtree(self.spine)
         shutil.copytree(

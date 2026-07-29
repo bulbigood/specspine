@@ -36,8 +36,8 @@ if str(Path(__file__).resolve().parent) not in sys.path:
 from spec_contract import CORE_RELATIONS
 
 
-SCHEMA_VERSION = 13
-PRODUCER_CONTRACT_VERSION = 5
+SCHEMA_VERSION = 14
+PRODUCER_CONTRACT_VERSION = 6
 DISCOVERY_CONTRACT_VERSION = 4
 MAX_UNIT_FILES = 80
 MAX_SCOUT_SEED_FILES = 40
@@ -882,6 +882,7 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         "accepted_staging_root": None,
         "accepted_staging_digest": None,
         "terminal_reason": None,
+        "retry_history": [],
     }
 
 
@@ -2784,6 +2785,35 @@ def validate_empty_reason(
         raise CampaignError(f"empty ToDo requires '{prefix}<reason>'")
 
 
+def incomplete_duplicate_campaign(
+    ledger_path: Path,
+    repository_root: Path,
+    operation: dict[str, Any],
+) -> Path | None:
+    campaign_home = ledger_path.resolve().parent.parent
+    if campaign_home.name != "map":
+        return None
+    for candidate in sorted(campaign_home.glob("*/campaign.json")):
+        if candidate.resolve() == ledger_path.resolve():
+            continue
+        try:
+            existing = load(candidate)
+            existing_repository = repository_root_from_ledger(existing)
+            summary = campaign_summary(candidate)
+        except (CampaignError, OSError):
+            continue
+        if (
+            existing_repository == repository_root.resolve()
+            and existing["operation"] == operation
+            and summary["terminal"] not in {
+                "increment_verified",
+                "scope_verified",
+            }
+        ):
+            return candidate.resolve()
+    return None
+
+
 def command_init(args: argparse.Namespace) -> dict[str, Any]:
     if args.ledger.exists():
         raise CampaignError(f"campaign already exists: {args.ledger}")
@@ -2802,6 +2832,16 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
     timestamp = utc_timestamp()
     contract = producer_contract()
     operation = validate_operation_spec(read_json(args.operation_spec))
+    duplicate = incomplete_duplicate_campaign(
+        args.ledger,
+        args.repository_root,
+        operation,
+    )
+    if duplicate is not None and not args.allow_duplicate_incomplete:
+        raise CampaignError(
+            "an incomplete campaign already owns this operation; resume it "
+            f"instead of repeating discovery or synthesis: {duplicate}"
+        )
     ledger = {
         "schema_version": SCHEMA_VERSION,
         "campaign_id": str(uuid.uuid4()),
@@ -3022,7 +3062,7 @@ def validate_topic_plan(
     topic_files: set[str] = set()
 
     def normalize_topic(value: Any, *, field: str) -> dict[str, Any]:
-        if not isinstance(value, dict) or set(value) != {
+        required = {
             "id",
             "document",
             "title",
@@ -3030,7 +3070,9 @@ def validate_topic_plan(
             "reason",
             "relationships",
             "files",
-        }:
+        }
+        allowed = required | {"evidence_strata"}
+        if not isinstance(value, dict) or set(value) not in (required, allowed):
             raise CampaignError(
                 f"each {field} topic needs id, document, title, responsibility, "
                 "reason, relationships, and files"
@@ -3112,6 +3154,32 @@ def validate_topic_plan(
             relationships.append(
                 {"type": relation, "target": target, "reason": meaning.strip()}
             )
+        evidence_strata = value.get("evidence_strata", [])
+        if not isinstance(evidence_strata, list):
+            raise CampaignError(
+                f"{field} topic {topic_id} evidence_strata must be a list"
+            )
+        normalized_strata: list[dict[str, str]] = []
+        stratum_ids: set[str] = set()
+        for row in evidence_strata:
+            if not isinstance(row, dict) or set(row) != {"id", "sample"}:
+                raise CampaignError(
+                    f"{field} topic {topic_id} evidence stratum is invalid"
+                )
+            stratum_id = validate_id(row["id"])
+            sample = validate_relative_path(row["sample"])
+            if stratum_id in stratum_ids:
+                raise CampaignError(
+                    f"{field} topic {topic_id} repeats evidence stratum "
+                    f"{stratum_id}"
+                )
+            if sample not in files:
+                raise CampaignError(
+                    f"{field} topic {topic_id} evidence stratum sample is "
+                    f"outside topic files: {sample}"
+                )
+            stratum_ids.add(stratum_id)
+            normalized_strata.append({"id": stratum_id, "sample": sample})
         return {
             "id": topic_id,
             "document": document,
@@ -3123,6 +3191,7 @@ def validate_topic_plan(
                 key=lambda row: (row["type"], row["target"], row["reason"]),
             ),
             "files": sorted(files),
+            "evidence_strata": normalized_strata,
         }
 
     for value in raw["topics"]:
@@ -3389,10 +3458,12 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
                 "planned_document": topic["document"],
                 "planned_relationships": topic["relationships"],
                 "evidence_baseline": evidence_baseline["marker"],
-                "evidence_strata": [
-                    {"id": f"file-{index:03d}", "sample": path}
-                    for index, path in enumerate(topic["files"], start=1)
-                ],
+                "evidence_strata": (
+                    topic["evidence_strata"]
+                    or [
+                        {"id": "semantic-source-01", "sample": topic["files"][0]}
+                    ]
+                ),
                 "anchor": None,
             }
         )
@@ -3773,6 +3844,52 @@ def command_release(args: argparse.Namespace) -> dict[str, Any]:
         return {
             "status": "released",
             "task": args.id,
+            "revision": ledger["revision"],
+        }
+
+
+def command_retry_blocked(args: argparse.Namespace) -> dict[str, Any]:
+    reason = args.reason.strip()
+    if not reason:
+        raise CampaignError("retry-blocked requires a nonempty mechanical reason")
+    with locked_ledger(args.ledger) as ledger:
+        task = require_task(ledger, args.id)
+        history = task.setdefault("retry_history", [])
+        if task["state"] == "todo" and history:
+            return {
+                "status": "already_retryable",
+                "task": args.id,
+                "revision": ledger["revision"],
+            }
+        if task["state"] != "blocked":
+            raise CampaignError(
+                f"retry-blocked requires blocked state: {args.id}"
+            )
+        history.append(
+            {
+                "at": utc_timestamp(),
+                "reason": reason,
+                "previous_terminal_reason": task.get("terminal_reason"),
+                "previous_checkpoint_outcome": task.get("checkpoint_outcome"),
+                "previous_checkpoint_digest": task.get("checkpoint_digest"),
+                "previous_handoff_package": task.get("handoff_package"),
+            }
+        )
+        task["state"] = "todo"
+        task["owner"] = None
+        task["handoff_package"] = None
+        task["checkpoint_outcome"] = None
+        task["checkpoint_digest"] = None
+        task["terminal_reason"] = None
+        task["producer_suggestions"] = []
+        task["accepted_staging_root"] = None
+        task["accepted_staging_digest"] = None
+        ledger["integration_pass"] = None
+        save_locked(args.ledger, ledger)
+        return {
+            "status": "retryable",
+            "task": args.id,
+            "attempts": task["attempts"],
             "revision": ledger["revision"],
         }
 
@@ -6029,6 +6146,11 @@ def parser() -> argparse.ArgumentParser:
         default="empty",
     )
     init.add_argument("--repository-root", type=Path, required=True)
+    init.add_argument(
+        "--allow-duplicate-incomplete",
+        action="store_true",
+        help="operator-only override; never use for automatic recovery",
+    )
 
     discover = sub.add_parser("discover")
     discover.add_argument("campaign_home", type=Path)
@@ -6146,6 +6268,11 @@ def parser() -> argparse.ArgumentParser:
     release.add_argument("ledger", type=Path)
     release.add_argument("id")
 
+    retry_blocked = sub.add_parser("retry-blocked")
+    retry_blocked.add_argument("ledger", type=Path)
+    retry_blocked.add_argument("id")
+    retry_blocked.add_argument("--reason", required=True)
+
     settle_wave = sub.add_parser("settle-wave")
     settle_wave.add_argument("ledger", type=Path)
     settle_wave.add_argument("handoffs_root", type=Path)
@@ -6213,6 +6340,7 @@ def main() -> int:
         "packet": command_packet,
         "assign": command_assign,
         "release": command_release,
+        "retry-blocked": command_retry_blocked,
         "settle-wave": command_settle_wave,
         "prepare-integration": command_prepare_integration,
         "integration-pass": command_integration_pass,

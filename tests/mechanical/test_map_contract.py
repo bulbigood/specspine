@@ -214,6 +214,7 @@ class MapOperationContractTests(unittest.TestCase):
                 "packet",
                 "assign",
                 "release",
+                "retry-blocked",
                 "settle-wave",
                 "prepare-integration",
                 "integration-pass",
@@ -229,13 +230,13 @@ class MapOperationContractTests(unittest.TestCase):
 
     def test_prompt_files_stay_small(self):
         limits = {
-            "entrypoint": (self.entrypoint, 115),
-            "protocol": (self.protocol, 345),
+            "entrypoint": (self.entrypoint, 118),
+            "protocol": (self.protocol, 365),
             "method": (self.method, 110),
             "discovery": (self.discovery, 105),
             "curator": (self.curator, 85),
-            "synthesis": (self.synthesis, 105),
-            "producer": (self.producer, 155),
+            "synthesis": (self.synthesis, 116),
+            "producer": (self.producer, 165),
             "integration": (self.integration, 175),
         }
         for name, (value, maximum) in limits.items():

@@ -17,6 +17,12 @@ publish the coherent evidence-backed core and record the doubt as a concise
 semantic graph may need later Doctor or Evolve refinement. Copy
 `evidence_baseline` exactly.
 
+Evidence may include neighboring owners to prove a boundary. Do not turn those
+files into observations owned by this document and do not restate behavior of
+`planned_relationships` targets. Keep narrative concern sections concise;
+place detailed reconstructive facts once in identified `OBS` claims instead of
+duplicating them in prose.
+
 Read the packet `operation` and `current_owner` before inspecting code. In
 every operation, make one targeted facet pass across applicable observable
 architecture, behavior, interfaces, data/state ownership, and failure or
@@ -143,6 +149,8 @@ responsibility. Use `"outcome": "retry"` with `evidence`, `summary`, and
 nonempty `need` only when required evidence is unavailable or inaccessible.
 Use `"outcome": "blocked"` with
 `evidence`, `summary`, and `reason` only for a concrete external dependency.
+An integration-owned index, relationship, manifest update, or navigation entry
+is not external and never justifies `blocked`.
 
 `draft`, `covered`, `answered`, `unresolved`, and `supporting` must cite at
 least one concrete member from every evidence stratum. `covered` is valid only

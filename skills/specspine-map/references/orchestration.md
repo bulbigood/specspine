@@ -19,7 +19,7 @@ python3 <skill>/scripts/campaign.py discover \
   <workspace>/.specspine/map <workspace>
 ```
 
-If incomplete, require that campaign or a new run. Resume the selection:
+If incomplete, resume that campaign. Select it with:
 
 ```text
 python3 <skill>/scripts/campaign.py resume-session <campaign>
@@ -42,6 +42,20 @@ python3 <skill>/scripts/campaign.py settle-wave \
 Cached receipts are reusable. Release each `pending_task`; it may be
 reassigned. Repair only `rejected_tasks`, which represent mechanical handoff
 failures. Never read or accept an unfinished producer work directory.
+
+Do not create another campaign for the same incomplete operation. `init`
+rejects that by default. Use its override only after an explicit operator
+decision to abandon the preserved campaign, never as automatic recovery.
+If an accepted `blocked` result is later proven to be a mechanical false
+blocker, reopen only that task:
+
+```text
+python3 <skill>/scripts/campaign.py retry-blocked \
+  <campaign> <task-id> --reason "<confirmed mechanical cause>"
+```
+
+The command preserves the prior attempt in task history and is idempotent.
+It does not repeat discovery, synthesis, or accepted sibling tasks.
 
 Otherwise create a unique run directory under
 `<workspace>/.specspine/map/<run-name>/`. The campaign argument is always the
@@ -295,6 +309,9 @@ failures return `needs_mechanical_repair`; incomplete agents return
 `waiting_for_handoffs`. Semantic doubts are notes, not rejection. Acceptance
 validates evidence, checkpoint shape, digests, and path conflicts but does not
 rerun the candidate checker already completed by `producer_finalize.py`.
+The absence of an integration-owned `_INDEX.md` in a newly planned directory
+is never a blocker; candidate checking defers that index to deterministic
+assembly.
 Immediately dispatch the next wave. Do not integrate between waves; continue
 until every producer task is settled.
 ## Integrate

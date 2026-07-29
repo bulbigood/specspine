@@ -1813,6 +1813,10 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertEqual(1, receipt["source_topics"])
         packet = json.loads(packet_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            sorted(CAMPAIGN_MODULE.CORE_RELATIONS),
+            packet["allowed_relationship_types"],
+        )
         source = packet["source_topics"][0]
         self.assertEqual("Session runtime", source["title"])
         self.assertEqual(
@@ -1858,6 +1862,10 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual(1, materialized["final_topics"])
         value = json.loads(plan.read_text(encoding="utf-8"))
         self.assertEqual(["pyproject.toml"], value["topics"][0]["files"])
+        self.assertEqual(
+            [{"id": "semantic-source-01", "sample": "pyproject.toml"}],
+            value["topics"][0]["evidence_strata"],
+        )
         self.assertNotIn("source_topic_ids", value["topics"][0])
 
     def test_synthesis_packet_contains_all_sources_for_global_deduplication(self):
@@ -2310,11 +2318,8 @@ class MapCampaignTests(unittest.TestCase):
         _, task = self.task_for_unit("src/identity")
         self.assertIn("late-owner.md", task["documents"])
         self.assertTrue(task["evidence_strata"])
-        self.assertEqual(26, len(task["evidence_strata"]))
-        self.assertEqual(
-            task["evidence"],
-            [value["sample"] for value in task["evidence_strata"]],
-        )
+        self.assertEqual(1, len(task["evidence_strata"]))
+        self.assertIn(task["evidence_strata"][0]["sample"], task["evidence"])
 
     def test_candidate_owner_packet_is_bounded(self):
         for index in range(20):
@@ -2443,6 +2448,7 @@ class MapCampaignTests(unittest.TestCase):
             str(self.operation),
             "--repository-root",
             str(self.repository),
+            "--allow-duplicate-incomplete",
         )
 
         result = self.cli(
@@ -2461,6 +2467,28 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual("source_pass_missing", campaign["incomplete_reason"])
         self.assertIsNone(campaign["source_current"])
         self.assertTrue(campaign["resume_allowed"])
+
+    def test_init_rejects_duplicate_incomplete_operation_without_override(self):
+        duplicate = self.run.parent / "duplicate" / "campaign.json"
+        error = self.cli(
+            "init",
+            str(duplicate),
+            str(self.operation),
+            "--repository-root",
+            str(self.repository),
+            expected=2,
+        )
+        self.assertIn("resume it instead", error["error"])
+
+        created = self.cli(
+            "init",
+            str(duplicate),
+            str(self.operation),
+            "--repository-root",
+            str(self.repository),
+            "--allow-duplicate-incomplete",
+        )
+        self.assertEqual(14, created["schema_version"])
 
     def test_discover_stale_campaign_recommends_new_but_requires_choice(self):
         self.source_pass()
@@ -2654,6 +2682,7 @@ class MapCampaignTests(unittest.TestCase):
             "existing",
             "--repository-root",
             str(self.repository),
+            "--allow-duplicate-incomplete",
         )
         error = self.cli(
             "source-pass",
@@ -2678,6 +2707,7 @@ class MapCampaignTests(unittest.TestCase):
             "existing",
             "--repository-root",
             str(self.repository),
+            "--allow-duplicate-incomplete",
         )
         receipt = self.cli(
             "seed-from-spine",
@@ -2714,6 +2744,7 @@ class MapCampaignTests(unittest.TestCase):
             "existing",
             "--repository-root",
             str(self.repository),
+            "--allow-duplicate-incomplete",
         )
         manifest_path = self.spine / "specspine.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -2740,6 +2771,7 @@ class MapCampaignTests(unittest.TestCase):
             "existing",
             "--repository-root",
             str(self.repository),
+            "--allow-duplicate-incomplete",
         )
         with (self.spine / "_INDEX.md").open("a", encoding="utf-8") as stream:
             stream.write("\n## Coverage\n\nNon-semantic status in a v3 document.\n")
@@ -2777,6 +2809,7 @@ class MapCampaignTests(unittest.TestCase):
             "existing",
             "--repository-root",
             str(self.repository),
+            "--allow-duplicate-incomplete",
         )
         self.cli("seed-from-spine", str(ledger), str(self.spine))
         with (self.spine / "_INDEX.md").open("a", encoding="utf-8") as stream:
@@ -3777,6 +3810,43 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual("blocked", result["terminal"])
         self.assertEqual("report_blocked", result["action"])
         self.assertTrue(result["may_finish"])
+
+    def test_retry_blocked_reopens_only_one_task_idempotently(self):
+        self.source_pass()
+        task_id, task = self.task_for_unit("src/identity")
+        self.assign(task_id)
+        self.accept(
+            task_id,
+            self.checkpoint_payload(
+                outcome="blocked",
+                evidence=task["evidence"],
+            ),
+        )
+
+        reopened = self.cli(
+            "retry-blocked",
+            str(self.ledger),
+            task_id,
+            "--reason",
+            "Candidate checker treated an integration-owned index as missing",
+        )
+        self.assertEqual("retryable", reopened["status"])
+        ledger = self.ledger_value()
+        self.assertEqual("todo", ledger["tasks"][task_id]["state"])
+        self.assertEqual(1, len(ledger["tasks"][task_id]["retry_history"]))
+
+        repeated = self.cli(
+            "retry-blocked",
+            str(self.ledger),
+            task_id,
+            "--reason",
+            "Candidate checker treated an integration-owned index as missing",
+        )
+        self.assertEqual("already_retryable", repeated["status"])
+        self.assertEqual(
+            1,
+            len(self.ledger_value()["tasks"][task_id]["retry_history"]),
+        )
 
     def test_integration_evidence_may_be_relevant_live_subset(self):
         self.source_pass()

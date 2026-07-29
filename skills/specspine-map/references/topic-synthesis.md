@@ -6,6 +6,9 @@ discovery context through `leads` define the input; IDs are references only.
 Never read, copy, or invent file lists. Discovery hierarchy and lead
 boundaries are provenance, not architecture.
 
+Use only predicates listed in `allowed_relationship_types` from the synthesis
+packet unless a genuinely project-specific `x-*` relation is unavoidable.
+
 First perform one global semantic pass across all sources. Merge sources that
 express one durable responsibility even when parents or names differ. Keep
 independently evolving responsibilities separate. Remove directory-shaped,
@@ -14,6 +17,14 @@ descriptions establish a project-specific architectural contract. Resolve
 overlap by responsibility, interfaces, lifecycle, state, data ownership,
 failures, and consumers. Then enforce the operation's inclusion and exclusion
 rules, classify existing coverage, and construct the complete graph.
+
+Do not create a topic merely for a facet such as failures, configuration,
+interfaces, tests, or observability. Keep that facet with its responsible
+owner unless the sources establish an independently evolving mechanism with
+its own lifecycle, state, interface, and consumers. Before emitting the
+mapping, compare every pair of topics and assign each observation to exactly
+one canonical responsibility; relationships may reference a neighbor but may
+not duplicate its owned behavior.
 
 For exhaustive completion, detect responsibilities or boundaries exposed but
 never expanded and place them in `open_leads`. Return no `deferred_leads`. For

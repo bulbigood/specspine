@@ -100,6 +100,9 @@ retained assigned tasks before releasing only those without a valid
 atomic handoff; never restart accepted or harvestable work. Before repeating
 discovery or synthesis, run `campaign.py recover`: trust phase manifests and
 input digests, discard unfinished AI drafts, and repeat only missing results.
+Never initialize the same incomplete operation again. Reopen a confirmed
+mechanical false blocker with `campaign.py retry-blocked`; preserve every other
+accepted task and artifact.
 Producer acceptance never edits the live Spine. Integrate accepted handoffs in
 one private workspace, run the v3 checker, then publish the workspace and
 ledger transition atomically. Do not invoke Doctor inside Map.

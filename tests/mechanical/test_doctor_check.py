@@ -110,6 +110,30 @@ class DoctorCheckerV3Tests(unittest.TestCase):
     def test_accepts_strict_v3_spine(self):
         self.assertEqual([], [item for item in CHECKER.check(self.spine()) if item.severity == "error"])
 
+    def test_candidate_may_create_integration_indexed_directory(self):
+        root = self.spine()
+        staging_temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(staging_temporary.cleanup)
+        staging = Path(staging_temporary.name)
+        candidate = staging / "shipping" / "shipping.md"
+        candidate.parent.mkdir(parents=True)
+        candidate.write_text(
+            PAYMENTS.replace("Payments", "Shipping")
+            .replace("payments", "shipping")
+            .replace("payment", "shipping")
+            .replace(
+                "OBS-provider-duplicates",
+                "OBS-shipping-provider-duplicates",
+            ),
+            encoding="utf-8",
+        )
+        findings = CHECKER.check_candidates(root, staging)
+        self.assertNotIn(
+            "DIRECTORY_INDEX_MISSING",
+            {item.code for item in findings},
+        )
+        self.assertEqual([], [item for item in findings if item.severity == "error"])
+
     def test_accepts_localized_presentation_headings(self):
         manifest = {
             "specspine": 3,

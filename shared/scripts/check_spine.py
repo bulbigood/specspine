@@ -1306,6 +1306,10 @@ def check_candidates(
         for item in check(spine_root, repository_root=repository_root)
     }
     ignored_overlay_codes = {
+        # Indexes are integration-owned. A producer may introduce the first
+        # document in a new directory but must not stage its deterministic
+        # _INDEX.md.
+        "DIRECTORY_INDEX_MISSING",
         "ID_SECTION_UNVERIFIED",
         "UNREACHABLE_SPEC",
         "MANIFEST_AREA_MISSING",
