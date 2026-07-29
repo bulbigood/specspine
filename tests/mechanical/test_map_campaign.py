@@ -505,11 +505,11 @@ class MapCampaignTests(unittest.TestCase):
 
     def test_synthesis_prepare_is_idempotent_and_recorded(self):
         corpus = self.discovery_corpus_path()
-        packets = self.run / "synthesis-packets"
+        packet = self.run / "synthesis-packet.json"
         first = self.cli(
             "prepare",
             str(corpus),
-            str(packets),
+            str(packet),
             "--ledger",
             str(self.ledger),
             script=SYNTHESIS,
@@ -517,7 +517,7 @@ class MapCampaignTests(unittest.TestCase):
         second = self.cli(
             "prepare",
             str(corpus),
-            str(packets),
+            str(packet),
             "--ledger",
             str(self.ledger),
             script=SYNTHESIS,
@@ -525,8 +525,8 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual("written", first["status"])
         self.assertEqual("already_ready", second["status"])
         self.assertEqual(
-            str(packets.resolve()),
-            self.ledger_value()["artifacts"]["synthesis"]["packets"]["path"],
+            str(packet.resolve()),
+            self.ledger_value()["artifacts"]["synthesis"]["packet"]["path"],
         )
 
     def semantic_discovery_corpus_path(self):
@@ -1775,19 +1775,16 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual(2, collected["leads"])
         self.assertEqual(2, collected["evidence_files"])
 
-    def test_hierarchical_synthesis_uses_descriptions_and_materializes_files(self):
+    def test_global_synthesis_uses_descriptions_and_materializes_files(self):
         corpus = self.semantic_discovery_corpus_path()
-        packets = self.run / "synthesis-packets"
+        packet_path = self.run / "synthesis-packet.json"
         receipt = self.cli(
             "prepare",
             str(corpus),
-            str(packets),
-            "--batch-size",
-            "1",
+            str(packet_path),
             script=SYNTHESIS,
         )
         self.assertEqual(1, receipt["source_topics"])
-        packet_path = Path(receipt["packets"][0])
         packet = json.loads(packet_path.read_text(encoding="utf-8"))
         source = packet["source_topics"][0]
         self.assertEqual("Session runtime", source["title"])
@@ -1799,42 +1796,21 @@ class MapCampaignTests(unittest.TestCase):
         self.assertIn(source["lead_id"], packet["leads"])
         self.assertNotIn("files", source)
 
-        results = self.run / "synthesis-results"
-        results.mkdir()
-        (results / packet_path.name).write_text(
-            json.dumps(
-                {
-                    "batch_id": packet["batch_id"],
-                    "passthrough": [source["source_id"]],
-                    "merged": [],
-                }
-            ),
-            encoding="utf-8",
-        )
-        global_packet = self.run / "global-synthesis.json"
-        merged = self.cli(
-            "merge",
-            str(corpus),
-            str(packets),
-            str(results),
-            str(global_packet),
-            script=SYNTHESIS,
-        )
-        self.assertEqual(1, merged["reduced_candidates"])
-        compact = json.loads(global_packet.read_text(encoding="utf-8"))
-        self.assertNotIn("files", compact["candidates"][0])
-        self.assertEqual(
-            source["responsibility"],
-            compact["candidates"][0]["responsibility"],
-        )
-        self.assertEqual([], compact["merged_source_topics"])
-        self.assertEqual({}, compact["leads"])
-
         mapping = self.run / "semantic-mapping.json"
         mapping.write_text(
             json.dumps(
                 {
-                    "topics": compact["candidates"],
+                    "topics": [
+                        {
+                            "id": "session-runtime",
+                            "document": "sessions/runtime.md",
+                            "title": source["title"],
+                            "responsibility": source["responsibility"],
+                            "reason": source["reason"],
+                            "relationships": [],
+                            "source_topic_ids": [source["source_id"]],
+                        }
+                    ],
                     "covered": [],
                     "supporting": [],
                     "open_leads": [],
@@ -1857,49 +1833,7 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual(["pyproject.toml"], value["topics"][0]["files"])
         self.assertNotIn("source_topic_ids", value["topics"][0])
 
-    def test_synthesis_reducer_rejects_unknown_source(self):
-        corpus = self.semantic_discovery_corpus_path()
-        packets = self.run / "synthesis-packets"
-        receipt = self.cli(
-            "prepare",
-            str(corpus),
-            str(packets),
-            script=SYNTHESIS,
-        )
-        packet_path = Path(receipt["packets"][0])
-        packet = json.loads(packet_path.read_text(encoding="utf-8"))
-        results = self.run / "synthesis-results"
-        results.mkdir()
-        (results / packet_path.name).write_text(
-            json.dumps(
-                {
-                    "batch_id": packet["batch_id"],
-                    "passthrough": [],
-                    "merged": [
-                        {
-                            "id": "unrelated",
-                            "title": "Unrelated",
-                            "responsibility": "Does unrelated work.",
-                            "reason": "Invalid fixture intentionally loses provenance.",
-                            "source_topic_ids": ["unknown/source"],
-                        }
-                    ],
-                }
-            ),
-            encoding="utf-8",
-        )
-        failed = self.cli(
-            "merge",
-            str(corpus),
-            str(packets),
-            str(results),
-            str(self.run / "global.json"),
-            script=SYNTHESIS,
-            expected=2,
-        )
-        self.assertIn("unknown source topics", failed["error"])
-
-    def test_synthesis_preserves_originals_only_for_reducer_merges(self):
+    def test_synthesis_packet_contains_all_sources_for_global_deduplication(self):
         corpus_path = self.semantic_discovery_corpus_path()
         corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
         original = corpus["leads"][0]["topics"][0]
@@ -1916,52 +1850,22 @@ class MapCampaignTests(unittest.TestCase):
         )
         corpus_path.write_text(json.dumps(corpus), encoding="utf-8")
 
-        packets = self.run / "merge-packets"
-        prepared = self.cli(
+        packet_path = self.run / "global-packet.json"
+        self.cli(
             "prepare",
             str(corpus_path),
-            str(packets),
+            str(packet_path),
             script=SYNTHESIS,
         )
-        packet_path = Path(prepared["packets"][0])
         packet = json.loads(packet_path.read_text(encoding="utf-8"))
-        source_ids = [value["source_id"] for value in packet["source_topics"]]
-        results = self.run / "merge-results"
-        results.mkdir()
-        (results / packet_path.name).write_text(
-            json.dumps(
-                {
-                    "batch_id": packet["batch_id"],
-                    "passthrough": [],
-                    "merged": [
-                        {
-                            "id": "session-lifecycle",
-                            "title": "Session lifecycle",
-                            "responsibility": (
-                                "Creates, validates, and renews application sessions."
-                            ),
-                            "reason": "Both sources describe one session owner.",
-                            "source_topic_ids": source_ids,
-                        }
-                    ],
-                }
-            ),
-            encoding="utf-8",
-        )
-        global_packet = self.run / "merged-global.json"
-        self.cli(
-            "merge",
-            str(corpus_path),
-            str(packets),
-            str(results),
-            str(global_packet),
-            script=SYNTHESIS,
-        )
-        value = json.loads(global_packet.read_text(encoding="utf-8"))
-        self.assertEqual(2, len(value["merged_source_topics"]))
+        self.assertEqual(2, packet["source_topic_count"])
+        self.assertEqual(2, len(packet["source_topics"]))
         self.assertEqual(
-            {packet["source_topics"][0]["lead_id"]},
-            set(value["leads"]),
+            {"session-runtime", "session-renewal"},
+            {
+                value["source_id"].split("/", 1)[1]
+                for value in packet["source_topics"]
+            },
         )
 
     def test_synthesis_materializer_rejects_undispositioned_source(self):
@@ -2024,28 +1928,17 @@ class MapCampaignTests(unittest.TestCase):
 
     def test_synthesis_accepts_empty_semantic_frontier(self):
         corpus = self.discovery_corpus_path()
-        packets = self.run / "empty-synthesis-packets"
+        packet = self.run / "empty-synthesis-packet.json"
         prepared = self.cli(
             "prepare",
             str(corpus),
-            str(packets),
+            str(packet),
             script=SYNTHESIS,
         )
         self.assertEqual(0, prepared["source_topics"])
-        self.assertEqual(0, prepared["batches"])
-        global_packet = self.run / "empty-global.json"
-        merged = self.cli(
-            "merge",
-            str(corpus),
-            str(packets),
-            str(self.run / "empty-results"),
-            str(global_packet),
-            script=SYNTHESIS,
-        )
-        self.assertEqual(0, merged["reduced_candidates"])
         self.assertEqual(
             [],
-            json.loads(global_packet.read_text(encoding="utf-8"))["candidates"],
+            json.loads(packet.read_text(encoding="utf-8"))["source_topics"],
         )
 
     def test_synthesis_open_leads_reopen_discovery_and_block_source_pass(self):

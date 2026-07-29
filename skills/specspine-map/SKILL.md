@@ -51,7 +51,6 @@ Neither terminal claims that no conceivable architectural concept exists.
 - Give isolated workers only their phase contract:
   [discovery-task.md](references/discovery-task.md),
   [frontier-curation.md](references/frontier-curation.md),
-  [topic-reduction.md](references/topic-reduction.md),
   [topic-synthesis.md](references/topic-synthesis.md),
   [producer-task.md](references/producer-task.md).
 - Read [integration-pass.md](references/integration-pass.md) before publishing.
@@ -72,8 +71,8 @@ It is exhaustive by default; an explicit test-only limit creates a truncated
 vertical slice that cannot support a repository completeness claim.
 
 For exhaustive work, use fresh isolated weak-tier scouts; medium-tier
-curators and topic reducers; strong-tier one-shot producers; and
-one strong-tier global synthesizer. Scout subwaves contain at most
+curators; strong-tier one-shot producers; and one strong-tier global
+synthesizer. Scout subwaves contain at most
 ten and must also fit the runtime's available subagent slots; reserve the root
 slot when capacity includes it. Producer waves contain at most ten and must
 also fit available slots while reserving root. Never
@@ -103,10 +102,10 @@ Producer acceptance never edits the live Spine. Integrate accepted handoffs in
 one private workspace, run the v3 checker, then publish the workspace and
 ledger transition atomically. Do not invoke Doctor inside Map.
 
-Synthesis agents operate on scout descriptions and provenance IDs, never on
-bulk file lists. `synthesis.py` alone copies singleton semantics, validates
-reducer coverage, exposes original descriptions only for reducer merges,
-resolves IDs back to corpus evidence, reports suspicious coverage or
-granularity, and atomically writes the sole
-canonical topic plan. Semantic diagnostics are advisory: Map favors prompt
-coverage and leaves later graph refinement to Doctor or Evolve.
+The synthesizer operates on every scout description and provenance ID in one
+global packet, never on bulk file lists. It performs global deduplication,
+coverage classification, granularity, and graph construction in one task.
+`synthesis.py` alone prepares that compact packet, resolves IDs back to corpus
+evidence, reports suspicious coverage or granularity, and atomically writes
+the sole canonical topic plan. Semantic diagnostics are advisory: Map favors
+prompt coverage and leaves later graph refinement to Doctor or Evolve.

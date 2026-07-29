@@ -19,7 +19,6 @@ class MapOperationContractTests(unittest.TestCase):
         cls.discovery = read("references/discovery-task.md")
         cls.curator = read("references/frontier-curation.md")
         cls.synthesis = read("references/topic-synthesis.md")
-        cls.reduction = read("references/topic-reduction.md")
         cls.producer = read("references/producer-task.md")
         cls.integration = read("references/integration-pass.md")
         cls.campaign = read("scripts/campaign.py")
@@ -76,7 +75,6 @@ class MapOperationContractTests(unittest.TestCase):
             "discovery-collect",
             "discovery-reopen",
             "synthesis.py prepare",
-            "synthesis.py merge",
             "synthesis.py materialize",
             "source-pass",
             "ready",
@@ -110,17 +108,14 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("SpecSpine semantic extraction", synthesis)
         self.assertIn("`open_leads`", synthesis)
         self.assertIn("`deferred_leads`", synthesis)
-        self.assertIn("Disposition every input `source_id` exactly once", self.reduction)
-        self.assertIn("`passthrough`", self.reduction)
-        self.assertIn("`merged`", self.reduction)
+        self.assertIn("every `source_topic`", synthesis)
         self.assertIn("source_topic_ids", synthesis)
-        self.assertIn("merged_source_topics", synthesis)
         self.assertIn("source_topics(corpus", self.synthesis_script)
         self.assertIn("publish_validated_plan", self.synthesis_script)
         self.assertIn("zero-existing-coverage", self.synthesis_script)
         self.assertIn("fresh strong-tier synthesizer", protocol)
         self.assertIn("strong-tier global synthesizer", entrypoint)
-        self.assertIn("medium-tier topic reducers", protocol)
+        self.assertIn("do not split either pass across isolated workers", protocol)
         self.assertIn("do not block production", protocol)
         self.assertIn("may remain temporarily isolated", synthesis)
 
@@ -230,7 +225,6 @@ class MapOperationContractTests(unittest.TestCase):
             "discovery": (self.discovery, 105),
             "curator": (self.curator, 85),
             "synthesis": (self.synthesis, 100),
-            "reduction": (self.reduction, 50),
             "producer": (self.producer, 135),
             "integration": (self.integration, 175),
         }

@@ -1,20 +1,19 @@
 # SpecSpine Map global topic-synthesis contract
 
-Read the canonical candidates emitted by all topic reducers and produce one
-semantic mapping. Passthrough candidates retain scout semantics mechanically.
-For reducer merges, `merged_source_topics` preserves the original descriptions
-and resolves shared discovery context through `leads`. Candidate titles,
-responsibilities, reasons, and this conditional provenance define the input;
-IDs are references only. Never read, copy, or invent file lists. Discovery
-hierarchy and lead boundaries are provenance, not architecture.
+Read every `source_topic` in the global synthesis packet and produce one
+semantic mapping. Source titles, responsibilities, reasons, and shared
+discovery context through `leads` define the input; IDs are references only.
+Never read, copy, or invent file lists. Discovery hierarchy and lead
+boundaries are provenance, not architecture.
 
-Enforce the operation's inclusion and exclusion rules. Merge candidates that
+First perform one global semantic pass across all sources. Merge sources that
 express one durable responsibility even when parents or names differ. Keep
 independently evolving responsibilities separate. Remove directory-shaped,
 framework, tooling, `models`, `utils`, and `services` categories unless the
 descriptions establish a project-specific architectural contract. Resolve
 overlap by responsibility, interfaces, lifecycle, state, data ownership,
-failures, and consumers.
+failures, and consumers. Then enforce the operation's inclusion and exclusion
+rules, classify existing coverage, and construct the complete graph.
 
 For exhaustive completion, detect responsibilities or boundaries exposed but
 never expanded and place them in `open_leads`. Return no `deferred_leads`. For

@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import sys
@@ -15,7 +14,6 @@ from typing import Any
 import campaign
 
 
-DEFAULT_BATCH_SIZE = 25
 SYNTHESIS_CONTRACT_VERSION = 3
 CORE_RELATIONS = {
     "contains",
@@ -122,7 +120,6 @@ def normalize_candidate(
     known: set[str],
     *,
     field: str,
-    graph: bool = True,
 ) -> dict[str, Any]:
     base_fields = {
         "id",
@@ -131,7 +128,7 @@ def normalize_candidate(
         "reason",
         "source_topic_ids",
     }
-    expected = base_fields | ({"document", "relationships"} if graph else set())
+    expected = base_fields | {"document", "relationships"}
     if not isinstance(value, dict) or set(value) != expected:
         raise campaign.CampaignError(
             f"{field} needs id, document, title, responsibility, reason, "
@@ -148,17 +145,16 @@ def normalize_candidate(
             value["source_topic_ids"], known, f"{field} source_topic_ids"
         ),
     }
-    if graph:
-        document = campaign.validate_relative_path(value["document"])
-        if not document.endswith(".md"):
-            raise campaign.CampaignError(
-                f"{field} document must be canonical Markdown"
-            )
-        result["document"] = document
-        result["relationships"] = normalize_relationships(
-            value["relationships"],
-            field=f"{field} relationships",
+    document = campaign.validate_relative_path(value["document"])
+    if not document.endswith(".md"):
+        raise campaign.CampaignError(
+            f"{field} document must be canonical Markdown"
         )
+    result["document"] = document
+    result["relationships"] = normalize_relationships(
+        value["relationships"],
+        field=f"{field} relationships",
+    )
     return result
 
 
@@ -206,62 +202,44 @@ def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
         args.corpus, repository_root, field="discovery corpus"
     )
     campaign.require_map_runtime_path(
-        args.output_dir, repository_root, field="synthesis packet root"
+        args.output, repository_root, field="synthesis packet"
     )
     topics, _, leads = source_topics(corpus)
     input_digest = campaign.digest_json(
         {
             "contract": SYNTHESIS_CONTRACT_VERSION,
             "corpus_digest": corpus["digest"],
-            "batch_size": args.batch_size,
         }
     )
-    manifest = {"kind": "synthesis-packets", "input_digest": input_digest}
-    manifest_path = args.output_dir / "_artifact.json"
-    already_ready = manifest_path.is_file()
-    if args.output_dir.exists() and (
-        not already_ready or campaign.read_json(manifest_path) != manifest
+    expected = {
+        "synthesis_contract_version": SYNTHESIS_CONTRACT_VERSION,
+        "corpus_digest": corpus["digest"],
+        "operation": corpus["operation"],
+        "spine_root": corpus["spine_root"],
+        "source_topic_count": len(topics),
+        "leads": leads,
+        "source_topics": topics,
+    }
+    already_ready = args.output.is_file()
+    if args.output.exists() and (
+        not already_ready or campaign.read_json(args.output) != expected
     ):
         raise campaign.CampaignError(
-            f"existing synthesis packet directory has different inputs: "
-            f"{args.output_dir}"
+            f"existing synthesis packet has different inputs: {args.output}"
         )
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    packets: list[str] = []
-    for offset in range(0, len(topics), args.batch_size):
-        batch = topics[offset : offset + args.batch_size]
-        batch_id = f"batch-{offset // args.batch_size + 1:04d}"
-        batch_lead_ids = {value["lead_id"] for value in batch}
-        path = args.output_dir / f"{batch_id}.json"
-        expected = {
-            "synthesis_contract_version": SYNTHESIS_CONTRACT_VERSION,
-            "corpus_digest": corpus["digest"],
-            "batch_id": batch_id,
-            "leads": {
-                lead_id: leads[lead_id]
-                for lead_id in sorted(batch_lead_ids)
-            },
-            "source_topics": batch,
-        }
-        if path.exists() and campaign.read_json(path) != expected:
-            raise campaign.CampaignError(
-                f"existing synthesis packet conflicts: {path}"
-            )
-        campaign.atomic_write(path, expected)
-        packets.append(str(path.resolve()))
-    campaign.atomic_write(manifest_path, manifest)
+    campaign.atomic_write(args.output, expected)
     if args.ledger is not None:
         with campaign.locked_ledger(args.ledger) as ledger:
             recorded = campaign.same_artifact(
-                ledger["artifacts"]["synthesis"].get("packets"),
-                args.output_dir,
+                ledger["artifacts"]["synthesis"].get("packet"),
+                args.output,
                 input_digest=input_digest,
             )
             campaign.record_artifact(
                 ledger,
                 "synthesis",
-                "packets",
-                args.output_dir,
+                "packet",
+                args.output,
                 input_digest=input_digest,
             )
             if not recorded:
@@ -269,183 +247,6 @@ def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "status": "already_ready" if already_ready else "written",
         "source_topics": len(topics),
-        "batches": len(packets),
-        "packets": packets,
-    }
-
-
-def normalize_reducer_result(
-    raw: Any,
-    packet: dict[str, Any],
-) -> dict[str, Any]:
-    if not isinstance(raw, dict) or set(raw) != {
-        "batch_id",
-        "passthrough",
-        "merged",
-    }:
-        raise campaign.CampaignError(
-            "reducer result needs exactly batch_id, passthrough, and merged"
-        )
-    if raw["batch_id"] != packet["batch_id"]:
-        raise campaign.CampaignError("reducer batch_id differs from packet")
-    known = {value["source_id"] for value in packet["source_topics"]}
-    if not isinstance(raw["passthrough"], list):
-        raise campaign.CampaignError("reducer passthrough must be a list")
-    passthrough = source_ids(
-        raw["passthrough"],
-        known,
-        "reducer passthrough",
-    ) if raw["passthrough"] else []
-    if not isinstance(raw["merged"], list):
-        raise campaign.CampaignError("reducer merged must be a list")
-    merged = [
-        normalize_candidate(
-            value,
-            known,
-            field=f"reducer merged candidate {index}",
-            graph=False,
-        )
-        for index, value in enumerate(raw["merged"], start=1)
-    ]
-    for value in merged:
-        if len(value["source_topic_ids"]) < 2:
-            raise campaign.CampaignError(
-                f"reducer merged candidate {value['id']} needs at least two sources"
-            )
-    ids = [value["id"] for value in merged]
-    if len(ids) != len(set(ids)):
-        raise campaign.CampaignError("reducer repeats merged candidate ids")
-    dispositioned = [
-        source_id
-        for value in merged
-        for source_id in value["source_topic_ids"]
-    ] + passthrough
-    if len(dispositioned) != len(set(dispositioned)):
-        raise campaign.CampaignError(
-            "reducer assigns a source topic to multiple candidates"
-        )
-    if set(dispositioned) != known:
-        raise campaign.CampaignError(
-            "reducer source disposition is incomplete: "
-            f"missing={sorted(known - set(dispositioned))}, "
-            f"unknown={sorted(set(dispositioned) - known)}"
-        )
-    source_index = {
-        value["source_id"]: value
-        for value in packet["source_topics"]
-    }
-    candidates = [
-        {
-            "id": (
-                "source-"
-                + hashlib.sha256(source_id.encode()).hexdigest()[:16]
-            ),
-            "title": source_index[source_id]["title"],
-            "responsibility": source_index[source_id]["responsibility"],
-            "reason": source_index[source_id]["reason"],
-            "source_topic_ids": [source_id],
-        }
-        for source_id in passthrough
-    ] + merged
-    return {
-        "batch_id": raw["batch_id"],
-        "candidates": candidates,
-        "merged_source_ids": sorted(
-            {
-                source_id
-                for value in merged
-                for source_id in value["source_topic_ids"]
-            }
-        ),
-    }
-
-
-def command_merge(args: argparse.Namespace) -> dict[str, Any]:
-    corpus = load_corpus(args.corpus)
-    repository_root = Path(corpus["repository_root"])
-    for path, field in (
-        (args.corpus, "discovery corpus"),
-        (args.packets_dir, "synthesis packet root"),
-        (args.results_dir, "reducer result root"),
-        (args.output, "global synthesis packet"),
-    ):
-        campaign.require_map_runtime_path(path, repository_root, field=field)
-    topics, _, leads = source_topics(corpus)
-    known = {value["source_id"] for value in topics}
-    packets = sorted(args.packets_dir.glob("batch-*.json"))
-    if not packets and known:
-        raise campaign.CampaignError("no synthesis reducer packets found")
-    results: list[dict[str, Any]] = []
-    for packet_path in packets:
-        packet = campaign.read_json(packet_path)
-        if (
-            not isinstance(packet, dict)
-            or packet.get("synthesis_contract_version")
-            != SYNTHESIS_CONTRACT_VERSION
-            or packet.get("corpus_digest") != corpus["digest"]
-            or not isinstance(packet.get("leads"), dict)
-        ):
-            raise campaign.CampaignError(
-                f"invalid synthesis reducer packet: {packet_path}"
-            )
-        result_path = args.results_dir / packet_path.name
-        result = normalize_reducer_result(
-            campaign.read_json(result_path),
-            packet,
-        )
-        results.append(result)
-    candidates = [
-        value
-        for result in results
-        for value in result["candidates"]
-    ]
-    candidate_ids = [value["id"] for value in candidates]
-    if len(candidate_ids) != len(set(candidate_ids)):
-        raise campaign.CampaignError(
-            "reducer wave repeats candidate ids across batches"
-        )
-    dispositioned = {
-        source_id
-        for value in candidates
-        for source_id in value["source_topic_ids"]
-    }
-    if dispositioned != known:
-        raise campaign.CampaignError(
-            "reducer wave does not cover the complete synthesis source"
-        )
-    merged_source_ids = {
-        source_id
-        for result in results
-        for source_id in result["merged_source_ids"]
-    }
-    topic_index = {value["source_id"]: value for value in topics}
-    relevant_lead_ids = {
-        topic_index[source_id]["lead_id"]
-        for source_id in merged_source_ids
-    }
-    campaign.atomic_write(
-        args.output,
-        {
-            "synthesis_contract_version": SYNTHESIS_CONTRACT_VERSION,
-            "corpus_digest": corpus["digest"],
-            "operation": corpus["operation"],
-            "spine_root": corpus["spine_root"],
-            "source_topic_count": len(topics),
-            "leads": {
-                lead_id: leads[lead_id]
-                for lead_id in sorted(relevant_lead_ids)
-            },
-            "merged_source_topics": [
-                topic_index[source_id]
-                for source_id in sorted(merged_source_ids)
-            ],
-            "candidates": candidates,
-        },
-    )
-    return {
-        "status": "written",
-        "source_topics": len(topics),
-        "reduced_candidates": len(candidates),
         "output": str(args.output.resolve()),
     }
 
@@ -878,30 +679,13 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def positive_int(value: str) -> int:
-    parsed = int(value)
-    if parsed <= 0:
-        raise argparse.ArgumentTypeError("must be positive")
-    return parsed
-
-
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     sub = result.add_subparsers(dest="command", required=True)
     prepare = sub.add_parser("prepare")
     prepare.add_argument("corpus", type=Path)
-    prepare.add_argument("output_dir", type=Path)
+    prepare.add_argument("output", type=Path)
     prepare.add_argument("--ledger", type=Path)
-    prepare.add_argument(
-        "--batch-size",
-        type=positive_int,
-        default=DEFAULT_BATCH_SIZE,
-    )
-    merge = sub.add_parser("merge")
-    merge.add_argument("corpus", type=Path)
-    merge.add_argument("packets_dir", type=Path)
-    merge.add_argument("results_dir", type=Path)
-    merge.add_argument("output", type=Path)
     materialize = sub.add_parser("materialize")
     materialize.add_argument("corpus", type=Path)
     materialize.add_argument("mapping", type=Path)
@@ -913,7 +697,6 @@ def main() -> int:
     args = parser().parse_args()
     commands = {
         "prepare": command_prepare,
-        "merge": command_merge,
         "materialize": command_materialize,
     }
     try:

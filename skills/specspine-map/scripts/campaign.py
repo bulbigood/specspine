@@ -5855,9 +5855,7 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
     repository_root = repository_root_from_ledger(current)
     for path, field in (
         (args.discovery_results, "discovery result root"),
-        (args.synthesis_packets, "synthesis packet root"),
-        (args.reducer_results, "reducer result root"),
-        (args.global_packet, "global synthesis packet"),
+        (args.synthesis_packet, "synthesis packet"),
         (args.mapping, "synthesis mapping"),
         (args.topic_plan, "topic plan"),
         (args.handoffs_root, "producer handoff root"),
@@ -5902,34 +5900,9 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
             else:
                 scout_complete.append(relative.as_posix())
 
-    synthesis_packets = args.synthesis_packets or recorded_artifact_path(
-        current, "synthesis", "packets"
-    )
-    reducer_results = args.reducer_results or recorded_artifact_path(
-        current, "synthesis", "reducer-results-root"
-    )
-    reducer_complete: list[str] = []
-    reducer_missing: list[str] = []
-    reducer_invalid: list[dict[str, str]] = []
-    if synthesis_packets is not None and synthesis_packets.is_dir():
-        for packet in sorted(synthesis_packets.glob("batch-*.json")):
-            result = None if reducer_results is None else reducer_results / packet.name
-            if result is None or not result.is_file():
-                reducer_missing.append(packet.name)
-                continue
-            try:
-                packet_value = read_json(packet)
-                result_value = read_json(result)
-                if result_value.get("batch_id") != packet_value.get("batch_id"):
-                    raise CampaignError("reducer batch_id differs from packet")
-            except CampaignError as error:
-                reducer_invalid.append({"packet": packet.name, "error": str(error)})
-            else:
-                reducer_complete.append(packet.name)
-
     canonical: dict[str, dict[str, Any]] = {}
     for name, supplied in (
-        ("global-packet", args.global_packet),
+        ("packet", args.synthesis_packet),
         ("mapping", args.mapping),
         ("topic-plan", args.topic_plan),
     ):
@@ -5983,20 +5956,8 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
                     {"seed": None if seed is None else digest_json(seed)}
                 ),
             )
-        if reducer_results is not None and reducer_results.exists():
-            record_artifact(
-                ledger,
-                "synthesis",
-                "reducer-results-root",
-                reducer_results,
-                input_digest=(
-                    digest_json({"packets": None})
-                    if synthesis_packets is None
-                    else path_digest(synthesis_packets)
-                ),
-            )
         for name, supplied in (
-            ("global-packet", args.global_packet),
+            ("packet", args.synthesis_packet),
             ("mapping", args.mapping),
             ("topic-plan", args.topic_plan),
         ):
@@ -6017,11 +5978,6 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
             "complete": scout_complete,
             "missing": scout_missing,
             "invalid": scout_invalid,
-        },
-        "reducers": {
-            "complete": reducer_complete,
-            "missing": reducer_missing,
-            "invalid": reducer_invalid,
         },
         "synthesis": canonical,
         "integration_workspace_ready": integration_ready,
@@ -6205,9 +6161,7 @@ def parser() -> argparse.ArgumentParser:
     recover = sub.add_parser("recover")
     recover.add_argument("ledger", type=Path)
     recover.add_argument("--discovery-results", type=Path)
-    recover.add_argument("--synthesis-packets", type=Path)
-    recover.add_argument("--reducer-results", type=Path)
-    recover.add_argument("--global-packet", type=Path)
+    recover.add_argument("--synthesis-packet", type=Path)
     recover.add_argument("--mapping", type=Path)
     recover.add_argument("--topic-plan", type=Path)
     recover.add_argument("--handoffs-root", type=Path)

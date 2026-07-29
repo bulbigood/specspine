@@ -26,8 +26,8 @@ python3 <skill>/scripts/campaign.py resume-session <campaign>
 python3 <skill>/scripts/campaign.py recover <campaign> [existing-path options]
 python3 <skill>/scripts/campaign.py next-action <campaign>
 ```
-Path options: `--discovery-results`, `--synthesis-packets`, `--reducer-results`,
-`--global-packet`, `--mapping`, `--topic-plan`, `--handoffs-root`.
+Path options: `--discovery-results`, `--synthesis-packet`, `--mapping`,
+`--topic-plan`, `--handoffs-root`.
 `recover` records supplied paths, validates results, and
 returns missing/invalid work; later resumes use ledger paths. Discard AI drafts.
 
@@ -200,37 +200,24 @@ python3 <skill>/scripts/campaign.py discovery-collect \
 ```
 ## Synthesize
 
-Prepare compact batches from the complete corpus:
+Prepare one compact global packet from the complete corpus:
 
 ```text
 python3 <skill>/scripts/synthesis.py prepare \
-  <discovery-corpus.json> <synthesis-packets> --ledger <campaign>
+  <discovery-corpus.json> <synthesis-packet.json> --ledger <campaign>
 ```
 
 Discovery packet/collect/reopen, synthesis prepare, and integration prepare
 are input-digest-idempotent: reuse `already_ready`; never overwrite conflicts.
 
-Create fresh medium-tier topic reducers, at most five per strict wave. Give
-each reducer only `topic-reduction.md`, one packet, and its exact private result
-path. Reducers compare scout `title`, `responsibility`, `reason`, and lead
-context; IDs are references, not semantic input. They never receive or copy
-file lists. Wait for the complete wave without refill.
-
-After every packet has a result, validate and combine them into the compact
-global packet:
-
-```text
-python3 <skill>/scripts/synthesis.py merge \
-  <discovery-corpus.json> <synthesis-packets> <reducer-results> \
-  <global-packet.json>
-```
-
-Give the global packet to one fresh strong-tier synthesizer under
+Give the packet to one fresh strong-tier synthesizer under
 `topic-synthesis.md`. It writes a semantic mapping containing exactly
 `topics`, `covered`, `supporting`, `open_leads`, and `deferred_leads`, with
 `source_topic_ids` instead of files. Every semantic topic fixes its unique
 canonical `document` and typed `relationships`; synthesis produces the future
-Spine graph before production.
+Spine graph before production. The synthesizer first globally merges or
+dispositions every source topic, then checks existing coverage and constructs
+the graph; do not split either pass across isolated workers.
 
 Materialize the synthesizer mapping directly to the campaign's sole canonical
 `topic-plan.json`; never create `fixed`, `repaired`, or alternate plans:
@@ -240,8 +227,8 @@ python3 <skill>/scripts/synthesis.py materialize \
   <discovery-corpus.json> <semantic-mapping.json> <campaign>/topic-plan.json
 ```
 
-Never handwrite or repair `topic-plan.json`. Repair reducer or semantic mapping
-artifacts and rerun the deterministic commands. Closed materialization
+Never handwrite or repair `topic-plan.json`. Repair the semantic mapping and
+rerun the deterministic commands. Closed materialization
 validates a private temporary plan before atomically replacing the canonical
 path; a plan containing open leads is only an atomic input to discovery reopen.
 Record diagnostics such as `zero-existing-coverage`, `high-singleton-ratio`,
