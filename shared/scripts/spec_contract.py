@@ -37,6 +37,65 @@ NORMATIVE_PREFIXES = tuple(
 # Stable keys are machine identity. Values are the default rendered headings.
 DEFAULT_HEADINGS = dict(VOCABULARY["headings"])
 DEFAULT_SECTION_ORDER = tuple(DEFAULT_HEADINGS)
+
+
+def _term_lines(values: dict[str, str]) -> str:
+    return "\n".join(f"- `{token}` — {meaning}" for token, meaning in values.items())
+
+
+def compact_glossary() -> str:
+    """Render the complete portable vocabulary for a root index."""
+    semantic = {
+        prefix: definition["meaning"]
+        for prefix, definition in VOCABULARY["semantic_prefixes"].items()
+    }
+    markers = {
+        token: f"Reserved marker syntax: `{marker}`."
+        for token, marker in VOCABULARY["markers"].items()
+    }
+    groups = [
+        (
+            "Identifiers and extensions",
+            {
+                "document ID": (
+                    f"Stable document identity matching "
+                    f"`{VOCABULARY['identifier_patterns']['document']}`."
+                ),
+                "semantic ID": (
+                    f"Addressable statement identity matching "
+                    f"`{VOCABULARY['identifier_patterns']['semantic']}`."
+                ),
+                "x-*": "Project-specific document kind or relation.",
+            },
+        ),
+        ("Semantic ID prefixes", semantic),
+        ("Document kinds", VOCABULARY["document_kinds"]),
+        ("Canonical section keys", VOCABULARY["heading_meanings"]),
+        ("Relations", VOCABULARY["relations"]),
+        ("Facets", VOCABULARY["facets"]),
+        ("Facet values", VOCABULARY["facet_values"]),
+        ("Inspection modes", VOCABULARY["inspection_modes"]),
+        ("Inspection facet values", VOCABULARY["inspection_facet_values"]),
+        ("Implementation freedom", VOCABULARY["implementation_freedom"]),
+        ("Computed statuses", VOCABULARY["computed_statuses"]),
+        ("Asset roles", VOCABULARY["asset_roles"]),
+        ("Manifest fields", VOCABULARY["manifest_fields"]),
+        ("Markdown fields and normative keywords", VOCABULARY["markdown_keywords"]),
+        ("Reserved markers", markers),
+        (
+            "Reserved paths",
+            {
+                VOCABULARY["reserved_paths"]["index"]: "Deterministic physical navigation.",
+                VOCABULARY["reserved_paths"]["manifest"]: "Manifest and completeness registry.",
+            },
+        ),
+    ]
+    return "\n\n".join(
+        f"### {heading}\n\n{_term_lines(values)}"
+        for heading, values in groups
+    )
+
+
 DEFAULT_INDEX_TEXT = {
     "root-title": "{project} architecture",
     "purpose": (
@@ -63,6 +122,8 @@ DEFAULT_INDEX_TEXT = {
         "- Update the canonical owner instead of copying a claim into another document; "
         "preserve unresolved conflicts and blocking questions explicitly."
     ),
+    "glossary-heading": "SpecSpine glossary",
+    "glossary": compact_glossary(),
     "contents-heading": "Contents",
     "nested-heading": "Nested SpecSpines",
     "empty": "No indexed entries.",

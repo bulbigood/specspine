@@ -96,7 +96,21 @@ def command_finalize(args: argparse.Namespace) -> dict[str, Any]:
         (args.output, "initial discovery plan"),
     ):
         campaign.require_map_runtime_path(path, repository_root, field=field)
-    plan = campaign.validate_initial_discovery_plan(read_object(args.draft))
+    draft = read_object(args.draft)
+    campaign.validate_initial_discovery_plan(draft)
+    plan = {
+        "discovery_plan_version": 1,
+        "rationale": draft["rationale"].strip(),
+        "leads": [
+            {
+                "id": lead["id"].strip(),
+                "title": lead["title"].strip(),
+                "question": lead["question"].strip(),
+                "reason": lead["reason"].strip(),
+            }
+            for lead in draft["leads"]
+        ],
+    }
     if args.output.exists():
         if read_object(args.output) != plan:
             raise PlanningError("existing initial plan has different content")

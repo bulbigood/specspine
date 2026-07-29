@@ -184,7 +184,12 @@ changing canonical Markdown.
 
 An optional `index` mapping configures only deterministic index text:
 `root-title` (containing `{project}` exactly once), `purpose`, `scope`,
-`guide-heading`, `guide`, `contents-heading`, `nested-heading`, and `empty`.
+`guide-heading`, `guide`, `glossary-heading`, `glossary`,
+`contents-heading`, `nested-heading`, and `empty`. The default `glossary` is
+generated from the canonical vocabulary and briefly defines every reserved
+identifier family, document kind, section key, relation, facet, manifest
+value, asset role, manifest or Markdown field, normative keyword, marker, and
+path. A localized override MUST preserve that complete token coverage.
 
 The profile MUST NOT change document identity, kinds, facets, statement
 prefixes, relations, assets, blockers, authority, or reconstruction semantics.
@@ -291,7 +296,7 @@ Root `_INDEX.md` is the entry point. Every `_INDEX.md` contains:
 The root uses ID `project-architecture`. Nested index IDs are derived
 deterministically from their root-relative directory paths. Only the root
 index contains the fixed SpecSpine purpose statement, project name, scope
-statement, and compact reading guide. The guide makes the committed Spine
+statement, compact reading guide, and complete concise vocabulary. They make the committed Spine
 self-describing for agents and people without installed SpecSpine skills. It
 explains authority, navigation, identifier families, divergence handling, and
 canonical ownership; skills optimize retrieval and maintenance but are not

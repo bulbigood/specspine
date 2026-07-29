@@ -112,6 +112,10 @@ def render_index(
                 "",
                 index_text["guide"],
                 "",
+                f"## {index_text['glossary-heading']}",
+                "",
+                index_text["glossary"],
+                "",
             ]
         )
     lines.extend([f"## {index_text['contents-heading']}", ""])

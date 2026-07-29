@@ -102,6 +102,32 @@ class VocabularyContractTests(unittest.TestCase):
         )
         self.assertEqual(0, completed.returncode, completed.stderr)
 
+    def test_default_root_index_glossary_covers_every_vocabulary_token(self):
+        contract = load_contract()
+        glossary = contract.DEFAULT_INDEX_TEXT["glossary"]
+        groups = (
+            "document_kinds",
+            "semantic_prefixes",
+            "relations",
+            "facets",
+            "facet_values",
+            "inspection_modes",
+            "inspection_facet_values",
+            "implementation_freedom",
+            "computed_statuses",
+            "asset_roles",
+            "headings",
+            "manifest_fields",
+            "markdown_keywords",
+            "markers",
+        )
+        for group in groups:
+            for token in self.vocabulary[group]:
+                with self.subTest(group=group, token=token):
+                    self.assertIn(f"`{token}`", glossary)
+        for path in self.vocabulary["reserved_paths"].values():
+            self.assertIn(f"`{path}`", glossary)
+
     def test_every_published_skill_exposes_vocabulary(self):
         for skill in sorted((ROOT / "skills").glob("specspine-*")):
             with self.subTest(skill=skill.name):

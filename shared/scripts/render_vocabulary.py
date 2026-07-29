@@ -12,6 +12,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 VOCABULARY_PATH = ROOT / "shared/references/vocabulary.json"
 GLOSSARY_PATH = ROOT / "docs/reference/glossary.md"
+INDEX_TEMPLATE_PATH = ROOT / "shared/assets/templates/spine-index.md"
 
 
 def code_list(values: list[str]) -> str:
@@ -83,10 +84,27 @@ def render(vocabulary: dict[str, Any]) -> str:
         "",
     ])
     for key, rendered in vocabulary["headings"].items():
-        lines.append(f"- `{key}` — default rendering: “{rendered}”.")
+        lines.append(
+            f"- `{key}` — {vocabulary['heading_meanings'][key]} "
+            f"Default rendering: “{rendered}”."
+        )
     lines.extend([
         "",
         "Presentation profiles may translate rendered headings but never these keys.",
+        "",
+        "## Manifest fields",
+        "",
+    ])
+    for key, meaning in vocabulary["manifest_fields"].items():
+        lines.append(f"- `{key}` — {meaning}")
+    lines.extend([
+        "",
+        "## Markdown fields and normative keywords",
+        "",
+    ])
+    for key, meaning in vocabulary["markdown_keywords"].items():
+        lines.append(f"- `{key}` — {meaning}")
+    lines.extend([
         "",
         "## Reserved markers",
         "",
@@ -104,18 +122,59 @@ def render(vocabulary: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_index_template() -> str:
+    scripts = str(ROOT / "shared/scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    from spec_contract import DEFAULT_INDEX_TEXT
+
+    index = DEFAULT_INDEX_TEXT
+    return "\n".join([
+        "# {project} architecture",
+        "",
+        "**ID:** `project-architecture` · **Kind:** `index`",
+        "",
+        index["purpose"],
+        "",
+        index["scope"],
+        "",
+        f"## {index['guide-heading']}",
+        "",
+        index["guide"],
+        "",
+        f"## {index['glossary-heading']}",
+        "",
+        index["glossary"],
+        "",
+        f"## {index['contents-heading']}",
+        "",
+        f"- [{'specspine.json'}]({'specspine.json'})",
+        "",
+    ])
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true")
     args = parser.parse_args()
     vocabulary = json.loads(VOCABULARY_PATH.read_text(encoding="utf-8"))
     expected = render(vocabulary)
+    expected_index = render_index_template()
     if args.write:
         GLOSSARY_PATH.write_text(expected, encoding="utf-8")
+        INDEX_TEMPLATE_PATH.write_text(expected_index, encoding="utf-8")
         return 0
+    stale = []
     if not GLOSSARY_PATH.is_file() or GLOSSARY_PATH.read_text(encoding="utf-8") != expected:
+        stale.append("docs/reference/glossary.md")
+    if (
+        not INDEX_TEMPLATE_PATH.is_file()
+        or INDEX_TEMPLATE_PATH.read_text(encoding="utf-8") != expected_index
+    ):
+        stale.append("shared/assets/templates/spine-index.md")
+    if stale:
         print(
-            "docs/reference/glossary.md is stale; run "
+            ", ".join(stale) + " stale; run "
             "python3 shared/scripts/render_vocabulary.py --write",
             file=sys.stderr,
         )

@@ -142,35 +142,89 @@ Project-specific relations use `x-*`.
 
 ## Canonical section keys
 
-- `responsibility` — default rendering: “Responsibility”.
-- `boundaries` — default rendering: “Boundaries”.
-- `behavior` — default rendering: “Behavior”.
-- `interfaces` — default rendering: “Interfaces”.
-- `information-model` — default rendering: “Information model”.
-- `data-ownership` — default rendering: “Data ownership”.
-- `lifecycle-and-invariants` — default rendering: “Lifecycle and invariants”.
-- `failure-behavior` — default rendering: “Failure behavior”.
-- `edge-cases` — default rendering: “Edge cases”.
-- `configuration-contract` — default rendering: “Configuration contract”.
-- `compatibility` — default rendering: “Compatibility”.
-- `relationships` — default rendering: “Relationships”.
-- `requirements` — default rendering: “Requirements”.
-- `guarantees` — default rendering: “Guarantees”.
-- `invariants` — default rendering: “Invariants”.
-- `quality-constraints` — default rendering: “Quality constraints”.
-- `verification` — default rendering: “Verification”.
-- `decisions` — default rendering: “Decisions”.
-- `constraints` — default rendering: “Constraints”.
-- `known-divergences` — default rendering: “Known divergences”.
-- `observed` — default rendering: “Observed”.
-- `inferred` — default rendering: “Inferred”.
-- `open-questions` — default rendering: “Open questions”.
-- `implementation` — default rendering: “Implementation”.
-- `risks` — default rendering: “Risks”.
-- `rationale-and-trade-offs` — default rendering: “Rationale and trade-offs”.
-- `terminology` — default rendering: “Terminology”.
+- `responsibility` — Canonical ownership and purpose. Default rendering: “Responsibility”.
+- `boundaries` — What is inside, outside, or owned elsewhere. Default rendering: “Boundaries”.
+- `behavior` — Externally significant outcomes and coordination. Default rendering: “Behavior”.
+- `interfaces` — APIs, commands, events, ports, protocols, and exact contract links. Default rendering: “Interfaces”.
+- `information-model` — Durable entities, values, and relationships. Default rendering: “Information model”.
+- `data-ownership` — Creation, mutation, reading, and consistency authority. Default rendering: “Data ownership”.
+- `lifecycle-and-invariants` — States, transitions, and durable truths. Default rendering: “Lifecycle and invariants”.
+- `failure-behavior` — Errors, retry, degradation, compensation, and recovery. Default rendering: “Failure behavior”.
+- `edge-cases` — Architecture-significant boundary conditions. Default rendering: “Edge cases”.
+- `configuration-contract` — Settings, defaults, precedence, validation, and reload behavior. Default rendering: “Configuration contract”.
+- `compatibility` — Versioning, interoperability, deprecation, and evolution. Default rendering: “Compatibility”.
+- `relationships` — Typed directed links to other canonical owners or claims. Default rendering: “Relationships”.
+- `requirements` — Accepted durable required outcomes. Default rendering: “Requirements”.
+- `guarantees` — Accepted externally observable promises. Default rendering: “Guarantees”.
+- `invariants` — Truths across all valid states and transitions. Default rendering: “Invariants”.
+- `quality-constraints` — Measurable non-functional requirements. Default rendering: “Quality constraints”.
+- `verification` — Implementation-independent conformance criteria. Default rendering: “Verification”.
+- `decisions` — Accepted architectural choices. Default rendering: “Decisions”.
+- `constraints` — Accepted limits on valid implementations. Default rendering: “Constraints”.
+- `known-divergences` — Confirmed conflicts between accepted intent and observations. Default rendering: “Known divergences”.
+- `observed` — Confirmed architecture-significant repository evidence. Default rendering: “Observed”.
+- `inferred` — Explicitly unconfirmed interpretation. Default rendering: “Inferred”.
+- `open-questions` — Unresolved architectural choices. Default rendering: “Open questions”.
+- `implementation` — Representative repository-relative navigation evidence. Default rendering: “Implementation”.
+- `risks` — Durable architecture-relevant risks. Default rendering: “Risks”.
+- `rationale-and-trade-offs` — Reasons and consequences behind accepted choices. Default rendering: “Rationale and trade-offs”.
+- `terminology` — Project-specific domain terms and exact meanings. Default rendering: “Terminology”.
 
 Presentation profiles may translate rendered headings but never these keys.
+
+## Manifest fields
+
+- `specspine` — Stored format major; exactly 3 for this contract.
+- `project` — Stable nonempty project name.
+- `implementation_freedom` — How closely a reconstruction must preserve implementation choices.
+- `areas` — Completeness and inspection records for non-index document owners.
+- `assets` — Complete registry of non-Markdown files inside the Spine.
+- `presentation` — Optional language, heading, order, and index rendering profile.
+- `owner` — Canonical non-index document ID.
+- `facets` — Completeness or inspection values by architectural facet.
+- `blockers` — Globally unique blocking OQ identifiers.
+- `inspection` — Repository comparison coverage at one evidence baseline.
+- `source` — Identifier of the inspected repository state.
+- `inspected` — ISO date of repository inspection.
+- `mode` — Repository inspection mode.
+- `path` — Unique Spine-root-relative asset path.
+- `role` — Semantic role of a registered asset.
+- `format` — Precise asset format identifier.
+- `normative` — Whether conformance depends on the asset.
+- `verifies` — VER identifiers verified by the asset.
+- `profile` — Presentation profile version; exactly 1.
+- `language` — BCP 47-style documentation language tag.
+- `headings` — Localized renderings keyed by canonical section key.
+- `section_order` — Every canonical section key exactly once in rendering order.
+- `index` — Localized deterministic root-index text.
+- `root-title` — Root index H1 template containing {project} exactly once.
+- `purpose` — Portable explanation of what SpecSpine is.
+- `scope` — Portable explanation of what the Spine directory contains.
+- `guide-heading` — Rendered heading for root-index reading instructions.
+- `guide` — Compact portable reading and authority instructions.
+- `glossary-heading` — Rendered heading for the complete concise vocabulary.
+- `glossary` — Complete concise localized vocabulary; it must preserve token coverage.
+- `contents-heading` — Rendered heading for deterministic physical contents.
+- `nested-heading` — Rendered heading for nested independent Spine roots.
+- `empty` — Rendered text used when an index has no entries.
+
+## Markdown fields and normative keywords
+
+- `ID` — Document identity field.
+- `Kind` — Document-kind field.
+- `Aliases` — Optional alternate names for retrieval; never alternate identities.
+- `Evidence` — Repository-relative paths supporting an OBS statement.
+- `Relation` — Typed relationship-table edge token.
+- `Target` — Relative link to the relationship target.
+- `Meaning` — Nonempty explanation of why a relationship applies.
+- `Intended` — Normative semantic ID in a known-divergence row.
+- `Observed` — Conflicting OBS semantic ID in a known-divergence row.
+- `Consequence` — Architectural or user-visible impact of a divergence.
+- `MUST` — Absolute normative requirement.
+- `MUST NOT` — Absolute normative prohibition.
+- `SHOULD` — Recommended normative choice; deviation requires an explicit reason.
+- `SHOULD NOT` — Normally prohibited choice; deviation requires an explicit reason.
+- `MAY` — Permitted optional behavior.
 
 ## Reserved markers
 

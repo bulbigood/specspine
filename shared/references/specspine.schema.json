@@ -98,6 +98,8 @@
             "scope": {"type": "string", "minLength": 1},
             "guide-heading": {"type": "string", "minLength": 1},
             "guide": {"type": "string", "minLength": 1},
+            "glossary-heading": {"type": "string", "minLength": 1},
+            "glossary": {"type": "string", "minLength": 1},
             "contents-heading": {"type": "string", "minLength": 1},
             "nested-heading": {"type": "string", "minLength": 1},
             "empty": {"type": "string", "minLength": 1}

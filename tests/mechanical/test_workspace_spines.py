@@ -107,6 +107,10 @@ class WorkspaceSpinesTests(unittest.TestCase):
         self.assertIn("`DEC`, `CON`, `REQ`, `GUA`, `INV`, `QLT`, and `VER`", index)
         self.assertIn("`OBS` records confirmed implementation evidence", index)
         self.assertIn("Do not silently turn code", index)
+        self.assertIn("## SpecSpine glossary", index)
+        self.assertIn("### Document kinds", index)
+        self.assertIn("`migrates-from`", index)
+        self.assertIn("`implementation_freedom`", index)
 
     def test_workspace_graph_connects_nested_roots_and_keeps_siblings(self):
         parent = self.root("docs/specspine", "parent")
