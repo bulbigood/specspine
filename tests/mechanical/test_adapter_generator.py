@@ -29,7 +29,7 @@ class AdapterGeneratorTests(unittest.TestCase):
         skills_root = PROJECT_ROOT / "skills"
         files = GENERATOR.shared_files(PROJECT_ROOT, "specspine-evolve")
         self.assertEqual(
-            PROJECT_ROOT / "shared/references/spec-format.md",
+            PROJECT_ROOT / "docs/reference/format.md",
             files["references/spec-format.md"],
         )
         self.assertEqual(
@@ -174,7 +174,8 @@ Owns an unreachable architectural responsibility.
             repo_root = Path(directory)
             shutil.copytree(PROJECT_ROOT / "skills", repo_root / "skills", symlinks=True)
             shutil.copytree(PROJECT_ROOT / "shared", repo_root / "shared")
-            owner = repo_root / "shared/references/spec-format.md"
+            shutil.copytree(PROJECT_ROOT / "docs", repo_root / "docs")
+            owner = repo_root / "docs/reference/format.md"
             consumer = repo_root / "skills/specspine-map/references/spec-format.md"
             doctor = repo_root / "skills/specspine-doctor/SKILL.md"
             owner_before = owner.read_bytes()
@@ -214,7 +215,8 @@ Owns an unreachable architectural responsibility.
             repo_root = Path(directory)
             shutil.copytree(PROJECT_ROOT / "skills", repo_root / "skills", symlinks=True)
             shutil.copytree(PROJECT_ROOT / "shared", repo_root / "shared")
-            owner = repo_root / "shared/references/spec-format.md"
+            shutil.copytree(PROJECT_ROOT / "docs", repo_root / "docs")
+            owner = repo_root / "docs/reference/format.md"
             expected = owner.read_bytes()
             selected = repo_root / "skills/specspine-map/references/spec-format.md"
             untouched = repo_root / "skills/specspine-doctor/references/spec-format.md"

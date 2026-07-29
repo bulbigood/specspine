@@ -1,4 +1,4 @@
-# Retrieval contract
+# SpecSpine retrieval contract
 
 ## Goal
 

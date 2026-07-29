@@ -1,1 +1,1 @@
-../../../shared/references/spec-format.md
+../../../docs/reference/format.md

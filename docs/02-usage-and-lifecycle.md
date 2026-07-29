@@ -1,0 +1,98 @@
+# Usage and lifecycle
+
+## Tool-independent use
+
+Every committed Spine is readable without SpecSpine skills. Start at
+`<spine-root>/_INDEX.md`, follow `Contents` to the canonical owner for the task,
+then inspect its accepted claims, boundaries, relationships, blockers, and
+known divergences. `specspine.json` carries completeness and machine-readable
+assets.
+
+Project instructions should contain only the index location, documentation
+language, optional retrieval route, and compact authority rules. General
+framework documentation belongs in the root index guide and this documentation,
+not in every-agent instructions.
+
+## Runtime skills
+
+- `specspine-doctor` connects a Spine and checks or repairs its health.
+- `specspine-extract` retrieves a minimal task-specific closure.
+- `specspine-evolve` creates or changes accepted durable intent.
+- `specspine-map` compares repository evidence with accepted intent.
+- `specspine-verify` assesses implementation or reconstruction conformance.
+
+Skills are optional interfaces to the format. Their disposable state belongs
+under the ignored workspace-local `.specspine/<skill>` directory.
+
+## Connect
+
+Install the recommended downstream pair:
+
+```bash
+npx skills add bulbigood/specspine --skill specspine-doctor
+npx skills add bulbigood/specspine --skill specspine-extract
+```
+
+Ask Doctor:
+
+```text
+Expose this project's SpecSpine to agents through persistent project instructions.
+```
+
+Doctor creates a missing `_INDEX.md` and `specspine.json` pair, installs one
+bounded managed block in the selected project instruction file, adds the exact
+`.specspine` ignore rule only at a Git repository root, and runs the mechanical
+checker. It does not overwrite an existing root or create concept
+specifications.
+
+## Evolve accepted intent
+
+Use Evolve to create a small intended architecture, refine an owner, or apply
+an accepted durable change. Evolve treats the request and existing Spine as the
+project-specific authorities. It does not inspect source code by default and
+does not infer acceptance from existing implementation.
+
+An SDD or other authorized workflow owns a proposed delta until acceptance.
+Promote its durable requirements, guarantees, invariants, relationships, and
+reusable verification into canonical owners before or with implementation.
+Implementation-only changes do not require artificial specification growth.
+
+## Compare a repository
+
+Use Map for a bounded survey or explicitly request exhaustive recursive
+coverage. Map compares evidence with accepted intent and retains an `OBS` only
+when it:
+
+- exposes an architecture-significant intent gap;
+- supports a confirmed divergence;
+- affects an unresolved architectural question; or
+- provides necessary navigation to a surprising owner or boundary.
+
+Map omits evidence already represented by intent and compatible implementation
+freedom. It records bounded inspection coverage separately instead of creating
+a duplicate observation. Neither inspection coverage nor absence of `OBS`
+proves conformance.
+
+## Retrieve task context
+
+Extract returns the primary owner, required neighbors, applicable accepted
+claims and assets, completeness and blockers, known divergences, relevant
+exception evidence, unresolved questions, and explicit omissions. Its Markdown
+handoff is a disposable projection; canonical meaning remains in the Spine.
+
+When Extract is unavailable, follow `_INDEX.md` and typed relationships
+directly.
+
+## Check and verify
+
+Doctor separates deterministic mechanical findings from advisory semantic
+risks. Repairs require authorization and never manufacture intent. Repository
+comparison belongs to Map.
+
+Verify assesses current implementation or blind reconstruction against the
+selected normative closure and registered verification surface. It may report
+conformance or gaps, but it does not create intent or delivery state.
+
+Exact installation options and natural-language operation contracts live with
+the individual skills. The storage and semantic rules remain
+tool-independent.

@@ -2,10 +2,11 @@
 
 ## Canonical packages
 
-The publishable packages under `<repo-root>/skills/specspine-*` and common
-references under `<repo-root>/shared/references/` are the canonical runtime
-sources. Edit private skill instructions, references, scripts, templates, and
-agent metadata under `skills/`; edit shared rules only under `shared/`.
+The publishable packages under `<repo-root>/skills/specspine-*`, normative
+references under `<repo-root>/docs/reference/`, and common machine resources
+under `<repo-root>/shared/` are the canonical runtime sources. Edit private
+skill resources under `skills/`, normative prose under `docs/reference/`, and
+shared schema, scripts, or assets under `shared/`.
 
 The maintainer tool must not contain copies or snapshots of those packages. It
 reads canonical skills directly and generates only resources that must be
@@ -13,11 +14,12 @@ duplicated between separately published members of the coordinated suite.
 
 ## Shared rules
 
-`shared/references/` owns references reused by multiple skills. The
-framework-wide rules are:
+`docs/reference/` owns normative prose reused by multiple skills:
 
-- `spec-format.md`;
-- `spec-semantics.md`.
+- `format.md`, exposed to skills as `spec-format.md`;
+- `semantics.md`, exposed to skills as `spec-semantics.md`.
+
+`shared/references/` owns the common manifest schema.
 
 Each consuming skill exposes a shared reference through a relative symbolic
 link. A private reference that defines only one skill's execution remains a
@@ -57,7 +59,8 @@ does not discover SDD frameworks or generate bindings and adapters.
 
 Before publishing:
 
-1. edit skill-specific files under `skills/` and shared rules under `shared/`;
+1. edit skill-specific files under `skills/`, normative prose under
+   `docs/reference/`, and machine resources under `shared/`;
 2. repair shared-resource links;
 3. run generation in `--check` mode;
 4. validate every canonical skill with an available native validator;

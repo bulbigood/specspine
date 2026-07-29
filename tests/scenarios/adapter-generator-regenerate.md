@@ -3,7 +3,7 @@
 ## Initial repository
 
 The publishable packages under `skills/` are canonical together with common
-instructions under `shared/references/`. One or more registered shared-reference
+instructions under `docs/reference/`. One or more registered shared-reference
 symlinks are missing or incorrect.
 
 ## User request
@@ -17,7 +17,7 @@ runtime skills.
 
 The skill should:
 
-- treat `shared/references/` as the source of reused instructions;
+- treat `docs/reference/` as the source of reused normative instructions;
 - expose reused references through relative symlinks in each consuming skill;
 - preserve private execution references as regular files in their owning skill;
 - run drift checking and available validation gates;

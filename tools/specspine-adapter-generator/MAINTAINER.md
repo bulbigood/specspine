@@ -5,10 +5,12 @@ Repository-maintainer instructions. This file deliberately is not named
 runtime skill.
 
 Treat the publishable packages under `<repo-root>/skills/specspine-*` and
-`<repo-root>/shared/references/` as the framework-neutral source of truth. This
-tool owns links for references reused across skills and any framework-specific
-adapter generation. Private execution references remain in their owning skill.
-Never put SDD framework knowledge into canonical runtime skills.
+the references under `<repo-root>/docs/reference/` as the framework-neutral
+source of truth. Common schemas, scripts, and assets remain under `shared/`.
+This tool owns links for resources reused across skills and any
+framework-specific adapter generation. Private execution references remain in
+their owning skill. Never put SDD framework knowledge into canonical runtime
+skills.
 
 ## Resources
 
@@ -22,8 +24,8 @@ Never put SDD framework knowledge into canonical runtime skills.
 ## Workflow
 
 1. Modify skill-specific files under `skills/`.
-2. Keep resources with at least two skill consumers under `shared/` and
-   private resources in their owning skill.
+2. Keep normative prose under `docs/reference/`, common machine resources under
+   `shared/`, and private resources in their owning skill.
 3. Run `scripts/generate_resources.py` to repair links from runtime skills to
    shared references.
 4. Run `scripts/generate_resources.py --check`.
@@ -37,7 +39,7 @@ Never put SDD framework knowledge into canonical runtime skills.
 
 ## Generation rules
 
-- Keep reused instructions under `shared/` and expose them through relative
+- Expose normative references and common machine resources through relative
   symbolic links; keep single-skill execution protocols local.
 - Put reusable executable logic in skill `scripts/` directories.
 - Keep `SKILL.md` files concise and route conditional detail to references.

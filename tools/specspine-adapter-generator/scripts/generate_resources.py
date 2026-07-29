@@ -23,24 +23,24 @@ IGNORED_NAMES = {
 }
 SKILL_REFERENCES = {
     "specspine-evolve": {
-        "spec-format.md": "spec-format.md",
-        "spec-semantics.md": "spec-semantics.md",
-        "specspine.schema.json": "specspine.schema.json",
+        "spec-format.md": "docs/reference/format.md",
+        "spec-semantics.md": "docs/reference/semantics.md",
+        "specspine.schema.json": "shared/references/specspine.schema.json",
     },
     "specspine-map": {
-        "spec-format.md": "spec-format.md",
-        "spec-semantics.md": "spec-semantics.md",
-        "specspine.schema.json": "specspine.schema.json",
+        "spec-format.md": "docs/reference/format.md",
+        "spec-semantics.md": "docs/reference/semantics.md",
+        "specspine.schema.json": "shared/references/specspine.schema.json",
     },
     "specspine-doctor": {
-        "spec-format.md": "spec-format.md",
-        "spec-semantics.md": "spec-semantics.md",
-        "specspine.schema.json": "specspine.schema.json",
+        "spec-format.md": "docs/reference/format.md",
+        "spec-semantics.md": "docs/reference/semantics.md",
+        "specspine.schema.json": "shared/references/specspine.schema.json",
     },
     "specspine-verify": {
-        "spec-format.md": "spec-format.md",
-        "spec-semantics.md": "spec-semantics.md",
-        "specspine.schema.json": "specspine.schema.json",
+        "spec-format.md": "docs/reference/format.md",
+        "spec-semantics.md": "docs/reference/semantics.md",
+        "specspine.schema.json": "shared/references/specspine.schema.json",
     },
 }
 SKILL_SCRIPTS = {
@@ -119,8 +119,8 @@ def check_word_budgets(name: str, files: dict[str, Path]) -> list[str]:
 def shared_files(repo_root: Path, name: str) -> dict[str, Path]:
     shared_root = repo_root / "shared"
     references = {
-        f"references/{filename}": shared_root / "references" / shared_relative
-        for filename, shared_relative in SKILL_REFERENCES.get(name, {}).items()
+        f"references/{filename}": repo_root / source_relative
+        for filename, source_relative in SKILL_REFERENCES.get(name, {}).items()
     }
     scripts = {
         f"scripts/{filename}": shared_root / "scripts" / shared_relative

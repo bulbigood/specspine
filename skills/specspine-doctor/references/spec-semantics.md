@@ -1,1 +1,1 @@
-../../../shared/references/spec-semantics.md
+../../../docs/reference/semantics.md

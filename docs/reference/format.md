@@ -49,7 +49,8 @@ exact identifiers.
 ## Manifest
 
 `<spine-root>/specspine.json` is mandatory UTF-8 JSON. Its portable structural
-schema is [specspine.schema.json](specspine.schema.json):
+schema is `shared/references/specspine.schema.json`. Installed skill packages
+expose the same schema beside this reference as `specspine.schema.json`:
 
 ```json
 {
@@ -374,7 +375,8 @@ Use only sections that carry durable information:
 - `Quality constraints` — measurable non-functional requirements;
 - `Verification` — implementation-independent conformance criteria;
 - `Decisions` and `Constraints` — accepted intent;
-- `Observed` — repository-backed facts;
+- `Observed` — selected architecture-significant exception evidence, never an
+  implementation inventory;
 - `Inferred` — explicitly unconfirmed interpretation;
 - `Open questions` — unresolved choices;
 - `Known divergences` — confirmed differences between intent and reality;
@@ -431,6 +433,12 @@ Translated headings preserve the same meaning; semantic review confirms them
 when a dependency-free checker cannot.
 
 ## Evidence and divergences
+
+A repository fact qualifies for `OBS` only under the retention rules in the
+semantics reference: it exposes a material intent gap, supports a confirmed
+divergence, affects an unresolved architectural question, or provides necessary
+navigation to a surprising owner or boundary. Evidence already represented by
+accepted intent belongs only in inspection coverage.
 
 A document containing repository observations records one evidence baseline
 near its first `Observed` section:

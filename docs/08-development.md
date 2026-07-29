@@ -7,6 +7,7 @@ specspine/
 ├── README.md
 ├── LICENSE
 ├── docs/
+│   └── reference/
 ├── shared/
 │   ├── references/
 │   └── scripts/
@@ -14,7 +15,8 @@ specspine/
 │   ├── specspine-doctor/
 │   ├── specspine-extract/
 │   ├── specspine-evolve/
-│   └── specspine-map/
+│   ├── specspine-map/
+│   └── specspine-verify/
 ├── tools/
 │   ├── specspine-adapter-generator/
 │   └── specspine-extract/
@@ -22,9 +24,10 @@ specspine/
 └── tests/
 ```
 
-The four publishable packages under `skills/`, common instructions under
-`shared/references/`, and deterministic common tools under `shared/scripts/`
-are the repository sources of truth.
+The five publishable packages under `skills/`, normative prose under
+`docs/reference/`, the manifest schema under `shared/references/`, and
+deterministic common tools under `shared/scripts/` are the repository sources
+of truth.
 
 Shared resources appear in consuming skills as relative symbolic links.
 `tools/specspine-adapter-generator/scripts/generate_resources.py` registers and
@@ -52,6 +55,7 @@ npx skills add . --skill specspine-doctor
 npx skills add . --skill specspine-extract
 npx skills add . --skill specspine-evolve
 npx skills add . --skill specspine-map
+npx skills add . --skill specspine-verify
 ```
 
 ## Validation
