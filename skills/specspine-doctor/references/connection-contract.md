@@ -33,15 +33,17 @@ other default:
 3. Detect its dominant natural language. Ignore code fences, inline code,
    identifiers, paths, URLs, link targets, and quoted external text. A few
    foreign technical terms do not make an otherwise clear document mixed.
-4. Ask for the remaining settings. Offer the clearly detected language as the
+4. Ask for the remaining settings. When `specspine.json` is absent, also ask
+   for its stable project name. Offer the clearly detected language as the
    documentation-language default; otherwise offer `English`. Default the
    project instruction file to `AGENTS.md`.
 
 This ordering requires two user turns when neither root nor language is
 supplied: root selection, then confirmation of the root-dependent settings.
 After confirmation, create missing `README.md` and `specspine.json` as one root
-operation and persist the same root and language in the managed block. Create
-no concept specifications and never overwrite an existing root file. Use the
+operation with `scripts/bootstrap_spine.py`; never write either root file
+directly. Persist the same root and language in the managed block. Create no
+concept specifications and never overwrite an existing root file. Use the
 bundled index template as a semantic outline and render
 its natural-language headings and placeholder prose in the accepted
 documentation language. Do not translate paths, identifiers, or managed
@@ -73,6 +75,19 @@ architecture index.
 | Case-variant index such as `readme.md` | Report the collision and require resolution; do not create a second index |
 | Selected root is the project root | Warn before treating its ordinary `README.md` as a SpecSpine index |
 | Symlink escapes the project | Report the resolved target and require explicit authorization before any write |
+
+Render the accepted index into a private temporary file, then run:
+
+```text
+python3 <skill>/scripts/bootstrap_spine.py <spine-root> \
+  --project <project-name> --index-file <rendered-index>
+```
+
+Pass `--index-file` whenever `README.md` is absent. The script creates only
+missing root files, rolls back its own partial pair on failure, preserves all
+existing files, and returns `created` or `already_ready`. Delete the rendered
+temporary input afterward. A script error blocks connection; do not emulate
+its writes manually.
 
 Do not recursively inspect a directory merely to decide whether it is a
 SpecSpine. Do not infer architecture, generate navigation for existing

@@ -236,6 +236,12 @@ Owns an unreachable architectural responsibility.
         source = PROJECT_ROOT / "skills/specspine-doctor"
         bootstrap = (source / "assets/templates/agent-bootstrap.md").read_text(encoding="utf-8")
         self.assertIn("{{DOCUMENTATION_LANGUAGE}}", bootstrap)
+        skill = (source / "SKILL.md").read_text(encoding="utf-8")
+        contract = (source / "references/connection-contract.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("scripts/bootstrap_spine.py", skill)
+        self.assertIn("do not emulate", contract)
 
     def test_doctor_contract_requires_confirmed_first_setup(self):
         source = PROJECT_ROOT / "skills/specspine-doctor"

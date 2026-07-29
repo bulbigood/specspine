@@ -51,9 +51,11 @@ SKILL_SCRIPTS = {
         "check_spine.py": "check_spine.py",
     },
     "specspine-map": {
+        "bootstrap_spine.py": "bootstrap_spine.py",
         "check_spine.py": "check_spine.py",
     },
     "specspine-doctor": {
+        "bootstrap_spine.py": "bootstrap_spine.py",
         "check_spine.py": "check_spine.py",
     },
     "specspine-verify": {

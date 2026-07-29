@@ -26,6 +26,8 @@ implicitly.
   [assets/templates/spine-index.md](assets/templates/spine-index.md).
 - Run `scripts/check_spine.py <spine-root>` for reproducible checks. Use
   `--json` only when structured output is useful.
+- Use `scripts/bootstrap_spine.py` for root creation; never write the pair
+  directly.
 - Read [references/spec-semantics.md](references/spec-semantics.md) for a
   semantic review.
 - Read [references/review-method.md](references/review-method.md) for semantic
@@ -41,11 +43,10 @@ Follow the connection contract exactly. `connect` idempotently creates,
 refreshes, or changes the requested connection from observed state. Preserve
 recognized settings not explicitly changed.
 
-Connect may modify only that managed block and may create the configured
-`<spine-root>/README.md` and `specspine.json` together when absent. Render both
-from their templates and use the accepted language for the index. Preserve
-existing roots and surrounding project instructions. Disconnect removes only
-the managed block, never the Spine or instruction file. A satisfied target
+Connect may modify only that managed block and may create an absent root pair.
+Render the accepted-language index; `bootstrap_spine.py` writes it and the
+manifest. Preserve existing roots and project instructions. Disconnect removes
+only the managed block, never the Spine or instruction file. A satisfied target
 state causes no write.
 
 After a successful connection change, run the mechanical checker once and

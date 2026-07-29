@@ -588,25 +588,6 @@ def atomic_write(path: Path, value: dict[str, Any]) -> None:
         temporary_path.unlink(missing_ok=True)
 
 
-def atomic_write_text(path: Path, value: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        dir=path.parent,
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-    )
-    temporary_path = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(value)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.chmod(temporary_path, 0o600)
-        os.replace(temporary_path, path)
-    finally:
-        temporary_path.unlink(missing_ok=True)
-
-
 def load(path: Path) -> dict[str, Any]:
     ledger = read_json(path)
     if ledger.get("schema_version") != SCHEMA_VERSION:
@@ -2712,16 +2693,6 @@ def bootstrap_index(project: str) -> str:
     )
 
 
-def bootstrap_manifest(project: str) -> dict[str, Any]:
-    return {
-        "specspine": 3,
-        "project": project,
-        "implementation_freedom": "contract-equivalent",
-        "areas": [],
-        "assets": [],
-    }
-
-
 def command_bootstrap_spine(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
     if ledger["spine_state"] != "empty":
@@ -2732,30 +2703,43 @@ def command_bootstrap_spine(args: argparse.Namespace) -> dict[str, Any]:
     if not project:
         raise CampaignError("bootstrap project must be nonempty")
     spine_root = args.spine_root.resolve()
-    spine_root.mkdir(parents=True, exist_ok=True)
-    index_path = spine_root / "README.md"
-    manifest_path = spine_root / "specspine.json"
     expected_index = bootstrap_index(project)
-    expected_manifest = bootstrap_manifest(project)
-    created: list[str] = []
-
-    if index_path.exists():
-        if index_path.read_text(encoding="utf-8") != expected_index:
-            raise CampaignError(
-                "empty Spine bootstrap found a non-bootstrap README.md"
-            )
-    else:
-        atomic_write_text(index_path, expected_index)
-        created.append("README.md")
-
-    if manifest_path.exists():
-        if read_json(manifest_path) != expected_manifest:
-            raise CampaignError(
-                "empty Spine bootstrap found a non-bootstrap specspine.json"
-            )
-    else:
-        atomic_write(manifest_path, expected_manifest)
-        created.append("specspine.json")
+    descriptor, index_name = tempfile.mkstemp(
+        dir=args.ledger.resolve().parent,
+        prefix=".map-bootstrap-index.",
+        suffix=".md",
+    )
+    index_file = Path(index_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(expected_index)
+        process = subprocess.run(
+            [
+                sys.executable,
+                str(args.bootstrapper),
+                str(spine_root),
+                "--project",
+                project,
+                "--index-file",
+                str(index_file),
+                "--require-exact",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        index_file.unlink(missing_ok=True)
+    if process.returncode != 0:
+        try:
+            detail = json.loads(process.stderr).get("error")
+        except (json.JSONDecodeError, AttributeError):
+            detail = process.stderr.strip() or process.stdout.strip()
+        raise CampaignError(f"Spine bootstrap failed: {detail}")
+    try:
+        receipt = json.loads(process.stdout)
+    except json.JSONDecodeError as error:
+        raise CampaignError("Spine bootstrap returned invalid JSON") from error
 
     findings = run_checker(
         args.checker,
@@ -2763,9 +2747,9 @@ def command_bootstrap_spine(args: argparse.Namespace) -> dict[str, Any]:
         repository_root=repository_root_from_ledger(ledger),
     )
     return {
-        "status": "created" if created else "already_ready",
+        "status": receipt["status"],
         "spine_root": str(spine_root),
-        "created": created,
+        "created": receipt["created"],
         "checker_findings": len(findings),
     }
 
@@ -5460,6 +5444,11 @@ def parser() -> argparse.ArgumentParser:
     bootstrap.add_argument("ledger", type=Path)
     bootstrap.add_argument("spine_root", type=Path)
     bootstrap.add_argument("--project", required=True)
+    bootstrap.add_argument(
+        "--bootstrapper",
+        type=Path,
+        default=Path(__file__).with_name("bootstrap_spine.py"),
+    )
     bootstrap.add_argument(
         "--checker",
         type=Path,
