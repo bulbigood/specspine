@@ -5,7 +5,7 @@
   "status": "executable",
   "category": "core",
   "initial_files": {
-    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Authentication](authentication.md)\n- [Users](users.md)\n- [Configuration](configuration.md)\n",
+    "specspine/_INDEX.md": "# Architecture\n\n## Architecture map\n\n- [Authentication](authentication.md)\n- [Users](users.md)\n- [Configuration](configuration.md)\n",
     "specspine/authentication.md": "# Authentication\n\nCoordinates authentication methods.\n\n- [External identity](external-identity.md)\n- [Sessions](session-management.md)\n",
     "specspine/external-identity.md": "# External identity\n\nOwns external identity-provider authentication.\n",
     "specspine/session-management.md": "# Session management\n\nCreates provider-independent application sessions.\n",

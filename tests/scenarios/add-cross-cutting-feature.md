@@ -4,7 +4,7 @@
 
 ```text
 <spine-root>/
-├── README.md
+├── _INDEX.md
 ├── authentication.md
 ├── external-identity.md
 ├── session-management.md

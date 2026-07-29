@@ -371,7 +371,7 @@ def synthesis_diagnostics(
     existing_documents = [
         path
         for path in Path(corpus["spine_root"]).rglob("*.md")
-        if path.name != "README.md"
+        if path.name != "_INDEX.md"
     ]
     if source_count and existing_documents and covered_count == 0:
         diagnostics.append(

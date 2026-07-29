@@ -2,7 +2,7 @@
 
 ## Initial project
 
-`specspine/README.md` exists and links to several architectural
+`specspine/_INDEX.md` exists and links to several architectural
 specifications. A root `AGENTS.md` contains user-authored instructions but no
 SpecSpine notice.
 
@@ -24,7 +24,7 @@ The skill should:
   content;
 - persist English as the SpecSpine documentation language in that bootstrap;
 - create no additional artifact or project-local skill;
-- point the bootstrap to `specspine/README.md`;
+- point the bootstrap to `specspine/_INDEX.md`;
 - prefer `specspine-extract` for architecture-relevant downstream retrieval and
   retain index-and-link navigation as fallback;
 - distinguish Decisions and Constraints from Observed, Inferred, and Open

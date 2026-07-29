@@ -79,6 +79,7 @@ CORE_RELATIONS = {
 RELATION_HEADER = ("Relation", "Target", "Meaning")
 DIVERGENCE_HEADER = ("Intended", "Observed", "Consequence")
 MANIFEST_NAME = "specspine.json"
+INDEX_NAME = "_INDEX.md"
 MANIFEST_KEYS = {
     "specspine", "project", "implementation_freedom", "areas", "assets",
 }
@@ -121,6 +122,47 @@ FACET_SUPPORT_SECTIONS = {
     "failure": {"Failure behavior", "Edge cases"},
     "quality": {"Quality attributes", "Quality constraints"},
 }
+
+
+def is_spine_root(path: Path) -> bool:
+    return (path / INDEX_NAME).is_file() and (path / MANIFEST_NAME).is_file()
+
+
+def owned_files(root: Path) -> list[Path]:
+    """Return files owned by root without descending into nested Spines."""
+    result: list[Path] = []
+    for current, directories, files in os.walk(root):
+        directory = Path(current)
+        if directory != root and is_spine_root(directory):
+            directories[:] = []
+            continue
+        result.extend(
+            directory / name
+            for name in files
+            if not (directory / name).is_symlink()
+        )
+    return sorted(result)
+
+
+def owned_directories(root: Path) -> list[Path]:
+    result: list[Path] = []
+    for current, directories, _ in os.walk(root):
+        directory = Path(current)
+        if directory != root and is_spine_root(directory):
+            directories[:] = []
+            continue
+        result.append(directory)
+    return sorted(result)
+
+
+def nested_spine_roots(root: Path) -> list[Path]:
+    result: list[Path] = []
+    for current, directories, _ in os.walk(root):
+        directory = Path(current)
+        if directory != root and is_spine_root(directory):
+            result.append(directory)
+            directories[:] = []
+    return sorted(result)
 FACET_SUPPORT_PREFIXES = {
     "behavior": {"DEC-", "CON-", "REQ-", "GUA-", "INV-"},
     "quality": {"QLT-"},
@@ -474,7 +516,7 @@ def _parse_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
             paragraph.append(lines[cursor].strip())
             cursor += 1
         node.summary = " ".join(paragraph)
-    if not node.summary:
+    if not node.summary and node.kind != "index":
         add(findings, "error", "MISSING_SUMMARY", path, root, "missing summary immediately after identity and aliases")
     if node.kind != "index":
         responsibility = node.sections.get("Responsibility")
@@ -669,15 +711,84 @@ def check(
     if not root.is_dir():
         return [Finding("error", "ROOT_MISSING", ".", None, f"SpecSpine root does not exist: {root}")]
     manifest = _load_manifest(root, findings)
-    files = sorted(path for path in root.rglob("*.md") if path.is_file() and not path.is_symlink())
-    index = root / "README.md"
+    files = [path for path in owned_files(root) if path.suffix.casefold() == ".md"]
+    index = root / INDEX_NAME
     if not index.is_file():
-        add(findings, "error", "INDEX_MISSING", index, root, "root README.md is required")
+        add(findings, "error", "INDEX_MISSING", index, root, f"root {INDEX_NAME} is required")
     nodes = [_parse_node(path, root, findings) for path in files]
     by_path = {node.path.resolve(): node for node in nodes}
+    nested_roots = nested_spine_roots(root)
+    for directory in owned_directories(root):
+        directory_index = directory / INDEX_NAME
+        if not directory_index.is_file():
+            add(
+                findings,
+                "error",
+                "DIRECTORY_INDEX_MISSING",
+                directory_index,
+                root,
+                f"every directory in a Spine requires {INDEX_NAME}",
+            )
+            continue
+        node = by_path.get(directory_index.resolve())
+        if node is not None and node.kind != "index":
+            add(
+                findings,
+                "error",
+                "INDEX_KIND",
+                directory_index,
+                root,
+                f"{INDEX_NAME} must use Kind `index`",
+                node.identity_line,
+            )
+        expected: set[Path] = set()
+        for child in directory.iterdir():
+            if child.name == INDEX_NAME or child.is_symlink():
+                continue
+            if child.is_file():
+                expected.add(child.resolve())
+            elif child.is_dir() and (child / INDEX_NAME).is_file():
+                expected.add((child / INDEX_NAME).resolve())
+        if directory == root:
+            expected.update((child / INDEX_NAME).resolve() for child in nested_roots)
+        actual: set[Path] = set()
+        if node is not None:
+            for _, link in node.links or []:
+                if not link.target or "#" in link.target:
+                    continue
+                scope, target = local_target(node.path, link.target, root)
+                if scope == "inside" and target is not None:
+                    actual.add(target.resolve())
+        for missing in sorted(expected - actual):
+            add(
+                findings,
+                "error",
+                "INDEX_ENTRY_MISSING",
+                directory_index,
+                root,
+                f"missing deterministic entry for {missing.relative_to(root)}",
+            )
+        for extra in sorted(actual - expected):
+            add(
+                findings,
+                "error",
+                "INDEX_ENTRY_EXTRA",
+                directory_index,
+                root,
+                f"unexpected deterministic entry for {extra.relative_to(root)}",
+            )
     by_id: dict[str, _Node] = {}
     global_statements: dict[str, tuple[_Node, str, int]] = {}
     for node in nodes:
+        if node.kind == "index" and node.statements:
+            add(
+                findings,
+                "error",
+                "INDEX_SEMANTIC_CONTENT",
+                node.path,
+                root,
+                "generated indexes cannot own semantic claims",
+            )
         for section in sorted(
             MARKDOWN_COMPLETENESS_SECTIONS & set(node.sections or {})
         ):
@@ -985,9 +1096,8 @@ def check(
             add(findings, "error", "MANIFEST_AREA_MISSING", node.path, root, "every non-index specification requires exactly one manifest area")
     physical_assets = {
         path.resolve()
-        for path in root.rglob("*")
+        for path in owned_files(root)
         if path.is_file()
-        and not path.is_symlink()
         and path.suffix.casefold() != ".md"
         and path.name != MANIFEST_NAME
     }
@@ -997,7 +1107,7 @@ def check(
     if index in [node.path for node in nodes]:
         index_node = by_path[index.resolve()]
         if index_node.kind != "index":
-            add(findings, "error", "INDEX_KIND", index, root, "root README.md must use Kind `index`", index_node.identity_line)
+            add(findings, "error", "INDEX_KIND", index, root, f"root {INDEX_NAME} must use Kind `index`", index_node.identity_line)
 
     for node in nodes:
         divergence = (node.sections or {}).get("Known divergences")
@@ -1061,7 +1171,7 @@ def check(
             pending.extend(graph.get(current, set()) - reachable)
         for node in nodes:
             if node.path.resolve() not in reachable:
-                add(findings, "error", "UNREACHABLE_SPEC", node.path, root, "specification is not reachable from README.md")
+                add(findings, "error", "UNREACHABLE_SPEC", node.path, root, f"specification is not reachable from {INDEX_NAME}")
     order = {"error": 0, "warning": 1, "note": 2}
     return sorted(findings, key=lambda item: (order[item.severity], item.path, item.line or 0, item.code))
 
@@ -1179,8 +1289,8 @@ def check_candidates(
         if path.suffix != ".md":
             add(findings, "error", "STAGED_NON_MARKDOWN", path, staging_root, "staging may contain only Markdown files")
             continue
-        if relative == Path("README.md"):
-            add(findings, "error", "STAGED_INDEX", path, staging_root, "a producer must not replace README.md")
+        if relative == Path(INDEX_NAME):
+            add(findings, "error", "STAGED_INDEX", path, staging_root, f"a producer must not replace {INDEX_NAME}")
             continue
         destination = spine_root / relative
         if destination.is_symlink() or (
@@ -1202,7 +1312,10 @@ def check_candidates(
         for item in check(spine_root, repository_root=repository_root)
     }
     ignored_overlay_codes = {
-        "ID_SECTION_UNVERIFIED", "UNREACHABLE_SPEC", "MANIFEST_AREA_MISSING",
+        "ID_SECTION_UNVERIFIED",
+        "UNREACHABLE_SPEC",
+        "MANIFEST_AREA_MISSING",
+        "INDEX_ENTRY_MISSING",
     }
     with tempfile.TemporaryDirectory(prefix="specspine-candidate-check-") as directory:
         overlay = Path(directory)
@@ -1251,7 +1364,7 @@ def main() -> int:
             path.is_absolute()
             or ".." in path.parts
             or path.suffix != ".md"
-            or path == Path("README.md")
+            or path == Path(INDEX_NAME)
         ):
             parser.error(f"unsafe replacement path: {value}")
         replacements.add(path.as_posix())

@@ -46,16 +46,16 @@ class BootstrapSpineTests(unittest.TestCase):
     def test_creates_pair_and_is_idempotent(self):
         first = self.cli("--index-file", str(self.index))
         second = self.cli()
-        self.assertEqual(["README.md", "specspine.json"], first["created"])
+        self.assertEqual(["_INDEX.md", "specspine.json"], first["created"])
         self.assertEqual("already_ready", second["status"])
 
     def test_completes_partial_root_without_overwriting_index(self):
         self.spine.mkdir()
         existing = "# Existing\n"
-        (self.spine / "README.md").write_text(existing, encoding="utf-8")
+        (self.spine / "_INDEX.md").write_text(existing, encoding="utf-8")
         result = self.cli()
         self.assertEqual(["specspine.json"], result["created"])
-        self.assertEqual(existing, (self.spine / "README.md").read_text())
+        self.assertEqual(existing, (self.spine / "_INDEX.md").read_text())
 
     def test_requires_rendered_index_when_index_is_missing(self):
         error = self.cli(expected=2)
@@ -63,7 +63,7 @@ class BootstrapSpineTests(unittest.TestCase):
 
     def test_exact_mode_rejects_existing_different_index(self):
         self.spine.mkdir()
-        (self.spine / "README.md").write_text("# Different\n", encoding="utf-8")
+        (self.spine / "_INDEX.md").write_text("# Different\n", encoding="utf-8")
         error = self.cli(
             "--index-file",
             str(self.index),

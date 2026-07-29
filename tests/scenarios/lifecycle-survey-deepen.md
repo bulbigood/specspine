@@ -23,7 +23,7 @@ node for the next stage.
 
 Expected behavior:
 
-- create a reachable `specspine/README.md` and a small, flat set of
+- create a reachable `specspine/_INDEX.md` and a small, flat set of
   responsibility-oriented specifications;
 - include checkout and payment processing without creating one document per
   source directory, file, handler, table, or runtime process;

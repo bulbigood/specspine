@@ -8,7 +8,7 @@ Each corpus is immutable benchmark input with this layout:
 └── project/
     ├── AGENTS.md
     └── specspine/
-        ├── README.md
+        ├── _INDEX.md
         └── ...
 ```
 

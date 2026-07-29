@@ -5,7 +5,7 @@
   "status": "planned",
   "category": "planned",
   "initial_files": {
-    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Authentication](authentication.md)\n- [Users](users.md)\n",
+    "specspine/_INDEX.md": "# Architecture\n\n## Architecture map\n\n- [Authentication](authentication.md)\n- [Users](users.md)\n",
     "specspine/authentication.md": "# Authentication\n\nAuthenticates users with passwords and creates application sessions.\n",
     "specspine/users.md": "# Users\n\nOwns user accounts.\n",
     "src/auth.js": "export function login() {}\n"

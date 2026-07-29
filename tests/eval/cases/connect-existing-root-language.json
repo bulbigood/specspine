@@ -6,7 +6,7 @@
   "eval_language": "English",
   "initial_files": {
     "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n",
-    "architecture/README.md": "# Архитектура проекта\n\n## Назначение\n\nСистема обрабатывает документы и предоставляет поиск по извлечённому содержимому.\n\n## Карта архитектуры\n\n- [Обработка документов](document-processing.md)\n",
+    "architecture/_INDEX.md": "# Архитектура проекта\n\n## Назначение\n\nСистема обрабатывает документы и предоставляет поиск по извлечённому содержимому.\n\n## Карта архитектуры\n\n- [Обработка документов](document-processing.md)\n",
     "architecture/document-processing.md": "# Обработка документов\n\nОтвечает за приём документов и асинхронное извлечение содержимого.\n"
   },
   "stages": [
@@ -28,7 +28,7 @@
       "assertions": [
         {"type": "max_changed_files", "max": 0},
         {"type": "response_contains", "values": ["Russian", "AGENTS.md"]},
-        {"type": "read_includes", "paths": ["architecture/README.md"]},
+        {"type": "read_includes", "paths": ["architecture/_INDEX.md"]},
         {"type": "unchanged", "paths": ["AGENTS.md", "architecture/**"]}
       ]
     },
@@ -40,7 +40,7 @@
         {"type": "changed_only", "paths": ["AGENTS.md"]},
         {"type": "unchanged", "paths": ["architecture/**"]},
         {"type": "file_contains", "path": "AGENTS.md", "value": "Preserve this user-authored sentence."},
-        {"type": "file_contains", "path": "AGENTS.md", "values": ["SpecSpine index: `architecture/README.md`", "SpecSpine documentation language: `Russian`"]},
+        {"type": "file_contains", "path": "AGENTS.md", "values": ["SpecSpine index: `architecture/_INDEX.md`", "SpecSpine documentation language: `Russian`"]},
         {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1},
         {"type": "command_includes", "value": "check_spine.py"}
       ]

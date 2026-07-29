@@ -49,14 +49,17 @@ SKILL_SCRIPTS = {
     },
     "specspine-evolve": {
         "check_spine.py": "check_spine.py",
+        "rebuild_indexes.py": "rebuild_indexes.py",
     },
     "specspine-map": {
         "bootstrap_spine.py": "bootstrap_spine.py",
         "check_spine.py": "check_spine.py",
+        "rebuild_indexes.py": "rebuild_indexes.py",
     },
     "specspine-doctor": {
         "bootstrap_spine.py": "bootstrap_spine.py",
         "check_spine.py": "check_spine.py",
+        "rebuild_indexes.py": "rebuild_indexes.py",
     },
     "specspine-verify": {
         "check_spine.py": "check_spine.py",
@@ -64,17 +67,20 @@ SKILL_SCRIPTS = {
 }
 SKILL_ASSETS = {
     "specspine-evolve": {
+        "templates/architecture-index.md": "templates/spine-index.md",
         "templates/specspine.json": "templates/specspine.json",
     },
     "specspine-map": {
+        "templates/architecture-index.md": "templates/spine-index.md",
         "templates/specspine.json": "templates/specspine.json",
     },
     "specspine-doctor": {
+        "templates/spine-index.md": "templates/spine-index.md",
         "templates/specspine.json": "templates/specspine.json",
     },
 }
 WORD_BUDGETS = {
-    ("specspine-doctor", "SKILL.md"): 850,
+    ("specspine-doctor", "SKILL.md"): 950,
     ("specspine-doctor", "assets/templates/agent-bootstrap.md"): 60,
     ("specspine-map", "SKILL.md"): 850,
 }

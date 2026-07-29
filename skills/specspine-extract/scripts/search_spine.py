@@ -1081,7 +1081,7 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
         ]
     for document in documents.values():
         document["root"] = str(root)
-    index = next((item for item in documents.values() if item["kind"] == "index" and item["path"] == "README.md"), None)
+    index = next((item for item in documents.values() if item["kind"] == "index" and item["path"] == "_INDEX.md"), None)
     if errors or index is None:
         base["status"] = {"code": "invalid", "reason": "invalid_spine"}
         base["omitted"] = [{"reason": error} for error in errors] or [{"reason": "root index missing"}]
@@ -1127,7 +1127,7 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
                     query["facets"]
                 ),
             },
-            "sources": ["README.md"],
+            "sources": ["_INDEX.md"],
         })
         return base
     primary_id = sorted(candidates, key=lambda item: (-candidates[item], item))[0]

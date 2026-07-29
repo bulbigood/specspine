@@ -1,7 +1,7 @@
 <!-- specspine:begin -->
 ## SpecSpine documentation
 
-- SpecSpine index: `specspine/README.md`
+- SpecSpine index: `specspine/_INDEX.md`
 - SpecSpine documentation language: `English`
 
 SpecSpine is the primary source of project architecture intent. Whenever a user

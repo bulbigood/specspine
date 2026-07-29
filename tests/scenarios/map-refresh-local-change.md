@@ -4,7 +4,7 @@
 
 ```text
 <spine-root>/
-├── README.md
+├── _INDEX.md
 ├── api-server.md
 ├── background-processing.md
 ├── persistence.md

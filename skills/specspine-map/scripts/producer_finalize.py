@@ -77,8 +77,8 @@ def relative_markdown_files(root: Path) -> dict[str, Path]:
             raise PreflightError(
                 f"staging may contain only Markdown files: {relative.as_posix()}"
             )
-        if relative == Path("README.md"):
-            raise PreflightError("producer must not publish README.md")
+        if relative == Path("_INDEX.md"):
+            raise PreflightError("producer must not publish _INDEX.md")
         files[relative.as_posix()] = path
     return files
 

@@ -26,6 +26,8 @@ implicitly.
   [assets/templates/spine-index.md](assets/templates/spine-index.md).
 - Run `scripts/check_spine.py <spine-root>` for reproducible checks. Use
   `--json` only when structured output is useful.
+- Run `scripts/workspace_spines.py <workspace>` for workspace-wide discovery
+  and connectivity. Use `--rebuild` only for an authorized repair.
 - Use `scripts/bootstrap_spine.py` for root creation; never write the pair
   directly.
 - Read [references/spec-semantics.md](references/spec-semantics.md) for a
@@ -55,8 +57,10 @@ unless the request independently authorizes that work.
 
 ## Health scope
 
-Resolve `<spine-root>` from the request, project instructions, an existing
-managed bootstrap, or the default `specspine`; require its `README.md`.
+Resolve `<workspace>` first. For workspace-wide work, discover all roots
+mechanically. Otherwise resolve `<spine-root>` from the request, project
+instructions, an existing managed bootstrap, or the default `specspine`;
+require its `_INDEX.md`.
 Check is read-only. Doctor may repair files under `<spine-root>` after the
 operator approves the proposed repair; an explicit request that already names
 the defect and requested correction is approval for that correction.
@@ -65,7 +69,7 @@ Inspect no project-specific files outside `<spine-root>`. Repository drift and
 code/spec comparison belong to `specspine-map`.
 
 For a whole-Spine review, inspect every specification progressively rather than
-sampling. Follow the graph from `README.md`, include unreachable specifications
+sampling. Follow the graph from `_INDEX.md`, include unreachable specifications
 reported by the checker, and use the coverage procedure in
 `references/review-method.md`. For a selected area, inspect its direct
 neighborhood and expand only where ownership or conflicts cross the boundary.
@@ -113,6 +117,9 @@ Modify only files under `<spine-root>`, preserve unrelated content, rerun the
 affected checks, report the result, then resume the progressive review until
 the requested scope is covered. If the approved target state is already
 satisfied, report it and write nothing.
+
+Create and update `_INDEX.md` only through `rebuild_indexes.py` or the
+workspace wrapper. Never ask an AI agent to curate index entries.
 
 ## Boundaries
 

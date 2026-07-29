@@ -2,7 +2,7 @@
 
 ## Initial project
 
-`specspine/README.md` exists and links to an architectural specification. The
+`specspine/_INDEX.md` exists and links to an architectural specification. The
 root `AGENTS.md` contains user-authored instructions and one complete SpecSpine
 managed bootstrap.
 

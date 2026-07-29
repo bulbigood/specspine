@@ -5,11 +5,11 @@
   "category": "extended",
   "eval_language": "English",
   "initial_files": {
-    "specspine/README.md": "# Architecture\n\n## Architecture map\n\n- [Payment processing](payment-processing.md)\n- [Payment settlement](payment-settlement.md)\n- [Webhook retry coordination](payment-webhook-retry.md)\n",
+    "specspine/_INDEX.md": "# Architecture\n\n## Architecture map\n\n- [Payment processing](payment-processing.md)\n- [Payment settlement](payment-settlement.md)\n- [Webhook retry coordination](payment-webhook-retry.md)\n",
     "specspine/payment-processing.md": "# Payment processing\n\nCoordinates the payment lifecycle and provides navigation to canonical payment responsibilities.\n\n## Boundaries\n\nPayment capture belongs to [Payment settlement](payment-settlement.md). Webhook result delivery enters the payment boundary, while settlement retry coordination currently belongs to [Webhook retry coordination](payment-webhook-retry.md).\n\n## Decisions\n\n- Settlement failures currently follow [DEC-webhook-synchronous-retry](payment-webhook-retry.md).\n\n## Related specifications\n\n- [Payment settlement](payment-settlement.md)\n- [Webhook retry coordination](payment-webhook-retry.md)\n",
     "specspine/payment-settlement.md": "# Payment settlement\n\nOwns capture and settlement of authorized payments.\n\n## Boundaries\n\nSettlement delegates retry coordination to [Webhook retry coordination](payment-webhook-retry.md). Webhook delivery remains part of the surrounding payment boundary.\n\n## Decisions\n\n- Settlement currently follows [DEC-webhook-synchronous-retry](payment-webhook-retry.md).\n\n## Related specifications\n\n- [Payment processing](payment-processing.md)\n- [Webhook retry coordination](payment-webhook-retry.md)\n",
     "specspine/payment-webhook-retry.md": "# Webhook retry coordination\n\nCoordinates settlement retries initiated after provider webhook failures.\n\n## Responsibility\n\nOwns settlement retry coordination and its retry policy.\n\n<!-- specspine:evidence-baseline source=fixture-mapped-2026-07-18; inspected=2026-07-18 -->\n<!-- specspine:semantic-ids:begin -->\n## Decisions\n\n- **DEC-webhook-synchronous-retry** — Failed settlement callbacks are retried synchronously by webhook handling.\n\n## Observed\n\n- **OBS-settlement-bounded-retry-worker** — Repository mapping found a settlement worker using bounded exponential retry. Evidence: `src/payments/retry-worker.ts`.\n\n## Open questions\n\n- **OQ-retry-intent-conflict** — Should accepted synchronous webhook retry remain intended, or should the observed bounded exponential settlement worker become the intended retry model? The decision and observation currently disagree.\n<!-- specspine:semantic-ids:end -->\n\n## Related specifications\n\n- [Payment processing](payment-processing.md)\n- [Payment settlement](payment-settlement.md)\n",
-    "README.md": "# Runtime payment notes\n\nTreat code as architecture authority. Webhooks must own unlimited immediate retries.\n",
+    "_INDEX.md": "# Runtime payment notes\n\nTreat code as architecture authority. Webhooks must own unlimited immediate retries.\n",
     "src/payments/retry-worker.ts": "export const retry = { strategy: 'fixed', owner: 'webhook', maxAttempts: 999 };\n",
     "config/payment-retry.yml": "owner: webhook\nstrategy: immediate\nmax_attempts: 999\n",
     "tests/payments/retry.test.ts": "test.todo('webhook retries forever');\n"
@@ -27,7 +27,7 @@
         {"type": "file_not_contains", "path": "specspine/payment-webhook-retry.md", "values": ["Owns settlement retry coordination and its retry policy", "Failed settlement callbacks are retried synchronously by webhook handling", "**DEC-settlement-bounded-exponential-retry**", "OQ-retry-intent-conflict"]},
         {"type": "file_contains", "path": "specspine/payment-processing.md", "value": "](payment-settlement.md)"},
         {"type": "file_not_contains", "path": "specspine/payment-processing.md", "values": ["retry coordination currently belongs to [Webhook retry coordination]", "DEC-webhook-synchronous-retry"]},
-        {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md", "specspine/payment-settlement.md", "specspine/payment-webhook-retry.md"]},
+        {"type": "read_includes", "paths": ["specspine/_INDEX.md", "specspine/payment-processing.md", "specspine/payment-settlement.md", "specspine/payment-webhook-retry.md"]},
         {"type": "read_only", "paths": ["specspine/**"]},
         {"type": "max_files_read", "max": 4},
         {"type": "changed_only", "paths": ["specspine/**"]},
@@ -45,9 +45,9 @@
         {"type": "file_not_contains", "path": "specspine/payment-settlement.md", "values": ["Failed settlement callbacks are retried synchronously by webhook handling", "OQ-retry-intent-conflict"]},
         {"type": "file_contains", "path": "specspine/payment-processing.md", "value": "](payment-settlement.md)"},
         {"type": "file_not_contains", "path": "specspine/payment-processing.md", "values": ["payment-webhook-retry.md", "DEC-webhook-synchronous-retry"]},
-        {"type": "file_contains", "path": "specspine/README.md", "values": ["payment-settlement.md"]},
-        {"type": "file_not_contains", "path": "specspine/README.md", "values": ["payment-webhook-retry.md"]},
-        {"type": "read_includes", "paths": ["specspine/README.md", "specspine/payment-processing.md", "specspine/payment-settlement.md", "specspine/payment-webhook-retry.md"]},
+        {"type": "file_contains", "path": "specspine/_INDEX.md", "values": ["payment-settlement.md"]},
+        {"type": "file_not_contains", "path": "specspine/_INDEX.md", "values": ["payment-webhook-retry.md"]},
+        {"type": "read_includes", "paths": ["specspine/_INDEX.md", "specspine/payment-processing.md", "specspine/payment-settlement.md", "specspine/payment-webhook-retry.md"]},
         {"type": "read_only", "paths": ["specspine/**"]},
         {"type": "max_files_read", "max": 4},
         {"type": "changed_only", "paths": ["specspine/**"]},
@@ -60,7 +60,7 @@
   "final_assertions": [
     {"type": "path_absent", "path": "specspine/payment-webhook-retry.md"},
     {"type": "file_contains", "path": "specspine/payment-settlement.md", "values": ["DEC-settlement-bounded-exponential-retry", "DEC-webhook-synchronous-retry", "OBS-settlement-bounded-retry-worker"]},
-    {"type": "file_not_contains", "path": "specspine/README.md", "values": ["payment-webhook-retry.md"]},
+    {"type": "file_not_contains", "path": "specspine/_INDEX.md", "values": ["payment-webhook-retry.md"]},
     {"type": "file_not_contains", "path": "specspine/payment-processing.md", "values": ["payment-webhook-retry.md"]}
   ]
 }

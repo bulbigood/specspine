@@ -25,7 +25,7 @@ manage customers, subscriptions, and invoices.
 
 ```text
 <spine-root>/
-├── README.md
+├── _INDEX.md
 ├── application.md
 ├── identity.md
 ├── billing.md
@@ -44,7 +44,7 @@ screen.
 
 ```text
 <spine-root>/
-├── README.md
+├── _INDEX.md
 ├── authentication.md
 └── users.md
 ```
@@ -69,7 +69,7 @@ Create:
 
 Modify:
 - <spine-root>/authentication.md
-- <spine-root>/README.md
+- <spine-root>/_INDEX.md
 
 Read-only context:
 - <spine-root>/users.md, unless the request supplies new durable intent owned

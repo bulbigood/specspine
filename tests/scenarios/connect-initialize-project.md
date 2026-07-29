@@ -33,15 +33,15 @@ The skill should:
 
 - preserve the user-authored `AGENTS.md` content;
 - add exactly one managed connection block to `AGENTS.md`;
-- persist `specspine/README.md` and English in the block;
-- create a minimal English `specspine/README.md`;
+- persist `specspine/_INDEX.md` and English in the block;
+- create a minimal English `specspine/_INDEX.md`;
 - create no concept specifications or other artifacts.
 
 ## Failure indicators
 
 - configuration defaults are applied before the user answers;
 - the language is requested before the root is selected and inspected;
-- the skill refuses because `specspine/README.md` is absent;
+- the skill refuses because `specspine/_INDEX.md` is absent;
 - existing project instructions are replaced;
 - the root index contains unresolved template placeholders;
-- files other than `AGENTS.md` and `specspine/README.md` are created or changed.
+- files other than `AGENTS.md` and `specspine/_INDEX.md` are created or changed.

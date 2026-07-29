@@ -1,7 +1,7 @@
 <!-- specspine:begin -->
 ## SpecSpine
 
-- SpecSpine index: `{{SPINE_ROOT}}/README.md`
+- SpecSpine index: `{{SPINE_ROOT}}/_INDEX.md`
 - Documentation language: `{{DOCUMENTATION_LANGUAGE}}`
 
 Use installed `specspine-extract` for architecture, specification,

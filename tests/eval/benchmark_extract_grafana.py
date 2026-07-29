@@ -137,10 +137,10 @@ def materialize_fixture(grafana_root: Path, target: Path) -> Path:
     source = grafana_root.expanduser().resolve()
     agents = source / "AGENTS.md"
     spine = source / "specspine"
-    index = spine / "README.md"
+    index = spine / "_INDEX.md"
     if not agents.is_file() or not index.is_file():
         raise ValueError(
-            f"Grafana fixture requires AGENTS.md and specspine/README.md: {source}"
+            f"Grafana fixture requires AGENTS.md and specspine/_INDEX.md: {source}"
         )
     target.mkdir(parents=True)
     shutil.copy2(agents, target / "AGENTS.md")

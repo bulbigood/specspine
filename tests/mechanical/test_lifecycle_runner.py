@@ -2,6 +2,7 @@ import importlib.util
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -9,6 +10,7 @@ from pathlib import Path
 
 
 MODULE_PATH = Path(__file__).parents[1] / "eval" / "run.py"
+ROOT = Path(__file__).parents[2]
 SPEC = importlib.util.spec_from_file_location("specspine_lifecycle_eval", MODULE_PATH)
 assert SPEC and SPEC.loader
 RUNNER = importlib.util.module_from_spec(SPEC)
@@ -110,7 +112,7 @@ class LifecycleRunnerTests(unittest.TestCase):
             workspace = Path(directory)
             nested = workspace / "specspine/domains/payments"
             nested.mkdir(parents=True)
-            (workspace / "specspine/README.md").write_text(
+            (workspace / "specspine/_INDEX.md").write_text(
                 "# Architecture\n\n**ID:** `project-architecture` · **Kind:** `index`\n\n"
                 "Architecture.\n\n## Architecture map\n\n"
                 "- [Payments](domains/payments/payment-processing.md) — owns payments.\n",
@@ -140,6 +142,16 @@ class LifecycleRunnerTests(unittest.TestCase):
                 }],
                 "assets": [],
             }), encoding="utf-8")
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "shared/scripts/rebuild_indexes.py"),
+                    str(workspace / "specspine"),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
             clean = RUNNER.evaluate_assertion(
                 {"type": "spine_mechanical_valid"}, workspace, {}, {}, "", None
             )

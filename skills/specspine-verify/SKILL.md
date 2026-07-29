@@ -21,7 +21,7 @@ reports evidence; it never creates accepted intent or changes readiness.
 
 ## Workflow
 
-1. Resolve `<spine-root>` and require its `README.md`.
+1. Resolve `<spine-root>` and require its `_INDEX.md`.
 2. Run the mechanical checker. Stop on errors that make the selected closure
    invalid.
 3. Resolve implementation freedom, the primary owner, normative claims, owned

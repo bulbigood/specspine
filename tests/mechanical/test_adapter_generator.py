@@ -95,7 +95,23 @@ Owns an unreachable architectural responsibility.
             spine = Path(directory) / "specspine"
             nested = spine / "area"
             nested.mkdir(parents=True)
-            (spine / "README.md").write_text(index, encoding="utf-8")
+            (spine / "_INDEX.md").write_text(index, encoding="utf-8")
+            (spine / "specspine.json").write_text(
+                '{"specspine":3,"project":"test",'
+                '"implementation_freedom":"contract-equivalent",'
+                '"areas":[{"owner":"orphan","facets":{'
+                '"architecture":"partial","behavior":"partial",'
+                '"interfaces":"not-applicable","data":"not-applicable",'
+                '"failure":"partial","quality":"not-applicable",'
+                '"verification":"partial"},"blockers":[]}],"assets":[]}',
+                encoding="utf-8",
+            )
+            (nested / "_INDEX.md").write_text(
+                "# Area\n\n"
+                "**ID:** `index-area` · **Kind:** `index`\n\n"
+                "## Contents\n\n- [orphan.md](orphan.md)\n",
+                encoding="utf-8",
+            )
             (nested / "orphan.md").write_text(orphan, encoding="utf-8")
 
             result = subprocess.run(
@@ -253,7 +269,7 @@ Owns an unreachable architectural responsibility.
         index = (source / "assets/templates/spine-index.md").read_text(encoding="utf-8")
         for value in ("`specspine`", "`English`", "`AGENTS.md`"):
             self.assertIn(value, instructions)
-        self.assertIn("<spine-root>/README.md", instructions)
+        self.assertIn("<spine-root>/_INDEX.md", instructions)
         self.assertLess(
             instructions.index("Ask for `<spine-root>`"),
             instructions.index("Detect its dominant natural language"),
@@ -263,14 +279,9 @@ Owns an unreachable architectural responsibility.
         self.assertIn("specspine.json", instructions)
         self.assertIn("exact label accepted by the operator", instructions)
         self.assertIn("Do not translate its headings", instructions)
-        self.assertIn("natural-language headings", instructions)
-        self.assertIn("accepted documentation language", instructions)
-        self.assertIn("MUST NOT include a", instructions)
-        self.assertIn("tutorial, framework purpose", instructions)
-        self.assertIn(
-            "the index answers what architecture this project has",
-            instructions,
-        )
+        self.assertIn("rebuild_indexes.py", instructions)
+        self.assertIn("SpecSpine purpose and scope statements", instructions)
+        self.assertIn("deterministic navigation", instructions)
         self.assertIn("# Project architecture", index)
         self.assertIn(
             "This directory contains the project's long-lived architectural intent",
@@ -280,7 +291,7 @@ Owns an unreachable architectural responsibility.
             "architecture-relevant repository observations",
             index,
         )
-        self.assertNotIn("SpecSpine is", index)
+        self.assertIn("SpecSpine is", index)
         self.assertNotIn("specspine-extract", index)
 
     def test_doctor_explains_modes_before_requesting_a_selection(self):
@@ -328,12 +339,12 @@ Owns an unreachable architectural responsibility.
             "Empty directory",
             "Complete v3 root pair present",
             "Exactly one root file present",
-            "Empty or mixed-language `README.md`",
+            "Empty or mixed-language `_INDEX.md`",
             "Nonempty directory without root files",
             "Root is a file or unreadable directory",
-            "`README.md` is not a readable regular text file",
-            "unrelated project/package README",
-            "Nested `README.md` only",
+            "`_INDEX.md` is not a readable regular text file",
+            "`_INDEX.md` is clearly unrelated content",
+            "Nested `_INDEX.md` only",
             "Case-variant index",
             "Selected root is the project root",
             "Symlink escapes the project",

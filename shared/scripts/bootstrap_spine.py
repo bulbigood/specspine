@@ -70,16 +70,16 @@ def bootstrap(
     root = root.resolve()
     if root.exists() and not root.is_dir():
         raise BootstrapError(f"Spine root is not a directory: {root}")
-    index_path = root / "README.md"
+    index_path = root / "_INDEX.md"
     manifest_path = root / "specspine.json"
     missing_index = not index_path.exists()
     missing_manifest = not manifest_path.exists()
     if not missing_index and not index_path.is_file():
-        raise BootstrapError("README.md is not a regular file")
+        raise BootstrapError("_INDEX.md is not a regular file")
     if not missing_manifest and not manifest_path.is_file():
         raise BootstrapError("specspine.json is not a regular file")
     if missing_index and index_file is None:
-        raise BootstrapError("--index-file is required when README.md is absent")
+        raise BootstrapError("--index-file is required when _INDEX.md is absent")
 
     rendered_index = read_index(index_file) if index_file is not None else None
     index = rendered_index if missing_index else None
@@ -88,7 +88,7 @@ def bootstrap(
         if rendered_index is None:
             raise BootstrapError("--require-exact requires --index-file")
         if not missing_index and index_path.read_text(encoding="utf-8") != rendered_index:
-            raise BootstrapError("existing README.md differs from rendered bootstrap")
+            raise BootstrapError("existing _INDEX.md differs from rendered bootstrap")
         if not missing_manifest:
             try:
                 existing_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -107,7 +107,7 @@ def bootstrap(
     try:
         if index is not None:
             exclusive_write(index_path, index.encode("utf-8"))
-            created.append("README.md")
+            created.append("_INDEX.md")
         if missing_manifest:
             exclusive_write(manifest_path, manifest_bytes)
             created.append("specspine.json")

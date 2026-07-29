@@ -66,11 +66,11 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
             source = root / "grafana"
             (source / "specspine").mkdir(parents=True)
             (source / "AGENTS.md").write_text("bootstrap", encoding="utf-8")
-            (source / "specspine" / "README.md").write_text("index", encoding="utf-8")
+            (source / "specspine" / "_INDEX.md").write_text("index", encoding="utf-8")
             (source / "ignored.go").write_text("ignored", encoding="utf-8")
             target = GRAFANA_BENCHMARK.materialize_fixture(source, root / "fixture")
             self.assertTrue((target / "AGENTS.md").is_file())
-            self.assertTrue((target / "specspine" / "README.md").is_file())
+            self.assertTrue((target / "specspine" / "_INDEX.md").is_file())
             self.assertFalse((target / "ignored.go").exists())
 
     def test_grafana_no_extract_adapter_does_not_enable_retrieval_telemetry(self):
@@ -211,8 +211,8 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
                 "event_metrics": {
                     "command_metrics": [
                         {
-                            "command_excerpt": "sed -n 1,80p specspine/README.md",
-                            "inferred_file_paths": ["specspine/README.md"],
+                            "command_excerpt": "sed -n 1,80p specspine/_INDEX.md",
+                            "inferred_file_paths": ["specspine/_INDEX.md"],
                         },
                         {
                             "command_excerpt": (
@@ -220,7 +220,7 @@ class ExtractAgentBenchmarkTests(unittest.TestCase):
                                 "specspine"
                             ),
                             "inferred_file_paths": [
-                                "specspine/README.md",
+                                "specspine/_INDEX.md",
                                 "specspine/owner.md",
                             ],
                         },

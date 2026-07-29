@@ -1,0 +1,1 @@
+../../../shared/scripts/rebuild_indexes.py

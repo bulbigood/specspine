@@ -23,6 +23,7 @@ Project architecture.
 ## Architecture map
 
 - [Payments](payments.md) — owns payments.
+- [specspine.json](specspine.json)
 
 """
 
@@ -61,7 +62,7 @@ class DoctorCheckerV3Tests(unittest.TestCase):
     def spine(self, payment=PAYMENTS, index=INDEX, extra=None, manifest=None):
         temporary = tempfile.TemporaryDirectory()
         root = Path(temporary.name)
-        (root / "README.md").write_text(index, encoding="utf-8")
+        (root / "_INDEX.md").write_text(index, encoding="utf-8")
         (root / "payments.md").write_text(payment, encoding="utf-8")
         for name, content in (extra or {}).items():
             (root / name).write_text(content, encoding="utf-8")
@@ -121,7 +122,7 @@ class DoctorCheckerV3Tests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name)
-        (root / "README.md").write_text(template, encoding="utf-8")
+        (root / "_INDEX.md").write_text(template, encoding="utf-8")
         manifest = (
             Path(__file__).parents[2]
             / "skills/specspine-doctor/assets/templates/specspine.json"

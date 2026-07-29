@@ -17,7 +17,7 @@ class ProducerFinalizeTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.spine = self.root / "specspine"
         self.spine.mkdir()
-        (self.spine / "README.md").write_text("# Architecture\n", encoding="utf-8")
+        (self.spine / "_INDEX.md").write_text("# Architecture\n", encoding="utf-8")
         self.repository = self.root / "repository"
         (self.repository / "src/identity").mkdir(parents=True)
         (self.repository / "src/identity/session.py").write_text(

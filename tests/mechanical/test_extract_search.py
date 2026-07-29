@@ -14,6 +14,14 @@ assert SPEC and SPEC.loader
 SEARCH = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = SEARCH
 SPEC.loader.exec_module(SEARCH)
+INDEXER_PATH = ROOT / "shared/scripts/rebuild_indexes.py"
+INDEXER_SPEC = importlib.util.spec_from_file_location(
+    "specspine_v3_indexer", INDEXER_PATH
+)
+assert INDEXER_SPEC and INDEXER_SPEC.loader
+INDEXER = importlib.util.module_from_spec(INDEXER_SPEC)
+sys.modules[INDEXER_SPEC.name] = INDEXER
+INDEXER_SPEC.loader.exec_module(INDEXER)
 
 
 INDEX = """# Architecture
@@ -25,6 +33,7 @@ Example project.
 ## Architecture map
 
 - [Payments](payments.md) — payments owner.
+- [specspine.json](specspine.json)
 
 """
 
@@ -90,7 +99,7 @@ class ExtractTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.spine = Path(self.temporary.name)
-        (self.spine / "README.md").write_text(INDEX, encoding="utf-8")
+        (self.spine / "_INDEX.md").write_text(INDEX, encoding="utf-8")
         (self.spine / "payments.md").write_text(PAYMENTS, encoding="utf-8")
         (self.spine / "policy.md").write_text(POLICY, encoding="utf-8")
         self.write_manifest()
@@ -99,6 +108,7 @@ class ExtractTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def query(self, **overrides):
+        INDEXER.rebuild(self.spine)
         payload = {
             "id": "change", "targets": ["payment-processing"],
             "terms": [["retry"]], "facets": ["failure"], "token_budget": 8000,
@@ -393,8 +403,16 @@ Defines the system retry ceiling.
         self.assertNotIn("concatenated_files_truncated", result)
         self.assertLessEqual(SEARCH._estimated_tokens(result), 256)
 
-    def test_includes_system_wide_claims_and_root_divergences(self):
-        root_claims = """
+    def test_includes_system_wide_claims_and_divergences_from_related_owner(self):
+        system_claims = """# System policy
+
+**ID:** `system-policy` · **Kind:** `system`
+
+Defines system-wide audit policy.
+
+## Responsibility
+
+- owns system-wide audit requirements.
 
 <!-- specspine:evidence-baseline source=commit-abc123; inspected=2026-07-25 -->
 <!-- specspine:semantic-ids:begin -->
@@ -411,12 +429,31 @@ Defines the system retry ceiling.
 
 | Intended | Observed | Consequence |
 |---|---|---|
-| [CON-system-audit](README.md) | [OBS-audit-gap](README.md) | Audit history may be incomplete |
+| [CON-system-audit](system.md) | [OBS-audit-gap](system.md) | Audit history may be incomplete |
 """
-        (self.spine / "README.md").write_text(
-            INDEX + root_claims,
+        (self.spine / "system.md").write_text(system_claims, encoding="utf-8")
+        (self.spine / "payments.md").write_text(
+            PAYMENTS.replace(
+                "| `constrained-by` | [CON-policy-bound](policy.md) | Applies the system retry bound |",
+                "| `constrained-by` | [CON-policy-bound](policy.md) | Applies the system retry bound |\n"
+                "| `constrained-by` | [CON-system-audit](system.md) | Applies the system audit policy |",
+            ),
             encoding="utf-8",
         )
+        manifest = json.loads((self.spine / "specspine.json").read_text())
+        manifest["areas"].append({
+            "owner": "system-policy",
+            "facets": {
+                name: (
+                    "partial"
+                    if name in {"architecture", "behavior", "failure", "verification"}
+                    else "not-applicable"
+                )
+                for name in SEARCH.CHECKER.FACET_NAMES
+            },
+            "blockers": [],
+        })
+        (self.spine / "specspine.json").write_text(json.dumps(manifest))
         result = self.query()
         self.assertIn(
             "CON-system-audit",
@@ -594,7 +631,7 @@ Defines the system retry ceiling.
             root = Path(directory)
             (root / "client").mkdir()
             (root / "server").mkdir()
-            (root / "README.md").write_text(
+            (root / "_INDEX.md").write_text(
                 """# Architecture
 
 **ID:** `project-architecture` · **Kind:** `index`
@@ -649,6 +686,7 @@ Owns {area} authentication.
                 ],
                 "assets": [],
             }), encoding="utf-8")
+            INDEXER.rebuild(root)
             result = SEARCH.build_closure(root, {
                 "targets": ["server-auth"],
                 "terms": [],
@@ -659,6 +697,7 @@ Owns {area} authentication.
             self.assertEqual("missing", result["status"]["facets"]["architecture"])
 
     def test_cli_is_deterministic_machine_json(self):
+        INDEXER.rebuild(self.spine)
         payload = {"targets": ["payment-processing"], "terms": [], "facets": [], "token_budget": 8000}
         command = [sys.executable, str(SEARCH_PATH), str(self.spine), "--query-json", json.dumps(payload)]
         first = subprocess.run(command, text=True, capture_output=True, check=False)

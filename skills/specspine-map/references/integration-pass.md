@@ -24,7 +24,8 @@ The root orchestrator must:
    path. Correct its final ownership when evidence demands it; never publish a
    models/utils/services document merely because the repository has that
    directory.
-3. Add navigation needed for reachability and comprehension.
+3. Do not edit `_INDEX.md`; deterministic integration rebuilds every directory
+   index after document and manifest changes.
 4. Add architectural edges through canonical `Relationships` tables; never add
    reciprocal rows only for navigation.
 5. Use semantic IDs as complete link labels when targeting statements.
@@ -47,19 +48,21 @@ The root orchestrator must:
     refinement to persistent ToDo. For increment completion, never queue
     derived ToDo; cover, preserve, or reject directions because adjacent work
     is already recorded in `deferred_leads`.
-11. Run the full checker on the workspace. The campaign supplies its recorded repository
+11. Run `scripts/rebuild_indexes.py <integration-workspace>`, then build the
+    report against that exact workspace state.
+12. Run the full checker on the workspace. The campaign supplies its recorded repository
     root. An existing-Spine campaign may retain an exact seed-baseline finding
     temporarily, but every new finding rejects integration. Remove applicable
     baseline defects while integrating their owners; finalization accepts none.
-12. After the whole integration transaction and its checks succeed, send an
+13. After the whole integration transaction and its checks succeed, send an
     immediate commentary update: say what was established, name every affected
     Spine-relative Markdown path, and label it `created`, `changed`, or `deleted`.
     Never announce a write before publication succeeds.
-13. Repeat cumulative path-and-operation history in every progress or final
+14. Repeat cumulative path-and-operation history in every progress or final
     summary. If no Spine file changed, explicitly say so.
 
-The root edits only the integration workspace, including `README.md` and
-`specspine.json`. Producers may not edit the index or manifest. The live Spine
+The root edits only specification owners and `specspine.json` in the
+integration workspace. Producers and the root may not edit indexes. The live Spine
 must remain unchanged until `integration-pass` publishes the checked workspace.
 
 ## Report
@@ -71,7 +74,7 @@ field unless every document was read:
 
 ```json
 {
-  "evidence_inspected": ["README.md", "identity.md", "sessions.md"],
+  "evidence_inspected": ["_INDEX.md", "identity.md", "sessions.md"],
   "changed_documents": [
     {"path": "identity.md", "operation": "changed"},
     {"path": "sessions.md", "operation": "created"}

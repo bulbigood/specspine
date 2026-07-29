@@ -5,7 +5,7 @@
   "status": "planned",
   "category": "planned",
   "initial_files": {
-    "specspine/README.md": "# Architecture\n\n- [Authentication](authentication.md)\n- [Persistence](persistence.md)\n",
+    "specspine/_INDEX.md": "# Architecture\n\n- [Authentication](authentication.md)\n- [Persistence](persistence.md)\n",
     "specspine/authentication.md": "# Authentication\n\nHigh-level authentication map.\n",
     "specspine/persistence.md": "# Persistence\n\nOwns durable storage.\n",
     "src/auth/login.js": "export function login(user) { return createSession(user); }\n",

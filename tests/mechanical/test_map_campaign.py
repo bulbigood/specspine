@@ -29,12 +29,21 @@ class MapCampaignTests(unittest.TestCase):
         self.repository = self.root / "repository"
         self.spine = self.repository / "specspine"
         self.spine.mkdir(parents=True)
-        (self.spine / "README.md").write_text(
+        (self.spine / "_INDEX.md").write_text(
             "# Architecture\n\n"
             "**ID:** `project-architecture` · **Kind:** `index`\n\n"
             "Architecture fixture.\n\n"
-            "## Architecture map\n\n"
-            "The fixture has one source boundary.\n\n"
+            "## Contents\n\n"
+            "- [Architecture](architecture.md)\n"
+            "- [specspine.json](specspine.json)\n\n",
+            encoding="utf-8",
+        )
+        (self.spine / "architecture.md").write_text(
+            "# Architecture\n\n"
+            "**ID:** `architecture-root` · **Kind:** `system`\n\n"
+            "Broad system architecture owner.\n\n"
+            "## Responsibility\n\n"
+            "Owns the broad system boundary.\n\n"
             "<!-- specspine:evidence-baseline "
             "source=fixture; inspected=2026-07-28 -->\n"
             "<!-- specspine:semantic-ids:begin -->\n"
@@ -50,7 +59,19 @@ class MapCampaignTests(unittest.TestCase):
                     "specspine": 3,
                     "project": "fixture",
                     "implementation_freedom": "contract-equivalent",
-                    "areas": [],
+                    "areas": [{
+                        "owner": "architecture-root",
+                        "facets": {
+                            "architecture": "partial",
+                            "behavior": "partial",
+                            "interfaces": "not-applicable",
+                            "data": "not-applicable",
+                            "failure": "partial",
+                            "quality": "not-applicable",
+                            "verification": "partial",
+                        },
+                        "blockers": [],
+                    }],
                     "assets": [],
                 }
             ),
@@ -261,8 +282,6 @@ class MapCampaignTests(unittest.TestCase):
             "<!-- specspine:semantic-ids:end -->\n",
             encoding="utf-8",
         )
-        with (self.spine / "README.md").open("a", encoding="utf-8") as stream:
-            stream.write(f"\n- [{document_id}]({filename}) — candidate.\n")
         manifest_path = self.spine / "specspine.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest["areas"].append(
@@ -284,6 +303,16 @@ class MapCampaignTests(unittest.TestCase):
             }
         )
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "shared/scripts/rebuild_indexes.py"),
+                str(self.spine),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
     def topic_plan_path(self):
         inventory = self.inventory()
@@ -597,7 +626,7 @@ class MapCampaignTests(unittest.TestCase):
         outcome,
         evidence,
         directions=None,
-        owner_document="README.md",
+        owner_document="architecture.md",
         owner_claim_ids=None,
     ):
         payload = {
@@ -670,10 +699,10 @@ class MapCampaignTests(unittest.TestCase):
             "question": "Who owns failed session recovery?",
             "reason": "Recovery ownership remains unspecified",
             "evidence": ["src/identity/session.py"],
-            "documents": ["README.md"],
+            "documents": ["architecture.md"],
             "excludes": [],
             "anchor": {
-                "document": "README.md",
+                "document": "architecture.md",
                 "location": "Architecture map",
                 "known": "Normal session ownership is documented",
             },
@@ -1006,14 +1035,14 @@ class MapCampaignTests(unittest.TestCase):
         )
 
         self.assertEqual("created", first["status"])
-        self.assertEqual(["README.md", "specspine.json"], first["created"])
+        self.assertEqual(["_INDEX.md", "specspine.json"], first["created"])
         self.assertEqual("already_ready", second["status"])
         self.assertEqual([], second["created"])
 
     def test_empty_spine_bootstrap_recovers_its_missing_manifest(self):
         spine = self.run / "partial-empty-spine"
         spine.mkdir()
-        (spine / "README.md").write_text(
+        (spine / "_INDEX.md").write_text(
             CAMPAIGN_MODULE.bootstrap_index("grafana"),
             encoding="utf-8",
         )
@@ -2125,7 +2154,7 @@ class MapCampaignTests(unittest.TestCase):
                             ),
                             "coverage": [
                                 {
-                                    "document": "README.md",
+                                    "document": "architecture.md",
                                     "claims": ["OBS-architecture-root"],
                                 }
                             ],
@@ -2176,7 +2205,7 @@ class MapCampaignTests(unittest.TestCase):
                             "coverage_reason": "An unsupported coverage decision.",
                             "coverage": [
                                 {
-                                    "document": "README.md",
+                                    "document": "architecture.md",
                                     "claims": ["OBS-not-defined"],
                                 }
                             ],
@@ -2302,7 +2331,7 @@ class MapCampaignTests(unittest.TestCase):
     def test_broad_existing_owner_cannot_eliminate_verification_todo(self):
         self.source_pass()
         task_id, task = self.task_for_unit("src/identity")
-        self.assertIn("README.md", task["documents"])
+        self.assertIn("architecture.md", task["documents"])
         self.assertEqual("todo", task["state"])
         self.assertIn(task_id, self.cli("ready", str(self.ledger))["ready"])
         packet = self.cli("packet", str(self.ledger), task_id)
@@ -2344,6 +2373,16 @@ class MapCampaignTests(unittest.TestCase):
             "topics/src-identity.md",
             "src-identity",
             "src/identity/session.py",
+        )
+        subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "shared/scripts/rebuild_indexes.py"),
+                str(self.spine),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
         )
         self.source_pass()
         task_id, task = self.task_for_unit("src/identity")
@@ -2645,7 +2684,7 @@ class MapCampaignTests(unittest.TestCase):
             str(ledger),
             str(self.spine),
         )
-        self.assertEqual(2, receipt["documents"])
+        self.assertEqual(3, receipt["documents"])
         self.assertEqual([], receipt["added_todo"])
         self.assertEqual(
             [],
@@ -2702,7 +2741,7 @@ class MapCampaignTests(unittest.TestCase):
             "--repository-root",
             str(self.repository),
         )
-        with (self.spine / "README.md").open("a", encoding="utf-8") as stream:
+        with (self.spine / "_INDEX.md").open("a", encoding="utf-8") as stream:
             stream.write("\n## Coverage\n\nNon-semantic status in a v3 document.\n")
 
         receipt = self.cli("seed-from-spine", str(ledger), str(self.spine))
@@ -2740,7 +2779,7 @@ class MapCampaignTests(unittest.TestCase):
             str(self.repository),
         )
         self.cli("seed-from-spine", str(ledger), str(self.spine))
-        with (self.spine / "README.md").open("a", encoding="utf-8") as stream:
+        with (self.spine / "_INDEX.md").open("a", encoding="utf-8") as stream:
             stream.write("\n## Coverage\n\nNew non-semantic status.\n")
 
         error = self.cli(
@@ -3007,7 +3046,7 @@ class MapCampaignTests(unittest.TestCase):
             ),
         )
         workspace = self.prepare_integration()
-        with (workspace / "README.md").open("a", encoding="utf-8") as stream:
+        with (workspace / "architecture.md").open("a", encoding="utf-8") as stream:
             stream.write(f"\n- {question}\n")
         report = self.integration_report(workspace=workspace)
         suggestion = self.ledger_value()["tasks"][task_id]["producer_suggestions"][0]
@@ -3016,7 +3055,7 @@ class MapCampaignTests(unittest.TestCase):
                 "task": task_id,
                 "suggestion": suggestion["id"],
                 "disposition": "preserved",
-                "document": "README.md",
+                "document": "architecture.md",
                 "reason": "Repository evidence cannot decide required policy",
             }
         ]
@@ -3125,12 +3164,13 @@ class MapCampaignTests(unittest.TestCase):
             "rejected",
             first_task["suggestion_reviews"][suggestion_id]["disposition"],
         )
-        readme = (self.spine / "README.md").read_text(encoding="utf-8")
-        self.assertIn("specspine:generated-map:start", readme)
+        readme = (self.spine / "_INDEX.md").read_text(encoding="utf-8")
+        self.assertIn("[topics/](topics/_INDEX.md)", readme)
         for topic in topics.values():
             body = (self.spine / topic["document"]).read_text(encoding="utf-8")
             self.assertIn("## Relationships", body)
-            self.assertIn(f"]({topic['document']})", readme)
+            topic_index = (self.spine / Path(topic["document"]).parent / "_INDEX.md")
+            self.assertIn(Path(topic["document"]).name, topic_index.read_text())
         second = self.cli(
             "assemble-integration",
             str(self.ledger),
@@ -3149,16 +3189,16 @@ class MapCampaignTests(unittest.TestCase):
             "question": "Who owns the session runtime?",
             "reason": "The owner must be addressed explicitly",
             "evidence": ["src/identity/session.py"],
-            "documents": ["README.md"],
+            "documents": ["architecture.md"],
             "excludes": [],
             "anchor": {
-                "document": "README.md",
+                "document": "architecture.md",
                 "location": "Architecture map",
                 "known": "The repository root cites the session source",
             },
         }
         first_workspace = self.prepare_integration()
-        with (first_workspace / "README.md").open("a", encoding="utf-8") as stream:
+        with (first_workspace / "architecture.md").open("a", encoding="utf-8") as stream:
             stream.write("\nWho owns the session runtime?\n")
         self.integrate(
             self.integration_report(todo=[question], workspace=first_workspace),
@@ -3182,7 +3222,7 @@ class MapCampaignTests(unittest.TestCase):
         error = self.integrate(report, expected=2)
         self.assertIn("resolved anchor question remains", error["error"])
         workspace = self.prepare_integration()
-        readme = workspace / "README.md"
+        readme = workspace / "architecture.md"
         readme.write_text(
             readme.read_text(encoding="utf-8").replace(
                 "\nWho owns the session runtime?\n",
@@ -3215,10 +3255,10 @@ class MapCampaignTests(unittest.TestCase):
             "question": "Who owns recovery after retries are exhausted?",
             "reason": "The broader recovery question was narrowed",
             "evidence": ["src/identity/session.py"],
-            "documents": ["README.md"],
+            "documents": ["architecture.md"],
             "excludes": [],
             "anchor": {
-                "document": "README.md",
+                "document": "architecture.md",
                 "location": "Architecture map",
                 "known": "Normal and failed session ownership were separated",
             },
@@ -3247,7 +3287,7 @@ class MapCampaignTests(unittest.TestCase):
         error = self.integrate(report, expected=2)
         self.assertIn("must define OQ-session-recovery-owner", error["error"])
 
-        readme = workspace / "README.md"
+        readme = workspace / "architecture.md"
         readme.write_text(
             readme.read_text(encoding="utf-8").replace(
                 "<!-- specspine:semantic-ids:end -->",
@@ -3258,13 +3298,7 @@ class MapCampaignTests(unittest.TestCase):
         )
         manifest_path = workspace / "specspine.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        manifest["areas"].append(
-            {
-                "owner": "project-architecture",
-                "facets": {},
-                "blockers": ["OQ-session-recovery-owner"],
-            }
-        )
+        manifest["areas"][0]["blockers"] = ["OQ-session-recovery-owner"]
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
         report = self.integration_report(workspace=workspace)
         report["task_reviews"][0]["anchor_disposition"] = {
@@ -3329,7 +3363,7 @@ class MapCampaignTests(unittest.TestCase):
         task_id, _ = self.task_for_unit("src/identity")
         self.covered(task_id, "src/identity/session.py")
         workspace = self.prepare_integration()
-        with (workspace / "README.md").open("a", encoding="utf-8") as stream:
+        with (workspace / "architecture.md").open("a", encoding="utf-8") as stream:
             stream.write("\nRollback candidate content.\n")
         report = self.integration_report(workspace=workspace)
         report_path = self.run / "rollback-integration.json"
@@ -3487,10 +3521,10 @@ class MapCampaignTests(unittest.TestCase):
             "question": "Who owns failed refresh recovery?",
             "reason": "Integration exposes unresolved recovery",
             "evidence": ["src/identity/session.py"],
-            "documents": ["README.md"],
+            "documents": ["architecture.md"],
             "excludes": [],
             "anchor": {
-                "document": "README.md",
+                "document": "architecture.md",
                 "location": "Architecture",
                 "known": "Normal ownership is covered",
             },
@@ -3513,10 +3547,10 @@ class MapCampaignTests(unittest.TestCase):
             "reason": "Recovery evidence remains incomplete",
             "basis": "repository-observation",
             "evidence": ["src/identity/session.py"],
-            "documents": ["README.md"],
+            "documents": ["architecture.md"],
             "excludes": [],
             "anchor": {
-                "document": "README.md",
+                "document": "architecture.md",
                 "location": "Architecture map",
                 "known": "Normal session ownership is documented",
                 "question": "What recovery behavior should be guaranteed?",
@@ -3539,10 +3573,10 @@ class MapCampaignTests(unittest.TestCase):
             "reason": "Policy remains undecided",
             "basis": "normative-policy",
             "evidence": ["src/identity/session.py"],
-            "documents": ["README.md"],
+            "documents": ["architecture.md"],
             "excludes": [],
             "anchor": {
-                "document": "README.md",
+                "document": "architecture.md",
                 "location": "Architecture map",
                 "known": "Current behavior is observed",
                 "question": "What recovery guarantee should be accepted?",
@@ -3572,14 +3606,14 @@ class MapCampaignTests(unittest.TestCase):
             ),
         )
         workspace = self.prepare_integration()
-        (workspace / "README.md").write_text(
-            (workspace / "README.md").read_text(encoding="utf-8")
+        (workspace / "architecture.md").write_text(
+            (workspace / "architecture.md").read_text(encoding="utf-8")
             + "\nSee [Identity](identity.md).\n",
             encoding="utf-8",
         )
         result = self.integrate(workspace=workspace)
         expected = [
-            {"path": "README.md", "operation": "changed"},
+            {"path": "architecture.md", "operation": "changed"},
             {"path": "identity.md", "operation": "created"},
         ]
         self.assertEqual(expected, result["changed_documents"])
@@ -3595,7 +3629,7 @@ class MapCampaignTests(unittest.TestCase):
     def test_integration_rejects_incomplete_document_change_report(self):
         self.source_pass()
         workspace = self.prepare_integration()
-        (workspace / "README.md").write_text(
+        (workspace / "architecture.md").write_text(
             "# Architecture\n\nChanged by root.\n",
             encoding="utf-8",
         )
@@ -3625,8 +3659,8 @@ class MapCampaignTests(unittest.TestCase):
     def test_prepare_integration_resumes_matching_edited_workspace(self):
         self.source_pass()
         workspace = self.prepare_integration()
-        (workspace / "README.md").write_text(
-            (workspace / "README.md").read_text(encoding="utf-8")
+        (workspace / "architecture.md").write_text(
+            (workspace / "architecture.md").read_text(encoding="utf-8")
             + "\nRoot work in progress.\n",
             encoding="utf-8",
         )
@@ -3639,7 +3673,7 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual("already_ready", result["status"])
         self.assertIn(
             "Root work in progress.",
-            (workspace / "README.md").read_text(encoding="utf-8"),
+            (workspace / "architecture.md").read_text(encoding="utf-8"),
         )
 
     def test_integration_must_review_every_covered_task(self):
@@ -3749,7 +3783,7 @@ class MapCampaignTests(unittest.TestCase):
         task_id, _ = self.task_for_unit("src/identity")
         self.covered(task_id, "src/identity/session.py")
         report = self.integration_report()
-        report["evidence_inspected"] = ["README.md"]
+        report["evidence_inspected"] = ["_INDEX.md"]
         result = self.integrate(report)
         self.assertEqual("integrated", result["status"])
 
@@ -3776,7 +3810,7 @@ class MapCampaignTests(unittest.TestCase):
 
     def test_live_spine_change_invalidates_integration(self):
         self.verify_all_source_units()
-        (self.spine / "README.md").write_text(
+        (self.spine / "_INDEX.md").write_text(
             "# Architecture\n\nChanged after integration.\n",
             encoding="utf-8",
         )
@@ -3803,16 +3837,16 @@ class MapCampaignTests(unittest.TestCase):
             {
                 "status": "incomplete",
                 "areas": {
-                    "total": 0,
+                    "total": 1,
                     "ready": 0,
-                    "incomplete": 0,
+                    "incomplete": 1,
                     "blocked": 0,
                 },
                 "facets": {
                     "complete": 0,
                     "missing": 0,
-                    "not-applicable": 0,
-                    "partial": 0,
+                    "not-applicable": 3,
+                    "partial": 4,
                 },
             },
             receipt["reconstruction_readiness"],

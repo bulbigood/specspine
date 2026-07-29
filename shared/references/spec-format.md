@@ -3,9 +3,10 @@
 This document is the canonical storage contract for SpecSpine v3.
 
 SpecSpine is a human-readable specification graph plus a small deterministic
-manifest. Markdown owns meaning. `specspine.json` owns completeness,
-reconstruction blockers, and exact non-Markdown assets. Derived indexes,
-embeddings, and databases are disposable.
+manifest. Markdown specification nodes own meaning. `specspine.json` owns
+completeness, reconstruction blockers, and exact non-Markdown assets.
+Deterministic `_INDEX.md` files, embeddings, databases, and workspace graphs
+are disposable.
 
 ## Spine root
 
@@ -19,7 +20,7 @@ A valid root contains:
 
 ```text
 <spine-root>/
-├── README.md
+├── _INDEX.md
 ├── specspine.json
 ├── authentication.md
 ├── session-management.md
@@ -30,7 +31,8 @@ A valid root contains:
 └── verification/
 ```
 
-Only `README.md` and `specspine.json` have reserved paths. Use lowercase
+Every directory in the Spine contains `_INDEX.md`. Only root `_INDEX.md` and
+`specspine.json` have reserved root paths. Use lowercase
 kebab-case paths for specifications. Organize by stable concepts, not source
 directories, features, tickets, or delivery phases.
 
@@ -166,23 +168,29 @@ implementation scripts, or incidental local tooling. Connect the affected
 owner through a precise relation such as `specified-by`, `constrained-by`, or
 `depends-on` so task closure retrieves the contract when it applies.
 
-## Root index
+## Deterministic indexes
 
-`README.md` is the only entry point. It contains:
+Root `_INDEX.md` is the entry point. Every `_INDEX.md` contains:
 
 1. exactly one H1;
-2. `**ID:** \`project-architecture\` · **Kind:** \`index\``;
-3. a short project and scope summary;
-4. `Architecture map`, containing useful entry points.
+2. a globally unique document ID and `Kind: index`;
+3. a deterministic `Contents` list linking every immediate file except itself
+   and the `_INDEX.md` of every immediate subdirectory.
+
+The root uses ID `project-architecture`. Nested index IDs are derived
+deterministically from their root-relative directory paths. Only the root
+index contains the fixed SpecSpine purpose statement, project name, and scope
+statement.
 
 Use this scope statement when creating an index, translated when needed:
 
 > This directory contains the project's long-lived architectural intent and
 > architecture-relevant repository observations.
 
-The index is a curated map, not a list of every document and not the semantic
-parent of the graph. Detailed nodes only need to be reachable through links.
-Project-wide normative statements, divergences, and questions may live here.
+Indexes are exhaustive physical navigation, not semantic parents and not
+owners of project claims. Generate and update them only through the canonical
+index script. Put all normative statements, observations, divergences, and
+questions in non-index specification owners.
 
 Completeness does not live in Markdown. Readers and tools obtain it from
 `specspine.json`.
@@ -379,9 +387,15 @@ Split a node when a concern has independent ownership, lifecycle, contracts,
 constraints, consumers, or evolution. Do not split merely because a document
 is long. Do not mirror classes or directories.
 
-Every Markdown specification MUST be reachable from `README.md` through
+Every Markdown specification MUST be reachable from root `_INDEX.md` through
 relative links. Every registered asset is reached from its canonical owner.
 Generated views and external links do not establish reachability.
+
+A nested directory containing its own `_INDEX.md` and `specspine.json` is a
+separate Spine and a traversal boundary. Its documents, IDs, manifest areas,
+and assets do not belong to the parent Spine. Workspace tooling connects the
+nearest ancestor Spine to the nested root and records otherwise independent
+top-level roots in the disposable workspace graph.
 
 ## Reconstruction invariant
 

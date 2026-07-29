@@ -200,7 +200,7 @@ ROOT_GOVERNANCE = {
     "LICENSING.md",
     "MAINTAINERS.md",
     "NOTICE.md",
-    "README.md",
+    "_INDEX.md",
     "ROADMAP.md",
     "SECURITY.md",
     "SUPPORT.md",
@@ -763,7 +763,7 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
     planned_document = raw.get("planned_document")
     if planned_document is not None:
         planned_document = validate_relative_path(planned_document)
-        if not planned_document.endswith(".md") or planned_document == "README.md":
+        if not planned_document.endswith(".md") or planned_document == "_INDEX.md":
             raise CampaignError(
                 f"ToDo {task_id} planned_document must be non-index Markdown"
             )
@@ -2902,11 +2902,13 @@ def bootstrap_index(project: str) -> str:
     return (
         f"# {project} architecture\n\n"
         "**ID:** `project-architecture` · **Kind:** `index`\n\n"
+        "SpecSpine is the project's long-lived, linked specification and "
+        "architectural memory used to reconstruct contract-equivalent "
+        "implementations.\n\n"
         "This directory contains the project's long-lived architectural intent "
         "and architecture-relevant repository observations.\n\n"
-        "## Architecture map\n\n"
-        "Architectural entry points appear here as their specifications are "
-        "established.\n"
+        "## Contents\n\n"
+        "- [specspine.json](specspine.json)\n"
     )
 
 
@@ -3040,7 +3042,7 @@ def validate_topic_plan(
         topic_ids.add(topic_id)
         document = validate_relative_path(value["document"])
         if not document.endswith(".md") or (
-            field == "uncovered" and document == "README.md"
+            field == "uncovered" and document == "_INDEX.md"
         ):
             raise CampaignError(
                 f"{field} topic {topic_id} document must be non-index Markdown"
@@ -3787,8 +3789,8 @@ def candidate_files(root: Path) -> dict[str, Path]:
             relative = path.relative_to(root).as_posix()
             if path.suffix.lower() != ".md":
                 raise CampaignError(f"staging may contain only Markdown files: {relative}")
-            if relative == "README.md":
-                raise CampaignError("producer must not publish README.md")
+            if relative == "_INDEX.md":
+                raise CampaignError("producer must not publish _INDEX.md")
             result[relative] = path
     return result
 
@@ -4705,8 +4707,6 @@ def command_prepare_integration(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-GENERATED_MAP_START = "<!-- specspine:generated-map:start -->"
-GENERATED_MAP_END = "<!-- specspine:generated-map:end -->"
 FACET_HEADINGS = {
     "behavior": ("behavior", "lifecycle", "invariants"),
     "interfaces": ("interfaces",),
@@ -4726,22 +4726,6 @@ def replace_markdown_section(body: str, heading: str, replacement: str) -> str:
     if pattern.search(body):
         return pattern.sub(replacement, body, count=1).rstrip() + "\n"
     return body.rstrip() + "\n\n" + replacement
-
-
-def replace_generated_map(readme: str, rows: list[str]) -> str:
-    block = (
-        f"{GENERATED_MAP_START}\n"
-        "## Generated architecture map\n\n"
-        + "\n".join(rows)
-        + f"\n{GENERATED_MAP_END}"
-    )
-    pattern = re.compile(
-        rf"{re.escape(GENERATED_MAP_START)}.*?{re.escape(GENERATED_MAP_END)}",
-        re.DOTALL,
-    )
-    if pattern.search(readme):
-        return pattern.sub(block, readme, count=1).rstrip() + "\n"
-    return readme.rstrip() + "\n\n" + block + "\n"
 
 
 def conservative_facets(body: str) -> dict[str, str]:
@@ -4928,19 +4912,6 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                     ).rstrip() + "\n"
                 document.write_text(body, encoding="utf-8")
 
-            readme_path = workspace / "README.md"
-            readme = readme_path.read_text(encoding="utf-8")
-            navigation = [
-                f"- [{owner['title']}]({owner['document']})"
-                for owner in sorted(
-                    owner_registry.values(),
-                    key=lambda row: (row["title"], row["document"]),
-                )
-            ]
-            readme_path.write_text(
-                replace_generated_map(readme, navigation), encoding="utf-8"
-            )
-
             manifest = read_json(workspace / "specspine.json")
             areas = {
                 area["owner"]: area
@@ -4970,6 +4941,27 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                 }
             manifest["areas"] = [areas[key] for key in sorted(areas)]
             atomic_write(workspace / "specspine.json", manifest)
+            process = subprocess.run(
+                [
+                    sys.executable,
+                    str(
+                        getattr(
+                            args,
+                            "indexer",
+                            Path(__file__).with_name("rebuild_indexes.py"),
+                        )
+                    ),
+                    str(workspace),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            if process.returncode:
+                raise CampaignError(
+                    "deterministic index rebuild failed: "
+                    f"{process.stderr.strip() or process.stdout.strip()}"
+                )
 
             changed = spine_changes(
                 ledger_spine_snapshot(current), document_hashes(workspace)
@@ -5131,7 +5123,7 @@ def validate_published_graph(
     documents = {
         path.relative_to(workspace).as_posix(): path.read_text(encoding="utf-8")
         for path in workspace.rglob("*.md")
-        if path.is_file() and path.name != "README.md"
+        if path.is_file() and path.name != "_INDEX.md"
     }
     owners = {
         relative
@@ -6183,6 +6175,11 @@ def parser() -> argparse.ArgumentParser:
         "--checker",
         type=Path,
         default=Path(__file__).with_name("check_spine.py"),
+    )
+    assemble.add_argument(
+        "--indexer",
+        type=Path,
+        default=Path(__file__).with_name("rebuild_indexes.py"),
     )
 
     next_action = sub.add_parser("next-action")

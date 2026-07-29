@@ -41,7 +41,7 @@ external evidence must be classified according to
 `references/spec-semantics.md` and must not change accepted intent without
 explicit approval.
 For an uninitialized Spine, do not list, search, or read any existing project
-file outside `<spine-root>`, including a root README, even to seek context.
+file outside `<spine-root>`, including a repository README, even to seek context.
 Derive only the smallest useful starting structure from the request.
 
 Evolve owns organization and intentional evolution of the specification network.
@@ -77,10 +77,10 @@ starting a second navigation pass.
 1. Resolve `<spine-root>` as defined by `references/spec-format.md`; absent an
    explicit user or project configuration, this is exactly `specspine`
    relative to the current working directory, never the repository root.
-   Test for its `README.md` without listing the project. If present, read it
+   Test for its `_INDEX.md` without listing the project. If present, read it
    and follow only relevant links, unless a non-truncated Extract result
    already supplied it as described above. If absent, immediately initialize
-   `README.md` and `specspine.json` together from the request; do not run any
+   `_INDEX.md` and `specspine.json` together from the request; do not run any
    other project discovery or read any other project path.
 2. Classify the operation: initialize, refine, promote, split, merge, rename,
    or link. Identify the canonical owner, specifications whose normative or
@@ -103,8 +103,8 @@ starting a second navigation pass.
    and unresolved choice without prescribing a rigid response format.
 5. Apply the smallest coherent change. Follow `references/spec-format.md` for
    canonical ownership, identity, relationships, navigation, and reachability.
-   Preserve unrelated content. Update the index only when top-level navigation
-   or system-wide intent changes.
+   Preserve unrelated content. Never edit an index manually; after changing
+   paths or files, run `scripts/rebuild_indexes.py <spine-root>`.
    Store newly accepted but implementation-unverified behavior under its
    normative claim kind. Do not restate it as current observed behavior unless
    the request supplies evidence that establishes it.
@@ -120,8 +120,9 @@ starting a second navigation pass.
 
 ### Initialize
 
-Create the index and the smallest useful set of top-level concept
-specifications. Do not anticipate the full system or invent repository
+Create the root pair through the bootstrap script, create the smallest useful
+set of top-level concept specifications, then rebuild indexes mechanically.
+Do not anticipate the full system or invent repository
 structure. Represent uncertainty and addressability only as defined by the
 canonical format and semantics references.
 

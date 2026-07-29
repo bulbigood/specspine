@@ -1,7 +1,7 @@
 # SpecSpine Map discovery-scout contract
 
 Handle exactly one discovery lead. Read the packet operation and scope before
-searching. Read `<spine-root>/README.md` for system vocabulary and
+searching. Read `<spine-root>/_INDEX.md` for system vocabulary and
 orientation, then inspect the lead's seed files and search the repository for
 directly related responsibilities, registrations, callers, dependencies,
 interfaces, state, failures, deployment, operations, schemas, and tests.

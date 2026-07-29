@@ -14,7 +14,7 @@
     }
   },
   "documents": {
-    "README.md": "sha256:eb18b34cdb1446dc0d23e4aeddab1484e1b72d8e47fdb8182c2b2bdba0a23f30",
+    "_INDEX.md": "sha256:eb18b34cdb1446dc0d23e4aeddab1484e1b72d8e47fdb8182c2b2bdba0a23f30",
     "command-dispatch.md": "sha256:3a322539144d1366cf5a313efaad9178e01f6870e43ab30f544348d94025c36a",
     "configuration-resolution.md": "sha256:eb43311c8788865ff9fad7b617173121f1f84b3a7bb2ac24166c770a6289f02b",
     "credential-store.md": "sha256:3ab69254d1fa7764f14f3d582c0c0f829de3f7b2ee2facf3e818c67e88b8acc1",

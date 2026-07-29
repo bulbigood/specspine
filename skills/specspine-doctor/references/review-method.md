@@ -90,7 +90,7 @@ stated purpose and the loaded stopping rules require it.
 
 For a whole-Spine check, build the coverage set from all Markdown
 specifications under `<spine-root>`, not only reachable documents. Start with
-`README.md`, then inspect bounded graph-neighborhood batches so ownership and
+`_INDEX.md`, then inspect bounded graph-neighborhood batches so ownership and
 relationships remain visible. Track each path as pending or inspected in the
 working context; do not create a tracking file in the Spine.
 

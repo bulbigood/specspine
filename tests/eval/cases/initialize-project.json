@@ -5,13 +5,13 @@
   "status": "executable",
   "category": "core",
   "initial_files": {
-    "README.md": "# Document service\n\nPlaceholder project documentation.\n",
+    "_INDEX.md": "# Document service\n\nPlaceholder project documentation.\n",
     "src/service.txt": "Existing implementation placeholder.\n"
   },
   "assertions": [
-    {"type": "path_exists", "path": "specspine/README.md"},
+    {"type": "path_exists", "path": "specspine/_INDEX.md"},
     {"type": "glob_count", "glob": "specspine/*.md", "min": 2, "max": 7},
-    {"type": "unchanged", "paths": ["README.md", "src/**"]},
+    {"type": "unchanged", "paths": ["_INDEX.md", "src/**"]},
     {"type": "changed_only", "paths": ["specspine/**"]},
     {"type": "markdown_links_valid", "glob": "specspine/*.md"},
     {"type": "semantic_ids_valid", "glob": "specspine/*.md"},

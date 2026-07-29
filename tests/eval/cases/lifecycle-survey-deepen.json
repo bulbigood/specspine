@@ -4,7 +4,7 @@
   "status": "executable",
   "category": "extended",
   "initial_files": {
-    "README.md": "# Acme storefront\n\nThe API accepts checkout requests. A separate worker consumes payment-provider webhooks. PostgreSQL stores orders and payment state.\n",
+    "_INDEX.md": "# Acme storefront\n\nThe API accepts checkout requests. A separate worker consumes payment-provider webhooks. PostgreSQL stores orders and payment state.\n",
     "package.json": "{\"scripts\":{\"api\":\"node src/api/server.js\",\"payment-webhooks\":\"node src/workers/payment-webhooks.js\"}}\n",
     "src/api/server.js": "const { createOrder } = require('../checkout/order-service');\nconst { authorize } = require('../payments/provider-adapter');\nexports.checkout = async request => authorize(await createOrder(request));\n",
     "src/checkout/order-service.js": "exports.createOrder = async request => ({ orderId: request.orderId, amount: request.amount });\n",
@@ -24,10 +24,10 @@
       "skill": "skills/specspine-map",
       "prompt": "Create the smallest useful initial SpecSpine for this brownfield storefront. Survey breadth before depth. Use specspine/payment-processing.md as the canonical, intentionally brief entry point for the payment responsibility so it can be deepened later. Capture both direct repository observations and any useful unconfirmed interpretation with an evidence baseline; do not manufacture decisions or constraints from code. Keep the map flat and state qualitative remaining mapping coverage in the index without using a required heading. Do not modify repository files outside specspine/.",
       "assertions": [
-        {"type": "path_exists", "path": "specspine/README.md"},
+        {"type": "path_exists", "path": "specspine/_INDEX.md"},
         {"type": "path_exists", "path": "specspine/payment-processing.md"},
         {"type": "glob_count", "glob": "specspine/*.md", "min": 3, "max": 6},
-        {"type": "file_contains_any", "path": "specspine/README.md", "values": ["incomplete", "partial", "remaining", "not mapped", "not yet mapped", "not sufficiently represented"]},
+        {"type": "file_contains_any", "path": "specspine/_INDEX.md", "values": ["incomplete", "partial", "remaining", "not mapped", "not yet mapped", "not sufficiently represented"]},
         {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["## Observed", "<!-- specspine:evidence-baseline"]},
         {"type": "changed_only", "paths": ["specspine/**"]},
         {"type": "max_changed_files", "max": 6},
@@ -52,7 +52,7 @@
     }
   ],
   "final_assertions": [
-    {"type": "path_exists", "path": "specspine/README.md"},
+    {"type": "path_exists", "path": "specspine/_INDEX.md"},
     {"type": "path_exists", "path": "specspine/payment-processing.md"},
     {"type": "glob_count", "glob": "specspine/*.md", "min": 3, "max": 6},
     {"type": "path_absent", "path": "specspine/controllers.md"},

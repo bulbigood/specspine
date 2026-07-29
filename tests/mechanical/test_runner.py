@@ -67,7 +67,7 @@ class RunnerTests(unittest.TestCase):
             workspace = Path(directory)
             spine = workspace / "specspine"
             spine.mkdir()
-            (spine / "README.md").write_text("# Architecture\n\n[Missing](missing.md)\n", encoding="utf-8")
+            (spine / "_INDEX.md").write_text("# Architecture\n\n[Missing](missing.md)\n", encoding="utf-8")
             result = RUNNER.evaluate_assertion(
                 {"type": "markdown_links_valid"}, workspace, {}, {}, "", None
             )
@@ -196,7 +196,7 @@ class RunnerTests(unittest.TestCase):
             workspace = Path(directory)
             spine = workspace / "specspine"
             spine.mkdir()
-            (spine / "README.md").write_text(
+            (spine / "_INDEX.md").write_text(
                 "# Architecture\n\n[Owner](owner.md)\n[Consumer](consumer.md)\n", encoding="utf-8"
             )
             (spine / "owner.md").write_text(
@@ -265,7 +265,7 @@ class RunnerTests(unittest.TestCase):
             workspace = Path(directory)
             spine = workspace / "specspine"
             spine.mkdir()
-            (spine / "README.md").write_text(
+            (spine / "_INDEX.md").write_text(
                 "# Architecture\n\n[Owner](owner.md)\n[Consumer](consumer.md)\n", encoding="utf-8"
             )
             (spine / "owner.md").write_text(
@@ -287,7 +287,7 @@ class RunnerTests(unittest.TestCase):
             workspace = Path(directory)
             spine = workspace / "specspine"
             spine.mkdir()
-            (spine / "README.md").write_text(
+            (spine / "_INDEX.md").write_text(
                 "# Architecture\n\n<!-- specspine:semantic-ids:begin -->\n## Decisions\n\n"
                 "- **OBS-current-shape** — Current behavior.\n<!-- specspine:semantic-ids:end -->\n",
                 encoding="utf-8",
@@ -302,9 +302,10 @@ class RunnerTests(unittest.TestCase):
             workspace = Path(directory)
             spine = workspace / "specspine"
             spine.mkdir()
-            (spine / "README.md").write_text(
+            (spine / "_INDEX.md").write_text(
                 "# Architecture\n\n**ID:** `project-architecture` · **Kind:** `index`\n\n"
-                "Architecture.\n\n## Architecture map\n\nNo areas.\n\n## Empty\n",
+                "Architecture.\n\n## Contents\n\n"
+                "- [specspine.json](specspine.json)\n\n## Empty\n",
                 encoding="utf-8",
             )
             (spine / "specspine.json").write_text(json.dumps({
@@ -347,7 +348,7 @@ class RunnerTests(unittest.TestCase):
             workspace = Path(directory)
             spine = workspace / "specspine"
             spine.mkdir()
-            (spine / "README.md").write_text("one two three\n", encoding="utf-8")
+            (spine / "_INDEX.md").write_text("one two three\n", encoding="utf-8")
             (spine / "payments.md").write_text("four five six seven\n", encoding="utf-8")
             (workspace / ".eval").mkdir()
             (workspace / ".eval/ignored.md").write_text("ignored " * 100, encoding="utf-8")
@@ -374,7 +375,7 @@ class RunnerTests(unittest.TestCase):
             workspace = Path(directory)
             (workspace / "specspine").mkdir()
             (workspace / "src").mkdir()
-            (workspace / "specspine/README.md").write_text(
+            (workspace / "specspine/_INDEX.md").write_text(
                 "# Architecture\n", encoding="utf-8"
             )
             (workspace / "src/private.py").write_text(
@@ -385,7 +386,7 @@ class RunnerTests(unittest.TestCase):
                 workspace,
             )
             self.assertEqual(
-                {"specspine/README.md": "# Architecture\n"},
+                {"specspine/_INDEX.md": "# Architecture\n"},
                 artifacts,
             )
 
@@ -447,7 +448,7 @@ class RunnerTests(unittest.TestCase):
             {},
             {},
             "",
-            {"commands": ["sed -n 1,80p specspine/README.md"]},
+            {"commands": ["sed -n 1,80p specspine/_INDEX.md"]},
         )
         forbidden = RUNNER.evaluate_assertion(
             {"type": "command_excludes", "value": "search_spine.py"},
@@ -1087,7 +1088,7 @@ class RunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "fixture/specspine").mkdir(parents=True)
-            source = root / "fixture/specspine/README.md"
+            source = root / "fixture/specspine/_INDEX.md"
             source.write_text("# First\n", encoding="utf-8")
             (root / "skill").mkdir()
             (root / "skill/SKILL.md").write_text("# Skill\n", encoding="utf-8")
@@ -1100,7 +1101,7 @@ class RunnerTests(unittest.TestCase):
                 second = RUNNER.case_fingerprint(case)
             self.assertEqual(
                 "# First\n",
-                (workspace / "specspine/README.md").read_text(encoding="utf-8"),
+                (workspace / "specspine/_INDEX.md").read_text(encoding="utf-8"),
             )
             self.assertNotEqual(first, second)
 
