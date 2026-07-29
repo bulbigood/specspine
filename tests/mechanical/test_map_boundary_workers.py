@@ -78,6 +78,7 @@ class MapBoundaryWorkerTests(unittest.TestCase):
             "coverage-packet.json",
             {
                 "coverage_contract_version": 1,
+                "topic_plan_digest": "0" * 64,
                 "repository_root": str(self.repository),
             },
         )

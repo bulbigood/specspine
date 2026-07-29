@@ -291,6 +291,23 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
     draft = campaign.read_json(args.draft)
     result, normalization = canonical_result(packet, draft)
     campaign.atomic_write(args.result, result)
+    campaign.commit_receipt(
+        args.result.with_name(f".{args.result.name}.receipt.json"),
+        "discovery-result",
+        input_digest=campaign.discovery_result_input_digest(
+            packet,
+            result,
+            repository_root,
+        ),
+        inputs=[
+            args.packet,
+            *[
+                repository_root / relative
+                for relative in result["inspected"]["files"]
+            ],
+        ],
+        outputs=[args.result],
+    )
     return {
         "status": "ready",
         "lead_id": result["lead_id"],

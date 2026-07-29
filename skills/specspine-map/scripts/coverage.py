@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -39,6 +40,8 @@ def require_repository_exhaustive(operation: dict[str, Any]) -> None:
 
 
 def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
+    campaign.require_stage_receipt(args.corpus, "discovery-collect")
+    campaign.require_stage_receipt(args.topic_plan, "synthesis-materialize")
     corpus = read_object(args.corpus)
     plan = read_object(args.topic_plan)
     operation = corpus["operation"]
@@ -54,6 +57,7 @@ def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
         campaign.require_map_runtime_path(path, repository_root, field=field)
     packet = {
         "coverage_contract_version": COVERAGE_CONTRACT_VERSION,
+        "topic_plan_digest": hashlib.sha256(args.topic_plan.read_bytes()).hexdigest(),
         "operation": operation,
         "repository_root": str(repository_root),
         "spine_root": corpus["spine_root"],
@@ -77,8 +81,20 @@ def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
     ):
         raise CoverageError("existing coverage packet has different inputs")
     campaign.atomic_write(args.output, packet)
+    receipt_ready = campaign.commit_receipt(
+        args.output.with_name(f".{args.output.name}.receipt.json"),
+        "coverage-prepare",
+        input_digest=campaign.digest_json(
+            {
+                "corpus": campaign.path_digest(args.corpus),
+                "topic_plan": campaign.path_digest(args.topic_plan),
+            }
+        ),
+        inputs=[args.corpus, args.topic_plan],
+        outputs=[args.output],
+    )
     return {
-        "status": "already_ready" if already_ready else "written",
+        "status": "already_ready" if already_ready and receipt_ready else "written",
         "topics": len(packet["topic_plan"]),
         "packet": str(args.output.resolve()),
     }
@@ -141,6 +157,7 @@ def command_finalize(args: argparse.Namespace) -> dict[str, Any]:
         raise CoverageError("gaps coverage review needs open leads")
     review = {
         "coverage_contract_version": COVERAGE_CONTRACT_VERSION,
+        "topic_plan_digest": packet["topic_plan_digest"],
         "status": raw["status"],
         "reason": raw["reason"].strip(),
         "inspected_roots": sorted(set(roots)),
@@ -152,8 +169,20 @@ def command_finalize(args: argparse.Namespace) -> dict[str, Any]:
     ):
         raise CoverageError("existing coverage review has different content")
     campaign.atomic_write(args.output, review)
+    receipt_ready = campaign.commit_receipt(
+        args.output.with_name(f".{args.output.name}.receipt.json"),
+        "coverage-finalize",
+        input_digest=campaign.digest_json(
+            {
+                "packet": campaign.path_digest(args.packet),
+                "draft": campaign.path_digest(args.draft),
+            }
+        ),
+        inputs=[args.packet, args.draft],
+        outputs=[args.output],
+    )
     return {
-        "status": "already_ready" if already_ready else "ready",
+        "status": "already_ready" if already_ready and receipt_ready else "ready",
         "result": review["status"],
         "open_leads": len(leads),
         "output": str(args.output.resolve()),

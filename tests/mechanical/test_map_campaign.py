@@ -164,10 +164,75 @@ class MapCampaignTests(unittest.TestCase):
                 encoding="utf-8",
             )
             arguments.extend(["--initial-plan", str(plan)])
+        if (
+            script == CAMPAIGN
+            and arguments
+            and arguments[0] == "discovery-start"
+        ):
+            option = arguments.index("--initial-plan")
+            plan = Path(arguments[option + 1])
+            receipt = plan.with_name(f".{plan.name}.receipt.json")
+            if plan.is_file() and not receipt.exists():
+                CAMPAIGN_MODULE.commit_receipt(
+                    receipt,
+                    "planning-finalize",
+                    input_digest=CAMPAIGN_MODULE.path_digest(plan),
+                    outputs=[plan],
+                )
+        if script == CAMPAIGN and arguments and arguments[0] in {
+            "discovery-validate",
+            "discovery-collect",
+            "discovery-defer",
+        }:
+            if arguments[0] == "discovery-collect":
+                seed_path, packets_root, results_root = map(
+                    Path, arguments[2:5]
+                )
+            else:
+                seed_path, packets_root, results_root = map(
+                    Path, arguments[1:4]
+                )
+            if seed_path.is_file() and results_root.is_dir():
+                seed = json.loads(seed_path.read_text(encoding="utf-8"))
+                for result_path in results_root.rglob("lead-*.json"):
+                    packet_path = packets_root / result_path.relative_to(results_root)
+                    if not packet_path.is_file():
+                        continue
+                    try:
+                        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+                        raw = json.loads(result_path.read_text(encoding="utf-8"))
+                        normalized = CAMPAIGN_MODULE.validate_discovery_result(
+                            packet,
+                            raw,
+                            self.repository,
+                        )
+                        input_digest = (
+                            CAMPAIGN_MODULE.discovery_result_input_digest(
+                                packet,
+                                normalized,
+                                self.repository,
+                            )
+                        )
+                        CAMPAIGN_MODULE.commit_receipt(
+                            result_path.with_name(
+                                f".{result_path.name}.receipt.json"
+                            ),
+                            "discovery-result",
+                            input_digest=input_digest,
+                            outputs=[result_path],
+                        )
+                    except (ValueError, OSError, CAMPAIGN_MODULE.CampaignError):
+                        pass
         if script == CAMPAIGN and arguments and arguments[0] == "source-pass":
             option = arguments.index("--topic-plan")
             topic_plan = Path(arguments[option + 1])
             self.enrich_graph_mapping(topic_plan)
+            CAMPAIGN_MODULE.commit_receipt(
+                topic_plan.with_name(f".{topic_plan.name}.receipt.json"),
+                "synthesis-materialize",
+                input_digest=CAMPAIGN_MODULE.path_digest(topic_plan),
+                outputs=[topic_plan],
+            )
             ledger_path = Path(arguments[1])
             ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
             operation = ledger["operation"]
@@ -175,16 +240,23 @@ class MapCampaignTests(unittest.TestCase):
                 operation["scope"]["kind"] == "repository"
                 and operation["completion"]["kind"] == "exhaustive"
             ):
-                ledger["coverage_audit"] = {
+                plan_digest = hashlib.sha256(topic_plan.read_bytes()).hexdigest()
+                review_path = self.run / f"fixture-coverage-{plan_digest}.json"
+                review = {
+                    "coverage_contract_version": 1,
+                    "topic_plan_digest": plan_digest,
                     "status": "clear",
-                    "plan_digest": hashlib.sha256(
-                        topic_plan.read_bytes()
-                    ).hexdigest(),
-                    "review": str(self.run / "fixture-coverage-review.json"),
-                    "review_digest": "fixture",
-                    "open_leads": 0,
+                    "reason": "Fixture coverage is clear.",
+                    "inspected_roots": ["fixture"],
+                    "open_leads": [],
                 }
-                ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+                review_path.write_text(json.dumps(review), encoding="utf-8")
+                CAMPAIGN_MODULE.commit_receipt(
+                    review_path.with_name(f".{review_path.name}.receipt.json"),
+                    "coverage-finalize",
+                    input_digest=CAMPAIGN_MODULE.path_digest(review_path),
+                    outputs=[review_path],
+                )
         if script == SYNTHESIS and arguments and arguments[0] == "materialize":
             self.enrich_graph_mapping(Path(arguments[2]))
         result = subprocess.run(
@@ -278,12 +350,7 @@ class MapCampaignTests(unittest.TestCase):
         self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
 
     def copy_discovery_state(self, target):
-        corpus = self.discovery_corpus_path()
-        source = self.ledger_value()
-        ledger = json.loads(target.read_text(encoding="utf-8"))
-        ledger["discovery"] = source["discovery"]
-        target.write_text(json.dumps(ledger), encoding="utf-8")
-        return corpus
+        return self.discovery_corpus_path()
 
     def draft_evidence(self, task_id):
         marker = self.ledger_value()["tasks"][task_id]["evidence_baseline"]
@@ -468,7 +535,7 @@ class MapCampaignTests(unittest.TestCase):
         )
         return corpus
 
-    def test_discovery_commands_are_idempotent_and_recover_missing_scouts(self):
+    def test_discovery_commands_are_idempotent_and_status_reads_receipts(self):
         discovery = self.run / "resumable-discovery"
         plan = self.run / "resumable-plan.json"
         plan.write_text(
@@ -539,14 +606,16 @@ class MapCampaignTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        recovered = self.cli(
-            "recover",
-            str(self.ledger),
-            "--discovery-results",
+        self.cli(
+            "discovery-validate",
+            str(discovery / "discovery-seed.json"),
+            str(discovery),
             str(results),
+            str(packet),
         )
-        self.assertIn(relative.as_posix(), recovered["scouts"]["complete"])
-        self.assertGreater(len(recovered["scouts"]["missing"]), 0)
+        status = self.cli("status", str(self.ledger))
+        self.assertTrue(status["receipts"]["valid"])
+        self.assertFalse(status["receipts"]["invalid"])
 
     def test_discovery_rejects_state_outside_canonical_workspace_root(self):
         error = self.cli(
@@ -586,31 +655,25 @@ class MapCampaignTests(unittest.TestCase):
             ),
         )
 
-    def test_synthesis_prepare_is_idempotent_and_recorded(self):
+    def test_synthesis_prepare_is_idempotent_and_receipted(self):
         corpus = self.discovery_corpus_path()
         packet = self.run / "synthesis-packet.json"
         first = self.cli(
             "prepare",
             str(corpus),
             str(packet),
-            "--ledger",
-            str(self.ledger),
             script=SYNTHESIS,
         )
         second = self.cli(
             "prepare",
             str(corpus),
             str(packet),
-            "--ledger",
-            str(self.ledger),
             script=SYNTHESIS,
         )
         self.assertEqual("written", first["status"])
         self.assertEqual("already_ready", second["status"])
-        self.assertEqual(
-            str(packet.resolve()),
-            self.ledger_value()["artifacts"]["synthesis"]["packet"]["path"],
-        )
+        receipt = packet.with_name(f".{packet.name}.receipt.json")
+        self.assertTrue(receipt.is_file())
 
     def semantic_discovery_corpus_path(self):
         path = self.discovery_corpus_path()
@@ -636,6 +699,14 @@ class MapCampaignTests(unittest.TestCase):
             {key: value for key, value in corpus.items() if key != "digest"}
         )
         path.write_text(json.dumps(corpus), encoding="utf-8")
+        receipt = path.with_name(f".{path.name}.receipt.json")
+        receipt.unlink(missing_ok=True)
+        CAMPAIGN_MODULE.commit_receipt(
+            receipt,
+            "discovery-collect",
+            input_digest=CAMPAIGN_MODULE.path_digest(path),
+            outputs=[path],
+        )
         return path
 
     def source_pass(self, *, expected=0):
@@ -711,6 +782,8 @@ class MapCampaignTests(unittest.TestCase):
         package.mkdir(parents=True)
         shutil.copy2(self.checkpoint, package / "checkpoint.json")
         shutil.copytree(self.staging, package / "staging")
+        self.commit_handoff_receipt(task_id, package)
+        ledger = self.ledger_value()
         harvest_root = self.run / f"harvest-{task_id}-{attempt}"
         settled = self.cli(
             "settle-wave",
@@ -732,6 +805,26 @@ class MapCampaignTests(unittest.TestCase):
                 value["id"] for value in task["producer_suggestions"]
             ],
         }
+
+    def commit_handoff_receipt(self, task_id, package):
+        ledger = self.ledger_value()
+        CAMPAIGN_MODULE.commit_receipt(
+            package / "_receipt.json",
+            "producer-handoff",
+            input_digest=CAMPAIGN_MODULE.producer_packet_input_digest(
+                {
+                    "campaign_id": ledger["campaign_id"],
+                    "producer_contract": (
+                        CAMPAIGN_MODULE.ledger_producer_contract(ledger)
+                    ),
+                    "operation": ledger["operation"],
+                    "task": CAMPAIGN_MODULE.task_definition(
+                        ledger["tasks"][task_id]
+                    ),
+                }
+            ),
+            outputs=[package / "checkpoint.json", package / "staging"],
+        )
 
     def covered(self, task_id, evidence, *, owner="/root/producer-1"):
         self.assign(task_id, owner)
@@ -1544,6 +1637,62 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertIn("missing discovery result", error["error"])
 
+    def test_discovery_receipt_rejects_evidence_changed_after_scout(self):
+        self.set_semantic_operation()
+        discovery = self.run / "evidence-discovery"
+        self.cli(
+            "discovery-start",
+            str(self.ledger),
+            str(self.repository),
+            str(self.spine),
+            str(discovery),
+        )
+        packet = next(discovery.rglob("lead-*.json"))
+        result = self.run / "evidence-results" / packet.relative_to(discovery)
+        result.parent.mkdir(parents=True)
+        result.write_text(
+            json.dumps(
+                {
+                    "lead_id": "scope-root",
+                    "status": "closed",
+                    "reason": "Manifest boundary inspected.",
+                    "inspected": {
+                        "files": ["pyproject.toml"],
+                        "queries": [],
+                    },
+                    "topics": [],
+                    "supporting": [
+                        {
+                            "reason": "Manifest supports the boundary.",
+                            "files": ["pyproject.toml"],
+                        }
+                    ],
+                    "unresolved_leads": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.cli(
+            "discovery-validate",
+            str(discovery / "discovery-seed.json"),
+            str(discovery),
+            str(self.run / "evidence-results"),
+            str(packet),
+        )
+        (self.repository / "pyproject.toml").write_text(
+            "[project]\nname='changed'\n",
+            encoding="utf-8",
+        )
+        error = self.cli(
+            "discovery-validate",
+            str(discovery / "discovery-seed.json"),
+            str(discovery),
+            str(self.run / "evidence-results"),
+            str(packet),
+            expected=2,
+        )
+        self.assertIn("evidence changed", error["error"])
+
     def test_discovery_collect_rejects_unclosed_unresolved_frontier(self):
         self.set_semantic_operation()
         discovery = self.run / "discovery"
@@ -1811,6 +1960,16 @@ class MapCampaignTests(unittest.TestCase):
             {key: value for key, value in corpus.items() if key != "digest"}
         )
         corpus_path.write_text(json.dumps(corpus), encoding="utf-8")
+        corpus_receipt = corpus_path.with_name(
+            f".{corpus_path.name}.receipt.json"
+        )
+        corpus_receipt.unlink()
+        CAMPAIGN_MODULE.commit_receipt(
+            corpus_receipt,
+            "discovery-collect",
+            input_digest=CAMPAIGN_MODULE.path_digest(corpus_path),
+            outputs=[corpus_path],
+        )
 
         packet_path = self.run / "global-packet.json"
         self.cli(
@@ -1930,6 +2089,14 @@ class MapCampaignTests(unittest.TestCase):
             {key: item for key, item in value.items() if key != "digest"}
         )
         corpus.write_text(json.dumps(value), encoding="utf-8")
+        corpus_receipt = corpus.with_name(f".{corpus.name}.receipt.json")
+        corpus_receipt.unlink()
+        CAMPAIGN_MODULE.commit_receipt(
+            corpus_receipt,
+            "discovery-collect",
+            input_digest=CAMPAIGN_MODULE.path_digest(corpus),
+            outputs=[corpus],
+        )
         packet = self.run / "empty-synthesis-packet.json"
         prepared = self.cli(
             "prepare",
@@ -2497,9 +2664,9 @@ class MapCampaignTests(unittest.TestCase):
             str(self.repository),
             "--allow-duplicate-incomplete",
         )
-        self.assertEqual(15, created["schema_version"])
+        self.assertEqual(16, created["schema_version"])
 
-    def test_discover_stale_campaign_recommends_new_but_requires_choice(self):
+    def test_discover_stale_unchanged_campaign_still_recommends_resume(self):
         self.source_pass()
         ledger = self.ledger_value()
         ledger["updated_at"] = "2000-01-01T00:00:00Z"
@@ -2513,31 +2680,25 @@ class MapCampaignTests(unittest.TestCase):
 
         campaign = result["campaigns"][0]
         self.assertEqual("stale", campaign["recency"])
-        self.assertEqual("new", campaign["recommendation"])
+        self.assertEqual("resume", campaign["recommendation"])
         self.assertTrue(campaign["requires_operator_choice"])
 
-    def test_resume_session_retains_assigned_tasks_for_handoff_recovery(self):
+    def test_status_preserves_assigned_tasks(self):
         self.source_pass()
         task_id, _ = self.task_for_unit("src/identity")
         self.assign(task_id)
 
-        receipt = self.cli("resume-session", str(self.ledger))
-
-        self.assertEqual("resumed", receipt["status"])
-        self.assertEqual([task_id], receipt["retained_assigned_tasks"])
+        status = self.cli("status", str(self.ledger))
         ledger = self.ledger_value()
         self.assertEqual("assigned", ledger["tasks"][task_id]["state"])
         self.assertEqual("/root/producer-1", ledger["tasks"][task_id]["owner"])
-        self.assertEqual(
-            [task_id],
-            ledger["resume_history"][-1]["retained_assigned_tasks"],
-        )
+        self.assertEqual([task_id], status["states"]["assigned"])
         self.assertEqual(
             "wait",
             self.cli("next-action", str(self.ledger))["action"],
         )
 
-    def test_resume_harvests_completed_handoff_without_new_producer(self):
+    def test_settle_harvests_completed_handoff_without_new_producer(self):
         self.source_pass()
         task_id, _ = self.task_for_unit("src/identity")
         self.assign(task_id)
@@ -2550,35 +2711,23 @@ class MapCampaignTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        package = Path(self.ledger_value()["tasks"][task_id]["handoff_package"])
-        handoffs = package.parent
-        package.mkdir(parents=True)
-        shutil.copy2(self.checkpoint, package / "checkpoint.json")
-        shutil.copytree(self.staging, package / "staging")
-        harvest_root = self.run / "resume-harvest"
-
-        resumed = self.cli("resume-session", str(self.ledger))
-        self.assertEqual([task_id], resumed["retained_assigned_tasks"])
-        settled = self.cli(
-            "settle-wave",
-            str(self.ledger),
-            str(handoffs),
-            str(self.spine),
-            str(harvest_root),
+        accepted = self.accept(
+            task_id,
+            self.checkpoint_payload(
+                outcome="covered",
+                evidence=["src/identity/session.py"],
+            ),
         )
-        self.assertEqual([task_id], settled["harvest"]["harvested_tasks"])
-
         task = self.ledger_value()["tasks"][task_id]
-        self.assertEqual("review", settled["task_states"][task_id])
+        self.assertEqual("review", accepted["task_state"])
         self.assertEqual(1, task["attempts"])
         self.assertEqual("dispatch", self.cli("next-action", str(self.ledger))["action"])
 
-    def test_resume_releases_only_task_without_atomic_handoff(self):
+    def test_release_requeues_task_without_atomic_handoff(self):
         self.source_pass()
         task_id, _ = self.task_for_unit("src/identity")
         self.assign(task_id)
 
-        self.cli("resume-session", str(self.ledger))
         settled = self.cli(
             "settle-wave",
             str(self.ledger),
@@ -2595,13 +2744,13 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual(1, task["attempts"])
         self.assertIn(task_id, self.cli("ready", str(self.ledger))["ready"])
 
-    def test_resume_session_rejects_missing_contract_metadata(self):
+    def test_status_rejects_missing_contract_metadata(self):
         ledger = self.ledger_value()
         del ledger["producer_contract_version"]
         del ledger["producer_contract_digest"]
         self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
 
-        error = self.cli("resume-session", str(self.ledger), expected=2)
+        error = self.cli("status", str(self.ledger), expected=2)
         self.assertIn(
             "campaign does not use the current producer contract",
             error["error"],
@@ -2634,10 +2783,8 @@ class MapCampaignTests(unittest.TestCase):
             expected=2,
         )
         self.assertIn("start a new campaign", packet_error["error"])
-        error = self.cli("resume-session", str(self.ledger), expected=2)
-        self.assertIn("start a new campaign", error["error"])
 
-    def test_changed_source_disables_and_refuses_resume(self):
+    def test_changed_source_is_reported_by_status(self):
         self.source_pass()
         (self.repository / "src/identity/session.py").write_text(
             "SESSION = False\n",
@@ -2653,8 +2800,8 @@ class MapCampaignTests(unittest.TestCase):
         self.assertFalse(campaign["source_current"])
         self.assertFalse(campaign["resume_allowed"])
         self.assertEqual("new", campaign["recommendation"])
-        error = self.cli("resume-session", str(self.ledger), expected=2)
-        self.assertIn("source snapshot changed", error["error"])
+        status = self.cli("status", str(self.ledger))
+        self.assertFalse(status["source_current"])
 
     def test_discover_excludes_unrelated_repository_campaign(self):
         self.source_pass()
@@ -2937,6 +3084,7 @@ class MapCampaignTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            self.commit_handoff_receipt(task["id"], package)
             assigned.append(task["id"])
 
         settled = self.cli(
@@ -2976,6 +3124,7 @@ class MapCampaignTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            self.commit_handoff_receipt(task["id"], package)
 
         result = self.cli(
             "settle-wave",
@@ -3459,6 +3608,28 @@ class MapCampaignTests(unittest.TestCase):
             list(self.spine.parent.glob(f".{self.spine.name}.map-*")),
         )
 
+    def test_status_rolls_back_interrupted_spine_swap(self):
+        self.source_pass()
+        workspace = self.prepare_integration()
+        with (workspace / "architecture.md").open("a", encoding="utf-8") as stream:
+            stream.write("\nInterrupted publication candidate.\n")
+        before = CAMPAIGN_MODULE.document_hashes(self.spine)
+
+        CAMPAIGN_MODULE.publish_integration_workspace(
+            self.ledger,
+            self.spine,
+            workspace,
+        )
+        self.assertNotEqual(before, CAMPAIGN_MODULE.document_hashes(self.spine))
+
+        status = self.cli("status", str(self.ledger))
+
+        self.assertEqual("rolled_back", status["publication_recovery"])
+        self.assertEqual(before, CAMPAIGN_MODULE.document_hashes(self.spine))
+        self.assertFalse(
+            CAMPAIGN_MODULE.publication_journal_path(self.ledger).exists()
+        )
+
     def test_candidate_checker_receives_live_root_and_staging_path(self):
         self.source_pass()
         task_id, _ = self.task_for_unit("src/identity")
@@ -3753,24 +3924,15 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertGreater(next_action["counts"]["todo"], 0)
 
-    def test_next_action_routes_every_preproduction_state(self):
+    def test_next_action_derives_preproduction_state_from_receipts(self):
         initial = self.cli("next-action", str(self.ledger))
         self.assertEqual("discover", initial["action"])
         self.assertFalse(initial["may_pause"])
-
-        for status, action, may_pause in (
-            ("discovering", "discover", False),
-            ("synthesis", "synthesize", True),
-            ("invalid", "repair", False),
-        ):
-            with self.subTest(status=status):
-                ledger = self.ledger_value()
-                ledger["discovery"] = {"status": status}
-                self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
-                result = self.cli("next-action", str(self.ledger))
-                self.assertEqual(action, result["action"])
-                self.assertEqual(may_pause, result["may_pause"])
-                self.assertFalse(result["may_finish"])
+        self.discovery_corpus_path()
+        result = self.cli("next-action", str(self.ledger))
+        self.assertEqual("synthesize", result["action"])
+        self.assertTrue(result["may_pause"])
+        self.assertFalse(result["may_finish"])
 
     def test_next_action_waits_then_integrates_settled_results(self):
         self.source_pass()

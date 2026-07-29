@@ -275,15 +275,21 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
                 f"{field} must be under the workspace Map runtime root "
                 f"{runtime_root}: {path}"
             )
-    if not work.is_dir():
-        raise PreflightError(f"work package is not a directory: {work}")
-    if handoff.exists():
+    resume_exposed_handoff = (
+        handoff.is_dir()
+        and not (handoff / "_receipt.json").exists()
+        and not work.exists()
+    )
+    active = handoff if resume_exposed_handoff else work
+    if not active.is_dir():
+        raise PreflightError(f"work package is not a directory: {active}")
+    if handoff.exists() and not resume_exposed_handoff:
         raise PreflightError(f"handoff package already exists: {handoff}")
     if handoff == work or work in handoff.parents or handoff in work.parents:
         raise PreflightError("work and handoff packages must be separate siblings")
 
-    staging = work / "staging"
-    checkpoint_path = work / "checkpoint.json"
+    staging = active / "staging"
+    checkpoint_path = active / "checkpoint.json"
     staged = relative_markdown_files(staging)
     task = task_definition(read_object(args.task_packet))
     checkpoint = read_object(checkpoint_path)
@@ -306,8 +312,18 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
             repository_root,
         )
 
-    handoff.parent.mkdir(parents=True, exist_ok=True)
-    os.replace(work, handoff)
+    if not resume_exposed_handoff:
+        handoff.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(work, handoff)
+    campaign.commit_receipt(
+        handoff / "_receipt.json",
+        "producer-handoff",
+        input_digest=campaign.producer_packet_input_digest(
+            read_object(args.task_packet)
+        ),
+        inputs=[args.task_packet],
+        outputs=[handoff / "checkpoint.json", handoff / "staging"],
+    )
     return {
         "status": "ready",
         "task": task["id"],

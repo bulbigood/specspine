@@ -33,6 +33,17 @@ class ProducerFinalizeTests(unittest.TestCase):
             json.dumps(
                 {
                     "campaign_id": "campaign",
+                    "producer_contract": {"version": 1, "digest": "fixture"},
+                    "operation": {
+                        "scope": {
+                            "kind": "semantic",
+                            "title": "Identity",
+                            "question": "Who owns identity?",
+                            "inclusion_rule": "Identity is in scope.",
+                            "exclusion_rule": "Everything else is excluded.",
+                        },
+                        "completion": {"kind": "exhaustive"},
+                    },
                     "task": {
                         "id": "verify-identity",
                         "origin": "source-pass",
@@ -115,6 +126,7 @@ class ProducerFinalizeTests(unittest.TestCase):
         self.assertEqual("ready", receipt["status"])
         self.assertEqual("clean", receipt["mechanical_preflight"])
         self.assertFalse(self.work.exists())
+        self.assertTrue((self.handoff / "_receipt.json").is_file())
         self.assertTrue((self.handoff / "checkpoint.json").is_file())
         self.assertTrue((self.handoff / "staging" / "identity.md").is_file())
 
@@ -128,6 +140,17 @@ class ProducerFinalizeTests(unittest.TestCase):
         error = self.execute(expected=2)
 
         self.assertIn("workspace Map runtime root", error["error"])
+
+    def test_finalizer_recovers_rename_before_receipt(self):
+        self.candidate()
+        self.checkpoint()
+        self.handoff.parent.mkdir(parents=True)
+        self.work.rename(self.handoff)
+
+        receipt = self.execute()
+
+        self.assertEqual("ready", receipt["status"])
+        self.assertTrue((self.handoff / "_receipt.json").is_file())
 
     def test_checker_failure_keeps_private_work_and_exposes_no_handoff(self):
         self.candidate()

@@ -211,6 +211,7 @@ def normalize_relationships(value: Any, *, field: str) -> list[dict[str, str]]:
 
 
 def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
+    campaign.require_stage_receipt(args.corpus, "discovery-collect")
     corpus = load_corpus(args.corpus)
     repository_root = Path(corpus["repository_root"])
     campaign.require_map_runtime_path(
@@ -250,24 +251,16 @@ def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
             f"existing synthesis packet has different inputs: {args.output}"
         )
     campaign.atomic_write(args.output, expected)
-    if args.ledger is not None:
-        with campaign.locked_ledger(args.ledger) as ledger:
-            recorded = campaign.same_artifact(
-                ledger["artifacts"]["synthesis"].get("packet"),
-                args.output,
-                input_digest=input_digest,
-            )
-            campaign.record_artifact(
-                ledger,
-                "synthesis",
-                "packet",
-                args.output,
-                input_digest=input_digest,
-            )
-            if not recorded:
-                campaign.save_locked(args.ledger, ledger)
+    receipt_path = args.output.with_name(f".{args.output.name}.receipt.json")
+    receipt_ready = campaign.commit_receipt(
+        receipt_path,
+        "synthesis-prepare",
+        input_digest=input_digest,
+        inputs=[args.corpus],
+        outputs=[args.output],
+    )
     return {
-        "status": "already_ready" if already_ready else "written",
+        "status": "already_ready" if already_ready and receipt_ready else "written",
         "source_topics": len(topics),
         "output": str(args.output.resolve()),
     }
@@ -548,6 +541,7 @@ def normalize_peer_family_review(
 
 
 def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
+    campaign.require_stage_receipt(args.corpus, "discovery-collect")
     corpus = load_corpus(args.corpus)
     repository_root = Path(corpus["repository_root"])
     for path, field in (
@@ -561,6 +555,13 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
     raw = normalize_mapping(
         campaign.read_json(args.mapping),
         field="semantic mapping",
+    )
+    input_digest = campaign.digest_json(
+        {
+            "contract": SYNTHESIS_CONTRACT_VERSION,
+            "corpus": corpus["digest"],
+            "mapping": campaign.path_digest(args.mapping),
+        }
     )
     final_topics: list[dict[str, Any]] = []
     final_covered: list[dict[str, Any]] = []
@@ -774,6 +775,14 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
         publish_validated_plan(args.output, plan, corpus=corpus)
     else:
         campaign.atomic_write(args.output, plan)
+    receipt_path = args.output.with_name(f".{args.output.name}.receipt.json")
+    receipt_ready = campaign.commit_receipt(
+        receipt_path,
+        "synthesis-materialize",
+        input_digest=input_digest,
+        inputs=[args.corpus, args.mapping],
+        outputs=[args.output],
+    )
     semantic_values = raw["topics"] + raw["covered"]
     singleton_passthrough = sum(
         len(value["source_topic_ids"]) == 1
@@ -786,7 +795,7 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
         covered_count=len(final_covered),
     )
     return {
-        "status": "written",
+        "status": "already_ready" if receipt_ready else "written",
         "source_topics": len(topics),
         "final_topics": len(final_topics) + len(final_covered),
         "singleton_topics": singleton_passthrough,
@@ -802,7 +811,6 @@ def parser() -> argparse.ArgumentParser:
     prepare = sub.add_parser("prepare")
     prepare.add_argument("corpus", type=Path)
     prepare.add_argument("output", type=Path)
-    prepare.add_argument("--ledger", type=Path)
     materialize = sub.add_parser("materialize")
     materialize.add_argument("corpus", type=Path)
     materialize.add_argument("mapping", type=Path)

@@ -72,8 +72,15 @@ def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
     ):
         raise PlanningError("existing planner packet has different inputs")
     campaign.atomic_write(args.output, packet)
+    input_digest = campaign.digest_json(packet)
+    receipt_ready = campaign.commit_receipt(
+        args.output.with_name(f".{args.output.name}.receipt.json"),
+        "planning-prepare",
+        input_digest=input_digest,
+        outputs=[args.output],
+    )
     return {
-        "status": "already_ready" if already_ready else "written",
+        "status": "already_ready" if already_ready and receipt_ready else "written",
         "packet": str(args.output.resolve()),
     }
 
@@ -96,6 +103,20 @@ def command_finalize(args: argparse.Namespace) -> dict[str, Any]:
         status = "already_ready"
     else:
         atomic_plan(args.output, plan)
+        status = "ready"
+    receipt_ready = campaign.commit_receipt(
+        args.output.with_name(f".{args.output.name}.receipt.json"),
+        "planning-finalize",
+        input_digest=campaign.digest_json(
+            {
+                "packet": campaign.path_digest(args.packet),
+                "draft": campaign.path_digest(args.draft),
+            }
+        ),
+        inputs=[args.packet, args.draft],
+        outputs=[args.output],
+    )
+    if status == "already_ready" and not receipt_ready:
         status = "ready"
     return {
         "status": status,

@@ -80,7 +80,7 @@ class MapOperationContractTests(unittest.TestCase):
         text = self.compact(self.protocol)
         for command in (
             "discover",
-            "resume-session",
+            "status",
             "init",
             "seed-from-spine",
             "discovery-start",
@@ -90,7 +90,6 @@ class MapOperationContractTests(unittest.TestCase):
             "discovery_finalize.py",
             "discovery-collect",
             "discovery-reopen",
-            "coverage-record",
             "coverage-reopen",
             "synthesis.py prepare",
             "synthesis.py materialize",
@@ -162,7 +161,7 @@ class MapOperationContractTests(unittest.TestCase):
         coverage = self.compact(self.coverage)
         self.assertIn("whole-repository exhaustive work only", protocol)
         self.assertIn("coverage.py prepare", protocol)
-        self.assertIn("coverage-record", protocol)
+        self.assertNotIn("coverage-record", protocol)
         self.assertIn("coverage-reopen", protocol)
         self.assertIn("missing architectural roots", coverage)
         self.assertIn("Do not require every directory or production file", coverage)
@@ -200,9 +199,9 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("related_existing_owners", producer)
         self.assertIn("current_owner", self.campaign)
 
-    def test_resume_recovers_atomic_handoffs_before_redispatch(self):
+    def test_receipts_preserve_atomic_handoffs_before_redispatch(self):
         protocol = self.compact(self.protocol)
-        self.assertIn("Resume preserves every `assigned` task", protocol)
+        self.assertIn("valid `_receipt.json`", protocol)
         self.assertIn("Repair only `rejected_tasks`", protocol)
         self.assertIn("Never read or accept an unfinished producer work directory", protocol)
         self.assertIn("<workspace>/.specspine/map", protocol)
@@ -229,14 +228,13 @@ class MapOperationContractTests(unittest.TestCase):
             {
                 "init",
                 "discover",
-                "resume-session",
+                "status",
                 "seed-from-spine",
                 "bootstrap-spine",
                 "discovery-start",
                 "discovery-defer",
                 "discovery-packets",
                 "discovery-reopen",
-                "coverage-record",
                 "coverage-reopen",
                 "discovery-validate",
                 "discovery-collect",
@@ -251,7 +249,6 @@ class MapOperationContractTests(unittest.TestCase):
                 "integration-pass",
                 "assemble-integration",
                 "next-action",
-                "recover",
             },
             commands,
         )

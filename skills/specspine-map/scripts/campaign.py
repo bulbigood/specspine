@@ -36,9 +36,9 @@ if str(Path(__file__).resolve().parent) not in sys.path:
 from spec_contract import CORE_RELATIONS, canonical_heading, presentation
 
 
-SCHEMA_VERSION = 15
-PRODUCER_CONTRACT_VERSION = 9
-DISCOVERY_CONTRACT_VERSION = 5
+SCHEMA_VERSION = 16
+PRODUCER_CONTRACT_VERSION = 10
+DISCOVERY_CONTRACT_VERSION = 6
 MAX_UNIT_FILES = 80
 MAX_SCOUT_SEED_FILES = 40
 MAX_INITIAL_SCOUTS = 10
@@ -350,29 +350,113 @@ def path_digest(path: Path) -> str:
     return digest_json(entries)
 
 
-def artifact_ref(path: Path, *, input_digest: str) -> dict[str, Any]:
-    resolved = path.resolve()
+def receipt_value(
+    stage: str,
+    *,
+    input_digest: str,
+    inputs: list[Path],
+    outputs: list[Path],
+) -> dict[str, Any]:
     return {
-        "path": str(resolved),
+        "receipt_version": 1,
+        "stage": stage,
         "input_digest": input_digest,
-        "artifact_digest": path_digest(resolved),
+        "inputs": [
+            {
+                "path": str(path.resolve()),
+                "digest": path_digest(path.resolve()),
+            }
+            for path in inputs
+        ],
+        "outputs": [
+            {
+                "path": str(path.resolve()),
+                "digest": path_digest(path.resolve()),
+            }
+            for path in outputs
+        ],
     }
 
 
-def same_artifact(
-    recorded: Any,
+def commit_receipt(
     path: Path,
+    stage: str,
     *,
     input_digest: str,
+    inputs: list[Path] | None = None,
+    outputs: list[Path],
 ) -> bool:
-    if not isinstance(recorded, dict):
-        return False
-    resolved = path.resolve()
-    return (
-        recorded.get("path") == str(resolved)
-        and recorded.get("input_digest") == input_digest
-        and recorded.get("artifact_digest") == path_digest(resolved)
+    expected = receipt_value(
+        stage,
+        input_digest=input_digest,
+        inputs=[] if inputs is None else inputs,
+        outputs=outputs,
     )
+    already_ready = path.is_file() and read_json(path) == expected
+    if path.exists() and not already_ready:
+        raise CampaignError(f"existing stage receipt conflicts: {path}")
+    atomic_write(path, expected)
+    return already_ready
+
+
+def receipt_current(path: Path, stage: str, *, input_digest: str) -> bool:
+    if not path.is_file():
+        return False
+    try:
+        receipt = read_json(path)
+    except CampaignError:
+        return False
+    if (
+        receipt.get("receipt_version") != 1
+        or receipt.get("stage") != stage
+        or receipt.get("input_digest") != input_digest
+        or not isinstance(receipt.get("inputs"), list)
+        or not isinstance(receipt.get("outputs"), list)
+    ):
+        return False
+    try:
+        return all(
+            isinstance(item, dict)
+            and set(item) == {"path", "digest"}
+            and path_digest(Path(item["path"])) == item["digest"]
+            for item in [*receipt["inputs"], *receipt["outputs"]]
+        )
+    except (CampaignError, KeyError, OSError, TypeError):
+        return False
+
+
+def require_stage_receipt(output: Path, stage: str) -> Path:
+    receipt = output.with_name(f".{output.name}.receipt.json")
+    if not receipt.is_file():
+        raise CampaignError(f"{stage} output has no completion receipt: {output}")
+    value = read_json(receipt)
+    input_digest = value.get("input_digest")
+    if not isinstance(input_digest, str) or not receipt_current(
+        receipt,
+        stage,
+        input_digest=input_digest,
+    ):
+        raise CampaignError(f"{stage} output receipt is stale: {output}")
+    return receipt
+
+
+def stage_receipts(runtime: Path) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    valid: list[dict[str, str]] = []
+    invalid: list[dict[str, str]] = []
+    for path in sorted(runtime.rglob("*receipt.json")):
+        try:
+            value = read_json(path)
+            stage = value["stage"]
+            input_digest = value["input_digest"]
+            if not isinstance(stage, str) or not isinstance(input_digest, str):
+                raise CampaignError("receipt stage or input digest is invalid")
+            if not receipt_current(path, stage, input_digest=input_digest):
+                raise CampaignError("receipt outputs changed or are missing")
+        except (CampaignError, KeyError, TypeError) as error:
+            invalid.append({"path": str(path), "error": str(error)})
+        else:
+            valid.append({"path": str(path), "stage": stage})
+    return valid, invalid
 
 
 def producer_contract() -> dict[str, Any]:
@@ -385,6 +469,17 @@ def producer_contract() -> dict[str, Any]:
         "version": PRODUCER_CONTRACT_VERSION,
         "digest": digest,
     }
+
+
+def producer_packet_input_digest(packet: dict[str, Any]) -> str:
+    return digest_json(
+        {
+            "campaign_id": packet["campaign_id"],
+            "producer_contract": packet["producer_contract"],
+            "operation": packet["operation"],
+            "task": packet["task"],
+        }
+    )
 
 
 def ledger_producer_contract(ledger: dict[str, Any]) -> dict[str, Any]:
@@ -727,13 +822,6 @@ def load(path: Path) -> dict[str, Any]:
             Path(repository_value),
             field="campaign ledger",
         )
-    artifacts = ledger.get("artifacts")
-    if (
-        not isinstance(artifacts, dict)
-        or set(artifacts) != {"discovery", "synthesis", "integration"}
-        or any(not isinstance(artifacts[name], dict) for name in artifacts)
-    ):
-        raise CampaignError("campaign artifact manifest is invalid")
     return ledger
 
 
@@ -751,19 +839,6 @@ def save_locked(path: Path, ledger: dict[str, Any]) -> None:
     ledger["revision"] += 1
     ledger["updated_at"] = utc_timestamp()
     atomic_write(path, ledger)
-
-
-def record_artifact(
-    ledger: dict[str, Any],
-    phase: str,
-    name: str,
-    path: Path,
-    *,
-    input_digest: str,
-) -> dict[str, Any]:
-    reference = artifact_ref(path, input_digest=input_digest)
-    ledger["artifacts"][phase][name] = reference
-    return reference
 
 
 def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
@@ -1424,16 +1499,12 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         and recorded_repository != repository_root
     ):
         raise CampaignError("discovery repository root differs from operation")
-    existing_discovery = current.get("discovery")
-    if existing_discovery is not None and (
-        existing_discovery.get("root") != str(args.output_dir.resolve())
-    ):
-        raise CampaignError("operation discovery already started elsewhere")
     require_map_runtime_path(
         args.initial_plan,
         repository_root,
         field="initial discovery plan",
     )
+    require_stage_receipt(args.initial_plan, "planning-finalize")
     args.output_dir.mkdir(parents=True, exist_ok=True)
     packets_dir = args.output_dir / "wave-0001"
     packets_dir.mkdir(exist_ok=True)
@@ -1477,32 +1548,16 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
     )
     if unexpected:
         raise CampaignError(f"discovery packet directory has stale packets: {unexpected}")
-    with locked_ledger(args.ledger) as ledger:
-        state = {
-            "status": "discovering",
-            "root": str(args.output_dir.resolve()),
-            "seed": str(seed_path.resolve()),
-            "corpus": None,
-        }
-        already_ready = ledger.get("discovery") == state and same_artifact(
-            ledger["artifacts"]["discovery"].get("seed"),
-            seed_path,
-            input_digest=input_digest,
-        )
-        if ledger.get("discovery") is not None and ledger.get("discovery") != state:
-            raise CampaignError("recorded discovery differs from current inputs")
-        ledger["discovery"] = state
-        record_artifact(
-            ledger,
-            "discovery",
-            "seed",
-            seed_path,
-            input_digest=input_digest,
-        )
-        if not already_ready:
-            save_locked(args.ledger, ledger)
+    receipt_path = args.output_dir / "_start.receipt.json"
+    receipt_ready = commit_receipt(
+        receipt_path,
+        "discovery-start",
+        input_digest=input_digest,
+        inputs=[args.initial_plan],
+        outputs=[seed_path, packets_dir],
+    )
     return {
-        "status": "already_ready" if already_ready else "written",
+        "status": "already_ready" if receipt_ready else "written",
         "seed": str((args.output_dir / "discovery-seed.json").resolve()),
         "packets": packets,
         "scope_kind": scope["kind"],
@@ -1628,26 +1683,15 @@ def command_discovery_packets(args: argparse.Namespace) -> dict[str, Any]:
             "decisions": decisions,
         }
     )
-    manifest = {
-        "kind": "discovery-packets",
-        "input_digest": input_digest,
-    }
-    manifest_path = args.output_dir / "_artifact.json"
-    already_ready = manifest_path.is_file()
-    if args.output_dir.exists():
-        if not manifest_path.is_file() or read_json(manifest_path) != manifest:
-            raise CampaignError(
-                f"existing discovery packet directory has different inputs: "
-                f"{args.output_dir}"
-            )
+    receipt_path = args.output_dir / "_receipt.json"
     args.output_dir.mkdir(parents=True, exist_ok=True)
     frontier_value = {"decisions": decisions}
     frontier_path = args.output_dir / "_frontier.json"
     if frontier_path.exists() and read_json(frontier_path) != frontier_value:
         raise CampaignError("existing frontier artifact conflicts")
     atomic_write(frontier_path, frontier_value)
-    atomic_write(manifest_path, manifest)
     packets: list[str] = []
+    output_paths = [frontier_path]
     for decision in decisions:
         if decision["disposition"] != "queue":
             continue
@@ -1658,6 +1702,14 @@ def command_discovery_packets(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(f"existing discovery packet conflicts: {path}")
         atomic_write(path, expected)
         packets.append(str(path.resolve()))
+        output_paths.append(path)
+    already_ready = commit_receipt(
+        receipt_path,
+        "discovery-packets",
+        input_digest=input_digest,
+        inputs=[args.seed, args.frontier],
+        outputs=output_paths,
+    )
     return {
         "status": "already_ready" if already_ready else "written",
         "packets": packets,
@@ -1709,27 +1761,24 @@ def command_discovery_defer(args: argparse.Namespace) -> dict[str, Any]:
                 }
             )
     value = {"decisions": decisions}
-    manifest = {
-        "kind": "discovery-defer",
-        "input_digest": digest_json(
-            {
-                "seed": digest_json(seed),
-                "decisions": decisions,
-            }
-        ),
-    }
-    manifest_path = args.output_dir / "_artifact.json"
-    already_ready = manifest_path.is_file()
-    if args.output_dir.exists() and (
-        not already_ready or read_json(manifest_path) != manifest
-    ):
-        raise CampaignError("existing deferred frontier has different inputs")
+    input_digest = digest_json(
+        {
+            "seed": digest_json(seed),
+            "decisions": decisions,
+        }
+    )
+    receipt_path = args.output_dir / "_receipt.json"
     args.output_dir.mkdir(parents=True, exist_ok=True)
     frontier_path = args.output_dir / "_frontier.json"
     if frontier_path.exists() and read_json(frontier_path) != value:
         raise CampaignError("existing deferred frontier has different inputs")
     atomic_write(frontier_path, value)
-    atomic_write(manifest_path, manifest)
+    already_ready = commit_receipt(
+        receipt_path,
+        "discovery-defer",
+        input_digest=input_digest,
+        outputs=[frontier_path],
+    )
     return {
         "status": "already_ready" if already_ready else "written",
         "deferred": len(decisions),
@@ -1740,6 +1789,7 @@ def command_discovery_defer(args: argparse.Namespace) -> dict[str, Any]:
 def validate_coverage_review(value: Any) -> dict[str, Any]:
     expected = {
         "coverage_contract_version",
+        "topic_plan_digest",
         "status",
         "reason",
         "inspected_roots",
@@ -1749,6 +1799,10 @@ def validate_coverage_review(value: Any) -> dict[str, Any]:
         raise CampaignError("coverage review has invalid shape")
     if value["coverage_contract_version"] != 1:
         raise CampaignError("coverage review contract is invalid")
+    if not isinstance(value["topic_plan_digest"], str) or not re.fullmatch(
+        r"[0-9a-f]{64}", value["topic_plan_digest"]
+    ):
+        raise CampaignError("coverage review topic plan digest is invalid")
     if value["status"] not in {"clear", "gaps"}:
         raise CampaignError("coverage review status is invalid")
     if not isinstance(value["reason"], str) or not value["reason"].strip():
@@ -1767,57 +1821,15 @@ def validate_coverage_review(value: Any) -> dict[str, Any]:
     return value
 
 
-def command_coverage_record(args: argparse.Namespace) -> dict[str, Any]:
-    current = load(args.ledger)
-    operation = validate_operation_spec(current["operation"])
-    if (
-        operation["scope"]["kind"] != "repository"
-        or operation["completion"]["kind"] != "exhaustive"
-    ):
-        raise CampaignError(
-            "coverage-record is only for repository exhaustive operations"
-        )
-    repository_root = repository_root_from_ledger(current)
-    for path, field in (
-        (args.topic_plan, "coverage topic plan"),
-        (args.review, "coverage review"),
-    ):
-        require_map_runtime_path(path, repository_root, field=field)
-    review = validate_coverage_review(read_json(args.review))
-    plan_digest = hashlib.sha256(args.topic_plan.read_bytes()).hexdigest()
-    value = {
-        "status": review["status"],
-        "plan_digest": plan_digest,
-        "review": str(args.review.resolve()),
-        "review_digest": hashlib.sha256(args.review.read_bytes()).hexdigest(),
-        "open_leads": len(review["open_leads"]),
-    }
-    with locked_ledger(args.ledger) as ledger:
-        already_ready = ledger.get("coverage_audit") == value
-        if not already_ready:
-            ledger["coverage_audit"] = value
-            save_locked(args.ledger, ledger)
-        return {
-            "status": "already_ready" if already_ready else "recorded",
-            "result": review["status"],
-            "open_leads": len(review["open_leads"]),
-            "revision": ledger["revision"],
-        }
-
-
 def command_coverage_reopen(args: argparse.Namespace) -> dict[str, Any]:
     seed = read_json(args.seed)
-    current = load(args.ledger)
     review = validate_coverage_review(read_json(args.review))
+    require_stage_receipt(args.review, "coverage-finalize")
     if review["status"] != "gaps":
         raise CampaignError("coverage-reopen requires a gaps review")
-    audit = current.get("coverage_audit")
-    if (
-        not isinstance(audit, dict)
-        or audit.get("status") != "gaps"
-        or audit.get("review") != str(args.review.resolve())
-    ):
-        raise CampaignError("coverage gaps are not recorded in the campaign")
+    current = load(args.ledger)
+    if current["operation"] != validate_operation_spec(seed["operation"]):
+        raise CampaignError("coverage operation differs from ledger")
     repository_root = Path(seed["repository_root"]).resolve()
     require_map_runtime_path(
         args.output_dir,
@@ -1849,21 +1861,8 @@ def command_coverage_reopen(args: argparse.Namespace) -> dict[str, Any]:
                 "lead": lead,
             }
         )
-    manifest = {
-        "kind": "coverage-reopen",
-        "input_digest": digest_json(
-            {
-                "seed": digest_json(seed),
-                "review": review,
-            }
-        ),
-    }
-    manifest_path = args.output_dir / "_artifact.json"
-    already_ready = manifest_path.is_file()
-    if args.output_dir.exists() and (
-        not already_ready or read_json(manifest_path) != manifest
-    ):
-        raise CampaignError("existing coverage discovery has different inputs")
+    input_digest = digest_json({"seed": digest_json(seed), "review": review})
+    receipt_path = args.output_dir / "_receipt.json"
     args.output_dir.mkdir(parents=True, exist_ok=True)
     gaps = {"proposals": proposals}
     frontier = {"decisions": decisions}
@@ -1874,8 +1873,11 @@ def command_coverage_reopen(args: argparse.Namespace) -> dict[str, Any]:
         if path.exists() and read_json(path) != value:
             raise CampaignError(f"existing coverage artifact conflicts: {path}")
         atomic_write(path, value)
-    atomic_write(manifest_path, manifest)
     packets: list[str] = []
+    output_paths = [
+        args.output_dir / "_coverage-gaps.json",
+        args.output_dir / "_frontier.json",
+    ]
     for decision in decisions:
         lead = decision["lead"]
         path = args.output_dir / f"lead-{lead['id']}.json"
@@ -1884,6 +1886,14 @@ def command_coverage_reopen(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(f"existing coverage packet conflicts: {path}")
         atomic_write(path, expected)
         packets.append(str(path.resolve()))
+        output_paths.append(path)
+    already_ready = commit_receipt(
+        receipt_path,
+        "coverage-reopen",
+        input_digest=input_digest,
+        inputs=[args.seed, args.review],
+        outputs=output_paths,
+    )
     return {
         "status": "already_ready" if already_ready else "written",
         "packets": packets,
@@ -1910,8 +1920,6 @@ def command_discovery_reopen(args: argparse.Namespace) -> dict[str, Any]:
     current = load(args.ledger)
     if current["operation"] != operation:
         raise CampaignError("discovery operation differs from ledger")
-    if current.get("discovery", {}).get("status") not in {"synthesis", "discovering"}:
-        raise CampaignError("ledger is not awaiting synthesis")
     if not isinstance(plan, dict) or set(plan) != {
         "topics",
         "covered",
@@ -1990,23 +1998,7 @@ def command_discovery_reopen(args: argparse.Namespace) -> dict[str, Any]:
             "topic_plan": digest_json(plan),
         }
     )
-    manifest = {"kind": "discovery-reopen", "input_digest": input_digest}
-    manifest_path = args.output_dir / "_artifact.json"
-    already_ready = manifest_path.is_file()
-    if current.get("discovery", {}).get("status") == "discovering" and not same_artifact(
-        current["artifacts"]["discovery"].get(f"reopen-{args.output_dir.name}"),
-        args.output_dir,
-        input_digest=input_digest,
-    ):
-        raise CampaignError(
-            "discovery is already open for a different or incomplete wave"
-        )
-    if args.output_dir.exists() and (
-        not already_ready or read_json(manifest_path) != manifest
-    ):
-        raise CampaignError(
-            f"existing reopened discovery wave has different inputs: {args.output_dir}"
-        )
+    receipt_path = args.output_dir / "_receipt.json"
     args.output_dir.mkdir(parents=True, exist_ok=True)
     gaps = {"proposals": sorted(proposals)}
     frontier = {"decisions": decisions}
@@ -2017,8 +2009,11 @@ def command_discovery_reopen(args: argparse.Namespace) -> dict[str, Any]:
         if path.exists() and read_json(path) != expected:
             raise CampaignError(f"existing discovery artifact conflicts: {path}")
         atomic_write(path, expected)
-    atomic_write(manifest_path, manifest)
     packets: list[str] = []
+    output_paths = [
+        args.output_dir / "_synthesis-gaps.json",
+        args.output_dir / "_frontier.json",
+    ]
     for decision in decisions:
         lead = decision["lead"]
         path = args.output_dir / f"lead-{lead['id']}.json"
@@ -2027,32 +2022,14 @@ def command_discovery_reopen(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(f"existing discovery packet conflicts: {path}")
         atomic_write(path, expected)
         packets.append(str(path.resolve()))
-    with locked_ledger(args.ledger) as ledger:
-        artifact_current = same_artifact(
-            ledger["artifacts"]["discovery"].get(
-                f"reopen-{args.output_dir.name}"
-            ),
-            args.output_dir,
-            input_digest=input_digest,
-        )
-        ledger["discovery"] = {
-            **ledger["discovery"],
-            "status": "discovering",
-            "corpus": None,
-        }
-        record_artifact(
-            ledger,
-            "discovery",
-            f"reopen-{args.output_dir.name}",
-            args.output_dir,
-            input_digest=input_digest,
-        )
-        if (
-            not already_ready
-            or not artifact_current
-            or current.get("discovery", {}).get("status") != "discovering"
-        ):
-            save_locked(args.ledger, ledger)
+        output_paths.append(path)
+    already_ready = commit_receipt(
+        receipt_path,
+        "discovery-reopen",
+        input_digest=input_digest,
+        inputs=[args.seed, args.topic_plan],
+        outputs=output_paths,
+    )
     return {
         "status": "already_ready" if already_ready else "written",
         "packets": packets,
@@ -2375,6 +2352,21 @@ def evidence_files_digest(repository_root: Path, files: list[str]) -> str:
     return digest.hexdigest()
 
 
+def discovery_result_input_digest(
+    packet: dict[str, Any],
+    result: dict[str, Any],
+    repository_root: Path,
+) -> str:
+    inspected = result.get("inspected", {})
+    files = inspected.get("files", []) if isinstance(inspected, dict) else []
+    return digest_json(
+        {
+            "packet": digest_json(packet),
+            "evidence": evidence_files_digest(repository_root, files),
+        }
+    )
+
+
 def validate_discovery_packet_result(
     seed: dict[str, Any],
     packet_path: Path,
@@ -2393,11 +2385,26 @@ def validate_discovery_packet_result(
         )
     if not result_path.is_file():
         raise CampaignError(f"missing discovery result: {result_path}")
-    return validate_discovery_result(
+    result = validate_discovery_result(
         packet,
         read_json(result_path),
         Path(seed["repository_root"]).resolve(),
     )
+    receipt = result_path.with_name(f".{result_path.name}.receipt.json")
+    input_digest = discovery_result_input_digest(
+        packet,
+        result,
+        Path(seed["repository_root"]).resolve(),
+    )
+    if not receipt_current(
+        receipt,
+        "discovery-result",
+        input_digest=input_digest,
+    ):
+        raise CampaignError(
+            f"discovery result is unfinished or its evidence changed: {result_path}"
+        )
+    return result
 
 
 def command_discovery_validate(args: argparse.Namespace) -> dict[str, Any]:
@@ -2469,13 +2476,6 @@ def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
     current = load(args.ledger)
     if current["operation"] != operation:
         raise CampaignError("discovery operation differs from ledger")
-    discovery_state = current.get("discovery")
-    if (
-        not isinstance(discovery_state, dict)
-        or discovery_state.get("status") not in {"discovering", "synthesis"}
-        or discovery_state.get("seed") != str(args.seed.resolve())
-    ):
-        raise CampaignError("ledger does not track this active discovery")
     packet_paths = sorted(args.packets_root.rglob("lead-*.json"))
     if not packet_paths:
         raise CampaignError("discovery packet tree is empty")
@@ -2678,29 +2678,15 @@ def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
             "existing discovery corpus conflicts with current packets/results"
         )
     atomic_write(args.output, corpus)
-    with locked_ledger(args.ledger) as ledger:
-        if ledger["operation"] != operation:
-            raise CampaignError("discovery operation differs from ledger")
-        state = {
-            **ledger["discovery"],
-            "status": "synthesis",
-            "corpus": str(args.output.resolve()),
-        }
-        already_ready = output_existed and ledger["discovery"] == state and same_artifact(
-            ledger["artifacts"]["discovery"].get("corpus"),
-            args.output,
-            input_digest=input_digest,
-        )
-        ledger["discovery"] = state
-        record_artifact(
-            ledger,
-            "discovery",
-            "corpus",
-            args.output,
-            input_digest=input_digest,
-        )
-        if not already_ready:
-            save_locked(args.ledger, ledger)
+    receipt_path = args.output.with_name(f".{args.output.name}.receipt.json")
+    receipt_ready = commit_receipt(
+        receipt_path,
+        "discovery-collect",
+        input_digest=input_digest,
+        inputs=[args.seed, args.packets_root, args.results_root],
+        outputs=[args.output],
+    )
+    already_ready = output_existed and receipt_ready
     return {
         "status": "already_ready" if already_ready else "written",
         "corpus": str(args.output.resolve()),
@@ -2958,17 +2944,9 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         "publication_history": [],
         "document_change_history": [],
         "documentation_seed": None,
-        "discovery": None,
-        "artifacts": {
-            "discovery": {},
-            "synthesis": {},
-            "integration": {},
-        },
         "spine_snapshot": None,
         "source_pass": None,
-        "coverage_audit": None,
         "integration_pass": None,
-        "resume_history": [],
     }
     atomic_write(args.ledger, ledger)
     return ledger
@@ -3501,6 +3479,8 @@ def validate_topic_plan(
 
 def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
     current = load(args.ledger)
+    require_stage_receipt(args.discovery_corpus, "discovery-collect")
+    require_stage_receipt(args.topic_plan, "synthesis-materialize")
     if current["source_pass"] is not None:
         raise CampaignError("source-pass is immutable once recorded")
     if current["spine_state"] == "existing" and current["documentation_seed"] is None:
@@ -3522,13 +3502,6 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
     )
     if corpus["operation"] != current["operation"]:
         raise CampaignError("discovery corpus operation differs from ledger")
-    discovery_state = current.get("discovery")
-    if (
-        not isinstance(discovery_state, dict)
-        or discovery_state.get("status") != "synthesis"
-        or discovery_state.get("corpus") != str(args.discovery_corpus.resolve())
-    ):
-        raise CampaignError("ledger is not ready to record this synthesis")
     evidence_baseline = repository_evidence_baseline(
         args.repository_root,
         corpus["snapshot"]["digest"],
@@ -3544,12 +3517,22 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
         corpus["operation"]["scope"]["kind"] == "repository"
         and corpus["operation"]["completion"]["kind"] == "exhaustive"
     ):
-        audit = current.get("coverage_audit")
         plan_digest = hashlib.sha256(args.topic_plan.read_bytes()).hexdigest()
-        if (
-            not isinstance(audit, dict)
-            or audit.get("status") != "clear"
-            or audit.get("plan_digest") != plan_digest
+        reviews = []
+        for receipt in stage_receipts(args.ledger.resolve().parent)[0]:
+            if receipt["stage"] != "coverage-finalize":
+                continue
+            value = read_json(Path(receipt["path"]))
+            for output in value["outputs"]:
+                try:
+                    review = validate_coverage_review(read_json(Path(output["path"])))
+                except CampaignError:
+                    continue
+                reviews.append(review)
+        if not any(
+            review["status"] == "clear"
+            and review["topic_plan_digest"] == plan_digest
+            for review in reviews
         ):
             raise CampaignError(
                 "repository exhaustive source-pass requires a clear coverage "
@@ -3612,10 +3595,6 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
             "publication_epoch": ledger["publication_epoch"],
         }
         ledger["spine_snapshot"] = document_hashes(args.spine_root.resolve())
-        ledger["discovery"] = {
-            **ledger["discovery"],
-            "status": "production",
-        }
         save_locked(args.ledger, ledger)
         return {
             "status": "recorded",
@@ -3807,11 +3786,7 @@ def command_discover(args: argparse.Namespace) -> dict[str, Any]:
         )
         recent = age_seconds <= recent_seconds
         resume_allowed = source_current is not False
-        recommendation = (
-            "resume"
-            if recent and resume_allowed
-            else "new"
-        )
+        recommendation = "resume" if resume_allowed else "new"
         states = {
             state: sum(
                 task.get("state") == state
@@ -3845,41 +3820,6 @@ def command_discover(args: argparse.Namespace) -> dict[str, Any]:
         "invalid_ledgers": invalid,
         "requires_operator_choice": bool(campaigns),
     }
-
-
-def command_resume_session(args: argparse.Namespace) -> dict[str, Any]:
-    with locked_ledger(args.ledger) as ledger:
-        if incomplete_reason(ledger) is None:
-            raise CampaignError("campaign is not resumable")
-        if (
-            isinstance(ledger.get("source_pass"), dict)
-            and not current_operation_snapshot(ledger)
-        ):
-            raise CampaignError(
-                "campaign source snapshot changed; start a new campaign"
-            )
-        current_contract = require_current_producer_contract(ledger)
-        retained = sorted(
-            task["id"]
-            for task in ledger["tasks"].values()
-            if task["state"] == "assigned"
-        )
-        resumed_at = utc_timestamp()
-        ledger["resume_history"].append(
-            {
-                "resumed_at": resumed_at,
-                "retained_assigned_tasks": retained,
-            }
-        )
-        save_locked(args.ledger, ledger)
-        return {
-            "status": "resumed",
-            "campaign_id": ledger["campaign_id"],
-            "resumed_at": resumed_at,
-            "retained_assigned_tasks": retained,
-            "producer_contract": current_contract,
-            "revision": ledger["revision"],
-        }
 
 
 def command_packet(args: argparse.Namespace) -> dict[str, Any]:
@@ -4561,7 +4501,20 @@ def harvest_wave(args: argparse.Namespace) -> dict[str, Any]:
         if not package.exists():
             pending.append(task["id"])
             continue
-        if not checkpoint.is_file() or not staging_root.is_dir():
+        producer_receipt = package / "_receipt.json"
+        receipt_valid = receipt_current(
+            producer_receipt,
+            "producer-handoff",
+            input_digest=producer_packet_input_digest(
+                {
+                    "campaign_id": ledger["campaign_id"],
+                    "producer_contract": ledger_producer_contract(ledger),
+                    "operation": ledger["operation"],
+                    "task": task_definition(task),
+                }
+            ),
+        )
+        if not checkpoint.is_file() or not staging_root.is_dir() or not receipt_valid:
             raise CampaignError(
                 f"atomic handoff is incomplete for assigned task: {task['id']}"
             )
@@ -4929,6 +4882,7 @@ def command_prepare_integration(args: argparse.Namespace) -> dict[str, Any]:
         }
     )
     manifest_path = workspace.parent / f".{workspace.name}.map-integration.json"
+    receipt_path = workspace.parent / f".{workspace.name}.receipt.json"
     manifest = {
         "kind": "integration-workspace",
         "workspace": str(workspace),
@@ -4940,32 +4894,25 @@ def command_prepare_integration(args: argparse.Namespace) -> dict[str, Any]:
     if workspace.exists():
         if not workspace.is_dir():
             raise CampaignError(f"integration workspace is not a directory: {workspace}")
-        if not manifest_path.is_file() or read_json(manifest_path) != manifest:
-            raise CampaignError(
-                "existing integration workspace is stale or has no matching manifest"
-            )
-        with locked_ledger(args.ledger) as mutable:
-            ready = same_artifact(
-                mutable["artifacts"]["integration"].get("workspace"),
-                manifest_path,
+        if (
+            manifest_path.is_file()
+            and read_json(manifest_path) == manifest
+            and receipt_current(
+                receipt_path,
+                "integration-prepare",
                 input_digest=input_digest,
             )
-            record_artifact(
-                mutable,
-                "integration",
-                "workspace",
-                manifest_path,
-                input_digest=input_digest,
-            )
-            if not ready:
-                save_locked(args.ledger, mutable)
-        return {
-            "status": "already_ready",
-            "workspace": str(workspace),
-            "manifest": str(manifest_path),
-            "settled_tasks": manifest["settled_tasks"],
-            "candidate_files": [],
-        }
+        ):
+            return {
+                "status": "already_ready",
+                "workspace": str(workspace),
+                "manifest": str(manifest_path),
+                "settled_tasks": manifest["settled_tasks"],
+                "candidate_files": [],
+            }
+        shutil.rmtree(workspace)
+        manifest_path.unlink(missing_ok=True)
+        receipt_path.unlink(missing_ok=True)
     shutil.copytree(spine_root, workspace)
     copied: list[str] = []
     try:
@@ -4989,15 +4936,12 @@ def command_prepare_integration(args: argparse.Namespace) -> dict[str, Any]:
         shutil.rmtree(workspace, ignore_errors=True)
         raise
     atomic_write(manifest_path, manifest)
-    with locked_ledger(args.ledger) as mutable:
-        record_artifact(
-            mutable,
-            "integration",
-            "workspace",
-            manifest_path,
-            input_digest=input_digest,
-        )
-        save_locked(args.ledger, mutable)
+    commit_receipt(
+        receipt_path,
+        "integration-prepare",
+        input_digest=input_digest,
+        outputs=[manifest_path],
+    )
     return {
         "status": "prepared",
         "workspace": str(workspace),
@@ -5050,6 +4994,7 @@ def conservative_facets(body: str, manifest: dict[str, Any]) -> dict[str, str]:
 
 
 def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
+    recover_publication_transaction(args.ledger, args.spine_root.resolve())
     current = load(args.ledger)
     source_pass = current.get("source_pass")
     if not isinstance(source_pass, dict):
@@ -5142,8 +5087,10 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
             or recorded.get("report_digest")
             != hashlib.sha256(report_path.read_bytes()).hexdigest()
         ):
-            raise CampaignError("existing assembly workspace is stale")
-    else:
+            shutil.rmtree(workspace)
+            report_path.unlink(missing_ok=True)
+            assembly_manifest.unlink(missing_ok=True)
+    if not workspace.exists():
         shutil.copytree(args.spine_root.resolve(), workspace)
         try:
             for topic_id, task_id in topic_tasks.items():
@@ -5374,10 +5321,66 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def publication_journal_path(ledger_path: Path) -> Path:
+    return ledger_path.resolve().parent / "publication-transaction.json"
+
+
+def recover_publication_transaction(
+    ledger_path: Path,
+    spine_root: Path,
+) -> str:
+    journal_path = publication_journal_path(ledger_path)
+    if not journal_path.is_file():
+        return "none"
+    journal = read_json(journal_path)
+    if (
+        journal.get("transaction_version") != 1
+        or journal.get("spine_root") != str(spine_root.resolve())
+        or journal.get("state") not in {"prepared", "old-moved", "live-swapped"}
+    ):
+        raise CampaignError("publication transaction journal is invalid")
+    backup = Path(journal["backup"])
+    candidate = Path(journal["candidate"])
+    expected_old = journal["old_documents"]
+    expected_new = journal["new_documents"]
+    live = document_hashes(spine_root) if spine_root.is_dir() else None
+    ledger = load(ledger_path)
+    ledger_documents = ledger.get("spine_snapshot")
+
+    if live == expected_new and ledger_documents == expected_new:
+        shutil.rmtree(backup, ignore_errors=True)
+        shutil.rmtree(candidate, ignore_errors=True)
+        journal_path.unlink()
+        return "committed"
+
+    if live == expected_old:
+        shutil.rmtree(backup, ignore_errors=True)
+        shutil.rmtree(candidate, ignore_errors=True)
+        journal_path.unlink()
+        return "rolled_back"
+
+    if backup.is_dir() and document_hashes(backup) == expected_old:
+        if spine_root.exists():
+            failed = spine_root.parent / f".{spine_root.name}.map-failed.{uuid.uuid4().hex}"
+            os.replace(spine_root, failed)
+            os.replace(backup, spine_root)
+            shutil.rmtree(failed, ignore_errors=True)
+        else:
+            os.replace(backup, spine_root)
+        shutil.rmtree(candidate, ignore_errors=True)
+        journal_path.unlink()
+        return "rolled_back"
+    raise CampaignError(
+        "publication transaction cannot be recovered automatically; "
+        "live Spine and backup do not match recorded digests"
+    )
+
+
 def publish_integration_workspace(
+    ledger_path: Path,
     spine_root: Path,
     workspace: Path,
-) -> tuple[Path, Path]:
+) -> tuple[Path, Path, Path]:
     parent = spine_root.parent
     candidate = Path(
         tempfile.mkdtemp(prefix=f".{spine_root.name}.map-next.", dir=parent)
@@ -5385,23 +5388,47 @@ def publish_integration_workspace(
     candidate.rmdir()
     shutil.copytree(workspace, candidate)
     backup = parent / f".{spine_root.name}.map-backup.{uuid.uuid4().hex}"
+    journal_path = publication_journal_path(ledger_path)
+    if journal_path.exists():
+        raise CampaignError("unfinished publication transaction already exists")
+    journal = {
+        "transaction_version": 1,
+        "state": "prepared",
+        "spine_root": str(spine_root.resolve()),
+        "backup": str(backup),
+        "candidate": str(candidate),
+        "old_documents": document_hashes(spine_root),
+        "new_documents": document_hashes(candidate),
+    }
+    atomic_write(journal_path, journal)
     try:
         os.replace(spine_root, backup)
+        journal["state"] = "old-moved"
+        atomic_write(journal_path, journal)
         os.replace(candidate, spine_root)
+        journal["state"] = "live-swapped"
+        atomic_write(journal_path, journal)
     except Exception:
         if backup.exists() and not spine_root.exists():
             os.replace(backup, spine_root)
         shutil.rmtree(candidate, ignore_errors=True)
+        journal_path.unlink(missing_ok=True)
         raise
-    return backup, candidate
+    return backup, candidate, journal_path
 
 
-def rollback_integration_publication(spine_root: Path, backup: Path) -> None:
+def rollback_integration_publication(
+    spine_root: Path,
+    backup: Path,
+    journal_path: Path | None = None,
+) -> None:
     failed = spine_root.parent / f".{spine_root.name}.map-failed.{uuid.uuid4().hex}"
     if spine_root.exists():
         os.replace(spine_root, failed)
     os.replace(backup, spine_root)
     shutil.rmtree(failed, ignore_errors=True)
+    if journal_path is not None:
+        journal_path.unlink(missing_ok=True)
 
 
 def validate_integrated_source_publication(
@@ -5548,6 +5575,7 @@ def validate_new_task_anchors(
 
 
 def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
+    recover_publication_transaction(args.ledger, args.spine_root.resolve())
     report = read_json(args.report)
     spine_root = args.spine_root.resolve()
     workspace = args.workspace.resolve()
@@ -5960,15 +5988,24 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
                     }
                 )
         ledger["spine_snapshot"] = documents
-        backup, candidate = publish_integration_workspace(spine_root, workspace)
+        backup, candidate, journal_path = publish_integration_workspace(
+            args.ledger,
+            spine_root,
+            workspace,
+        )
         try:
             save_locked(args.ledger, ledger)
         except Exception:
-            rollback_integration_publication(spine_root, backup)
+            rollback_integration_publication(
+                spine_root,
+                backup,
+                journal_path,
+            )
             raise
         else:
             shutil.rmtree(backup, ignore_errors=True)
             shutil.rmtree(candidate, ignore_errors=True)
+            journal_path.unlink(missing_ok=True)
         return {
             "status": "integrated",
             "reviewed_tasks": sorted(settled),
@@ -6091,25 +6128,28 @@ def campaign_summary(ledger_path: Path) -> dict[str, Any]:
 
 def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
+    source = ledger.get("source_pass")
+    if isinstance(source, dict):
+        recover_publication_transaction(
+            args.ledger,
+            Path(source["spine_root"]),
+        )
+        ledger = load(args.ledger)
     if ledger.get("source_pass") is None:
-        discovery = ledger.get("discovery")
-        if discovery is None:
-            action = "discover"
-            reason = "operation discovery has not started"
-        elif discovery.get("status") == "discovering":
-            action = "discover"
-            reason = "semantic discovery frontier is not yet synthesized"
-        elif discovery.get("status") == "synthesis":
-            audit = ledger.get("coverage_audit")
-            if isinstance(audit, dict) and audit.get("status") == "gaps":
-                action = "discover"
-                reason = "repository topology coverage gaps require discovery"
-            else:
-                action = "synthesize"
-                reason = "discovery corpus requires semantic synthesis"
+        stages = {
+            receipt["stage"]
+            for receipt in stage_receipts(args.ledger.resolve().parent)[0]
+        }
+        if "discovery-collect" in stages:
+            action = "synthesize"
+            reason = "discovery corpus requires semantic synthesis"
         else:
-            action = "repair"
-            reason = "pre-production operation state is invalid"
+            action = "discover"
+            reason = (
+                "semantic discovery frontier is not yet synthesized"
+                if "discovery-start" in stages
+                else "operation discovery has not started"
+            )
         return {
             "campaign_id": ledger["campaign_id"],
             "revision": ledger["revision"],
@@ -6185,152 +6225,39 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def recorded_artifact_path(ledger: dict[str, Any], phase: str, name: str) -> Path | None:
-    value = ledger["artifacts"][phase].get(name)
-    if not isinstance(value, dict) or not isinstance(value.get("path"), str):
-        return None
-    return Path(value["path"])
-
-
-def command_recover(args: argparse.Namespace) -> dict[str, Any]:
-    """Reconcile durable phase artifacts and return only missing atomic work."""
-    current = load(args.ledger)
-    repository_root = repository_root_from_ledger(current)
-    for path, field in (
-        (args.discovery_results, "discovery result root"),
-        (args.synthesis_packet, "synthesis packet"),
-        (args.mapping, "synthesis mapping"),
-        (args.topic_plan, "topic plan"),
-        (args.handoffs_root, "producer handoff root"),
-    ):
-        if path is not None:
-            require_map_runtime_path(path, repository_root, field=field)
-    discovery = current.get("discovery")
-    packet_root = (
-        Path(discovery["root"])
-        if isinstance(discovery, dict) and isinstance(discovery.get("root"), str)
+def command_status(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    source = ledger.get("source_pass")
+    publication_recovery = (
+        recover_publication_transaction(
+            args.ledger,
+            Path(source["spine_root"]),
+        )
+        if isinstance(source, dict)
+        else "none"
+    )
+    ledger = load(args.ledger)
+    runtime = args.ledger.resolve().parent
+    valid, invalid = stage_receipts(runtime)
+    summary = campaign_summary(args.ledger)
+    source_current = (
+        current_operation_snapshot(ledger)
+        if isinstance(ledger.get("source_pass"), dict)
         else None
     )
-    seed_path = (
-        Path(discovery["seed"])
-        if isinstance(discovery, dict) and isinstance(discovery.get("seed"), str)
-        else None
-    )
-    seed = read_json(seed_path) if seed_path is not None and seed_path.is_file() else None
-
-    results_root = args.discovery_results or recorded_artifact_path(
-        current, "discovery", "results-root"
-    )
-    scout_complete: list[str] = []
-    scout_missing: list[str] = []
-    scout_invalid: list[dict[str, str]] = []
-    if packet_root is not None and seed is not None:
-        for packet in sorted(packet_root.rglob("lead-*.json")):
-            relative = packet.relative_to(packet_root)
-            if results_root is None:
-                scout_missing.append(relative.as_posix())
-                continue
-            result = results_root / relative
-            if not result.is_file():
-                scout_missing.append(relative.as_posix())
-                continue
-            try:
-                validate_discovery_packet_result(seed, packet, result)
-            except CampaignError as error:
-                scout_invalid.append(
-                    {"packet": relative.as_posix(), "error": str(error)}
-                )
-            else:
-                scout_complete.append(relative.as_posix())
-
-    canonical: dict[str, dict[str, Any]] = {}
-    for name, supplied in (
-        ("packet", args.synthesis_packet),
-        ("mapping", args.mapping),
-        ("topic-plan", args.topic_plan),
-    ):
-        path = supplied or recorded_artifact_path(current, "synthesis", name)
-        canonical[name] = {
-            "path": None if path is None else str(path.resolve()),
-            "ready": bool(path is not None and path.is_file()),
-        }
-
-    workspace_manifest = recorded_artifact_path(
-        current, "integration", "workspace"
-    )
-    integration_ready = bool(
-        workspace_manifest is not None
-        and workspace_manifest.is_file()
-        and isinstance(read_json(workspace_manifest).get("workspace"), str)
-        and Path(read_json(workspace_manifest)["workspace"]).is_dir()
-    )
-
-    handoffs_root = args.handoffs_root
-    harvestable: list[str] = []
-    pending_producers: list[str] = []
-    for task in sorted(current["tasks"].values(), key=lambda value: value["id"]):
-        if task["state"] != "assigned":
-            continue
-        package_value = task.get("handoff_package")
-        package = Path(package_value) if isinstance(package_value, str) else None
-        if handoffs_root is not None and package is not None:
-            try:
-                package.relative_to(handoffs_root.resolve())
-            except ValueError:
-                package = None
-        if (
-            package is not None
-            and (package / "checkpoint.json").is_file()
-            and (package / "staging").is_dir()
-        ):
-            harvestable.append(task["id"])
-        else:
-            pending_producers.append(task["id"])
-
-    with locked_ledger(args.ledger) as ledger:
-        before = canonical_json(ledger["artifacts"])
-        if results_root is not None and results_root.exists():
-            record_artifact(
-                ledger,
-                "discovery",
-                "results-root",
-                results_root,
-                input_digest=digest_json(
-                    {"seed": None if seed is None else digest_json(seed)}
-                ),
-            )
-        for name, supplied in (
-            ("packet", args.synthesis_packet),
-            ("mapping", args.mapping),
-            ("topic-plan", args.topic_plan),
-        ):
-            if supplied is not None and supplied.is_file():
-                record_artifact(
-                    ledger,
-                    "synthesis",
-                    name,
-                    supplied,
-                    input_digest=hashlib.sha256(supplied.read_bytes()).hexdigest(),
-                )
-        if canonical_json(ledger["artifacts"]) != before:
-            save_locked(args.ledger, ledger)
-
     return {
-        "status": "recovered",
-        "scouts": {
-            "complete": scout_complete,
-            "missing": scout_missing,
-            "invalid": scout_invalid,
+        "campaign_id": ledger["campaign_id"],
+        "revision": ledger["revision"],
+        "source_current": source_current,
+        "publication_recovery": publication_recovery,
+        "receipts": {
+            "valid": valid,
+            "invalid": invalid,
         },
-        "synthesis": canonical,
-        "integration_workspace_ready": integration_ready,
-        "producers": {
-            "harvestable": harvestable,
-            "pending": pending_producers,
-        },
+        "states": summary["states"],
+        "terminal": summary["terminal"],
+        "terminal_gates": summary["terminal_gates"],
     }
-
-
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     sub = result.add_subparsers(dest="command", required=True)
@@ -6359,8 +6286,8 @@ def parser() -> argparse.ArgumentParser:
         default=DEFAULT_RECENT_HOURS,
     )
 
-    resume = sub.add_parser("resume-session")
-    resume.add_argument("ledger", type=Path)
+    status = sub.add_parser("status")
+    status.add_argument("ledger", type=Path)
 
     seed = sub.add_parser("seed-from-spine")
     seed.add_argument("ledger", type=Path)
@@ -6413,11 +6340,6 @@ def parser() -> argparse.ArgumentParser:
     discovery_defer.add_argument("packets_root", type=Path)
     discovery_defer.add_argument("results_root", type=Path)
     discovery_defer.add_argument("output_dir", type=Path)
-
-    coverage_record = sub.add_parser("coverage-record")
-    coverage_record.add_argument("ledger", type=Path)
-    coverage_record.add_argument("topic_plan", type=Path)
-    coverage_record.add_argument("review", type=Path)
 
     coverage_reopen = sub.add_parser("coverage-reopen")
     coverage_reopen.add_argument("ledger", type=Path)
@@ -6518,14 +6440,6 @@ def parser() -> argparse.ArgumentParser:
     next_action = sub.add_parser("next-action")
     next_action.add_argument("ledger", type=Path)
 
-    recover = sub.add_parser("recover")
-    recover.add_argument("ledger", type=Path)
-    recover.add_argument("--discovery-results", type=Path)
-    recover.add_argument("--synthesis-packet", type=Path)
-    recover.add_argument("--mapping", type=Path)
-    recover.add_argument("--topic-plan", type=Path)
-    recover.add_argument("--handoffs-root", type=Path)
-
     return result
 
 
@@ -6534,13 +6448,12 @@ def main() -> int:
     commands = {
         "init": command_init,
         "discover": command_discover,
-        "resume-session": command_resume_session,
+        "status": command_status,
         "seed-from-spine": command_seed_from_spine,
         "bootstrap-spine": command_bootstrap_spine,
         "discovery-start": command_discovery_start,
         "discovery-packets": command_discovery_packets,
         "discovery-defer": command_discovery_defer,
-        "coverage-record": command_coverage_record,
         "coverage-reopen": command_coverage_reopen,
         "discovery-reopen": command_discovery_reopen,
         "discovery-validate": command_discovery_validate,
@@ -6556,7 +6469,6 @@ def main() -> int:
         "integration-pass": command_integration_pass,
         "assemble-integration": command_assemble_integration,
         "next-action": command_next_action,
-        "recover": command_recover,
     }
     try:
         value = commands[args.command](args)

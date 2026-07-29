@@ -22,24 +22,25 @@ python3 <skill>/scripts/campaign.py discover \
 If incomplete, resume that campaign. Select it with:
 
 ```text
-python3 <skill>/scripts/campaign.py resume-session <campaign>
-python3 <skill>/scripts/campaign.py recover <campaign> [existing-path options]
+python3 <skill>/scripts/campaign.py status <campaign>
 python3 <skill>/scripts/campaign.py next-action <campaign>
 ```
-Path options: `--discovery-results`, `--synthesis-packet`, `--mapping`,
-`--topic-plan`, `--handoffs-root`.
-`recover` records supplied paths, validates results, and
-returns missing/invalid work; later resumes use ledger paths. Discard AI drafts.
+Every completed phase or worker handoff has a valid `_receipt.json` or sidecar
+`.<name>.receipt.json`, written last with input and output digests. Receipts are
+the source of truth; the ledger does not duplicate artifact paths or digests.
+`status` derives recovery state from receipts and settles an interrupted Spine
+publication. Discard work without a valid receipt.
 
-Resume preserves every `assigned` task so finalized atomic handoffs are not
-lost. Before spawning producers, recover the interrupted wave:
+Assigned producer tasks remain assigned across interruption. Before spawning
+replacement producers, settle the interrupted wave:
 
 ```text
 python3 <skill>/scripts/campaign.py settle-wave \
   <campaign> <handoffs> <spine-root> <harvest-receipts>
 ```
 
-Cached receipts are reusable. Release each `pending_task`; it may be
+Cached harvest receipts and finalized handoffs are reusable. Release each
+`pending_task`; it may be
 reassigned. Repair only `rejected_tasks`, which represent mechanical handoff
 failures. Never read or accept an unfinished producer work directory.
 
@@ -215,7 +216,7 @@ Prepare one compact global packet from the complete corpus:
 
 ```text
 python3 <skill>/scripts/synthesis.py prepare \
-  <discovery-corpus.json> <synthesis-packet.json> --ledger <campaign>
+  <discovery-corpus.json> <synthesis-packet.json>
 ```
 
 Discovery packet/collect/reopen, synthesis prepare, and integration prepare
@@ -269,13 +270,11 @@ python3 <skill>/scripts/coverage.py prepare \
 
 Give one fresh medium-tier auditor only `repository-coverage.md`, the packet,
 repository, Spine, private draft path, final review path, and `coverage.py`.
-Root reads only its receipt. Finalize and record the review:
+Root reads only its receipt. Finalize the review:
 
 ```text
 python3 <skill>/scripts/coverage.py finalize \
   <coverage-packet.json> <private-draft.json> <coverage-review.json>
-python3 <skill>/scripts/campaign.py coverage-record \
-  <campaign> <topic-plan.json> <coverage-review.json>
 ```
 
 On `gaps`, reopen the reported semantic leads, run the ordinary scout,
@@ -316,7 +315,8 @@ and available slots after reserving root. Create fresh strong-tier producers. Gi
 only `producer-task.md`, its packet, repository, Spine, private work path,
 that returned handoff path, and
 `producer_finalize.py`. Wait for the whole wave without refill. Producers
-atomically expose checked handoffs; never inspect their work directories.
+atomically expose checked handoffs and write `_receipt.json` last; never
+inspect their work directories.
 
 Settle the complete wave with one idempotent command:
 
@@ -349,7 +349,9 @@ synthesized relationships, index navigation, conservative manifest facets, task
 reviews, and the exact delta, then checks and publishes atomically. It owns the
 campaign-local workspace and report paths; the orchestrator never creates,
 reads, or edits them for a clean run. Repeat it after interruption; matching
-inputs are idempotent. If it returns
+inputs are idempotent. Publication uses a transaction journal; `status`,
+`next-action`, or the next integration command commits a completed swap or
+restores the recorded backup after interruption. If it returns
 `needs_semantic_review`, read `integration-pass.md` and use
 `prepare-integration` plus `integration-pass` only for the reported ownership,
 coverage, granularity, anchor, direction, or graph conflict. A producer
@@ -361,6 +363,7 @@ clean drafts.
 Before every response:
 
 ```text
+python3 <skill>/scripts/campaign.py status <campaign>
 python3 <skill>/scripts/campaign.py next-action <campaign>
 ```
 
