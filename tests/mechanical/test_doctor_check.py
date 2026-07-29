@@ -209,7 +209,7 @@ class DoctorCheckerV3Tests(unittest.TestCase):
     def test_doctor_index_template_is_valid(self):
         template = (
             Path(__file__).parents[2]
-            / "skills/specspine-doctor/assets/templates/spine-index.md"
+            / "skills/specspine-doctor/assets/templates/root-spine-index.md"
         ).read_text(encoding="utf-8")
         self.assertIn(
             "This directory contains the project's long-lived architectural intent",

@@ -12,7 +12,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 VOCABULARY_PATH = ROOT / "shared/references/vocabulary.json"
 GLOSSARY_PATH = ROOT / "docs/reference/glossary.md"
-INDEX_TEMPLATE_PATH = ROOT / "shared/assets/templates/spine-index.md"
+INDEX_TEMPLATE_PATH = ROOT / "shared/assets/templates/root-spine-index.md"
 
 
 def code_list(values: list[str]) -> str:
@@ -171,7 +171,7 @@ def main() -> int:
         not INDEX_TEMPLATE_PATH.is_file()
         or INDEX_TEMPLATE_PATH.read_text(encoding="utf-8") != expected_index
     ):
-        stale.append("shared/assets/templates/spine-index.md")
+        stale.append("shared/assets/templates/root-spine-index.md")
     if stale:
         print(
             ", ".join(stale) + " stale; run "

@@ -6316,7 +6316,7 @@ def parser() -> argparse.ArgumentParser:
     bootstrap.add_argument(
         "--index-template",
         type=Path,
-        default=Path(__file__).parent.parent / "assets/templates/architecture-index.md",
+        default=Path(__file__).parent.parent / "assets/templates/root-spine-index.md",
     )
     bootstrap.add_argument(
         "--checker",

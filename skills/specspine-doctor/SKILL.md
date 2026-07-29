@@ -25,7 +25,7 @@ implicitly.
   and, when the operator requests README exposure,
   [assets/templates/readme-bootstrap.md](assets/templates/readme-bootstrap.md);
   use
-  [assets/templates/spine-index.md](assets/templates/spine-index.md).
+  [assets/templates/root-spine-index.md](assets/templates/root-spine-index.md).
 - Run `scripts/check_spine.py <spine-root>` for reproducible checks. Use
   `--json` only when structured output is useful.
 - Run `scripts/workspace_spines.py <workspace>` for workspace-wide discovery

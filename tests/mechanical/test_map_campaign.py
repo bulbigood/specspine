@@ -1179,7 +1179,8 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual([], second["created"])
         index = (spine / "_INDEX.md").read_text(encoding="utf-8")
         self.assertIn("## How to use this Spine", index)
-        self.assertIn("`OBS` records confirmed implementation evidence", index)
+        self.assertIn("## SpecSpine glossary", index)
+        self.assertIn("`OBS` — Confirmed architecture-significant", index)
 
     def test_empty_spine_bootstrap_recovers_its_missing_manifest(self):
         spine = self.run / "partial-empty-spine"
@@ -1192,7 +1193,7 @@ class MapCampaignTests(unittest.TestCase):
                 "--project",
                 "grafana",
                 "--index-file",
-                str(ROOT / "shared/assets/templates/spine-index.md"),
+                str(ROOT / "shared/assets/templates/root-spine-index.md"),
             ],
             check=True,
             capture_output=True,
