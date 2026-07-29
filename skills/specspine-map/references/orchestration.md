@@ -186,7 +186,7 @@ python3 <skill>/scripts/campaign.py discovery-defer \
   <discovery-seed> <discovery> <results> <discovery>/deferred
 ```
 
-- Exhaustive: when continuations exist, give one fresh medium-tier curator the
+- Exhaustive: when continuations exist, give one fresh weak-tier curator the
   operation, unresolved proposals, and compact lead registry under
   `frontier-curation.md`. It queues every unique in-scope continuation and
   defers nothing.
@@ -311,7 +311,7 @@ python3 <skill>/scripts/campaign.py assign \
 
 Use the exact `handoff_package` returned by `assign`; never construct or rename
 the attempt suffix manually. Set the producer wave size to the smaller of ten
-and available slots after reserving root. Create fresh strong-tier producers. Give each
+and available slots after reserving root. Create fresh medium-tier producers. Give each
 only `producer-task.md`, its packet, repository, Spine, private work path,
 that returned handoff path, and
 `producer_finalize.py`. Wait for the whole wave without refill. Producers
