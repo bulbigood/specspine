@@ -47,10 +47,12 @@ decomposition rules from `spec-format.md`.
 ## Apply the operation policy
 
 For `survey`, establish a small linked skeleton of major runtime, capability,
-ownership, and data-flow boundaries. For `deepen`, start from an existing owner
-and its direct relationships. For `refresh` or `drift`, inspect only affected
-specifications and source areas, preserve accepted intent, and record
-unresolved disagreement.
+ownership, and data-flow boundaries. For `deepen`, start from one existing
+owner, its manifest facets, and direct relationships; investigate its partial
+or missing observable architecture, behavior, interfaces, data, and failure
+surfaces without widening into a general survey. For `refresh` or `drift`,
+inspect only affected specifications and source areas, preserve accepted
+intent, and record unresolved disagreement.
 
 An increment settles one initial discovery layer and defers directly exposed
 continuations. An exhaustive scout recursively closes its assigned semantic

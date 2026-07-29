@@ -17,6 +17,21 @@ publish the coherent evidence-backed core and record the doubt as a concise
 semantic graph may need later Doctor or Evolve refinement. Copy
 `evidence_baseline` exactly.
 
+Read the packet `operation` and `current_owner` before inspecting code. In
+every operation, make one targeted facet pass across applicable observable
+architecture, behavior, interfaces, data/state ownership, and failure or
+recovery. Check registrations and consumers plus relevant schemas,
+configuration, and tests when they can establish those facets. Do not expand
+into implementation inventory or unrelated neighboring ownership.
+
+For `completion.intent: deepen`, update the existing `current_owner.document`
+instead of creating a parallel owner. Preserve all accepted normative claims
+and unrelated observations. Concentrate on its `partial` and `missing`
+observable facets, but write only facts supported by repository evidence.
+Code cannot establish normative guarantees, quality targets, or
+implementation-independent verification; leave those incomplete rather than
+manufacturing them.
+
 Choose the narrowest accurate v3 `Kind`. Use `component` for a concrete
 runtime, renderer, plugin, adapter, or independently evolving implementation
 boundary; `capability` for a responsibility coordinated across components;
@@ -40,6 +55,9 @@ specification and verify:
   `OBS` bullet; its baseline exactly matches the task packet;
 - supported relevant boundaries, interfaces, state, lifecycle, and failures
   are present;
+- each applicable observable facet was either documented from evidence or
+  deliberately left incomplete because the inspected repository cannot
+  establish it;
 - section headings follow the canonical concerns in `spec-format`; never merge
   concerns into custom headings such as `Interfaces and lifecycle` or
   `Lifecycle and state`; use separate canonical sections;

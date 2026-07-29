@@ -2315,6 +2315,17 @@ class MapCampaignTests(unittest.TestCase):
             self.ledger_value()["producer_contract_digest"],
             packet["producer_contract"]["digest"],
         )
+        self.assertEqual(
+            self.ledger_value()["operation"],
+            packet["operation"],
+        )
+        self.assertEqual(
+            {
+                "document": task["planned_document"],
+                "exists": False,
+            },
+            packet["current_owner"],
+        )
         self.assertTrue(packet["task"]["evidence_strata"])
         packet_path = self.run / "packets" / f"{task_id}.json"
         receipt = self.cli(
@@ -2326,6 +2337,42 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertEqual("written", receipt["status"])
         self.assertEqual(task_id, json.loads(packet_path.read_text())["task"]["id"])
+
+    def test_packet_reports_existing_planned_owner_facets(self):
+        (self.spine / "topics").mkdir()
+        self.add_spine_candidate(
+            "topics/src-identity.md",
+            "src-identity",
+            "src/identity/session.py",
+        )
+        self.source_pass()
+        task_id, task = self.task_for_unit("src/identity")
+
+        packet = self.cli("packet", str(self.ledger), task_id)
+
+        self.assertEqual(task["planned_document"], "topics/src-identity.md")
+        self.assertEqual(
+            {
+                "document": "topics/src-identity.md",
+                "exists": True,
+                "owner": "src-identity",
+                "kind": "concept",
+                "facets": {
+                    name: "missing"
+                    for name in (
+                        "architecture",
+                        "behavior",
+                        "interfaces",
+                        "data",
+                        "failure",
+                        "quality",
+                        "verification",
+                    )
+                },
+                "blockers": [],
+            },
+            packet["current_owner"],
+        )
 
     def test_discover_recent_incomplete_campaign_recommends_operator_resume(self):
         self.source_pass()

@@ -94,7 +94,7 @@ OBS_DEFINITION_RE = re.compile(
 )
 DOCUMENT_IDENTITY_RE = re.compile(
     r"^\*\*ID:\*\*\s+`([a-z0-9]+(?:-[a-z0-9]+)*)`\s+·\s+"
-    r"\*\*Kind:\*\*\s+`(?!index`)[^`]+`\s*$",
+    r"\*\*Kind:\*\*\s+`((?!index`)[^`]+)`\s*$",
     re.MULTILINE,
 )
 RELATION_ROW_RE = re.compile(
@@ -538,6 +538,44 @@ def spine_owner_registry(spine_root: Path) -> dict[str, dict[str, str]]:
             "title": title.group(1).strip() if title else owner,
         }
     return owners
+
+
+def planned_owner_profile(
+    ledger: dict[str, Any],
+    task: dict[str, Any],
+) -> dict[str, Any]:
+    document = task.get("planned_document")
+    source_pass = ledger.get("source_pass")
+    if not isinstance(document, str) or not isinstance(source_pass, dict):
+        return {"document": document, "exists": False}
+    spine_root = Path(source_pass["spine_root"])
+    path = spine_root / document
+    if not path.is_file():
+        return {"document": document, "exists": False}
+
+    identity = DOCUMENT_IDENTITY_RE.search(path.read_text(encoding="utf-8"))
+    if identity is None:
+        raise CampaignError(f"planned owner has no valid identity: {document}")
+    owner = identity.group(1)
+    manifest = read_json(spine_root / "specspine.json")
+    area = next(
+        (
+            value
+            for value in manifest.get("areas", [])
+            if isinstance(value, dict) and value.get("owner") == owner
+        ),
+        None,
+    )
+    if area is None:
+        raise CampaignError(f"planned owner has no manifest area: {owner}")
+    return {
+        "document": document,
+        "exists": True,
+        "owner": owner,
+        "kind": identity.group(2),
+        "facets": area["facets"],
+        "blockers": area["blockers"],
+    }
 
 
 def spine_changes(
@@ -3667,6 +3705,8 @@ def command_packet(args: argparse.Namespace) -> dict[str, Any]:
     packet = {
         "campaign_id": ledger["campaign_id"],
         "producer_contract": contract,
+        "operation": ledger["operation"],
+        "current_owner": planned_owner_profile(ledger, task),
         "task": task_definition(task),
     }
     if args.output is None:

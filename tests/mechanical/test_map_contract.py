@@ -165,6 +165,9 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("strong-tier one-shot producers", self.entrypoint)
         self.assertIn("Use `concept` only for shared vocabulary", producer)
         self.assertIn("never merge concerns into custom headings", producer)
+        self.assertIn("make one targeted facet pass", producer)
+        self.assertIn("For `completion.intent: deepen`", producer)
+        self.assertIn("current_owner", self.campaign)
 
     def test_resume_recovers_atomic_handoffs_before_redispatch(self):
         protocol = self.compact(self.protocol)
@@ -232,7 +235,7 @@ class MapOperationContractTests(unittest.TestCase):
             "discovery": (self.discovery, 105),
             "curator": (self.curator, 85),
             "synthesis": (self.synthesis, 105),
-            "producer": (self.producer, 135),
+            "producer": (self.producer, 155),
             "integration": (self.integration, 175),
         }
         for name, (value, maximum) in limits.items():
