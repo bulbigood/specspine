@@ -36,6 +36,7 @@ PRODUCER_CONTRACT_VERSION = 5
 DISCOVERY_CONTRACT_VERSION = 4
 MAX_UNIT_FILES = 80
 MAX_SCOUT_SEED_FILES = 40
+MAX_INITIAL_SCOUTS = 10
 MAX_CANDIDATE_DOCUMENTS = 12
 DISCOVERY_TERMINAL_STATUSES = {
     "unresolved",
@@ -1308,6 +1309,63 @@ def normalize_discovery_lead(value: Any, *, field: str) -> dict[str, Any]:
     }
 
 
+def validate_initial_discovery_plan(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != {
+        "discovery_plan_version",
+        "rationale",
+        "leads",
+    }:
+        raise CampaignError(
+            "initial discovery plan needs exactly discovery_plan_version, "
+            "rationale, and leads"
+        )
+    if value["discovery_plan_version"] != 1:
+        raise CampaignError("initial discovery plan version must be 1")
+    if not isinstance(value["rationale"], str) or not value["rationale"].strip():
+        raise CampaignError("initial discovery plan rationale must be nonempty")
+    if (
+        not isinstance(value["leads"], list)
+        or not value["leads"]
+        or len(value["leads"]) > MAX_INITIAL_SCOUTS
+    ):
+        raise CampaignError(
+            f"initial discovery plan needs 1..{MAX_INITIAL_SCOUTS} leads"
+        )
+    leads: list[dict[str, Any]] = []
+    for index, raw in enumerate(value["leads"], start=1):
+        if not isinstance(raw, dict) or set(raw) != {
+            "id",
+            "title",
+            "question",
+            "reason",
+        }:
+            raise CampaignError(
+                f"initial discovery plan lead {index} needs exactly "
+                "id, title, question, and reason"
+            )
+        leads.append(
+            normalize_discovery_lead(
+                raw | {"parent_ids": [], "seed_files": []},
+                field=f"initial discovery plan lead {index}",
+            )
+        )
+    ids = [lead["id"] for lead in leads]
+    if len(ids) != len(set(ids)):
+        raise CampaignError("initial discovery plan repeats lead ids")
+    boundaries = [
+        (lead["title"].casefold(), lead["question"].casefold()) for lead in leads
+    ]
+    if len(boundaries) != len(set(boundaries)):
+        raise CampaignError(
+            "initial discovery plan repeats a semantic search boundary"
+        )
+    return {
+        "discovery_plan_version": 1,
+        "rationale": value["rationale"].strip(),
+        "leads": leads,
+    }
+
+
 def discovery_packet(
     seed: dict[str, Any],
     lead: dict[str, Any],
@@ -1360,6 +1418,23 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         raise CampaignError(
             "flat inventory accelerator is valid only for repository scope"
         )
+    if scope["kind"] == "repository" and not args.inventory_accelerator:
+        raise CampaignError(
+            "repository discovery requires --inventory-accelerator"
+        )
+    if scope["kind"] == "semantic" and args.initial_plan is None:
+        raise CampaignError("semantic discovery requires --initial-plan")
+    if scope["kind"] == "repository" and args.initial_plan is not None:
+        raise CampaignError(
+            "repository discovery derives initial packets from its inventory; "
+            "--initial-plan is valid only for semantic scope"
+        )
+    if args.initial_plan is not None:
+        require_outside_repository(
+            args.initial_plan,
+            repository_root,
+            field="initial discovery plan",
+        )
     if args.test_inventory_file_limit is not None and not args.inventory_accelerator:
         raise CampaignError(
             "--test-inventory-file-limit requires --inventory-accelerator"
@@ -1379,18 +1454,26 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     packets_dir = args.output_dir / "wave-0001"
     packets_dir.mkdir(exist_ok=True)
-    leads: list[dict[str, Any]] = [
-        {
-            "id": "scope-root",
-            "title": scope["title"],
-            "question": scope["question"],
-            "reason": (
-                "Start broad semantic discovery from the operator-defined scope."
-            ),
-            "parent_ids": [],
-            "seed_files": [],
-        }
-    ]
+    initial_plan: dict[str, Any] | None = None
+    if initial_plan := (
+        validate_initial_discovery_plan(read_json(args.initial_plan))
+        if args.initial_plan is not None
+        else None
+    ):
+        leads = initial_plan["leads"]
+    else:
+        leads = []
+    if inventory is not None and not inventory_files:
+        leads.append(
+            {
+                "id": "empty-repository",
+                "title": scope["title"],
+                "question": scope["question"],
+                "reason": "Confirm that the repository has no production boundary.",
+                "parent_ids": [],
+                "seed_files": [],
+            }
+        )
     if inventory is not None:
         files = inventory_files
         for offset in range(0, len(files), args.page_size):
@@ -1413,6 +1496,7 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         "repository_root": str(repository_root),
         "spine_root": str(spine_root),
         "operation": operation,
+        "initial_plan": initial_plan,
         "accelerator": (
             None
             if inventory is None
@@ -1434,6 +1518,7 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         {
             "contract": DISCOVERY_CONTRACT_VERSION,
             "operation": operation,
+            "initial_plan": initial_plan,
             "repository_root": str(repository_root),
             "spine_root": str(spine_root),
             "inventory": None if inventory is None else inventory["digest"],
@@ -5949,6 +6034,11 @@ def parser() -> argparse.ArgumentParser:
     discovery_start.add_argument(
         "--inventory-accelerator",
         action="store_true",
+    )
+    discovery_start.add_argument(
+        "--initial-plan",
+        type=Path,
+        help="semantic fan-out plan with 1..10 independent search boundaries",
     )
     discovery_start.add_argument(
         "--test-inventory-file-limit",

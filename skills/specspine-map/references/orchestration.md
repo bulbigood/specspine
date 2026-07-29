@@ -88,13 +88,40 @@ This seed grants no coverage. A non-v3 root is rejected.
 
 ## Discover
 
-```text
-python3 <skill>/scripts/campaign.py discovery-start \
-  <campaign> <repository> <spine-root> <discovery>
+For semantic scope, estimate breadth from `operation.json`, the Spine README,
+and available runtime capacity; do not inspect production code yet. Choose
+one to ten independent semantic search boundaries: one or two for a narrow
+mechanism, three or four for one service with dependencies, five to seven for
+a subsystem, and eight to ten for a broad cross-cutting scope. Write:
+
+```json
+{
+  "discovery_plan_version": 1,
+  "rationale": "Kafka spans runtime, contract, integration, and operations.",
+  "leads": [
+    {
+      "id": "consumer-lifecycle",
+      "title": "Consumer lifecycle and recovery",
+      "question": "Which owners start, stop, retry, and recover consumers?",
+      "reason": "Runtime recovery is an independently searchable boundary."
+    }
+  ]
+}
 ```
 
-Add `--inventory-accelerator` only for repository scope. The root packet and
-neutral inventory pages form the initial discovery layer. Keep the default
+Each lead must be a distinct search lens, not a file group or duplicate
+whole-scope pass. Desired lead count may exceed current capacity: capacity
+controls subwaves, not discovery coverage.
+
+```text
+python3 <skill>/scripts/campaign.py discovery-start \
+  <campaign> <repository> <spine-root> <discovery> \
+  --initial-plan <initial-discovery-plan.json>
+```
+
+For repository scope, omit `--initial-plan` and add `--inventory-accelerator`.
+The neutral inventory pages form the initial discovery layer; no whole-repository
+root scout duplicates them. Keep the default
 page size of 40 seed files; a scout packet or unresolved fallback may never
 exceed that limit. This limit does not cap files found while closing the
 packet's semantic boundary. The repository accelerator is exhaustive by
@@ -105,7 +132,10 @@ claim.
 
 Set the scout subwave size to the smaller of ten and the runtime's available
 subagent slots. If capacity includes root, reserve one slot. Do not assume ten
-slots exist. For each selected packet, derive:
+slots exist. Dispatch every initial packet, in stable path order, across as
+many strict subwaves as necessary. Never start frontier curation while an
+initial packet is missing or invalid. For each packet in the next subwave,
+derive:
 
 ```text
 <draft> = <private-scout-work>/<lead-id>/draft.json
@@ -133,9 +163,8 @@ python3 <skill>/scripts/campaign.py discovery-validate \
 ```
 
 Any failure invalidates the subwave; repair or rerun it before continuing.
-After the complete initial wave validates, read the receipt's
-`unresolved_leads` count. If it is zero, collect the corpus immediately.
-Otherwise give
+After every initial packet validates, combine their `unresolved_leads` counts.
+If the total is zero, collect the corpus immediately. Otherwise give
 one fresh medium-tier curator the operation, unresolved proposals, and compact
 lead registry under `frontier-curation.md`.
 

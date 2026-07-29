@@ -134,6 +134,10 @@ class MapOperationContractTests(unittest.TestCase):
         protocol = self.compact(self.protocol)
         entrypoint = self.compact(self.entrypoint)
         self.assertIn("smaller of ten and the runtime's available subagent slots", protocol)
+        self.assertIn("Choose one to ten independent semantic search boundaries", protocol)
+        self.assertIn("Dispatch every initial packet", protocol)
+        self.assertIn("Never start frontier curation", protocol)
+        self.assertIn("--initial-plan", protocol)
         self.assertIn("default page size of 40 seed files", protocol)
         self.assertIn("reserve one slot", protocol)
         self.assertIn("fresh weak-tier scouts", protocol)
@@ -147,6 +151,7 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("at most ten", entrypoint)
         self.assertIn("Producer waves contain at most five", entrypoint)
         self.assertIn("MAX_SCOUT_SEED_FILES = 40", self.campaign)
+        self.assertIn("MAX_INITIAL_SCOUTS = 10", self.campaign)
         self.assertIn("MAX_UNIT_FILES = 80", self.campaign)
 
     def test_mapping_method_prefers_responsibility_over_source_shape(self):
@@ -223,8 +228,8 @@ class MapOperationContractTests(unittest.TestCase):
 
     def test_prompt_files_stay_small(self):
         limits = {
-            "entrypoint": (self.entrypoint, 100),
-            "protocol": (self.protocol, 315),
+            "entrypoint": (self.entrypoint, 110),
+            "protocol": (self.protocol, 340),
             "method": (self.method, 110),
             "discovery": (self.discovery, 105),
             "curator": (self.curator, 85),

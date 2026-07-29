@@ -81,6 +81,14 @@ refill a settled strict wave. An increment may execute the same contracts
 serially in root. If the required execution tier is unavailable, preserve the
 campaign and report it blocked.
 
+Before semantic discovery, derive one to ten independent search boundaries
+from operation breadth without reading production code. Runtime capacity
+controls how many run per strict subwave, never how many planned boundaries
+must be completed. Repository discovery derives initial packets from the
+neutral inventory accelerator without a duplicate whole-repository scout.
+Complete and validate every initial packet
+before frontier curation.
+
 Keep campaign state in the platform's persistent private runtime-data root,
 never the project or OS temporary storage. Run `campaign.py next-action`
 before final answers; `may_finish: false` forbids finishing unless `may_pause:
