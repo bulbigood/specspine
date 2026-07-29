@@ -63,6 +63,7 @@ canonical owner relevant to the task.
 - [Usage and lifecycle](docs/02-usage-and-lifecycle.md)
 - [Acceptance and reconstruction](docs/03-acceptance-and-reconstruction.md)
 - [Normative reference](docs/README.md)
+- [Glossary](docs/reference/glossary.md)
 - [Development and maintenance](docs/08-development.md)
 
 SpecSpine is experimental. See the development guide for evaluation and

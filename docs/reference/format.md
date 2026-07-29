@@ -191,10 +191,12 @@ prefixes, relations, assets, blockers, authority, or reconstruction semantics.
 Agents read it before writing Markdown. Mechanical tools resolve rendered
 headings back to canonical keys before validation or retrieval.
 
-The JSON schema owns portable manifest shape. The shared `spec_contract.py`
-module owns the executable v3 vocabulary and presentation defaults consumed by
-Checker, Extract, bootstrap, and index generation; consumers must not copy
-those constants.
+The JSON schema owns portable manifest shape.
+`shared/references/vocabulary.json` owns every reserved token, identifier
+family, document kind, relation, and enumerated format value. The generated
+glossary is its human-readable index. The shared `spec_contract.py` module
+loads that vocabulary and owns presentation behavior consumed by Checker,
+Extract, bootstrap, and index generation; consumers must not copy its values.
 
 `implementation_freedom` defines what reconstruction means:
 

@@ -53,6 +53,8 @@ must be dispositioned or retained as an `open_lead`; otherwise Map cannot reach
   classifying claims or disagreement.
 - Read [references/spec-format.md](references/spec-format.md) before changing
   specifications.
+- Use [references/spec-glossary.md](references/spec-glossary.md) as the index
+  of reserved identifiers, tokens, kinds, relations, and manifest values.
 - Read `specspine.json.presentation` before producing Markdown; render its
   configured headings and order while preserving canonical v3 meaning.
 - Read [references/mapping-method.md](references/mapping-method.md) before

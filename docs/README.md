@@ -23,6 +23,8 @@ format rule.
 
 - [Format](reference/format.md) — root and manifest shape, indexes, documents,
   sections, identifiers, assets, evidence, relationships, and reachability.
+- [Glossary](reference/glossary.md) — generated index of every reserved
+  identifier family, token, document kind, and enumerated format value.
 - [Semantics](reference/semantics.md) — authority, statement kinds, conflicts,
   reconstruction meaning, identity, and artifact boundaries.
 - [Retrieval](reference/retrieval.md) — query input, deterministic closure,

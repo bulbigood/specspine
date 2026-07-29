@@ -33,7 +33,14 @@ from typing import Any, Iterator
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from spec_contract import CORE_RELATIONS, canonical_heading, presentation
+from spec_contract import (
+    CORE_RELATIONS,
+    DOCUMENT_ID_PATTERN,
+    NORMATIVE_PREFIXES,
+    SEMANTIC_PREFIX_PATTERN,
+    canonical_heading,
+    presentation,
+)
 
 
 SCHEMA_VERSION = 16
@@ -98,13 +105,12 @@ OBS_DEFINITION_RE = re.compile(
     re.MULTILINE,
 )
 SEMANTIC_DEFINITION_RE = re.compile(
-    r"^ {0,3}[-+*]\s+\*\*((?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-"
+    rf"^ {{0,3}}[-+*]\s+\*\*({SEMANTIC_PREFIX_PATTERN}-"
     r"[a-z0-9]+(?:-[a-z0-9]+)*)\*\*\s+—\s+\S",
     re.MULTILINE,
 )
-NORMATIVE_PREFIXES = ("DEC-", "CON-", "REQ-", "GUA-", "INV-", "QLT-", "VER-")
 DOCUMENT_IDENTITY_RE = re.compile(
-    r"^\*\*ID:\*\*\s+`([a-z0-9]+(?:-[a-z0-9]+)*)`\s+·\s+"
+    rf"^\*\*ID:\*\*\s+`({DOCUMENT_ID_PATTERN[1:-1]})`\s+·\s+"
     r"\*\*Kind:\*\*\s+`((?!index`)[^`]+)`\s*$",
     re.MULTILINE,
 )

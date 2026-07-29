@@ -16,6 +16,15 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from spec_contract import (
+    DOCUMENT_ID_PATTERN,
+    SEMANTIC_ID_PATTERN,
+    SEMANTIC_PREFIX_PATTERN,
+)
+
 POTENTIAL_LIMIT = 12
 TASK_CONTEXT_DOCUMENT_LIMIT = 6
 TASK_CONTEXT_DOCUMENT_CHARS = 1800
@@ -24,14 +33,11 @@ FENCE_RE = re.compile(r"^ {0,3}(?:>\s*)?(`{3,}|~{3,})")
 HEADING_RE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$")
 QUERY_TOKEN_RE = re.compile(r"[^\W_]+(?:-[^\W_]+)*", re.UNICODE)
 DEFINITION_RE = re.compile(
-    r"^ {0,3}[-+*]\s+\*\*((?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-"
+    rf"^ {{0,3}}[-+*]\s+\*\*({SEMANTIC_PREFIX_PATTERN}-"
     r"[a-z0-9]+(?:-[a-z0-9]+)*)\*\*\s+—\s+(.*)"
 )
-ID_RE = re.compile(
-    r"^(?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-"
-    r"[a-z0-9]+(?:-[a-z0-9]+)*$"
-)
-DOCUMENT_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+ID_RE = re.compile(SEMANTIC_ID_PATTERN)
+DOCUMENT_ID_RE = re.compile(DOCUMENT_ID_PATTERN)
 IDENTITY_RE = re.compile(
     r"^\*\*ID:\*\*\s+`([^`]+)`\s+·\s+\*\*Kind:\*\*\s+`([^`]+)`\s*$"
 )

@@ -8,6 +8,10 @@ description: Use for read-only lookup and handoff from a configured SpecSpine wh
 Once loaded, do not reconsider or explain whether Extract was the correct
 skill. Perform these steps only:
 
+The bundled [vocabulary reference](references/spec-glossary.md) defines every
+reserved identifier family, token, document kind, relation, and manifest value.
+The retrieval script reads its machine source through `spec_contract.py`.
+
 1. Resolve `<spine-root>` and documentation language from project instructions;
    default the root to `specspine`.
 2. Build one compact query from the user request.

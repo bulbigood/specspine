@@ -1,0 +1,151 @@
+{
+  "format_major": 3,
+  "reserved_paths": {
+    "manifest": "specspine.json",
+    "index": "_INDEX.md"
+  },
+  "identifier_patterns": {
+    "document": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    "semantic": "^(DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$"
+  },
+  "document_kinds": {
+    "index": "Deterministic physical navigation; never owns project claims.",
+    "system": "A whole system boundary.",
+    "subsystem": "A major independently owned part of a system.",
+    "component": "A stable architectural unit with a distinct responsibility.",
+    "capability": "A durable system ability spanning one or more units.",
+    "behavior": "Externally significant behavior or coordination.",
+    "interface": "An API, command, event, port, protocol, or integration boundary.",
+    "data": "A durable information model or data-ownership boundary.",
+    "policy": "A durable rule governing system behavior.",
+    "deployment": "A runtime, delivery, or operational topology boundary.",
+    "concept": "A stable architectural concept that does not fit a narrower core kind."
+  },
+  "kind_required_facets": {
+    "system": ["architecture", "behavior", "failure", "verification"],
+    "subsystem": ["architecture", "behavior", "failure", "verification"],
+    "component": ["architecture", "behavior", "failure", "verification"],
+    "capability": ["architecture", "behavior", "failure", "verification"],
+    "behavior": ["architecture", "behavior", "failure", "verification"],
+    "interface": ["architecture", "interfaces", "failure", "verification"],
+    "data": ["architecture", "data", "failure", "verification"],
+    "policy": ["architecture", "behavior", "verification"],
+    "deployment": ["architecture", "failure", "quality", "verification"],
+    "concept": ["architecture"]
+  },
+  "extension_pattern": "x-[a-z0-9]+(?:-[a-z0-9]+)*",
+  "semantic_prefixes": {
+    "DEC": {"section": "decisions", "meaning": "Accepted architectural decision.", "normative": true},
+    "CON": {"section": "constraints", "meaning": "Accepted constraint on valid implementations.", "normative": true},
+    "REQ": {"section": "requirements", "meaning": "Accepted durable required outcome.", "normative": true},
+    "GUA": {"section": "guarantees", "meaning": "Accepted externally observable promise.", "normative": true},
+    "INV": {"section": "invariants", "meaning": "Truth that holds across all valid states and transitions.", "normative": true},
+    "QLT": {"section": "quality-constraints", "meaning": "Measurable non-functional constraint.", "normative": true},
+    "VER": {"section": "verification", "meaning": "Implementation-independent conformance criterion.", "normative": true},
+    "OBS": {"section": "observed", "meaning": "Confirmed architecture-significant repository evidence; not intent.", "normative": false},
+    "INF": {"section": "inferred", "meaning": "Explicitly unconfirmed interpretation; not intent.", "normative": false},
+    "OQ": {"section": "open-questions", "meaning": "Unresolved choice; it blocks reconstruction only when listed in manifest blockers.", "normative": false}
+  },
+  "relations": {
+    "contains": "Source contains the target architectural concept.",
+    "decomposes-into": "Source is decomposed into the target.",
+    "performs": "Source performs the target behavior.",
+    "depends-on": "Source depends on the target.",
+    "exposes": "Source exposes the target interface.",
+    "consumes": "Source consumes the target interface or event.",
+    "publishes": "Source publishes the target event or contract.",
+    "reads-from": "Source reads data from the target.",
+    "writes-to": "Source writes data to the target.",
+    "owns-data": "Source owns the target data.",
+    "constrained-by": "Source is constrained by the target claim or owner.",
+    "implemented-by": "Source intent is currently implemented by the target evidence.",
+    "has-evidence": "Source claim has the target evidence.",
+    "superseded-by": "Source identity or claim is replaced by the target.",
+    "related-to": "Source has a durable relationship for which no narrower relation applies.",
+    "refines": "Source adds detail to the target.",
+    "satisfies": "Source satisfies the target requirement or constraint.",
+    "verified-by": "Source is verified by the target.",
+    "specified-by": "Source is specified by the target contract or owner.",
+    "compatible-with": "Source is declared compatible with the target.",
+    "migrates-from": "Source is the migration successor of the target."
+  },
+  "facets": {
+    "architecture": "Responsibilities, boundaries, decomposition, and relationships.",
+    "behavior": "Externally significant outcomes and coordination.",
+    "interfaces": "APIs, commands, events, ports, protocols, and contracts.",
+    "data": "Information models, ownership, mutation, and consistency.",
+    "failure": "Errors, retry, degradation, compensation, and recovery.",
+    "quality": "Measurable non-functional constraints.",
+    "verification": "Implementation-independent conformance criteria."
+  },
+  "facet_values": {
+    "complete": "The owner declares the facet sufficiently specified.",
+    "partial": "Some durable information is present but a known completeness gap remains.",
+    "missing": "Applicable durable information is absent.",
+    "not-applicable": "The facet has been reviewed and does not apply."
+  },
+  "inspection_modes": {
+    "survey": "Broad initial repository inspection.",
+    "deepen": "Deeper inspection of selected areas.",
+    "refresh": "Refresh against a newer evidence baseline.",
+    "drift": "Inspection focused on repository/specification drift.",
+    "exhaustive": "Exhaustive inspection of the declared scope."
+  },
+  "inspection_facet_values": {
+    "checked": "The facet was inspected at the recorded baseline.",
+    "not-checked": "No current comparison claim is made for the facet."
+  },
+  "implementation_freedom": {
+    "contract-equivalent": "Any internals satisfying normative contracts are permitted.",
+    "architecture-constrained": "Specified component boundaries and interactions are also required.",
+    "exact": "Choices explicitly declared exact are required."
+  },
+  "computed_statuses": {
+    "blocked": "At least one manifest blocker is present.",
+    "ready": "No blocker exists and every facet is complete or not-applicable.",
+    "incomplete": "The area is neither blocked nor ready."
+  },
+  "asset_roles": {
+    "interface-contract": "Machine-readable interface contract.",
+    "data-schema": "Machine-readable data schema.",
+    "execution-contract": "Exact reconstruction-critical toolchain or execution contract.",
+    "scenario": "Implementation-independent conformance scenario.",
+    "fixture": "Normative conformance fixture.",
+    "verification": "Verification asset."
+  },
+  "headings": {
+    "responsibility": "Responsibility",
+    "boundaries": "Boundaries",
+    "behavior": "Behavior",
+    "interfaces": "Interfaces",
+    "information-model": "Information model",
+    "data-ownership": "Data ownership",
+    "lifecycle-and-invariants": "Lifecycle and invariants",
+    "failure-behavior": "Failure behavior",
+    "edge-cases": "Edge cases",
+    "configuration-contract": "Configuration contract",
+    "compatibility": "Compatibility",
+    "relationships": "Relationships",
+    "requirements": "Requirements",
+    "guarantees": "Guarantees",
+    "invariants": "Invariants",
+    "quality-constraints": "Quality constraints",
+    "verification": "Verification",
+    "decisions": "Decisions",
+    "constraints": "Constraints",
+    "known-divergences": "Known divergences",
+    "observed": "Observed",
+    "inferred": "Inferred",
+    "open-questions": "Open questions",
+    "implementation": "Implementation",
+    "risks": "Risks",
+    "rationale-and-trade-offs": "Rationale and trade-offs",
+    "terminology": "Terminology"
+  },
+  "markers": {
+    "semantic-ids": "<!-- specspine:semantic-ids:begin --> … <!-- specspine:semantic-ids:end -->",
+    "evidence-baseline": "<!-- specspine:evidence-baseline source=<source>; inspected=<YYYY-MM-DD> -->",
+    "connection": "<!-- specspine:begin --> … <!-- specspine:end -->",
+    "readme": "<!-- specspine:readme:begin --> … <!-- specspine:readme:end -->"
+  }
+}

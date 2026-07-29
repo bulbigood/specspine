@@ -3,84 +3,39 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
-FORMAT_MAJOR = 3
-MANIFEST_NAME = "specspine.json"
-INDEX_NAME = "_INDEX.md"
+VOCABULARY_PATH = Path(__file__).resolve().parent.parent / "references/vocabulary.json"
+VOCABULARY = json.loads(VOCABULARY_PATH.read_text(encoding="utf-8"))
 
-DOCUMENT_ID_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
-SEMANTIC_ID_PATTERN = (
-    r"^(DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-"
-    r"[a-z0-9]+(?:-[a-z0-9]+)*$"
-)
-
-CORE_KINDS = frozenset({
-    "index", "system", "subsystem", "component", "capability", "behavior",
-    "interface", "data", "policy", "deployment", "concept",
-})
-CORE_RELATIONS = frozenset({
-    "contains", "decomposes-into", "performs", "depends-on", "exposes",
-    "consumes", "publishes", "reads-from", "writes-to", "owns-data",
-    "constrained-by", "implemented-by", "has-evidence", "superseded-by",
-    "related-to", "refines", "satisfies", "verified-by", "specified-by",
-    "compatible-with", "migrates-from",
-})
-FACET_NAMES = (
-    "architecture", "behavior", "interfaces", "data", "failure", "quality",
-    "verification",
-)
-FACET_VALUES = frozenset({"complete", "partial", "missing", "not-applicable"})
-INSPECTION_MODES = frozenset({"survey", "deepen", "refresh", "drift", "exhaustive"})
-INSPECTION_FACET_VALUES = frozenset({"checked", "not-checked"})
-ASSET_ROLES = frozenset({
-    "interface-contract", "data-schema", "execution-contract", "scenario",
-    "fixture", "verification",
-})
+FORMAT_MAJOR = VOCABULARY["format_major"]
+MANIFEST_NAME = VOCABULARY["reserved_paths"]["manifest"]
+INDEX_NAME = VOCABULARY["reserved_paths"]["index"]
+DOCUMENT_ID_PATTERN = VOCABULARY["identifier_patterns"]["document"]
+SEMANTIC_ID_PATTERN = VOCABULARY["identifier_patterns"]["semantic"]
+SEMANTIC_PREFIXES = tuple(VOCABULARY["semantic_prefixes"])
+SEMANTIC_PREFIX_PATTERN = "(?:" + "|".join(SEMANTIC_PREFIXES) + ")"
+CORE_KINDS = frozenset(VOCABULARY["document_kinds"])
+CORE_RELATIONS = frozenset(VOCABULARY["relations"])
+FACET_NAMES = tuple(VOCABULARY["facets"])
+FACET_VALUES = frozenset(VOCABULARY["facet_values"])
+INSPECTION_MODES = frozenset(VOCABULARY["inspection_modes"])
+INSPECTION_FACET_VALUES = frozenset(VOCABULARY["inspection_facet_values"])
+ASSET_ROLES = frozenset(VOCABULARY["asset_roles"])
 KIND_REQUIRED_FACETS = {
-    "system": {"architecture", "behavior", "failure", "verification"},
-    "subsystem": {"architecture", "behavior", "failure", "verification"},
-    "component": {"architecture", "behavior", "failure", "verification"},
-    "capability": {"architecture", "behavior", "failure", "verification"},
-    "behavior": {"architecture", "behavior", "failure", "verification"},
-    "interface": {"architecture", "interfaces", "failure", "verification"},
-    "data": {"architecture", "data", "failure", "verification"},
-    "policy": {"architecture", "behavior", "verification"},
-    "deployment": {"architecture", "failure", "quality", "verification"},
-    "concept": {"architecture"},
+    kind: set(facets)
+    for kind, facets in VOCABULARY["kind_required_facets"].items()
 }
-NORMATIVE_PREFIXES = ("DEC-", "CON-", "REQ-", "GUA-", "INV-", "QLT-", "VER-")
+NORMATIVE_PREFIXES = tuple(
+    f"{prefix}-"
+    for prefix, definition in VOCABULARY["semantic_prefixes"].items()
+    if definition["normative"]
+)
 
 # Stable keys are machine identity. Values are the default rendered headings.
-DEFAULT_HEADINGS = {
-    "responsibility": "Responsibility",
-    "boundaries": "Boundaries",
-    "behavior": "Behavior",
-    "interfaces": "Interfaces",
-    "information-model": "Information model",
-    "data-ownership": "Data ownership",
-    "lifecycle-and-invariants": "Lifecycle and invariants",
-    "failure-behavior": "Failure behavior",
-    "edge-cases": "Edge cases",
-    "configuration-contract": "Configuration contract",
-    "compatibility": "Compatibility",
-    "relationships": "Relationships",
-    "requirements": "Requirements",
-    "guarantees": "Guarantees",
-    "invariants": "Invariants",
-    "quality-constraints": "Quality constraints",
-    "verification": "Verification",
-    "decisions": "Decisions",
-    "constraints": "Constraints",
-    "known-divergences": "Known divergences",
-    "observed": "Observed",
-    "inferred": "Inferred",
-    "open-questions": "Open questions",
-    "implementation": "Implementation",
-    "risks": "Risks",
-    "rationale-and-trade-offs": "Rationale and trade-offs",
-    "terminology": "Terminology",
-}
+DEFAULT_HEADINGS = dict(VOCABULARY["headings"])
 DEFAULT_SECTION_ORDER = tuple(DEFAULT_HEADINGS)
 DEFAULT_INDEX_TEXT = {
     "root-title": "{project} architecture",
@@ -113,16 +68,8 @@ DEFAULT_INDEX_TEXT = {
     "empty": "No indexed entries.",
 }
 SECTION_PREFIX_KEYS = {
-    "decisions": "DEC",
-    "constraints": "CON",
-    "requirements": "REQ",
-    "guarantees": "GUA",
-    "invariants": "INV",
-    "quality-constraints": "QLT",
-    "verification": "VER",
-    "observed": "OBS",
-    "inferred": "INF",
-    "open-questions": "OQ",
+    definition["section"]: prefix
+    for prefix, definition in VOCABULARY["semantic_prefixes"].items()
 }
 
 

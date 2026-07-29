@@ -22,7 +22,9 @@ implicitly.
   [references/connection-contract.md](references/connection-contract.md)
   completely. Render
   [assets/templates/agent-bootstrap.md](assets/templates/agent-bootstrap.md)
-  and use
+  and, when the operator requests README exposure,
+  [assets/templates/readme-bootstrap.md](assets/templates/readme-bootstrap.md);
+  use
   [assets/templates/spine-index.md](assets/templates/spine-index.md).
 - Run `scripts/check_spine.py <spine-root>` for reproducible checks. Use
   `--json` only when structured output is useful.
@@ -38,6 +40,8 @@ implicitly.
   review criteria and repair boundaries.
 - Read [references/spec-format.md](references/spec-format.md) only when a
   finding or repair depends on format, semantic-ID syntax, or stopping rules.
+- Read [references/spec-glossary.md](references/spec-glossary.md) when an
+  operation needs the complete reserved vocabulary.
 - Validate `specspine.json.presentation` mechanically as rendering
   configuration; it cannot change v3 semantics.
 The checker owns mechanical findings. Semantic review is advisory and cannot

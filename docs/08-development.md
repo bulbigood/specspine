@@ -32,6 +32,17 @@ Shared resources appear in consuming skills as relative symbolic links.
 A private execution protocol stays in its owning skill rather than under
 `shared/`.
 
+`shared/references/vocabulary.json` is the single source of reserved format
+tokens. Regenerate and verify its human-readable glossary with:
+
+```bash
+python3 shared/scripts/render_vocabulary.py --write
+python3 shared/scripts/render_vocabulary.py
+```
+
+Scripts read the vocabulary through `shared/scripts/spec_contract.py`; do not
+repeat token sets or identifier-prefix tables in consumers.
+
 `tools/specspine-extract/` contains repository-only diagnostics for the
 optional retrieval index and evaluation telemetry. It imports the production
 search implementation from `skills/specspine-extract/`; it is never required

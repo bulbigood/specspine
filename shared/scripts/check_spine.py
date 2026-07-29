@@ -22,6 +22,7 @@ from spec_contract import (
     CORE_KINDS,
     CORE_RELATIONS,
     DEFAULT_HEADINGS,
+    DOCUMENT_ID_PATTERN,
     FACET_NAMES,
     FACET_VALUES,
     FORMAT_MAJOR,
@@ -32,25 +33,25 @@ from spec_contract import (
     MANIFEST_NAME,
     NORMATIVE_PREFIXES,
     PresentationError,
+    SEMANTIC_ID_PATTERN,
+    SEMANTIC_PREFIX_PATTERN,
     SECTION_PREFIX_KEYS,
     canonical_heading,
     presentation,
 )
 
-ID_RE = re.compile(
-    r"^(DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$"
-)
-DOCUMENT_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+ID_RE = re.compile(SEMANTIC_ID_PATTERN)
+DOCUMENT_ID_RE = re.compile(DOCUMENT_ID_PATTERN)
 IDENTITY_RE = re.compile(
     r"^\*\*ID:\*\*\s+`([^`]+)`\s+·\s+\*\*Kind:\*\*\s+`([^`]+)`\s*$"
 )
 DEFINITION_RE = re.compile(r"^ {0,3}[-+*]\s+\*\*([^*\n]+)\*\*\s+—\s+")
 SEMANTIC_BULLET_RE = re.compile(
-    r"^ {0,3}[-+*]\s+\*\*((?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)"
+    rf"^ {{0,3}}[-+*]\s+\*\*({SEMANTIC_PREFIX_PATTERN}"
     r"-[a-z0-9]+(?:-[a-z0-9]+)*)\*\*"
 )
 LEGACY_SEMANTIC_DEFINITION_RE = re.compile(
-    r"^\*\*ID:\*\*\s+`((?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[^`]+)`"
+    rf"^\*\*ID:\*\*\s+`({SEMANTIC_PREFIX_PATTERN}-[^`]+)`"
     r"\s+·\s+\*\*Status:\*\*"
 )
 FENCE_RE = re.compile(r"^ {0,3}(?:>\s*)?(`{3,}|~{3,})")

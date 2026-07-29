@@ -23,6 +23,12 @@ region, then create, refresh, or change it without requiring the operator to
 name that state transition. Preserve every recognized existing setting not
 explicitly changed.
 
+README exposure is a separate opt-in part of connection. Never change a
+project README merely because a skill was installed or a Spine root was
+created. When the operator requests README exposure, manage exactly one compact
+link block rendered from `assets/templates/readme-bootstrap.md`; do not copy
+the full glossary into project-owned prose.
+
 For a connection without a managed block, choose the root before deriving any
 other default:
 
@@ -151,6 +157,28 @@ managed region with the requested values and its configured v3 root pair exists.
 Disconnect is satisfied when the selected file contains no managed region.
 When the requested state is already satisfied, report it and write nothing.
 
+## Optional README exposure
+
+When explicitly requested, default the exact target to project-root
+`README.md`, but require the operator to select it before inspection when the
+request does not identify a file. Apply the instruction-file safety rules for
+regular files, symlinks, concurrent changes, and malformed or duplicate
+markers. Use only:
+
+```markdown
+<!-- specspine:readme:begin -->
+...
+<!-- specspine:readme:end -->
+```
+
+Render the bundled template with the selected root expressed relative to the
+README directory. Create the README only when the operator explicitly
+authorizes that target. Otherwise preserve all text outside the single managed
+region. Refresh updates only that region; README disconnect removes only that
+region and at most one adjacent blank line. The block links to `_INDEX.md` and
+points readers to the complete glossary bundled with installed skills. It does
+not duplicate the glossary, architecture, commands, or project claims.
+
 ## Authority
 
 - `Decisions` and `Constraints` express accepted intent.
@@ -210,7 +238,7 @@ not from the old managed block.
 
 ## Ownership
 
-The connection owns only text inside its managed markers and root files it
-creates when absent. Refresh the block idempotently. Do not overwrite existing
-root files or content outside the region, remove user-owned files, or create
-additional artifacts.
+The connection owns only text inside its managed instruction and optional
+README markers and root files it creates when absent. Refresh blocks
+idempotently. Do not overwrite existing root files or content outside a region,
+remove user-owned files, or create additional artifacts.

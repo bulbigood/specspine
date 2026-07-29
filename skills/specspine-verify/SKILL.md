@@ -14,6 +14,8 @@ reports evidence; it never creates accepted intent or changes readiness.
   before classifying conformance.
 - Read [references/spec-format.md](references/spec-format.md) for normative
   claims, assets, readiness, and blocking questions.
+- Use [references/spec-glossary.md](references/spec-glossary.md) as the index
+  of reserved identifiers, tokens, kinds, relations, and manifest values.
 - Resolve configured presentation headings to canonical v3 keys before
   evaluating coverage or conformance.
 - Run `scripts/check_spine.py <spine-root>` before verification.

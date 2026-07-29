@@ -18,6 +18,8 @@ references own document structure and claim meaning.
   editing, or restructuring specifications. It is the canonical owner of
   document content, organization, identity, relationships, decomposition, and
   terminal detail.
+- Use [references/spec-glossary.md](references/spec-glossary.md) as the index
+  of reserved identifiers, tokens, kinds, relations, and manifest values.
 - Read `specspine.json.presentation` before writing Markdown; use its rendered
   headings and order without changing canonical v3 meaning.
 - Read [references/spec-semantics.md](references/spec-semantics.md) before
