@@ -141,36 +141,50 @@ class MapCampaignTests(unittest.TestCase):
             and arguments[0] == "discovery-start"
             and "--initial-plan" not in arguments
         ):
-            ledger = json.loads(Path(arguments[1]).read_text(encoding="utf-8"))
-            if ledger["operation"]["scope"]["kind"] == "semantic":
-                plan = Path(arguments[4]).parent / (
-                    Path(arguments[4]).name + "-initial-plan.json"
-                )
-                plan.write_text(
-                    json.dumps(
-                        {
-                            "discovery_plan_version": 1,
-                            "rationale": "Focused fixture requires one scout.",
-                            "leads": [
-                                {
-                                    "id": "scope-root",
-                                    "title": "Sessions",
-                                    "question": (
-                                        "Map sessions and directly related services"
-                                    ),
-                                    "reason": (
-                                        "The fixture has one semantic boundary."
-                                    ),
-                                }
-                            ],
-                        }
-                    ),
-                    encoding="utf-8",
-                )
-                arguments.extend(["--initial-plan", str(plan)])
+            plan = Path(arguments[4]).parent / (
+                Path(arguments[4]).name + "-initial-plan.json"
+            )
+            plan.write_text(
+                json.dumps(
+                    {
+                        "discovery_plan_version": 1,
+                        "rationale": "Focused fixture requires one scout.",
+                        "leads": [
+                            {
+                                "id": "scope-root",
+                                "title": "Sessions",
+                                "question": (
+                                    "Map sessions and directly related services"
+                                ),
+                                "reason": "The fixture has one semantic boundary.",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            arguments.extend(["--initial-plan", str(plan)])
         if script == CAMPAIGN and arguments and arguments[0] == "source-pass":
             option = arguments.index("--topic-plan")
-            self.enrich_graph_mapping(Path(arguments[option + 1]))
+            topic_plan = Path(arguments[option + 1])
+            self.enrich_graph_mapping(topic_plan)
+            ledger_path = Path(arguments[1])
+            ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+            operation = ledger["operation"]
+            if (
+                operation["scope"]["kind"] == "repository"
+                and operation["completion"]["kind"] == "exhaustive"
+            ):
+                ledger["coverage_audit"] = {
+                    "status": "clear",
+                    "plan_digest": hashlib.sha256(
+                        topic_plan.read_bytes()
+                    ).hexdigest(),
+                    "review": str(self.run / "fixture-coverage-review.json"),
+                    "review_digest": "fixture",
+                    "open_leads": 0,
+                }
+                ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
         if script == SYNTHESIS and arguments and arguments[0] == "materialize":
             self.enrich_graph_mapping(Path(arguments[2]))
         result = subprocess.run(
@@ -398,12 +412,33 @@ class MapCampaignTests(unittest.TestCase):
             str(self.repository),
             str(self.spine),
             str(discovery),
-            "--inventory-accelerator",
         )
         results = self.run / "discovery-results"
-        for packet_path in sorted(discovery.rglob("lead-*.json")):
+        packet_paths = sorted(discovery.rglob("lead-*.json"))
+        production_files = self.inventory()["production_files"]
+        grouped: dict[str, list[str]] = {}
+        for value in production_files:
+            path = Path(value)
+            unit = (
+                "repository-root/manifests"
+                if len(path.parts) == 1
+                else path.parent.as_posix()
+            )
+            grouped.setdefault(unit, []).append(value)
+        discovered_topics = [
+            {
+                "id": f"discovery-{re.sub(r'[^a-z0-9]+', '-', unit).strip('-')}",
+                "title": unit,
+                "responsibility": f"Observed responsibility for {unit}.",
+                "reason": f"Fixture discovery found {unit}.",
+                "files": files,
+            }
+            for unit, files in sorted(grouped.items())
+        ]
+        for index, packet_path in enumerate(packet_paths):
             packet = json.loads(packet_path.read_text(encoding="utf-8"))
             lead = packet["lead"]
+            topics = discovered_topics if index == 0 else []
             result_path = results / packet_path.relative_to(discovery)
             result_path.parent.mkdir(parents=True, exist_ok=True)
             result_path.write_text(
@@ -413,20 +448,11 @@ class MapCampaignTests(unittest.TestCase):
                         "status": "closed",
                         "reason": "Fixture discovery leaf.",
                         "inspected": {
-                            "files": lead["seed_files"],
-                            "queries": [],
+                            "files": production_files,
+                            "queries": ["fixture topology"],
                         },
-                        "topics": [],
-                        "supporting": (
-                            [
-                                {
-                                    "reason": "Fixture disposition.",
-                                    "files": lead["seed_files"],
-                                }
-                            ]
-                            if lead["seed_files"]
-                            else []
-                        ),
+                        "topics": topics,
+                        "supporting": [],
                         "unresolved_leads": [],
                     }
                 ),
@@ -443,21 +469,34 @@ class MapCampaignTests(unittest.TestCase):
         return corpus
 
     def test_discovery_commands_are_idempotent_and_recover_missing_scouts(self):
-        bulk = self.repository / "recovery"
-        bulk.mkdir()
-        for index in range(CAMPAIGN_MODULE.MAX_SCOUT_SEED_FILES + 1):
-            (bulk / f"file_{index:03d}.py").write_text(
-                f"VALUE = {index}\n",
-                encoding="utf-8",
-            )
         discovery = self.run / "resumable-discovery"
+        plan = self.run / "resumable-plan.json"
+        plan.write_text(
+            json.dumps(
+                {
+                    "discovery_plan_version": 1,
+                    "rationale": "Two independent fixture boundaries.",
+                    "leads": [
+                        {
+                            "id": f"boundary-{index}",
+                            "title": f"Boundary {index}",
+                            "question": f"Who owns boundary {index}?",
+                            "reason": f"Boundary {index} is independently searchable.",
+                        }
+                        for index in range(2)
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         first = self.cli(
             "discovery-start",
             str(self.ledger),
             str(self.repository),
             str(self.spine),
             str(discovery),
-            "--inventory-accelerator",
+            "--initial-plan",
+            str(plan),
         )
         second = self.cli(
             "discovery-start",
@@ -465,7 +504,8 @@ class MapCampaignTests(unittest.TestCase):
             str(self.repository),
             str(self.spine),
             str(discovery),
-            "--inventory-accelerator",
+            "--initial-plan",
+            str(plan),
         )
         self.assertEqual("written", first["status"])
         self.assertEqual("already_ready", second["status"])
@@ -515,7 +555,6 @@ class MapCampaignTests(unittest.TestCase):
             str(self.repository),
             str(self.spine),
             str(self.repository / ".map-campaign"),
-            "--inventory-accelerator",
             expected=2,
         )
         self.assertIn(
@@ -577,13 +616,6 @@ class MapCampaignTests(unittest.TestCase):
         path = self.discovery_corpus_path()
         corpus = json.loads(path.read_text(encoding="utf-8"))
         evidence = "pyproject.toml"
-        for group in list(corpus["supporting"]):
-            if evidence not in group["files"]:
-                continue
-            group["files"].remove(evidence)
-            if not group["files"]:
-                corpus["supporting"].remove(group)
-            break
         topic = {
             "id": "session-runtime",
             "title": "Session runtime",
@@ -591,8 +623,15 @@ class MapCampaignTests(unittest.TestCase):
             "reason": "The project manifest selects the session runtime boundary.",
             "files": [evidence],
         }
-        corpus["topics"].append(topic)
-        corpus["leads"][0]["topics"].append(topic)
+        corpus["topics"] = [topic]
+        for lead in corpus["leads"]:
+            lead["topics"] = [topic] if lead is corpus["leads"][0] else []
+        corpus["supporting"] = [
+            {
+                "reason": "Session implementation supports the manifest boundary.",
+                "files": ["src/identity/session.py"],
+            }
+        ]
         corpus["digest"] = CAMPAIGN_MODULE.digest_json(
             {key: value for key, value in corpus.items() if key != "digest"}
         )
@@ -904,19 +943,12 @@ class MapCampaignTests(unittest.TestCase):
 
     def verify_single_topic_operation(self):
         discovery = self.run / "single-topic-discovery"
-        operation = self.ledger_value()["operation"]
-        discovery_options = (
-            ["--inventory-accelerator"]
-            if operation["scope"]["kind"] == "repository"
-            else []
-        )
         self.cli(
             "discovery-start",
             str(self.ledger),
             str(self.repository),
             str(self.spine),
             str(discovery),
-            *discovery_options,
         )
         packet_path = next(discovery.rglob("lead-*.json"))
         packet = json.loads(packet_path.read_text(encoding="utf-8"))
@@ -1193,43 +1225,21 @@ class MapCampaignTests(unittest.TestCase):
             encoding="utf-8",
         )
         deferred = {
-            "id": "session-storage",
+            "id": "scope-root-session-storage",
             "title": "Session storage",
             "question": "Who persists sessions?",
             "reason": "Persistence is an adjacent responsibility.",
             "parent_ids": ["scope-root"],
             "seed_files": ["src/identity/session.py"],
-            "deferral_reason": (
-                "The increment records but does not expand adjacent ownership."
-            ),
+            "deferral_reason": "Increment stops after the initial semantic layer.",
         }
-        frontier = self.run / "increment-frontier.json"
-        frontier.write_text(
-            json.dumps(
-                {
-                    "decisions": [
-                        {
-                            "disposition": "defer",
-                            "sources": ["scope-root/session-storage"],
-                            "lead": {
-                                key: value
-                                for key, value in deferred.items()
-                                if key != "deferral_reason"
-                            },
-                            "reason": deferred["deferral_reason"],
-                        }
-                    ]
-                }
-            ),
-            encoding="utf-8",
-        )
         receipt = self.cli(
-            "discovery-packets",
+            "discovery-defer",
             str(discovery / "discovery-seed.json"),
-            str(frontier),
-            str(discovery / "wave-0002"),
+            str(discovery),
+            str(results),
+            str(discovery / "deferred"),
         )
-        self.assertEqual([], receipt["packets"])
         self.assertEqual(1, receipt["deferred"])
         corpus = self.run / "increment-corpus.json"
         self.cli(
@@ -1360,71 +1370,6 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual(5, len(ready))
         self.assertEqual(5, len(set(ready)))
 
-    def test_repository_discovery_uses_flat_inventory_as_neutral_accelerator(self):
-        for directory in ("alpha", "beta"):
-            root = self.repository / "packages/big" / directory
-            root.mkdir(parents=True)
-            for index in range(70):
-                (root / f"file_{index:03d}.ts").write_text(
-                    f"export const value{index} = {index};\n",
-                    encoding="utf-8",
-                )
-        discovery = self.run / "discovery"
-        receipt = self.cli(
-            "discovery-start",
-            str(self.ledger),
-            str(self.repository),
-            str(self.spine),
-            str(discovery),
-            "--inventory-accelerator",
-            "--page-size",
-            str(CAMPAIGN_MODULE.MAX_SCOUT_SEED_FILES),
-        )
-        packets = [json.loads(Path(path).read_text()) for path in receipt["packets"]]
-        inventory = self.inventory()
-        paged = [
-            path
-            for packet in packets
-            for path in packet["lead"]["seed_files"]
-        ]
-        self.assertEqual(inventory["production_files"], paged)
-        self.assertEqual(len(paged), receipt["inventory_total_files"])
-        self.assertTrue(
-            all(
-                set(packet)
-                == {
-                    "discovery_contract_version",
-                    "repository_root",
-                    "spine_root",
-                    "operation",
-                    "lead",
-                    "source_refs",
-                }
-                for packet in packets
-            )
-        )
-
-    def test_discovery_start_rejects_oversized_pages_before_writing(self):
-        discovery = self.run / "oversized-discovery"
-        error = self.cli(
-            "discovery-start",
-            str(self.ledger),
-            str(self.repository),
-            str(self.spine),
-            str(discovery),
-            "--inventory-accelerator",
-            "--page-size",
-            str(CAMPAIGN_MODULE.MAX_SCOUT_SEED_FILES + 1),
-            expected=2,
-        )
-
-        self.assertIn(
-            f"page size exceeds {CAMPAIGN_MODULE.MAX_SCOUT_SEED_FILES}",
-            error["error"],
-        )
-        self.assertFalse(discovery.exists())
-        self.assertIsNone(self.ledger_value()["discovery"])
-
     def test_discovery_validate_requires_exact_result_path(self):
         self.set_semantic_operation()
         discovery = self.run / "discovery"
@@ -1491,7 +1436,7 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual(0, validated["unresolved_leads"])
         self.assertEqual("scope-root", validated["validated"][0]["lead_id"])
 
-    def test_topic_discovery_starts_without_repository_inventory(self):
+    def test_discovery_starts_from_semantic_plan_without_file_seeds(self):
         self.set_semantic_operation()
         discovery = self.run / "discovery"
         receipt = self.cli(
@@ -1501,8 +1446,7 @@ class MapCampaignTests(unittest.TestCase):
             str(self.spine),
             str(discovery),
         )
-        self.assertFalse(receipt["inventory_accelerator"])
-        self.assertEqual(0, receipt["seed_files"])
+        self.assertEqual(1, receipt["initial_leads"])
         packet = json.loads(Path(receipt["packets"][0]).read_text())
         self.assertEqual("scope-root", packet["lead"]["id"])
         self.assertEqual([], packet["lead"]["seed_files"])
@@ -1972,6 +1916,20 @@ class MapCampaignTests(unittest.TestCase):
 
     def test_synthesis_accepts_empty_semantic_frontier(self):
         corpus = self.discovery_corpus_path()
+        value = json.loads(corpus.read_text(encoding="utf-8"))
+        value["topics"] = []
+        for lead in value["leads"]:
+            lead["topics"] = []
+        value["supporting"] = [
+            {
+                "reason": "The fixture has no durable semantic owner.",
+                "files": value["evidence_files"],
+            }
+        ]
+        value["digest"] = CAMPAIGN_MODULE.digest_json(
+            {key: item for key, item in value.items() if key != "digest"}
+        )
+        corpus.write_text(json.dumps(value), encoding="utf-8")
         packet = self.run / "empty-synthesis-packet.json"
         prepared = self.cli(
             "prepare",
@@ -2539,7 +2497,7 @@ class MapCampaignTests(unittest.TestCase):
             str(self.repository),
             "--allow-duplicate-incomplete",
         )
-        self.assertEqual(14, created["schema_version"])
+        self.assertEqual(15, created["schema_version"])
 
     def test_discover_stale_campaign_recommends_new_but_requires_choice(self):
         self.source_pass()

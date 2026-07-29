@@ -115,45 +115,32 @@ This seed grants no coverage. A non-v3 root is rejected.
 
 ## Discover
 
-For semantic scope, estimate breadth from `operation.json`, the Spine root
-`_INDEX.md`, and available runtime capacity; do not inspect production code
-yet. Choose
-one to ten independent semantic search boundaries: one or two for a narrow
-mechanism, three or four for one service with dependencies, five to seven for
-a subsystem, and eight to ten for a broad cross-cutting scope. Write:
-
-```json
-{
-  "discovery_plan_version": 1,
-  "rationale": "Kafka spans runtime, contract, integration, and operations.",
-  "leads": [
-    {
-      "id": "consumer-lifecycle",
-      "title": "Consumer lifecycle and recovery",
-      "question": "Which owners start, stop, retry, and recover consumers?",
-      "reason": "Runtime recovery is an independently searchable boundary."
-    }
-  ]
-}
-```
-
-Each lead must be a distinct search lens, not a file group or duplicate
-whole-scope pass. Desired lead count may exceed current capacity: capacity
-controls subwaves, not discovery coverage.
+Prepare a compact packet for one isolated semantic planner:
 
 ```text
-python3 <skill>/scripts/campaign.py discovery-start \
-  <campaign> <repository> <spine-root> <discovery> \
-  --initial-plan <initial-discovery-plan.json>
+python3 <skill>/scripts/planning.py prepare \
+  <campaign> <repository> <spine-root> <planner-packet.json>
 ```
 
-For repository scope, omit `--initial-plan` and add `--inventory-accelerator`.
-The neutral inventory pages form the initial discovery layer; no whole-repository
-root scout duplicates them. Keep the default
-page size of 40 seed files; a scout packet or unresolved fallback may never
-exceed that limit. This limit does not cap files found while closing the
-packet's semantic boundary. The repository accelerator is exhaustive by
-default.
+Give one fresh medium-tier planner only `discovery-planner.md`, the packet,
+repository, Spine, private draft path, final plan path, and `planning.py`.
+The planner may inspect topology and narrow code excerpts; root must not read
+production code, the draft, or the plan. It returns only a receipt with the
+validated lead count and digest. Use the same plan path for every scope:
+
+```text
+python3 <skill>/scripts/planning.py finalize \
+  <planner-packet.json> <private-draft.json> <initial-plan.json>
+python3 <skill>/scripts/campaign.py discovery-start \
+  <campaign> <repository> <spine-root> <discovery> \
+  --initial-plan <initial-plan.json>
+```
+
+Every lead is a semantic search boundary. Repository scope uses the same
+pipeline; never partition it into mandatory file pages. Capacity controls
+subwaves, not discovery coverage. A scout packet or unresolved fallback may
+contain at most 40 seed files, but the scout may find more while closing its
+semantic boundary.
 
 Set the scout subwave size to the smaller of ten and the runtime's available
 subagent slots. If capacity includes root, reserve one slot. Do not assume ten
@@ -189,16 +176,21 @@ python3 <skill>/scripts/campaign.py discovery-validate \
 
 Any failure invalidates the subwave; repair or rerun it before continuing.
 After every initial packet validates, combine their `unresolved_leads` counts.
-If the total is zero, collect the corpus immediately. Otherwise give
-one fresh medium-tier curator the operation, unresolved proposals, and compact
-lead registry under `frontier-curation.md`.
+If the total is zero, collect the corpus immediately.
 
-- Increment: disposition every unique in-scope continuation as `defer`; queue
-  nothing.
-- Exhaustive: queue every unique in-scope continuation; defer nothing.
+- Increment: deterministically defer every continuation without a curator:
 
-Persist its decision and, for exhaustive work, execute only the targeted
-fallback packets:
+```text
+python3 <skill>/scripts/campaign.py discovery-defer \
+  <discovery-seed> <discovery> <results> <discovery>/deferred
+```
+
+- Exhaustive: when continuations exist, give one fresh medium-tier curator the
+  operation, unresolved proposals, and compact lead registry under
+  `frontier-curation.md`. It queues every unique in-scope continuation and
+  defers nothing.
+
+Persist the exhaustive decision and execute only targeted fallback packets:
 
 ```text
 python3 <skill>/scripts/campaign.py discovery-packets \
@@ -266,6 +258,37 @@ python3 <skill>/scripts/campaign.py discovery-reopen \
 ```
 
 When the materialized synthesis is closed:
+
+For whole-repository exhaustive work only, audit the synthesized topology
+before production:
+
+```text
+python3 <skill>/scripts/coverage.py prepare \
+  <corpus.json> <topic-plan.json> <coverage-packet.json>
+```
+
+Give one fresh medium-tier auditor only `repository-coverage.md`, the packet,
+repository, Spine, private draft path, final review path, and `coverage.py`.
+Root reads only its receipt. Finalize and record the review:
+
+```text
+python3 <skill>/scripts/coverage.py finalize \
+  <coverage-packet.json> <private-draft.json> <coverage-review.json>
+python3 <skill>/scripts/campaign.py coverage-record \
+  <campaign> <topic-plan.json> <coverage-review.json>
+```
+
+On `gaps`, reopen the reported semantic leads, run the ordinary scout,
+collection, and synthesis loop, then audit again:
+
+```text
+python3 <skill>/scripts/campaign.py coverage-reopen \
+  <campaign> <discovery-seed> <coverage-review.json> \
+  <discovery>/coverage-NNNN
+```
+
+Only a recorded `clear` review for the current topic plan permits
+whole-repository exhaustive production. Other scopes skip this audit.
 
 ```text
 python3 <skill>/scripts/campaign.py source-pass \

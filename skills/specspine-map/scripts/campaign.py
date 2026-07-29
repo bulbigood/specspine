@@ -36,9 +36,9 @@ if str(Path(__file__).resolve().parent) not in sys.path:
 from spec_contract import CORE_RELATIONS, canonical_heading, presentation
 
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 PRODUCER_CONTRACT_VERSION = 9
-DISCOVERY_CONTRACT_VERSION = 4
+DISCOVERY_CONTRACT_VERSION = 5
 MAX_UNIT_FILES = 80
 MAX_SCOUT_SEED_FILES = 40
 MAX_INITIAL_SCOUTS = 10
@@ -973,29 +973,8 @@ def require_task(ledger: dict[str, Any], task_id: str) -> dict[str, Any]:
     return task
 
 
-def repository_unit(relative_path: Path) -> str:
-    parts = relative_path.parts
-    if len(parts) == 1:
-        name = parts[0]
-        if name in ROOT_GOVERNANCE or name.lower().endswith((".md", ".txt")):
-            return "repository-root/governance"
-        if name in ROOT_MANIFESTS:
-            return "repository-root/manifests"
-        if name.lower().startswith(("dockerfile", "compose.")):
-            return "repository-root/deployment"
-        if name.startswith(".") or name.lower().endswith(
-            (".json", ".toml", ".yaml", ".yml")
-        ):
-            return "repository-root/tooling"
-        return "repository-root/runtime"
-    first = parts[0]
-    if first in COLLAPSED_DIRECTORIES:
-        return first
-    return first if Path(parts[1]).suffix else Path(*parts[:2]).as_posix()
-
-
 def file_classification(path: Path) -> tuple[str, str]:
-    """Classify a concrete repository file before it enters the flat inventory."""
+    """Classify a concrete repository file for snapshot and verification."""
     parts = tuple(value.lower() for value in path.parts)
     first = parts[0]
     name = parts[-1]
@@ -1051,9 +1030,11 @@ def file_classification(path: Path) -> tuple[str, str]:
             "repository-support",
             "Mechanically identified repository governance or collaboration file",
         )
-    area = repository_unit(path)
     if (
-        area == "repository-root/governance"
+        (len(parts) == 1 and (
+            name in ROOT_GOVERNANCE
+            or path.suffix.lower() in {".md", ".txt"}
+        ))
         or first in REPOSITORY_SUPPORT_UNITS
         or first in DOCUMENTATION_ROOTS
         or path.suffix.lower() in {".md", ".mdx", ".txt"}
@@ -1421,10 +1402,6 @@ def discovery_packet(
 
 
 def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
-    if args.page_size > MAX_SCOUT_SEED_FILES:
-        raise CampaignError(
-            f"discovery page size exceeds {MAX_SCOUT_SEED_FILES} files"
-        )
     repository_root = args.repository_root.resolve()
     spine_root = args.spine_root.resolve()
     if not repository_root.is_dir():
@@ -1452,95 +1429,22 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         existing_discovery.get("root") != str(args.output_dir.resolve())
     ):
         raise CampaignError("operation discovery already started elsewhere")
-    if args.inventory_accelerator and scope["kind"] != "repository":
-        raise CampaignError(
-            "flat inventory accelerator is valid only for repository scope"
-        )
-    if scope["kind"] == "repository" and not args.inventory_accelerator:
-        raise CampaignError(
-            "repository discovery requires --inventory-accelerator"
-        )
-    if scope["kind"] == "semantic" and args.initial_plan is None:
-        raise CampaignError("semantic discovery requires --initial-plan")
-    if scope["kind"] == "repository" and args.initial_plan is not None:
-        raise CampaignError(
-            "repository discovery derives initial packets from its inventory; "
-            "--initial-plan is valid only for semantic scope"
-        )
-    if args.initial_plan is not None:
-        require_map_runtime_path(
-            args.initial_plan,
-            repository_root,
-            field="initial discovery plan",
-        )
-    inventory: dict[str, Any] | None = None
-    inventory_files: list[str] = []
-    inventory_total_files = 0
-    if args.inventory_accelerator:
-        inventory = repository_inventory(
-            repository_root,
-            spine_root=spine_root,
-        )
-        inventory_total_files = len(inventory["production_files"])
-        inventory_files = inventory["production_files"]
+    require_map_runtime_path(
+        args.initial_plan,
+        repository_root,
+        field="initial discovery plan",
+    )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     packets_dir = args.output_dir / "wave-0001"
     packets_dir.mkdir(exist_ok=True)
-    initial_plan: dict[str, Any] | None = None
-    if initial_plan := (
-        validate_initial_discovery_plan(read_json(args.initial_plan))
-        if args.initial_plan is not None
-        else None
-    ):
-        leads = initial_plan["leads"]
-    else:
-        leads = []
-    if inventory is not None and not inventory_files:
-        leads.append(
-            {
-                "id": "empty-repository",
-                "title": scope["title"],
-                "question": scope["question"],
-                "reason": "Confirm that the repository has no production boundary.",
-                "parent_ids": [],
-                "seed_files": [],
-            }
-        )
-    if inventory is not None:
-        files = inventory_files
-        for offset in range(0, len(files), args.page_size):
-            index = offset // args.page_size + 1
-            leads.append(
-                {
-                    "id": f"inventory-page-{index:04d}",
-                    "title": f"Repository discovery page {index}",
-                    "question": scope["question"],
-                    "reason": (
-                        "Neutral flat-inventory pagination accelerates broad "
-                        "discovery without defining architecture."
-                    ),
-                    "parent_ids": [],
-                    "seed_files": files[offset : offset + args.page_size],
-                }
-            )
+    initial_plan = validate_initial_discovery_plan(read_json(args.initial_plan))
+    leads = initial_plan["leads"]
     seed = {
         "discovery_contract_version": DISCOVERY_CONTRACT_VERSION,
         "repository_root": str(repository_root),
         "spine_root": str(spine_root),
         "operation": operation,
         "initial_plan": initial_plan,
-        "accelerator": (
-            None
-            if inventory is None
-            else {
-                "kind": "flat-production-inventory",
-                "digest": inventory["digest"],
-                "production_files": inventory_files,
-                "total_production_files": inventory_total_files,
-                "excluded": inventory["excluded"],
-                "excluded_directories": inventory["excluded_directories"],
-            }
-        ),
         "initial_leads": [lead["id"] for lead in leads],
     }
     seed_path = args.output_dir / "discovery-seed.json"
@@ -1551,9 +1455,6 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
             "initial_plan": initial_plan,
             "repository_root": str(repository_root),
             "spine_root": str(spine_root),
-            "inventory": None if inventory is None else inventory["digest"],
-            "inventory_files": inventory_files,
-            "page_size": args.page_size,
         }
     )
     if seed_path.exists() and read_json(seed_path) != seed:
@@ -1606,9 +1507,7 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         "packets": packets,
         "scope_kind": scope["kind"],
         "completion_kind": operation["completion"]["kind"],
-        "inventory_accelerator": inventory is not None,
-        "seed_files": len(inventory_files),
-        "inventory_total_files": inventory_total_files,
+        "initial_leads": len(leads),
     }
 
 
@@ -1772,6 +1671,223 @@ def command_discovery_packets(args: argparse.Namespace) -> dict[str, Any]:
         "deferred": sum(
             value["disposition"] == "defer" for value in decisions
         ),
+    }
+
+
+def command_discovery_defer(args: argparse.Namespace) -> dict[str, Any]:
+    seed = read_json(args.seed)
+    operation = validate_operation_spec(seed["operation"])
+    if operation["completion"]["kind"] != "increment":
+        raise CampaignError("discovery-defer is only for increment completion")
+    repository_root = Path(seed["repository_root"]).resolve()
+    require_map_runtime_path(
+        args.output_dir,
+        repository_root,
+        field="deferred frontier output",
+    )
+    decisions: list[dict[str, Any]] = []
+    for packet_path in sorted(args.packets_root.rglob("lead-*.json")):
+        relative = packet_path.relative_to(args.packets_root)
+        result = validate_discovery_packet_result(
+            seed,
+            packet_path,
+            args.results_root / relative,
+        )
+        parent = result["lead"]["id"]
+        for unresolved in result["unresolved_leads"]:
+            deferred_id = validate_id(f"{parent}-{unresolved['id']}")
+            decisions.append(
+                {
+                    "disposition": "defer",
+                    "sources": [f"{parent}/{unresolved['id']}"],
+                    "lead": {
+                        key: unresolved[key]
+                        for key in ("title", "question", "reason", "seed_files")
+                    }
+                    | {"id": deferred_id, "parent_ids": [parent]},
+                    "reason": "Increment stops after the initial semantic layer.",
+                }
+            )
+    value = {"decisions": decisions}
+    manifest = {
+        "kind": "discovery-defer",
+        "input_digest": digest_json(
+            {
+                "seed": digest_json(seed),
+                "decisions": decisions,
+            }
+        ),
+    }
+    manifest_path = args.output_dir / "_artifact.json"
+    already_ready = manifest_path.is_file()
+    if args.output_dir.exists() and (
+        not already_ready or read_json(manifest_path) != manifest
+    ):
+        raise CampaignError("existing deferred frontier has different inputs")
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    frontier_path = args.output_dir / "_frontier.json"
+    if frontier_path.exists() and read_json(frontier_path) != value:
+        raise CampaignError("existing deferred frontier has different inputs")
+    atomic_write(frontier_path, value)
+    atomic_write(manifest_path, manifest)
+    return {
+        "status": "already_ready" if already_ready else "written",
+        "deferred": len(decisions),
+        "frontier": str(frontier_path.resolve()),
+    }
+
+
+def validate_coverage_review(value: Any) -> dict[str, Any]:
+    expected = {
+        "coverage_contract_version",
+        "status",
+        "reason",
+        "inspected_roots",
+        "open_leads",
+    }
+    if not isinstance(value, dict) or set(value) != expected:
+        raise CampaignError("coverage review has invalid shape")
+    if value["coverage_contract_version"] != 1:
+        raise CampaignError("coverage review contract is invalid")
+    if value["status"] not in {"clear", "gaps"}:
+        raise CampaignError("coverage review status is invalid")
+    if not isinstance(value["reason"], str) or not value["reason"].strip():
+        raise CampaignError("coverage review reason must be nonempty")
+    string_list(
+        value["inspected_roots"],
+        "coverage inspected_roots",
+        nonempty=True,
+    )
+    if not isinstance(value["open_leads"], list):
+        raise CampaignError("coverage open_leads must be a list")
+    if value["status"] == "clear" and value["open_leads"]:
+        raise CampaignError("clear coverage review cannot contain open leads")
+    if value["status"] == "gaps" and not value["open_leads"]:
+        raise CampaignError("gaps coverage review needs open leads")
+    return value
+
+
+def command_coverage_record(args: argparse.Namespace) -> dict[str, Any]:
+    current = load(args.ledger)
+    operation = validate_operation_spec(current["operation"])
+    if (
+        operation["scope"]["kind"] != "repository"
+        or operation["completion"]["kind"] != "exhaustive"
+    ):
+        raise CampaignError(
+            "coverage-record is only for repository exhaustive operations"
+        )
+    repository_root = repository_root_from_ledger(current)
+    for path, field in (
+        (args.topic_plan, "coverage topic plan"),
+        (args.review, "coverage review"),
+    ):
+        require_map_runtime_path(path, repository_root, field=field)
+    review = validate_coverage_review(read_json(args.review))
+    plan_digest = hashlib.sha256(args.topic_plan.read_bytes()).hexdigest()
+    value = {
+        "status": review["status"],
+        "plan_digest": plan_digest,
+        "review": str(args.review.resolve()),
+        "review_digest": hashlib.sha256(args.review.read_bytes()).hexdigest(),
+        "open_leads": len(review["open_leads"]),
+    }
+    with locked_ledger(args.ledger) as ledger:
+        already_ready = ledger.get("coverage_audit") == value
+        if not already_ready:
+            ledger["coverage_audit"] = value
+            save_locked(args.ledger, ledger)
+        return {
+            "status": "already_ready" if already_ready else "recorded",
+            "result": review["status"],
+            "open_leads": len(review["open_leads"]),
+            "revision": ledger["revision"],
+        }
+
+
+def command_coverage_reopen(args: argparse.Namespace) -> dict[str, Any]:
+    seed = read_json(args.seed)
+    current = load(args.ledger)
+    review = validate_coverage_review(read_json(args.review))
+    if review["status"] != "gaps":
+        raise CampaignError("coverage-reopen requires a gaps review")
+    audit = current.get("coverage_audit")
+    if (
+        not isinstance(audit, dict)
+        or audit.get("status") != "gaps"
+        or audit.get("review") != str(args.review.resolve())
+    ):
+        raise CampaignError("coverage gaps are not recorded in the campaign")
+    repository_root = Path(seed["repository_root"]).resolve()
+    require_map_runtime_path(
+        args.output_dir,
+        repository_root,
+        field="coverage discovery output",
+    )
+    decisions: list[dict[str, Any]] = []
+    proposals: list[str] = []
+    for index, raw in enumerate(review["open_leads"], start=1):
+        if not isinstance(raw, dict) or set(raw) != {
+            "id", "title", "question", "reason", "seed_files"
+        }:
+            raise CampaignError(f"coverage lead {index} has invalid shape")
+        lead = normalize_discovery_lead(
+            raw | {"parent_ids": []},
+            field=f"coverage lead {index}",
+        )
+        validate_repository_files(
+            repository_root,
+            lead["seed_files"],
+            field=f"coverage lead {lead['id']} seed file",
+        )
+        source = f"coverage-audit/{lead['id']}"
+        proposals.append(source)
+        decisions.append(
+            {
+                "disposition": "queue",
+                "sources": [source],
+                "lead": lead,
+            }
+        )
+    manifest = {
+        "kind": "coverage-reopen",
+        "input_digest": digest_json(
+            {
+                "seed": digest_json(seed),
+                "review": review,
+            }
+        ),
+    }
+    manifest_path = args.output_dir / "_artifact.json"
+    already_ready = manifest_path.is_file()
+    if args.output_dir.exists() and (
+        not already_ready or read_json(manifest_path) != manifest
+    ):
+        raise CampaignError("existing coverage discovery has different inputs")
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    gaps = {"proposals": proposals}
+    frontier = {"decisions": decisions}
+    for path, value in (
+        (args.output_dir / "_coverage-gaps.json", gaps),
+        (args.output_dir / "_frontier.json", frontier),
+    ):
+        if path.exists() and read_json(path) != value:
+            raise CampaignError(f"existing coverage artifact conflicts: {path}")
+        atomic_write(path, value)
+    atomic_write(manifest_path, manifest)
+    packets: list[str] = []
+    for decision in decisions:
+        lead = decision["lead"]
+        path = args.output_dir / f"lead-{lead['id']}.json"
+        expected = discovery_packet(seed, lead, source_refs=decision["sources"])
+        if path.exists() and read_json(path) != expected:
+            raise CampaignError(f"existing coverage packet conflicts: {path}")
+        atomic_write(path, expected)
+        packets.append(str(path.resolve()))
+    return {
+        "status": "already_ready" if already_ready else "written",
+        "packets": packets,
+        "queued": len(packets),
     }
 
 
@@ -2390,7 +2506,12 @@ def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
         for lead_id, result in results.items()
         for unresolved in result["unresolved_leads"]
     }
-    for gaps_path in sorted(args.packets_root.rglob("_synthesis-gaps.json")):
+    for gaps_path in sorted(
+        [
+            *args.packets_root.rglob("_synthesis-gaps.json"),
+            *args.packets_root.rglob("_coverage-gaps.json"),
+        ]
+    ):
         raw = read_json(gaps_path)
         if not isinstance(raw, dict) or set(raw) != {"proposals"}:
             raise CampaignError(f"invalid synthesis-gap artifact: {gaps_path}")
@@ -2513,11 +2634,14 @@ def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
         }
     )
     snapshot: dict[str, Any]
-    accelerator = seed.get("accelerator")
-    if isinstance(accelerator, dict):
+    if operation["scope"]["kind"] == "repository":
+        inventory = repository_inventory(
+            repository_root,
+            spine_root=Path(seed["spine_root"]),
+        )
         snapshot = {
             "kind": "repository",
-            "digest": accelerator["digest"],
+            "digest": inventory["digest"],
         }
     else:
         snapshot = {
@@ -2842,6 +2966,7 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         },
         "spine_snapshot": None,
         "source_pass": None,
+        "coverage_audit": None,
         "integration_pass": None,
         "resume_history": [],
     }
@@ -3415,6 +3540,21 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
         corpus["operation"],
         corpus["deferred_leads"],
     )
+    if (
+        corpus["operation"]["scope"]["kind"] == "repository"
+        and corpus["operation"]["completion"]["kind"] == "exhaustive"
+    ):
+        audit = current.get("coverage_audit")
+        plan_digest = hashlib.sha256(args.topic_plan.read_bytes()).hexdigest()
+        if (
+            not isinstance(audit, dict)
+            or audit.get("status") != "clear"
+            or audit.get("plan_digest") != plan_digest
+        ):
+            raise CampaignError(
+                "repository exhaustive source-pass requires a clear coverage "
+                "audit for the current topic plan"
+            )
     raw_todo: list[dict[str, Any]] = []
     topic_tasks: dict[str, str] = {}
     for topic in plan["topics"]:
@@ -3498,19 +3638,20 @@ def source_task_priority(task: dict[str, Any]) -> tuple[int, int, str]:
     for value in task.get("evidence", []):
         path = Path(value)
         parts = path.parts
-        area = repository_unit(path)
-        if area in {"repository-root/runtime", "repository-root/deployment"}:
-            tier = 0
-        elif area == "repository-root/manifests":
+        name = parts[0].lower() if len(parts) == 1 else ""
+        if len(parts) == 1 and (
+            parts[0] in ROOT_MANIFESTS
+            or name.startswith(("dockerfile", "compose."))
+        ):
             tier = 1
         elif len(parts) == 1:
-            tier = 2
+            tier = 0
         elif len(parts) == 2:
-            tier = 3
+            tier = 2
         else:
-            tier = 4
+            tier = 3
         ranked.append((tier, len(parts)))
-    priority = min(ranked) if ranked else (5, 0)
+    priority = min(ranked) if ranked else (4, 0)
     return priority[0], priority[1], task["id"]
 
 
@@ -5959,8 +6100,13 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
             action = "discover"
             reason = "semantic discovery frontier is not yet synthesized"
         elif discovery.get("status") == "synthesis":
-            action = "synthesize"
-            reason = "discovery corpus requires semantic synthesis"
+            audit = ledger.get("coverage_audit")
+            if isinstance(audit, dict) and audit.get("status") == "gaps":
+                action = "discover"
+                reason = "repository topology coverage gaps require discovery"
+            else:
+                action = "synthesize"
+                reason = "discovery corpus requires semantic synthesis"
         else:
             action = "repair"
             reason = "pre-production operation state is invalid"
@@ -6251,24 +6397,33 @@ def parser() -> argparse.ArgumentParser:
     discovery_start.add_argument("spine_root", type=Path)
     discovery_start.add_argument("output_dir", type=Path)
     discovery_start.add_argument(
-        "--inventory-accelerator",
-        action="store_true",
-    )
-    discovery_start.add_argument(
         "--initial-plan",
         type=Path,
+        required=True,
         help="semantic fan-out plan with 1..10 independent search boundaries",
-    )
-    discovery_start.add_argument(
-        "--page-size",
-        type=positive_int,
-        default=MAX_SCOUT_SEED_FILES,
     )
 
     discovery_packets = sub.add_parser("discovery-packets")
     discovery_packets.add_argument("seed", type=Path)
     discovery_packets.add_argument("frontier", type=Path)
     discovery_packets.add_argument("output_dir", type=Path)
+
+    discovery_defer = sub.add_parser("discovery-defer")
+    discovery_defer.add_argument("seed", type=Path)
+    discovery_defer.add_argument("packets_root", type=Path)
+    discovery_defer.add_argument("results_root", type=Path)
+    discovery_defer.add_argument("output_dir", type=Path)
+
+    coverage_record = sub.add_parser("coverage-record")
+    coverage_record.add_argument("ledger", type=Path)
+    coverage_record.add_argument("topic_plan", type=Path)
+    coverage_record.add_argument("review", type=Path)
+
+    coverage_reopen = sub.add_parser("coverage-reopen")
+    coverage_reopen.add_argument("ledger", type=Path)
+    coverage_reopen.add_argument("seed", type=Path)
+    coverage_reopen.add_argument("review", type=Path)
+    coverage_reopen.add_argument("output_dir", type=Path)
 
     discovery_reopen = sub.add_parser("discovery-reopen")
     discovery_reopen.add_argument("ledger", type=Path)
@@ -6384,6 +6539,9 @@ def main() -> int:
         "bootstrap-spine": command_bootstrap_spine,
         "discovery-start": command_discovery_start,
         "discovery-packets": command_discovery_packets,
+        "discovery-defer": command_discovery_defer,
+        "coverage-record": command_coverage_record,
+        "coverage-reopen": command_coverage_reopen,
         "discovery-reopen": command_discovery_reopen,
         "discovery-validate": command_discovery_validate,
         "discovery-collect": command_discovery_collect,

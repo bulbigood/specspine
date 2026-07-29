@@ -60,10 +60,12 @@ must be dispositioned or retained as an `open_lead`; otherwise Map cannot reach
 - Read [references/orchestration.md](references/orchestration.md) completely;
   it defines the durable CLI lifecycle.
 - Give isolated workers only their phase contract:
+  [discovery-planner.md](references/discovery-planner.md),
   [discovery-task.md](references/discovery-task.md),
   [frontier-curation.md](references/frontier-curation.md),
   [topic-synthesis.md](references/topic-synthesis.md),
-  [producer-task.md](references/producer-task.md).
+  [producer-task.md](references/producer-task.md), or
+  [repository-coverage.md](references/repository-coverage.md).
 - Read [integration-pass.md](references/integration-pass.md) only when
   deterministic assembly reports `needs_semantic_review`.
 - Start new files from `assets/templates/`; omit empty sections.
@@ -72,14 +74,12 @@ must be dispositioned or retained as an `open_lead`; otherwise Map cannot reach
 Discovery finds evidence; synthesis defines topics, canonical documents, the
 typed graph, and existing coverage; producers verify one topic and stage its
 assigned document; deterministic assembly publishes clean results. Root handles
-only explicit semantic exceptions. Discovery
-hierarchy, inventory pages, paths, and filenames never define architecture.
+only receipts, state transitions, and explicit semantic exceptions. An isolated
+planner chooses the initial semantic search boundaries for every scope. Root
+does not inspect production code or ingest discovery content. Discovery
+hierarchy, paths, and filenames never define architecture.
 Scouts write semantic drafts; `discovery_finalize.py` alone derives and
 atomically publishes canonical discovery results.
-
-Use a flat production-file inventory only as a neutral accelerator for
-repository scope. It grants no grouping, ownership, coverage, or completion.
-It is exhaustive.
 
 `orchestration.md` owns worker tiers, wave sizing, runtime placement, recovery,
 terminal gates, and publication. Follow it without restating those rules here.
@@ -94,3 +94,6 @@ coverage classification, granularity, and graph construction in one task.
 evidence, reports suspicious coverage or granularity, and atomically writes
 the sole canonical topic plan. Semantic diagnostics are advisory: Map favors
 prompt coverage and leaves later graph refinement to Doctor or Evolve.
+Only whole-repository exhaustive mapping adds an isolated topology coverage
+audit after synthesis. It looks for missing architectural roots, not file
+coverage, and reopens only concrete gaps.

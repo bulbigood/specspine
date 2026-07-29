@@ -56,8 +56,9 @@ intent, and record unresolved disagreement.
 
 An increment settles one initial discovery layer and defers directly exposed
 continuations. An exhaustive scout recursively closes its assigned semantic
-search boundary inside one run. A flat file inventory may seed repository
-scope but never defines topics.
+search boundary inside one run. Every scope begins with a semantic plan;
+whole-repository mapping is merely the widest search boundary, never file
+pagination.
 
 An exhaustive scout returns an unresolved question only when it needs an
 independent large investigation, exceeds safe context, or crosses into a

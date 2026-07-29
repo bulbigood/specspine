@@ -16,9 +16,11 @@ class MapOperationContractTests(unittest.TestCase):
         cls.entrypoint = read("SKILL.md")
         cls.protocol = read("references/orchestration.md")
         cls.method = read("references/mapping-method.md")
+        cls.planner = read("references/discovery-planner.md")
         cls.discovery = read("references/discovery-task.md")
         cls.curator = read("references/frontier-curation.md")
         cls.synthesis = read("references/topic-synthesis.md")
+        cls.coverage = read("references/repository-coverage.md")
         cls.producer = read("references/producer-task.md")
         cls.integration = read("references/integration-pass.md")
         cls.campaign = read("scripts/campaign.py")
@@ -46,7 +48,8 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("synthesis defines topics, canonical documents", text)
         self.assertIn("producers verify one topic", text)
         self.assertIn("deterministic assembly publishes clean results", text)
-        self.assertIn("inventory pages, paths, and filenames never define", text)
+        self.assertIn("paths, and filenames never define", text)
+        self.assertIn("Root does not inspect production code", text)
 
     def test_map_retains_only_material_repository_delta(self):
         entrypoint = self.compact(self.entrypoint)
@@ -81,11 +84,14 @@ class MapOperationContractTests(unittest.TestCase):
             "init",
             "seed-from-spine",
             "discovery-start",
+            "discovery-defer",
             "discovery-packets",
             "discovery-validate",
             "discovery_finalize.py",
             "discovery-collect",
             "discovery-reopen",
+            "coverage-record",
+            "coverage-reopen",
             "synthesis.py prepare",
             "synthesis.py materialize",
             "source-pass",
@@ -133,11 +139,12 @@ class MapOperationContractTests(unittest.TestCase):
     def test_scout_parallelism_is_adaptive_and_wave_checked(self):
         protocol = self.compact(self.protocol)
         self.assertIn("smaller of ten and the runtime's available subagent slots", protocol)
-        self.assertIn("Choose one to ten independent semantic search boundaries", protocol)
+        self.assertIn("isolated semantic planner", protocol)
+        self.assertIn("same pipeline; never partition it into mandatory file pages", protocol)
         self.assertIn("Dispatch every initial packet", protocol)
         self.assertIn("Never start frontier curation", protocol)
         self.assertIn("--initial-plan", protocol)
-        self.assertIn("default page size of 40 seed files", protocol)
+        self.assertIn("at most 40 seed files", protocol)
         self.assertIn("reserve one slot", protocol)
         self.assertIn("fresh weak-tier scouts", protocol)
         self.assertIn("discovery_finalize.py", protocol)
@@ -149,6 +156,16 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("MAX_SCOUT_SEED_FILES = 40", self.campaign)
         self.assertIn("MAX_INITIAL_SCOUTS = 10", self.campaign)
         self.assertIn("MAX_UNIT_FILES = 80", self.campaign)
+
+    def test_repository_exhaustive_has_a_topology_backstop(self):
+        protocol = self.compact(self.protocol)
+        coverage = self.compact(self.coverage)
+        self.assertIn("whole-repository exhaustive work only", protocol)
+        self.assertIn("coverage.py prepare", protocol)
+        self.assertIn("coverage-record", protocol)
+        self.assertIn("coverage-reopen", protocol)
+        self.assertIn("missing architectural roots", coverage)
+        self.assertIn("Do not require every directory or production file", coverage)
 
     def test_mapping_method_prefers_responsibility_over_source_shape(self):
         text = self.compact(self.method)
@@ -216,8 +233,11 @@ class MapOperationContractTests(unittest.TestCase):
                 "seed-from-spine",
                 "bootstrap-spine",
                 "discovery-start",
+                "discovery-defer",
                 "discovery-packets",
                 "discovery-reopen",
+                "coverage-record",
+                "coverage-reopen",
                 "discovery-validate",
                 "discovery-collect",
                 "source-pass",
@@ -242,11 +262,13 @@ class MapOperationContractTests(unittest.TestCase):
     def test_prompt_files_stay_small(self):
         limits = {
             "entrypoint": (self.entrypoint, 118),
-            "protocol": (self.protocol, 365),
+            "protocol": (self.protocol, 390),
             "method": (self.method, 110),
+            "planner": (self.planner, 55),
             "discovery": (self.discovery, 105),
             "curator": (self.curator, 85),
             "synthesis": (self.synthesis, 116),
+            "coverage": (self.coverage, 40),
             "producer": (self.producer, 165),
             "integration": (self.integration, 175),
         }
