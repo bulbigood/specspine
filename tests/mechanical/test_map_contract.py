@@ -45,9 +45,9 @@ class MapOperationContractTests(unittest.TestCase):
     def test_authority_is_split_without_duplicate_coverage_claims(self):
         text = self.compact(self.entrypoint)
         self.assertIn("Discovery finds evidence", text)
-        self.assertIn("synthesis alone defines semantic topics", text)
+        self.assertIn("synthesis defines topics, canonical documents", text)
         self.assertIn("producers verify one topic", text)
-        self.assertIn("root alone chooses canonical ownership", text)
+        self.assertIn("deterministic assembly publishes clean results", text)
         self.assertIn("inventory pages, paths, and filenames never define", text)
 
     def test_operation_is_durable_and_atomic(self):
@@ -57,7 +57,7 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("`may_finish: false`", entrypoint)
         self.assertIn("`may_pause: true`", entrypoint)
         self.assertIn(
-            "publishes the workspace plus ledger transition atomically",
+            "checks and publishes atomically",
             protocol,
         )
         self.assertIn("continue_in_same_turn_no_final_response", self.campaign)
@@ -211,6 +211,7 @@ class MapOperationContractTests(unittest.TestCase):
                 "accept-wave",
                 "prepare-integration",
                 "integration-pass",
+                "assemble-integration",
                 "next-action",
                 "recover",
             },

@@ -13,6 +13,12 @@ for an incomplete existing owner over a parallel document. Recheck topics that
 share lifecycle, contracts, state, data ownership, failure behavior, or
 consumers even when their names differ.
 
+Review canonical `document` paths and the complete typed relationship graph.
+Reject duplicate paths, unknown targets, isolated nodes, navigation-only
+reciprocal edges, vague `related-to`, and predicates unsupported by the
+responsibility descriptions. The reviewed graph is authoritative for
+production and deterministic assembly.
+
 Preserve every `source_topic_id`; merge by placing several sources in one
 topic. A source may appear in several topics only when its described
 responsibility genuinely participates in several independently useful
@@ -41,6 +47,4 @@ If correction is necessary, write `decision: replace`, the complete corrected
 mapping under `mapping`, and the same `review` object. Do not emit a patch or
 repeat the provisional mapping for `accept`.
 
-Set an attestation only after completing that check. The materializer rejects
-an unreviewed synthesizer result. Terminate without editing the corpus, Spine,
-campaign, or repository.
+Set an attestation only after completing that check. The materializer rejects an unreviewed synthesizer result. Terminate without editing the corpus, Spine, or campaign.

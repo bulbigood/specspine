@@ -1,8 +1,10 @@
 # Root integration and ToDo derivation
 
-Run this pass after producer results settle and once more before campaign
-closure. Acceptance proves checkpoint shape and evidence references, not
-canonical ownership or complete architectural depth.
+Use this manual pass only when `assemble-integration` reports semantic
+exceptions. Clean producer drafts are assembled directly from the reviewed
+graph plan. Acceptance proves checkpoint shape and evidence references; this
+fallback resolves only reported ownership, direction, conflict, or graph
+disagreement.
 
 ## Integrate publications
 

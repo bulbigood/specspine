@@ -302,6 +302,14 @@ def validate_draft_semantics(
             raise PreflightError(
                 f"candidate needs a semantic OBS definition: {relative}"
             )
+    planned_document = task.get("planned_document")
+    if not isinstance(planned_document, str) or not planned_document.strip():
+        raise PreflightError("draft task needs a canonical planned_document")
+    if set(staged) != {relative_path(planned_document, "planned_document")}:
+        raise PreflightError(
+            "draft must publish exactly its canonical planned_document: "
+            f"expected={[planned_document]}, actual={sorted(staged)}"
+        )
 
 
 def finalize(args: argparse.Namespace) -> dict[str, Any]:

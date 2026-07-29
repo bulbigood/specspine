@@ -16,7 +16,30 @@ import campaign
 
 
 DEFAULT_BATCH_SIZE = 25
-SYNTHESIS_CONTRACT_VERSION = 2
+SYNTHESIS_CONTRACT_VERSION = 3
+CORE_RELATIONS = {
+    "contains",
+    "decomposes-into",
+    "performs",
+    "depends-on",
+    "exposes",
+    "consumes",
+    "publishes",
+    "reads-from",
+    "writes-to",
+    "owns-data",
+    "constrained-by",
+    "implemented-by",
+    "has-evidence",
+    "superseded-by",
+    "related-to",
+    "refines",
+    "satisfies",
+    "verified-by",
+    "specified-by",
+    "compatible-with",
+    "migrates-from",
+}
 REVIEW_KEYS = {
     "existing_coverage_checked",
     "cross_batch_duplicates_checked",
@@ -106,19 +129,22 @@ def normalize_candidate(
     known: set[str],
     *,
     field: str,
+    graph: bool = True,
 ) -> dict[str, Any]:
-    expected = {
+    base_fields = {
         "id",
         "title",
         "responsibility",
         "reason",
         "source_topic_ids",
     }
+    expected = base_fields | ({"document", "relationships"} if graph else set())
     if not isinstance(value, dict) or set(value) != expected:
         raise campaign.CampaignError(
-            f"{field} needs id, title, responsibility, reason, and source_topic_ids"
+            f"{field} needs id, document, title, responsibility, reason, "
+            "relationships, and source_topic_ids"
         )
-    return {
+    result = {
         "id": campaign.validate_id(value["id"]),
         "title": clean_text(value["title"], f"{field} title"),
         "responsibility": clean_text(
@@ -129,6 +155,55 @@ def normalize_candidate(
             value["source_topic_ids"], known, f"{field} source_topic_ids"
         ),
     }
+    if graph:
+        document = campaign.validate_relative_path(value["document"])
+        if not document.endswith(".md"):
+            raise campaign.CampaignError(
+                f"{field} document must be canonical Markdown"
+            )
+        result["document"] = document
+        result["relationships"] = normalize_relationships(
+            value["relationships"],
+            field=f"{field} relationships",
+        )
+    return result
+
+
+def normalize_relationships(value: Any, *, field: str) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        raise campaign.CampaignError(f"{field} must be a list")
+    normalized: list[dict[str, str]] = []
+    keys: set[tuple[str, str]] = set()
+    for index, row in enumerate(value, start=1):
+        if not isinstance(row, dict) or set(row) != {"type", "target", "reason"}:
+            raise campaign.CampaignError(
+                f"{field} row {index} needs type, target, and reason"
+            )
+        relation = clean_text(row["type"], f"{field} row {index} type")
+        if relation not in CORE_RELATIONS and campaign.re.fullmatch(
+            r"x-[a-z0-9]+(?:-[a-z0-9]+)*", relation
+        ) is None:
+            raise campaign.CampaignError(
+                f"{field} row {index} has invalid relation: {relation}"
+            )
+        target = campaign.validate_id(row["target"])
+        key = (relation, target)
+        if key in keys:
+            raise campaign.CampaignError(
+                f"{field} repeats relationship {relation} -> {target}"
+            )
+        keys.add(key)
+        normalized.append(
+            {
+                "type": relation,
+                "target": target,
+                "reason": clean_text(row["reason"], f"{field} row {index} reason"),
+            }
+        )
+    return sorted(
+        normalized,
+        key=lambda row: (row["type"], row["target"], row["reason"]),
+    )
 
 
 def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
@@ -235,6 +310,7 @@ def normalize_reducer_result(
             value,
             known,
             field=f"reducer merged candidate {index}",
+            graph=False,
         )
         for index, value in enumerate(raw["merged"], start=1)
     ]
@@ -672,9 +748,11 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
     ) -> dict[str, Any]:
         base_keys = {
             "id",
+            "document",
             "title",
             "responsibility",
             "reason",
+            "relationships",
             "source_topic_ids",
         }
         required = base_keys | ({"coverage_reason", "coverage"} if covered else set())
@@ -704,7 +782,14 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
         topic_files.update(files)
         result = {
             key: base[key]
-            for key in ("id", "title", "responsibility", "reason")
+            for key in (
+                "id",
+                "document",
+                "title",
+                "responsibility",
+                "reason",
+                "relationships",
+            )
         } | {"files": files}
         if covered:
             coverage_reason, coverage = normalize_coverage(
@@ -811,6 +896,40 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
         "open_leads": open_leads,
         "deferred_leads": raw["deferred_leads"],
     }
+    semantic_topics = final_topics + final_covered
+    semantic_ids = {value["id"] for value in semantic_topics}
+    existing_ids = set(
+        campaign.spine_owner_registry(Path(corpus["spine_root"]))
+    )
+    documents = [value["document"] for value in semantic_topics]
+    if len(documents) != len(set(documents)):
+        raise campaign.CampaignError("semantic mapping repeats canonical documents")
+    for topic in semantic_topics:
+        for relationship in topic["relationships"]:
+            if relationship["target"] not in semantic_ids | existing_ids:
+                raise campaign.CampaignError(
+                    f"topic {topic['id']} relationship targets unknown "
+                    f"owner: {relationship['target']}"
+                )
+            if relationship["target"] == topic["id"]:
+                raise campaign.CampaignError(
+                    f"topic {topic['id']} cannot relate to itself"
+                )
+    if len(semantic_topics) > 1:
+        connected = {
+            topic["id"]
+            for topic in semantic_topics
+            if topic["relationships"]
+        } | {
+            relationship["target"]
+            for topic in semantic_topics
+            for relationship in topic["relationships"]
+        }
+        missing = sorted(semantic_ids - connected)
+        if missing:
+            raise campaign.CampaignError(
+                f"semantic graph has isolated topics: {missing}"
+            )
     if not open_leads:
         publish_validated_plan(args.output, plan, corpus=corpus)
     else:

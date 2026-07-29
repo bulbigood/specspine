@@ -113,6 +113,17 @@ class MapCampaignTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def cli(self, *arguments, expected=0, script=CAMPAIGN):
+        if script == CAMPAIGN and arguments and arguments[0] == "source-pass":
+            option = arguments.index("--topic-plan")
+            self.enrich_graph_mapping(Path(arguments[option + 1]))
+        if script == SYNTHESIS and arguments and arguments[0] == "materialize":
+            self.enrich_graph_mapping(Path(arguments[2]))
+            review = Path(arguments[3])
+            if review.is_file():
+                value = json.loads(review.read_text(encoding="utf-8"))
+                if isinstance(value.get("mapping"), dict):
+                    self.enrich_graph_value(value["mapping"])
+                    review.write_text(json.dumps(value), encoding="utf-8")
         result = subprocess.run(
             [sys.executable, str(script), *arguments],
             text=True,
@@ -121,6 +132,51 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertEqual(expected, result.returncode, result.stderr or result.stdout)
         return json.loads(result.stdout or result.stderr)
+
+    @staticmethod
+    def enrich_graph_value(value):
+        semantic = [
+            row
+            for key in ("topics", "covered")
+            for row in value.get(key, [])
+            if isinstance(row, dict) and isinstance(row.get("id"), str)
+        ]
+        ids = [row["id"] for row in semantic]
+        for index, row in enumerate(semantic):
+            row.setdefault(
+                "document",
+                (
+                    row.get("coverage", [{}])[0].get("document")
+                    if row.get("coverage")
+                    else f"topics/{row['id']}.md"
+                ),
+            )
+            relationships = []
+            if len(ids) > 1:
+                target = ids[index + 1] if index + 1 < len(ids) else ids[index - 1]
+                relationships = [
+                    {
+                        "type": "related-to",
+                        "target": target,
+                        "reason": "Fixture semantic graph connection.",
+                    }
+                ]
+            if "relationships" not in row or (
+                len(ids) > 1 and not row["relationships"]
+            ):
+                row["relationships"] = relationships
+
+    @classmethod
+    def enrich_graph_mapping(cls, path):
+        if not path.is_file():
+            return
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return
+        if isinstance(value, dict):
+            cls.enrich_graph_value(value)
+            path.write_text(json.dumps(value), encoding="utf-8")
 
     def ledger_value(self):
         return json.loads(self.ledger.read_text(encoding="utf-8"))
@@ -235,12 +291,15 @@ class MapCampaignTests(unittest.TestCase):
             topics.append(
                 {
                     "id": topic_id,
+                    "document": f"topics/{topic_id}.md",
                     "title": unit,
                     "responsibility": f"Observed responsibility for {unit}",
                     "reason": f"Fixture semantic plan for {unit}",
+                    "relationships": [],
                     "files": files,
                 }
             )
+        self.enrich_graph_value({"topics": topics, "covered": []})
         plan = self.run / "topic-plan.json"
         plan.write_text(
             json.dumps(
@@ -2488,7 +2547,7 @@ class MapCampaignTests(unittest.TestCase):
         task = self.ledger_value()["tasks"][task_id]
         self.assertEqual("review", accepted["task_states"][task_id])
         self.assertEqual(1, task["attempts"])
-        self.assertEqual("integrate", self.cli("next-action", str(self.ledger))["action"])
+        self.assertEqual("dispatch", self.cli("next-action", str(self.ledger))["action"])
 
     def test_resume_releases_only_task_without_atomic_handoff(self):
         self.source_pass()
@@ -3134,6 +3193,76 @@ class MapCampaignTests(unittest.TestCase):
         self.integrate(workspace=workspace)
         self.assertTrue((self.spine / "identity.md").is_file())
 
+    def test_assembly_materializes_reviewed_graph_and_publishes_once(self):
+        self.source_pass()
+        ledger = self.ledger_value()
+        topics = {
+            topic["id"]: topic
+            for topic in ledger["source_pass"]["topic_plan"]["topics"]
+        }
+        for index, (topic_id, task_id) in enumerate(
+            sorted(ledger["source_pass"]["topic_tasks"].items())
+        ):
+            owner = f"/root/assembly-producer-{index}"
+            self.assign(task_id, owner)
+            shutil.rmtree(self.staging)
+            self.staging.mkdir()
+            document = self.staging / topics[topic_id]["document"]
+            document.parent.mkdir(parents=True, exist_ok=True)
+            evidence = self.ledger_value()["tasks"][task_id]["evidence"]
+            document.write_text(
+                f"# {topics[topic_id]['title']}\n\n"
+                f"**ID:** `{topic_id}` · **Kind:** `component`\n\n"
+                "Observed architectural owner for this fixture boundary.\n\n"
+                "## Responsibility\n\n"
+                f"{topics[topic_id]['responsibility']}\n\n"
+                + self.draft_evidence(task_id)
+                + "\n<!-- specspine:semantic-ids:begin -->\n"
+                "## Observed\n\n"
+                f"- **OBS-{topic_id}-owner** — Observed owner. "
+                f"Evidence: `{evidence[0]}`.\n"
+                "<!-- specspine:semantic-ids:end -->\n",
+                encoding="utf-8",
+            )
+            self.accept(
+                task_id,
+                self.checkpoint_payload(
+                    outcome="draft",
+                    evidence=evidence,
+                ),
+                owner=owner,
+            )
+
+        workspace = self.run / "automatic-assembly"
+        report = self.run / "automatic-assembly-report.json"
+        result = self.cli(
+            "assemble-integration",
+            str(self.ledger),
+            str(self.spine),
+            str(workspace),
+            str(report),
+            "--checker",
+            str(ROOT / "skills/specspine-map/scripts/check_spine.py"),
+        )
+
+        self.assertEqual("assembled_and_integrated", result["status"])
+        readme = (self.spine / "README.md").read_text(encoding="utf-8")
+        self.assertIn("specspine:generated-map:start", readme)
+        for topic in topics.values():
+            body = (self.spine / topic["document"]).read_text(encoding="utf-8")
+            self.assertIn("## Relationships", body)
+            self.assertIn(f"]({topic['document']})", readme)
+        second = self.cli(
+            "assemble-integration",
+            str(self.ledger),
+            str(self.spine),
+            str(workspace),
+            str(report),
+            "--checker",
+            str(ROOT / "skills/specspine-map/scripts/check_spine.py"),
+        )
+        self.assertEqual("already_integrated", second["status"])
+
     def test_integration_derived_answer_uses_distinct_outcome(self):
         self.source_pass()
         task_id, _ = self.task_for_unit("src/identity")
@@ -3713,7 +3842,7 @@ class MapCampaignTests(unittest.TestCase):
             ),
         )
         integrating = self.cli("next-action", str(self.ledger))
-        self.assertEqual("integrate", integrating["action"])
+        self.assertEqual("dispatch", integrating["action"])
         self.assertEqual(1, integrating["counts"]["review"])
 
     def test_blocked_producers_reach_report_blocked(self):

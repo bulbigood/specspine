@@ -38,9 +38,17 @@ Write exactly:
   "topics": [
     {
       "id": "session-lifecycle",
+      "document": "sessions/session-lifecycle.md",
       "title": "Session lifecycle",
       "responsibility": "Creates, validates, renews, and revokes sessions.",
       "reason": "These sources describe one durable stateful lifecycle.",
+      "relationships": [
+        {
+          "type": "depends-on",
+          "target": "audit-retention",
+          "reason": "Session transitions emit retained audit events."
+        }
+      ],
       "source_topic_ids": [
         "session-runtime/session-creation",
         "session-storage/session-revocation"
@@ -50,9 +58,11 @@ Write exactly:
   "covered": [
     {
       "id": "audit-retention",
+      "document": "security/audit.md",
       "title": "Audit retention",
       "responsibility": "Retains and expires security audit events.",
       "reason": "This source owns one durable security lifecycle.",
+      "relationships": [],
       "source_topic_ids": ["audit-storage/audit-retention"],
       "coverage_reason": "The canonical audit owner specifies this lifecycle.",
       "coverage": [
@@ -78,7 +88,12 @@ An open lead contains exactly `id`, `title`, `question`, `reason`, and
 `seed_files`. Final IDs are stable semantic lowercase kebab-case. Disposition
 every source topic as uncovered, covered, or supporting. Preserve one source
 in several final topics only for genuine independently useful responsibilities.
-Reread the complete result for cross-batch duplicates, missing boundaries,
-source-tree mirroring, and unsupported coverage. Do not edit the Spine, corpus,
-campaign, or repository. This is a provisional mapping: do not add `review`;
-only the independent reviewer may attest it.
+Assign every semantic topic one unique canonical Spine-relative Markdown
+`document`. Define the complete directed graph now: `relationships` contains
+only `type`, target owner `id`, and concrete `reason`. Every topic in a
+multi-topic plan needs an incoming or outgoing edge. Targets are topics in the
+same mapping or owner IDs already defined in SpecSpine. Use canonical
+predicates and never add reciprocal navigation edges. Reread the result for duplicates, missing
+boundaries, isolated nodes, weak edges, source-tree mirroring, and unsupported
+coverage. Do not edit the Spine, corpus, campaign, or repository. This is a
+provisional mapping: do not add `review`; only the reviewer may attest it.

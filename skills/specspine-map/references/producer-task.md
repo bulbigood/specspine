@@ -7,12 +7,12 @@ dependencies, failures, and boundaries. This file is the complete producer
 instruction set: do not load the Map `SKILL.md` or any other Map reference.
 Start with targeted `rg` and narrow excerpts, target at most 10,000 output tokens per call, and never dump complete large files; exceed the target only for a concrete unresolved boundary.
 
-`architecture_unit` names a topic accepted by the complete semantic synthesis
-pass; it is not a required document filename or guaranteed final owner. Verify
-the proposed responsibility against every evidence stratum. Prefer an existing
-canonical responsibility and correct a weak topic boundary in the draft;
-create or split a specification only for independently evolving ownership.
-Copy `evidence_baseline` exactly into every staged document.
+`architecture_unit`, `planned_document`, and `planned_relationships` come from
+the reviewed semantic graph. Verify the responsibility against every evidence
+stratum. A draft publishes exactly `planned_document` and defines the planned
+owner ID. Do not add, remove, or render graph edges: deterministic assembly
+owns `Relationships`. If evidence contradicts ownership or an edge, return
+`retry` with the exact correction needed. Copy `evidence_baseline` exactly.
 
 Write Markdown only in staging; write checkpoint to `<work-package>/checkpoint.json`.
 Do not edit the live Spine, repository source, tests, README, or campaign state;
@@ -28,8 +28,8 @@ specification and verify:
   repository-relative path, never prefix-inherited shorthand;
 - every staged owner has an evidence baseline and at least one v3 semantic
   `OBS` bullet; its baseline exactly matches the task packet;
-- supported relevant boundaries, interfaces, state, lifecycle, failures, and
-  relationships are present;
+- supported relevant boundaries, interfaces, state, lifecycle, and failures
+  are present;
 - semantic IDs are stable and links use the required complete labels;
 - implementation inventory and unsupported intent are absent;
 - every direction is a genuine unanswered question; keep required policy

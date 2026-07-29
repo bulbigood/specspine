@@ -36,6 +36,8 @@ class ProducerFinalizeTests(unittest.TestCase):
                         "id": "verify-identity",
                         "origin": "source-pass",
                         "units": ["src/identity"],
+                        "planned_document": "identity.md",
+                        "planned_relationships": [],
                         "anchor": None,
                         "evidence_strata": [
                             {

@@ -100,6 +100,13 @@ RELATION_ROW_RE = re.compile(
     r"\[[^\]]+\]\(([^)#?]+\.md)\)\s*\|",
     re.MULTILINE,
 )
+CORE_RELATIONS = {
+    "contains", "decomposes-into", "performs", "depends-on", "exposes",
+    "consumes", "publishes", "reads-from", "writes-to", "owns-data",
+    "constrained-by", "implemented-by", "has-evidence", "superseded-by",
+    "related-to", "refines", "satisfies", "verified-by", "specified-by",
+    "compatible-with", "migrates-from",
+}
 SUGGESTION_DISPOSITIONS = {"queued", "covered", "preserved", "rejected"}
 DEFERRED_CHECKER_CODES = {"UNREACHABLE_SPEC"}
 V3_ENVELOPE_BLOCKER_CODES = {
@@ -496,6 +503,26 @@ def document_hashes(spine_root: Path) -> dict[str, str]:
     return files
 
 
+def spine_owner_registry(spine_root: Path) -> dict[str, dict[str, str]]:
+    owners: dict[str, dict[str, str]] = {}
+    for path in sorted(spine_root.rglob("*.md")):
+        if not path.is_file():
+            continue
+        body = path.read_text(encoding="utf-8")
+        identity = DOCUMENT_IDENTITY_RE.search(body)
+        if identity is None:
+            continue
+        owner = identity.group(1)
+        title = re.search(r"^#\s+(.+?)\s*$", body, re.MULTILINE)
+        if owner in owners:
+            raise CampaignError(f"duplicate Spine owner ID: {owner}")
+        owners[owner] = {
+            "document": path.relative_to(spine_root).as_posix(),
+            "title": title.group(1).strip() if title else owner,
+        }
+    return owners
+
+
 def spine_changes(
     before: dict[str, str],
     after: dict[str, str],
@@ -678,6 +705,44 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
     architecture_unit = raw.get("architecture_unit")
     if architecture_unit is not None:
         architecture_unit = validate_relative_path(architecture_unit)
+    planned_document = raw.get("planned_document")
+    if planned_document is not None:
+        planned_document = validate_relative_path(planned_document)
+        if not planned_document.endswith(".md") or planned_document == "README.md":
+            raise CampaignError(
+                f"ToDo {task_id} planned_document must be non-index Markdown"
+            )
+    planned_relationships = raw.get("planned_relationships", [])
+    if not isinstance(planned_relationships, list):
+        raise CampaignError(f"ToDo {task_id} planned_relationships must be a list")
+    normalized_relationships: list[dict[str, str]] = []
+    relationship_keys: set[tuple[str, str]] = set()
+    for index, value in enumerate(planned_relationships, start=1):
+        if not isinstance(value, dict) or set(value) != {"type", "target", "reason"}:
+            raise CampaignError(
+                f"ToDo {task_id} relationship {index} needs type, target, and reason"
+            )
+        relation = value["type"]
+        if relation not in CORE_RELATIONS and (
+            not isinstance(relation, str)
+            or re.fullmatch(r"x-[a-z0-9]+(?:-[a-z0-9]+)*", relation) is None
+        ):
+            raise CampaignError(
+                f"ToDo {task_id} relationship {index} has invalid type"
+            )
+        target = validate_id(value["target"])
+        reason_text = value["reason"]
+        if not isinstance(reason_text, str) or not reason_text.strip():
+            raise CampaignError(
+                f"ToDo {task_id} relationship {index} needs a reason"
+            )
+        key = (relation, target)
+        if key in relationship_keys:
+            raise CampaignError(f"ToDo {task_id} repeats relationship {key}")
+        relationship_keys.add(key)
+        normalized_relationships.append(
+            {"type": relation, "target": target, "reason": reason_text.strip()}
+        )
     evidence_baseline = raw.get("evidence_baseline")
     if (
         evidence_baseline is not None
@@ -742,6 +807,11 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         "basis": basis,
         "units": units,
         "architecture_unit": architecture_unit,
+        "planned_document": planned_document,
+        "planned_relationships": sorted(
+            normalized_relationships,
+            key=lambda row: (row["type"], row["target"], row["reason"]),
+        ),
         "evidence_baseline": evidence_baseline,
         "evidence_strata": normalized_strata,
         "anchor": anchor,
@@ -775,6 +845,8 @@ def task_definition(task: dict[str, Any]) -> dict[str, Any]:
             "basis",
             "units",
             "architecture_unit",
+            "planned_document",
+            "planned_relationships",
             "evidence_baseline",
             "evidence_strata",
             "anchor",
@@ -2806,18 +2878,28 @@ def validate_topic_plan(
     def normalize_topic(value: Any, *, field: str) -> dict[str, Any]:
         if not isinstance(value, dict) or set(value) != {
             "id",
+            "document",
             "title",
             "responsibility",
             "reason",
+            "relationships",
             "files",
         }:
             raise CampaignError(
-                f"each {field} topic needs id, title, responsibility, reason, and files"
+                f"each {field} topic needs id, document, title, responsibility, "
+                "reason, relationships, and files"
             )
         topic_id = validate_id(value["id"])
         if topic_id in topic_ids:
             raise CampaignError(f"duplicate topic id: {topic_id}")
         topic_ids.add(topic_id)
+        document = validate_relative_path(value["document"])
+        if not document.endswith(".md") or (
+            field == "uncovered" and document == "README.md"
+        ):
+            raise CampaignError(
+                f"{field} topic {topic_id} document must be non-index Markdown"
+            )
         title = value["title"]
         responsibility = value["responsibility"]
         reason = value["reason"]
@@ -2848,11 +2930,52 @@ def validate_topic_plan(
             raise CampaignError(
                 f"{field} topic {topic_id} has unknown files: {unknown}"
             )
+        relationships: list[dict[str, str]] = []
+        relation_keys: set[tuple[str, str]] = set()
+        if not isinstance(value["relationships"], list):
+            raise CampaignError(
+                f"{field} topic {topic_id} relationships must be a list"
+            )
+        for index, row in enumerate(value["relationships"], start=1):
+            if not isinstance(row, dict) or set(row) != {
+                "type", "target", "reason"
+            }:
+                raise CampaignError(
+                    f"{field} topic {topic_id} relationship {index} is invalid"
+                )
+            relation = row["type"]
+            if relation not in CORE_RELATIONS and (
+                not isinstance(relation, str)
+                or re.fullmatch(r"x-[a-z0-9]+(?:-[a-z0-9]+)*", relation) is None
+            ):
+                raise CampaignError(
+                    f"{field} topic {topic_id} relationship type is invalid"
+                )
+            target = validate_id(row["target"])
+            meaning = row["reason"]
+            if not isinstance(meaning, str) or not meaning.strip():
+                raise CampaignError(
+                    f"{field} topic {topic_id} relationship reason is empty"
+                )
+            key = (relation, target)
+            if key in relation_keys:
+                raise CampaignError(
+                    f"{field} topic {topic_id} repeats relationship {key}"
+                )
+            relation_keys.add(key)
+            relationships.append(
+                {"type": relation, "target": target, "reason": meaning.strip()}
+            )
         return {
             "id": topic_id,
+            "document": document,
             "title": title.strip(),
             "responsibility": responsibility.strip(),
             "reason": reason.strip(),
+            "relationships": sorted(
+                relationships,
+                key=lambda row: (row["type"], row["target"], row["reason"]),
+            ),
             "files": sorted(files),
         }
 
@@ -2866,21 +2989,26 @@ def validate_topic_plan(
     for value in raw["covered"]:
         if not isinstance(value, dict) or set(value) != {
             "id",
+            "document",
             "title",
             "responsibility",
             "reason",
+            "relationships",
             "files",
             "coverage_reason",
             "coverage",
         }:
             raise CampaignError(
-                "each covered topic needs id, title, responsibility, reason, "
-                "files, coverage_reason, and coverage"
+                "each covered topic needs id, document, title, responsibility, "
+                "reason, relationships, files, coverage_reason, and coverage"
             )
         topic = normalize_topic(
             {
                 key: value[key]
-                for key in ("id", "title", "responsibility", "reason", "files")
+                for key in (
+                    "id", "document", "title", "responsibility", "reason",
+                    "relationships", "files",
+                )
             },
             field="covered",
         )
@@ -3008,6 +3136,27 @@ def validate_topic_plan(
         supporting,
         key=lambda value: (value["files"], value["reason"]),
     )
+    semantic_topics = normalized_topics + normalized_covered
+    semantic_ids = {topic["id"] for topic in semantic_topics}
+    existing_ids = set(spine_owner_registry(spine_root))
+    documents = [topic["document"] for topic in semantic_topics]
+    if len(documents) != len(set(documents)):
+        raise CampaignError("topic plan repeats canonical documents")
+    connected: set[str] = set()
+    for topic in semantic_topics:
+        for relationship in topic["relationships"]:
+            target = relationship["target"]
+            if target not in semantic_ids | existing_ids:
+                raise CampaignError(
+                    f"topic {topic['id']} targets unknown owner: {target}"
+                )
+            if target == topic["id"]:
+                raise CampaignError(f"topic {topic['id']} cannot relate to itself")
+            connected.update((topic["id"], target))
+    if len(semantic_topics) > 1:
+        isolated = sorted(semantic_ids - connected)
+        if isolated:
+            raise CampaignError(f"topic plan has isolated topics: {isolated}")
     return {
         "topics": normalized_topics,
         "covered": normalized_covered,
@@ -3091,6 +3240,8 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
                 "excludes": [],
                 "units": [f"topics/{topic['id']}"],
                 "architecture_unit": f"topics/{topic['id']}",
+                "planned_document": topic["document"],
+                "planned_relationships": topic["relationships"],
                 "evidence_baseline": evidence_baseline["marker"],
                 "evidence_strata": [
                     {"id": f"file-{index:03d}", "sample": path}
@@ -4386,6 +4537,341 @@ def command_prepare_integration(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+GENERATED_MAP_START = "<!-- specspine:generated-map:start -->"
+GENERATED_MAP_END = "<!-- specspine:generated-map:end -->"
+FACET_HEADINGS = {
+    "behavior": ("behavior", "lifecycle", "invariants"),
+    "interfaces": ("interfaces",),
+    "data": ("information model", "data ownership"),
+    "failure": ("failure behavior",),
+    "quality": ("quality constraints",),
+    "verification": ("verification",),
+}
+
+
+def replace_markdown_section(body: str, heading: str, replacement: str) -> str:
+    pattern = re.compile(
+        rf"^## {re.escape(heading)}\s*$.*?(?=^## |\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    replacement = replacement.rstrip() + "\n\n"
+    if pattern.search(body):
+        return pattern.sub(replacement, body, count=1).rstrip() + "\n"
+    return body.rstrip() + "\n\n" + replacement
+
+
+def replace_generated_map(readme: str, rows: list[str]) -> str:
+    block = (
+        f"{GENERATED_MAP_START}\n"
+        "## Generated architecture map\n\n"
+        + "\n".join(rows)
+        + f"\n{GENERATED_MAP_END}"
+    )
+    pattern = re.compile(
+        rf"{re.escape(GENERATED_MAP_START)}.*?{re.escape(GENERATED_MAP_END)}",
+        re.DOTALL,
+    )
+    if pattern.search(readme):
+        return pattern.sub(block, readme, count=1).rstrip() + "\n"
+    return readme.rstrip() + "\n\n" + block + "\n"
+
+
+def conservative_facets(body: str) -> dict[str, str]:
+    headings = {
+        value.strip().lower()
+        for value in re.findall(r"^##\s+(.+?)\s*$", body, re.MULTILINE)
+    }
+    facets = {
+        "architecture": "partial",
+        "behavior": "missing",
+        "interfaces": "missing",
+        "data": "missing",
+        "failure": "missing",
+        "quality": "missing",
+        "verification": "missing",
+    }
+    for facet, names in FACET_HEADINGS.items():
+        if any(any(name in heading for name in names) for heading in headings):
+            facets[facet] = "partial"
+    return facets
+
+
+def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
+    current = load(args.ledger)
+    source_pass = current.get("source_pass")
+    if not isinstance(source_pass, dict):
+        raise CampaignError("assemble-integration requires source-pass")
+    settled = {
+        task["id"]: task
+        for task in current["tasks"].values()
+        if task["state"] in {"published", "review"}
+    }
+    if not settled:
+        unfinished = [
+            task["id"]
+            for task in current["tasks"].values()
+            if task["state"] != "complete"
+        ]
+        if unfinished:
+            raise CampaignError(
+                f"assemble-integration needs settled producers: {unfinished}"
+            )
+        return {"status": "already_integrated", "reviewed_tasks": 0}
+    unfinished = [
+        task["id"]
+        for task in current["tasks"].values()
+        if task["state"] in {"todo", "assigned"}
+    ]
+    if unfinished:
+        raise CampaignError(
+            "assemble-integration waits for every producer; unfinished="
+            f"{sorted(unfinished)}"
+        )
+    exceptions: list[dict[str, Any]] = []
+    for task in settled.values():
+        if task["state"] != "published":
+            exceptions.append(
+                {
+                    "task": task["id"],
+                    "code": "non-draft-outcome",
+                    "state": task["state"],
+                }
+            )
+        if task.get("producer_suggestions"):
+            exceptions.append(
+                {
+                    "task": task["id"],
+                    "code": "producer-directions",
+                    "suggestions": task["producer_suggestions"],
+                }
+            )
+    if exceptions:
+        return {"status": "needs_semantic_review", "exceptions": exceptions}
+
+    plan = source_pass["topic_plan"]
+    topics = {topic["id"]: topic for topic in plan["topics"] + plan["covered"]}
+    topic_tasks = source_pass["topic_tasks"]
+    workspace = args.workspace.resolve()
+    report_path = args.report.resolve()
+    repository_root = repository_root_from_ledger(current)
+    require_outside_repository(
+        workspace, repository_root, field="integration workspace"
+    )
+    require_outside_repository(
+        report_path, repository_root, field="integration report"
+    )
+    input_digest = digest_json(
+        {
+            "spine_snapshot": ledger_spine_snapshot(current),
+            "topic_plan": plan["digest"],
+            "settled": [
+                {
+                    "id": task["id"],
+                    "checkpoint": task["checkpoint_digest"],
+                    "staging": task["accepted_staging_digest"],
+                }
+                for task in sorted(settled.values(), key=lambda row: row["id"])
+            ],
+        }
+    )
+    assembly_manifest = workspace.parent / f".{workspace.name}.map-assembly.json"
+    if workspace.exists():
+        recorded = (
+            read_json(assembly_manifest) if assembly_manifest.is_file() else {}
+        )
+        if (
+            recorded.get("input_digest") != input_digest
+            or recorded.get("workspace") != str(workspace)
+            or not report_path.is_file()
+            or recorded.get("workspace_digest") != path_digest(workspace)
+            or recorded.get("report_digest")
+            != hashlib.sha256(report_path.read_bytes()).hexdigest()
+        ):
+            raise CampaignError("existing assembly workspace is stale")
+    else:
+        shutil.copytree(args.spine_root.resolve(), workspace)
+        try:
+            for topic_id, task_id in topic_tasks.items():
+                task = settled.get(task_id)
+                if task is None:
+                    continue
+                topic = topics[topic_id]
+                candidates = accepted_candidates(task)
+                if set(candidates) != {topic["document"]}:
+                    raise CampaignError(
+                        f"producer {task_id} must publish canonical document "
+                        f"{topic['document']}; actual={sorted(candidates)}"
+                    )
+                destination = workspace / topic["document"]
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(candidates[topic["document"]], destination)
+
+            owner_registry = spine_owner_registry(workspace)
+            owner_registry.update(
+                {
+                    topic["id"]: {
+                        "document": topic["document"],
+                        "title": topic["title"],
+                    }
+                    for topic in topics.values()
+                }
+            )
+            for topic in topics.values():
+                document = workspace / topic["document"]
+                if not document.is_file():
+                    raise CampaignError(
+                        f"canonical graph document is absent: {topic['document']}"
+                    )
+                body = document.read_text(encoding="utf-8")
+                identity = DOCUMENT_IDENTITY_RE.search(body)
+                if identity is None or identity.group(1) != topic["id"]:
+                    raise CampaignError(
+                        f"canonical document {topic['document']} must define "
+                        f"owner ID {topic['id']}"
+                    )
+                rows: list[str] = []
+                for relationship in topic["relationships"]:
+                    target = owner_registry[relationship["target"]]
+                    relative = os.path.relpath(
+                        workspace / target["document"], start=document.parent
+                    )
+                    title = target["title"].replace("|", "\\|")
+                    meaning = relationship["reason"].replace("|", "\\|")
+                    rows.append(
+                        f"| `{relationship['type']}` | "
+                        f"[{title}]({Path(relative).as_posix()}) | {meaning} |"
+                    )
+                if rows:
+                    section = (
+                        "## Relationships\n\n"
+                        "| Relation | Target | Meaning |\n"
+                        "|---|---|---|\n"
+                        + "\n".join(rows)
+                    )
+                    body = replace_markdown_section(body, "Relationships", section)
+                else:
+                    body = re.sub(
+                        r"^## Relationships\s*$.*?(?=^## |\Z)",
+                        "",
+                        body,
+                        count=1,
+                        flags=re.MULTILINE | re.DOTALL,
+                    ).rstrip() + "\n"
+                document.write_text(body, encoding="utf-8")
+
+            readme_path = workspace / "README.md"
+            readme = readme_path.read_text(encoding="utf-8")
+            navigation = [
+                f"- [{owner['title']}]({owner['document']})"
+                for owner in sorted(
+                    owner_registry.values(),
+                    key=lambda row: (row["title"], row["document"]),
+                )
+            ]
+            readme_path.write_text(
+                replace_generated_map(readme, navigation), encoding="utf-8"
+            )
+
+            manifest = read_json(workspace / "specspine.json")
+            areas = {
+                area["owner"]: area
+                for area in manifest.get("areas", [])
+                if isinstance(area, dict) and isinstance(area.get("owner"), str)
+            }
+            for topic in topics.values():
+                body = (workspace / topic["document"]).read_text(encoding="utf-8")
+                previous = areas.get(topic["id"], {})
+                blockers = previous.get("blockers", [])
+                derived = conservative_facets(body)
+                previous_facets = previous.get("facets", {})
+                facets = {
+                    name: (
+                        previous_facets[name]
+                        if previous_facets.get(name) in {
+                            "partial", "complete", "blocked", "not-applicable"
+                        }
+                        else derived[name]
+                    )
+                    for name in derived
+                }
+                areas[topic["id"]] = {
+                    "owner": topic["id"],
+                    "facets": facets,
+                    "blockers": blockers if isinstance(blockers, list) else [],
+                }
+            manifest["areas"] = [areas[key] for key in sorted(areas)]
+            atomic_write(workspace / "specspine.json", manifest)
+
+            changed = spine_changes(
+                ledger_spine_snapshot(current), document_hashes(workspace)
+            )
+            report = {
+                "evidence_inspected": sorted(
+                    topic["document"] for topic in topics.values()
+                ),
+                "changed_documents": changed,
+                "task_reviews": [
+                    {
+                        "task": task["id"],
+                        "disposition": "integrated",
+                        "reason": (
+                            "Canonical owner and graph edges were accepted by "
+                            "the reviewed synthesis plan."
+                        ),
+                    }
+                    for task in sorted(settled.values(), key=lambda row: row["id"])
+                ],
+                "suggestion_reviews": [],
+                "todo": [],
+                "organization": {
+                    "status": "flat_sufficient",
+                    "reason": (
+                        "Canonical paths and navigation are fixed by the reviewed "
+                        "semantic graph."
+                    ),
+                },
+                "terminal_reason": (
+                    "no integration-derived ToDo: producers emitted no semantic "
+                    "exceptions and the complete synthesized graph was assembled"
+                ),
+            }
+            atomic_write(report_path, report)
+            atomic_write(
+                assembly_manifest,
+                {
+                    "kind": "integration-assembly",
+                    "workspace": str(workspace),
+                    "report": str(report_path),
+                    "input_digest": input_digest,
+                    "workspace_digest": path_digest(workspace),
+                    "report_digest": hashlib.sha256(
+                        report_path.read_bytes()
+                    ).hexdigest(),
+                },
+            )
+        except Exception:
+            shutil.rmtree(workspace, ignore_errors=True)
+            report_path.unlink(missing_ok=True)
+            assembly_manifest.unlink(missing_ok=True)
+            raise
+
+    result = command_integration_pass(
+        argparse.Namespace(
+            ledger=args.ledger,
+            spine_root=args.spine_root,
+            workspace=workspace,
+            report=report_path,
+            checker=args.checker,
+        )
+    )
+    return {
+        **result,
+        "status": "assembled_and_integrated",
+        "workspace": str(workspace),
+        "report": str(report_path),
+    }
+
+
 def publish_integration_workspace(
     spine_root: Path,
     workspace: Path,
@@ -5164,10 +5650,6 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
         action = "report_blocked"
         may_finish = True
         reason = "campaign has only terminal blockers"
-    elif states["published"] or states["review"]:
-        action = "integrate"
-        may_finish = False
-        reason = "settled producer results require root integration"
     elif states["assigned"]:
         action = "wait"
         may_finish = False
@@ -5176,6 +5658,10 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
         action = "dispatch"
         may_finish = False
         reason = "ready verification work remains"
+    elif states["published"] or states["review"]:
+        action = "integrate"
+        may_finish = False
+        reason = "all producer waves settled; assemble the reviewed graph"
     else:
         action = "repair"
         may_finish = False
@@ -5567,6 +6053,16 @@ def parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path(__file__).with_name("check_spine.py"),
     )
+    assemble = sub.add_parser("assemble-integration")
+    assemble.add_argument("ledger", type=Path)
+    assemble.add_argument("spine_root", type=Path)
+    assemble.add_argument("workspace", type=Path)
+    assemble.add_argument("report", type=Path)
+    assemble.add_argument(
+        "--checker",
+        type=Path,
+        default=Path(__file__).with_name("check_spine.py"),
+    )
 
     next_action = sub.add_parser("next-action")
     next_action.add_argument("ledger", type=Path)
@@ -5607,6 +6103,7 @@ def main() -> int:
         "accept-wave": command_accept_wave,
         "prepare-integration": command_prepare_integration,
         "integration-pass": command_integration_pass,
+        "assemble-integration": command_assemble_integration,
         "next-action": command_next_action,
         "recover": command_recover,
     }

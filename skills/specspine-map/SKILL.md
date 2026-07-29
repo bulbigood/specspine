@@ -59,9 +59,10 @@ Neither terminal claims that no conceivable architectural concept exists.
 - Start new files from `assets/templates/`; omit empty sections.
 ## Authorities
 
-Discovery finds evidence; synthesis alone defines semantic topics and checks
-existing coverage; producers verify one topic and stage private output; root
-alone chooses canonical ownership and publishes a checked workspace. Discovery
+Discovery finds evidence; synthesis defines topics, canonical documents, the
+typed graph, and existing coverage; producers verify one topic and stage its
+assigned document; deterministic assembly publishes clean results. Root handles
+only explicit semantic exceptions. Discovery
 hierarchy, inventory pages, paths, and filenames never define architecture.
 Scouts write semantic drafts; `discovery_finalize.py` alone derives and
 atomically publishes canonical discovery results.
@@ -96,5 +97,4 @@ Synthesis agents operate on scout descriptions and provenance IDs, never on
 bulk file lists. `synthesis.py` alone copies singleton semantics, validates
 reducer coverage, exposes original descriptions only for reducer merges,
 resolves IDs back to corpus evidence, requires independent review attestation,
-reports suspicious coverage or granularity, and atomically writes the sole
-canonical topic plan.
+reports suspicious coverage or granularity, and atomically writes the sole canonical topic plan.

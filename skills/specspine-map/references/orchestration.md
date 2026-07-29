@@ -193,7 +193,9 @@ python3 <skill>/scripts/synthesis.py merge \
 Give the global packet to one fresh strong-tier synthesizer under
 `topic-synthesis.md`. It writes a semantic mapping containing exactly
 `topics`, `covered`, `supporting`, `open_leads`, and `deferred_leads`, with
-`source_topic_ids` instead of files.
+`source_topic_ids` instead of files. Every semantic topic fixes its unique
+canonical `document` and typed `relationships`; synthesis produces the future
+Spine graph before production.
 
 Give that mapping and the same global packet to one fresh medium-tier reviewer
 under `topic-review.md`. The reviewer returns compact `accept` or a complete
@@ -238,7 +240,7 @@ python3 <skill>/scripts/campaign.py source-pass \
 Only uncovered `topics` become producer tasks.
 ## Produce
 
-For every `dispatch` action, create one strict wave:
+For every `dispatch` action, create one strict resource wave:
 
 ```text
 python3 <skill>/scripts/campaign.py ready <campaign> --limit 5
@@ -266,32 +268,25 @@ python3 <skill>/scripts/campaign.py accept-wave \
   <campaign> <handoffs> <spine-root> <harvest-receipts>
 ```
 
-Acceptance validates evidence and staging but never publishes.
+Acceptance validates evidence and staging but never publishes. Waves are only
+concurrency barriers: do not integrate between them. Continue until every
+producer task is settled.
 ## Integrate
 
-Read `integration-pass.md`. Create a private copy of the current Spine:
+Run deterministic assembly:
 
 ```text
-python3 <skill>/scripts/campaign.py prepare-integration \
-  <campaign> <spine-root> <workspace>
-```
-
-Its adjacent manifest binds source snapshot and settled tasks. Repeating
-continues root's edits; a missing or stale manifest blocks reuse.
-
-Resolve ownership and duplication, merge accepted drafts, update navigation and
-manifest, disposition every task and suggestion, and write the required
-integration report. Exhaustive integration may derive evidence-backed ToDo;
-increment integration may not.
-
-```text
-python3 <skill>/scripts/campaign.py integration-pass \
+python3 <skill>/scripts/campaign.py assemble-integration \
   <campaign> <spine-root> <workspace> <report.json>
 ```
 
-The command checks the complete workspace and publishes the workspace plus
-ledger transition atomically. Repeat production and integration until
-`next-action` returns `finalize`.
+It requires all waves settled, enforces canonical producer paths, materializes
+reviewed relationships, README navigation, conservative manifest facets, task
+reviews, and the exact delta, then checks and publishes atomically. Repeat it
+after interruption; matching inputs are idempotent. If it returns
+`needs_semantic_review`, read `integration-pass.md` and use
+`prepare-integration` plus `integration-pass` only for the reported ownership,
+direction, conflict, or graph exceptions. Never manually review clean drafts.
 ## Finish
 
 Before every response:
