@@ -14,7 +14,7 @@ from typing import Any
 import campaign
 
 
-SYNTHESIS_CONTRACT_VERSION = 6
+SYNTHESIS_CONTRACT_VERSION = 7
 MAX_EVIDENCE_STRATA = 8
 
 def source_topics(

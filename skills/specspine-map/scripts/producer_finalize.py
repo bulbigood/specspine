@@ -294,6 +294,10 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
     validate_covered_owner(checkpoint, task, spine_root, evidence)
     if checkpoint["outcome"] == "draft":
         validate_draft_semantics(staged, task)
+        try:
+            campaign.validate_map_candidate_policy(staged, spine_root)
+        except campaign.CampaignError as error:
+            raise PreflightError(str(error)) from error
         run_candidate_checker(
             args.checker.resolve(),
             spine_root,

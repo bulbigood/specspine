@@ -157,6 +157,15 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("A path match, navigation entry, or broad neighboring owner is not coverage", text)
         self.assertIn("repository evidence cannot answer what the system should guarantee", text)
 
+    def test_synthesis_uses_directional_relationship_semantics(self):
+        synthesis = self.compact(self.synthesis)
+        self.assertIn("`publishes` makes an event, intent, or result available", synthesis)
+        self.assertIn("`writes-to` directly mutates", synthesis)
+        self.assertIn("`migrates-from` points from the successor", synthesis)
+        self.assertIn("Every reason names the concrete event", synthesis)
+        self.assertIn("Reciprocal edges require two distinct directed interactions", synthesis)
+        self.assertIn("omit a doubtful edge or preserve a question", synthesis)
+
     def test_producer_is_one_shot_private_and_checked(self):
         producer = self.compact(self.producer)
         protocol = self.compact(self.protocol)

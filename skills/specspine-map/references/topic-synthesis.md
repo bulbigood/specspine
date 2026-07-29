@@ -95,21 +95,21 @@ An open lead contains exactly `id`, `title`, `question`, `reason`, and
 `seed_files`. Final IDs are stable semantic lowercase kebab-case. Disposition
 every source topic as uncovered, covered, or supporting. Preserve one source
 in several final topics only for genuine independently useful responsibilities.
-Assign every semantic topic one unique canonical Spine-relative Markdown
-`document`. Define the complete directed graph now: `relationships` contains
-only `type`, target owner `id`, and concrete `reason`. For every topic, inspect
-its described inputs, outputs, dependencies, consumers, data ownership, and
-runtime coordination against every other canonical topic. Add each supported
-architecturally useful edge once. Do not omit an edge merely because index
-navigation makes both nodes reachable. A topic in a multi-topic plan may
-remain isolated only after this explicit audit finds no high-confidence edge.
-Targets are topics in the same mapping or owner IDs already defined in
-SpecSpine. Use canonical predicates, omit doubtful edges, and never add
-reciprocal navigation edges. Reread the result for duplicates, missing
-boundaries, missing data/control-flow edges, weak edges, source-tree mirroring,
-and unsupported coverage. Do not edit the Spine, corpus, campaign, or
-repository. This mapping becomes the canonical production plan after
-deterministic materialization.
+Assign each topic one canonical `document` and define its directed graph using
+only `type`, target owner `id`, and concrete `reason`. Audit inputs, outputs,
+dependencies, consumers, owned data, and runtime coordination across all topics.
+Use predicates operationally: `publishes` makes an event, intent, or result available without implying mutation; `consumes` processes such output;
+`reads-from` obtains target-owned data; `writes-to` directly mutates it;
+`owns-data` assigns authoritative state ownership; `depends-on` means the source
+cannot fulfill its responsibility without the target; `migrates-from` points
+from the successor contract or format to its predecessor. Use `related-to` only
+when no precise predicate is justified. Every reason names the concrete event,
+intent, state, data, or contract and its architectural consequence.
+Add each high-confidence useful edge once; omit a doubtful edge or preserve a
+question. Reciprocal edges require two distinct directed interactions with
+different objects or consequences, never backlinks or navigation. A topic may
+remain isolated only after this explicit audit. Targets are planned or existing owners.
+Reread for duplicates, missing data/control-flow edges, weak edges, and unsupported coverage. Do not edit inputs; materialization publishes the canonical plan.
 
 State the disposition in existing reason fields: `covered-by-intent`,
 `implementation-freedom`, `retain-observation`, `retain-divergence`,

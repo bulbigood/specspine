@@ -22,6 +22,7 @@ Evidence may include neighboring owners to prove a boundary. Do not turn those
 files into observations owned by this document and do not restate behavior of
 `planned_relationships` targets. Keep accepted narrative and claims unchanged unless the existing Spine or an explicit user decision supplies accepted intent.
 Code, tests, schemas, and runtime evidence establish only repository observations; place material deltas in `OBS`, and never rewrite matching code behavior into accepted prose.
+Preflight rejects changed normative claims and any `OBS` without non-test evidence; tests alone establish repository expectations, so preserve the question for later verification.
 
 Read packet `operation`, `current_owner`, and `related_existing_owners` first; the latter resolves existing relationship targets to canonical documents. In every operation, make one targeted facet pass across applicable observable
 architecture, behavior, interfaces, data/state ownership, and failure or

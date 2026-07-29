@@ -37,7 +37,7 @@ from spec_contract import CORE_RELATIONS, canonical_heading, presentation
 
 
 SCHEMA_VERSION = 14
-PRODUCER_CONTRACT_VERSION = 8
+PRODUCER_CONTRACT_VERSION = 9
 DISCOVERY_CONTRACT_VERSION = 4
 MAX_UNIT_FILES = 80
 MAX_SCOUT_SEED_FILES = 40
@@ -97,6 +97,12 @@ OBS_DEFINITION_RE = re.compile(
     r"^ {0,3}[-+*]\s+\*\*OBS-[a-z0-9]+(?:-[a-z0-9]+)*\*\*\s+—\s+\S",
     re.MULTILINE,
 )
+SEMANTIC_DEFINITION_RE = re.compile(
+    r"^ {0,3}[-+*]\s+\*\*((?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-"
+    r"[a-z0-9]+(?:-[a-z0-9]+)*)\*\*\s+—\s+\S",
+    re.MULTILINE,
+)
+NORMATIVE_PREFIXES = ("DEC-", "CON-", "REQ-", "GUA-", "INV-", "QLT-", "VER-")
 DOCUMENT_IDENTITY_RE = re.compile(
     r"^\*\*ID:\*\*\s+`([a-z0-9]+(?:-[a-z0-9]+)*)`\s+·\s+"
     r"\*\*Kind:\*\*\s+`((?!index`)[^`]+)`\s*$",
@@ -4187,6 +4193,88 @@ def validate_draft_semantics(
             )
 
 
+def semantic_definition_blocks(body: str) -> dict[str, str]:
+    lines = body.splitlines()
+    starts = [
+        (index, match.group(1))
+        for index, line in enumerate(lines)
+        if (match := SEMANTIC_DEFINITION_RE.match(line))
+    ]
+    result: dict[str, str] = {}
+    for position, (start, identifier) in enumerate(starts):
+        next_definition = (
+            starts[position + 1][0] if position + 1 < len(starts) else len(lines)
+        )
+        end = next_definition
+        for index in range(start + 1, next_definition):
+            if lines[index].startswith("## ") or lines[index].strip().startswith(
+                "<!-- specspine:semantic-ids:end"
+            ):
+                end = index
+                break
+        result[identifier] = "\n".join(
+            line.rstrip() for line in lines[start:end]
+        ).rstrip()
+    return result
+
+
+def test_evidence_path(value: str) -> bool:
+    path = Path(value)
+    components = {part.casefold() for part in path.parts}
+    name = path.name.casefold()
+    return bool(
+        components & TEST_COMPONENTS
+        or name.startswith("test_")
+        or re.search(r"(?:^|[._-])(?:test|spec)(?:[._-]|$)", name)
+    )
+
+
+def validate_map_candidate_policy(
+    staging: dict[str, Path],
+    spine_root: Path,
+) -> None:
+    for relative, candidate in staging.items():
+        candidate_blocks = semantic_definition_blocks(
+            candidate.read_text(encoding="utf-8")
+        )
+        candidate_normative = {
+            identifier: block
+            for identifier, block in candidate_blocks.items()
+            if identifier.startswith(NORMATIVE_PREFIXES)
+        }
+        live = spine_root / relative
+        live_normative = (
+            {
+                identifier: block
+                for identifier, block in semantic_definition_blocks(
+                    live.read_text(encoding="utf-8")
+                ).items()
+                if identifier.startswith(NORMATIVE_PREFIXES)
+            }
+            if live.is_file()
+            else {}
+        )
+        if candidate_normative != live_normative:
+            raise CampaignError(
+                "Map cannot add, remove, or change accepted normative claims; "
+                f"use Evolve: {relative}"
+            )
+        for identifier, block in candidate_blocks.items():
+            if not identifier.startswith("OBS-"):
+                continue
+            marker = block.find("Evidence:")
+            evidence = (
+                re.findall(r"`([^`\n]+)`", block[marker + len("Evidence:") :])
+                if marker >= 0
+                else []
+            )
+            if evidence and all(test_evidence_path(value) for value in evidence):
+                raise CampaignError(
+                    f"{identifier} uses only test evidence; tests establish "
+                    "repository expectations, not actual behavior"
+                )
+
+
 def harvest_receipt(
     ledger: dict[str, Any],
     task_id: str,
@@ -4200,6 +4288,7 @@ def harvest_receipt(
     status, directions, coverage = validate_checkpoint(raw, staging)
     if status == "draft":
         validate_draft_semantics(staging, task)
+        validate_map_candidate_policy(staging, spine_root)
     candidates = infer_candidates(staging, spine_root)
     if task["state"] != "assigned":
         raise CampaignError(f"harvest requires assigned task: {task_id}")

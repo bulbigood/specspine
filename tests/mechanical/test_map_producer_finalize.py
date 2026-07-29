@@ -378,6 +378,64 @@ class ProducerFinalizeTests(unittest.TestCase):
         self.assertIn("semantic OBS definition", error["error"])
         self.assertTrue(self.work.is_dir())
 
+    def test_new_draft_cannot_add_normative_claim(self):
+        (self.work / "staging" / "identity.md").write_text(
+            "# Identity\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "- **GUA-identity-available** — Identity remains available.\n"
+            "- **OBS-identity-session** — Session code exists. "
+            "Evidence: `src/identity/session.py`.\n",
+            encoding="utf-8",
+        )
+        self.checkpoint()
+
+        error = self.execute(expected=2)
+
+        self.assertIn("cannot add, remove, or change", error["error"])
+        self.assertTrue(self.work.is_dir())
+
+    def test_existing_draft_cannot_change_normative_claim(self):
+        (self.spine / "identity.md").write_text(
+            "# Identity\n\n"
+            "- **GUA-identity-available** — Identity remains available.\n",
+            encoding="utf-8",
+        )
+        (self.work / "staging" / "identity.md").write_text(
+            "# Identity\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "- **GUA-identity-available** — Identity is always available.\n"
+            "- **OBS-identity-session** — Session code exists. "
+            "Evidence: `src/identity/session.py`.\n",
+            encoding="utf-8",
+        )
+        self.checkpoint()
+
+        error = self.execute(expected=2)
+
+        self.assertIn("cannot add, remove, or change", error["error"])
+
+    def test_observation_cannot_rely_only_on_test_evidence(self):
+        tests = self.repository / "tests"
+        tests.mkdir()
+        (tests / "test_identity.py").write_text("pass\n", encoding="utf-8")
+        (self.work / "staging" / "identity.md").write_text(
+            "# Identity\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "- **OBS-identity-refresh** — Sessions refresh automatically. "
+            "Evidence: `tests/test_identity.py`.\n",
+            encoding="utf-8",
+        )
+        self.checkpoint(
+            evidence=["src/identity/session.py", "tests/test_identity.py"]
+        )
+
+        error = self.execute(expected=2)
+
+        self.assertIn("uses only test evidence", error["error"])
+
     def test_answered_rejects_normative_owner_claim(self):
         packet = json.loads(self.packet.read_text(encoding="utf-8"))
         packet["task"]["origin"] = "integration-1"
