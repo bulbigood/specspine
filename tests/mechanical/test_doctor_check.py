@@ -379,6 +379,18 @@ class DoctorCheckerV3Tests(unittest.TestCase):
 
         self.assertIn("MALFORMED_ID_DEFINITION", self.codes(root))
 
+    def test_observation_definition_belongs_only_under_observed(self):
+        root = self.spine(
+            payment=PAYMENTS.replace(
+                "## Observed\n\n"
+                "- **OBS-provider-duplicates**",
+                "## Responsibility\n\n"
+                "- **OBS-provider-duplicates**",
+            )
+        )
+
+        self.assertIn("ID_SECTION", self.codes(root))
+
     def test_validates_divergence_statement_kinds(self):
         root = self.spine(payment=PAYMENTS.replace(
             "[CON-payment-idempotency](payments.md)",

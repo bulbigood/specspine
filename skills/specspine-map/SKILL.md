@@ -13,6 +13,10 @@ scope → discovery → synthesis → production → integration → verificatio
 Repository evidence establishes `OBS`, not accepted intent. Preserve
 uncertainty and code/spec disagreement; never infer decisions, constraints,
 requirements, guarantees, or conformance.
+Map may add observations to an existing canonical owner, but it must not split,
+merge, move, rename, replace, decompose, or redistribute existing Spine
+documents. Reorganization of accepted ownership and document topology belongs
+exclusively to Evolve.
 An `OBS` is an exception layer, not a code mirror. Retain one only for an
 architecture-significant intent gap, divergence, unresolved question, or
 surprising owner/boundary. Evidence already represented by intent is
@@ -40,6 +44,9 @@ Both completion policies use the same artifacts and state machine:
 
 Neither terminal claims that no conceivable architectural concept exists.
 `increment_verified` never claims scope completeness.
+For exhaustive completion, every peer family exposed by inspected evidence
+must be dispositioned or retained as an `open_lead`; otherwise Map cannot reach
+`scope_verified`.
 ## Required references
 
 - Read [references/spec-semantics.md](references/spec-semantics.md) before

@@ -4,9 +4,7 @@ semantic mapping. Source titles, responsibilities, reasons, and shared
 discovery context through `leads` define the input; IDs are references only.
 Never read, copy, or invent file lists. Discovery hierarchy and lead
 boundaries are provenance, not architecture.
-Use only predicates listed in `allowed_relationship_types` from the synthesis
-packet unless a genuinely project-specific `x-*` relation is unavoidable.
-
+Use only predicates listed in `allowed_relationship_types` from the synthesis packet unless a genuinely project-specific `x-*` relation is unavoidable. `existing_owners` maps current owner IDs to canonical documents and titles; use it for existing graph targets and uncovered owner updates.
 First perform one global semantic pass across all sources. Merge sources that
 express one durable responsibility even when parents or names differ. Keep
 independently evolving responsibilities separate. Remove directory-shaped,
@@ -15,7 +13,6 @@ descriptions establish a project-specific architectural contract. Resolve
 overlap by responsibility, interfaces, lifecycle, state, data ownership,
 failures, and consumers. Then enforce the operation's inclusion and exclusion
 rules, classify existing coverage, and construct the complete graph.
-
 Do not create a topic merely for a facet such as failures, configuration,
 interfaces, tests, or observability. Keep that facet with its responsible
 owner unless the sources establish an independently evolving mechanism with
@@ -28,6 +25,7 @@ For exhaustive completion, detect responsibilities or boundaries exposed but
 never expanded and place them in `open_leads`. Return no `deferred_leads`. For
 increment completion, return no open leads and reproduce the corpus
 `deferred_leads` exactly.
+For exhaustive completion, audit peer families exposed by evidence in `peer_family_review`; each must be dispositioned or retained as an open lead. Use `none-found` only with a concrete reason; increment may use `not-required`.
 
 When discovery is closed, classify every canonical topic in sequence. For
 each, use SpecSpine semantic extraction to find candidate owners, then compare
@@ -39,6 +37,7 @@ classify this as `covered-by-intent` without requiring owner evidence paths.
 When an owner has a material gap, keep one uncovered update topic for it. An empty Spine
 covers nothing; an existing Spine with zero covered topics requires explicit
 review rather than silent acceptance.
+Map updates an existing owner only in place, preserving its ID, path, kind, accepted claims, and boundary. Never split, merge, move, rename, replace, redistribute, or add child owners to decompose existing documents; only Evolve reorganizes the Spine. Preserve suggested topology changes as evidence or an open question.
 Write exactly:
 
 ```json
@@ -88,7 +87,8 @@ Write exactly:
     }
   ],
   "open_leads": [],
-  "deferred_leads": []
+  "deferred_leads": [],
+  "peer_family_review": {"status": "none-found", "reason": "No peer family is exposed by this boundary.", "source_topic_ids": [], "open_lead_ids": []}
 }
 ```
 An open lead contains exactly `id`, `title`, `question`, `reason`, and

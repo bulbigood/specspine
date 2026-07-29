@@ -37,7 +37,7 @@ from spec_contract import CORE_RELATIONS, canonical_heading, presentation
 
 
 SCHEMA_VERSION = 14
-PRODUCER_CONTRACT_VERSION = 6
+PRODUCER_CONTRACT_VERSION = 8
 DISCOVERY_CONTRACT_VERSION = 4
 MAX_UNIT_FILES = 80
 MAX_SCOUT_SEED_FILES = 40
@@ -577,6 +577,25 @@ def planned_owner_profile(
     }
 
 
+def related_existing_owners(
+    ledger: dict[str, Any],
+    task: dict[str, Any],
+) -> list[dict[str, str]]:
+    source_pass = ledger.get("source_pass")
+    if not isinstance(source_pass, dict):
+        return []
+    registry = spine_owner_registry(Path(source_pass["spine_root"]))
+    owner_ids = {
+        relationship["target"]
+        for relationship in task.get("planned_relationships", [])
+        if relationship.get("target") in registry
+    }
+    return [
+        {"id": owner, **registry[owner]}
+        for owner in sorted(owner_ids)
+    ]
+
+
 def spine_changes(
     before: dict[str, str],
     after: dict[str, str],
@@ -651,6 +670,17 @@ def validate_reported_spine_changes(
 
 
 def atomic_write(path: Path, value: dict[str, Any]) -> None:
+    atomic_write_bytes(path, canonical_json(value) + b"\n")
+
+
+def atomic_write_pretty(path: Path, value: dict[str, Any]) -> None:
+    payload = (
+        json.dumps(value, ensure_ascii=False, indent=2) + "\n"
+    ).encode("utf-8")
+    atomic_write_bytes(path, payload)
+
+
+def atomic_write_bytes(path: Path, payload: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
         dir=path.parent,
@@ -660,7 +690,7 @@ def atomic_write(path: Path, value: dict[str, Any]) -> None:
     temporary_path = Path(temporary_name)
     try:
         with os.fdopen(descriptor, "wb") as stream:
-            stream.write(canonical_json(value) + b"\n")
+            stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
         os.chmod(temporary_path, 0o600)
@@ -1766,6 +1796,7 @@ def command_discovery_reopen(args: argparse.Namespace) -> dict[str, Any]:
         "supporting",
         "open_leads",
         "deferred_leads",
+        "peer_family_review",
     }:
         raise CampaignError("synthesis topic plan shape is invalid")
     if not isinstance(plan["open_leads"], list) or not plan["open_leads"]:
@@ -2934,10 +2965,11 @@ def validate_topic_plan(
         "supporting",
         "open_leads",
         "deferred_leads",
+        "peer_family_review",
     }:
         raise CampaignError(
             "topic plan needs exactly topics, covered, supporting, open_leads, "
-            "and deferred_leads"
+            "deferred_leads, and peer_family_review"
         )
     if any(
         not isinstance(raw[field], list)
@@ -2958,6 +2990,24 @@ def validate_topic_plan(
             "before source-pass"
         )
     completion_kind = operation["completion"]["kind"]
+    peer_family_review = raw["peer_family_review"]
+    peer_keys = {"status", "reason", "source_topic_ids", "open_lead_ids"}
+    if (
+        not isinstance(peer_family_review, dict)
+        or set(peer_family_review) != peer_keys
+        or peer_family_review.get("status") not in {
+            "accounted", "none-found", "not-required"
+        }
+        or not isinstance(peer_family_review.get("reason"), str)
+        or not peer_family_review["reason"].strip()
+        or not isinstance(peer_family_review.get("source_topic_ids"), list)
+        or not isinstance(peer_family_review.get("open_lead_ids"), list)
+    ):
+        raise CampaignError("topic plan peer_family_review is invalid")
+    if completion_kind == "exhaustive" and peer_family_review["status"] == "not-required":
+        raise CampaignError("exhaustive topic plan requires peer-family review")
+    if peer_family_review["open_lead_ids"]:
+        raise CampaignError("published peer-family review cannot retain open leads")
     if completion_kind == "exhaustive" and raw["deferred_leads"]:
         raise CampaignError("exhaustive topic plan cannot defer discovery leads")
     if raw["deferred_leads"] != expected_deferred_leads:
@@ -3261,12 +3311,29 @@ def validate_topic_plan(
     )
     semantic_topics = normalized_topics + normalized_covered
     semantic_ids = {topic["id"] for topic in semantic_topics}
-    existing_ids = set(spine_owner_registry(spine_root))
+    existing_owners = spine_owner_registry(spine_root)
+    existing_ids = set(existing_owners)
+    existing_documents = {
+        profile["document"]: owner
+        for owner, profile in existing_owners.items()
+    }
     documents = [topic["document"] for topic in semantic_topics]
     if len(documents) != len(set(documents)):
         raise CampaignError("topic plan repeats canonical documents")
     connected: set[str] = set()
     for topic in semantic_topics:
+        existing_document = existing_owners.get(topic["id"], {}).get("document")
+        if existing_document is not None and topic["document"] != existing_document:
+            raise CampaignError(
+                f"existing owner {topic['id']} must keep canonical document "
+                f"{existing_document}"
+            )
+        document_owner = existing_documents.get(topic["document"])
+        if document_owner is not None and topic["id"] != document_owner:
+            raise CampaignError(
+                f"existing document {topic['document']} must keep owner "
+                f"{document_owner}"
+            )
         for relationship in topic["relationships"]:
             target = relationship["target"]
             if target not in semantic_ids | existing_ids:
@@ -3287,6 +3354,7 @@ def validate_topic_plan(
         "evidence_files": sorted(evidence),
         "open_leads": [],
         "deferred_leads": raw["deferred_leads"],
+        "peer_family_review": peer_family_review,
         "digest": digest_json(
             {
                 "topics": normalized_topics,
@@ -3294,6 +3362,7 @@ def validate_topic_plan(
                 "supporting": normalized_supporting,
                 "open_leads": [],
                 "deferred_leads": raw["deferred_leads"],
+                "peer_family_review": peer_family_review,
             }
         ),
     }
@@ -3677,6 +3746,7 @@ def command_packet(args: argparse.Namespace) -> dict[str, Any]:
         "producer_contract": contract,
         "operation": ledger["operation"],
         "current_owner": planned_owner_profile(ledger, task),
+        "related_existing_owners": related_existing_owners(ledger, task),
         "task": task_definition(task),
     }
     if args.output is None:
@@ -4969,7 +5039,7 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                     "inspection": inspection,
                 }
             manifest["areas"] = [areas[key] for key in sorted(areas)]
-            atomic_write(workspace / "specspine.json", manifest)
+            atomic_write_pretty(workspace / "specspine.json", manifest)
             process = subprocess.run(
                 [
                     sys.executable,

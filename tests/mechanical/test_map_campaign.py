@@ -225,6 +225,15 @@ class MapCampaignTests(unittest.TestCase):
             return
         if isinstance(value, dict):
             cls.enrich_graph_value(value)
+            value.setdefault(
+                "peer_family_review",
+                {
+                    "status": "none-found",
+                    "reason": "The fixture exposes no unaccounted peer families.",
+                    "source_topic_ids": [],
+                    "open_lead_ids": [],
+                },
+            )
             path.write_text(json.dumps(value), encoding="utf-8")
 
     def ledger_value(self):
@@ -366,6 +375,12 @@ class MapCampaignTests(unittest.TestCase):
                     "supporting": [],
                     "open_leads": [],
                     "deferred_leads": [],
+                    "peer_family_review": {
+                        "status": "none-found",
+                        "reason": "The fixture exposes no peer families.",
+                        "source_topic_ids": [],
+                        "open_lead_ids": [],
+                    },
                 }
             ),
             encoding="utf-8",
@@ -1777,6 +1792,14 @@ class MapCampaignTests(unittest.TestCase):
             sorted(CAMPAIGN_MODULE.CORE_RELATIONS),
             packet["allowed_relationship_types"],
         )
+        self.assertIn(
+            {
+                "id": "architecture-root",
+                "document": "architecture.md",
+                "title": "Architecture",
+            },
+            packet["existing_owners"],
+        )
         source = packet["source_topics"][0]
         self.assertEqual("Session runtime", source["title"])
         self.assertEqual(
@@ -1920,6 +1943,32 @@ class MapCampaignTests(unittest.TestCase):
             },
             {value["code"] for value in diagnostics},
         )
+
+    def test_exhaustive_synthesis_requires_peer_family_review(self):
+        specification = importlib.util.spec_from_file_location(
+            "map_synthesis_peer_review",
+            SYNTHESIS,
+        )
+        assert specification is not None and specification.loader is not None
+        module = importlib.util.module_from_spec(specification)
+        with mock.patch.dict(sys.modules, {"campaign": CAMPAIGN_MODULE}):
+            specification.loader.exec_module(module)
+
+        with self.assertRaisesRegex(
+            CAMPAIGN_MODULE.CampaignError,
+            "requires a peer-family review",
+        ):
+            module.normalize_peer_family_review(
+                {
+                    "status": "not-required",
+                    "reason": "Skipped.",
+                    "source_topic_ids": [],
+                    "open_lead_ids": [],
+                },
+                completion={"kind": "exhaustive"},
+                source_ids=set(),
+                open_lead_ids=set(),
+            )
 
     def test_synthesis_accepts_empty_semantic_frontier(self):
         corpus = self.discovery_corpus_path()
@@ -2335,6 +2384,7 @@ class MapCampaignTests(unittest.TestCase):
             packet["current_owner"],
         )
         self.assertTrue(packet["task"]["evidence_strata"])
+        self.assertIsInstance(packet["related_existing_owners"], list)
         packet_path = self.run / "packets" / f"{task_id}.json"
         receipt = self.cli(
             "packet",
@@ -2390,6 +2440,33 @@ class MapCampaignTests(unittest.TestCase):
                 "blockers": [],
             },
             packet["current_owner"],
+        )
+
+    def test_packet_resolves_relationships_to_existing_owners(self):
+        self.source_pass()
+        task_id, task = self.task_for_unit("src/identity")
+        task["planned_relationships"] = [
+            {
+                "type": "depends-on",
+                "target": "architecture-root",
+                "reason": "The observed boundary depends on the system owner.",
+            }
+        ]
+        ledger = self.ledger_value()
+        ledger["tasks"][task_id] = task
+        CAMPAIGN_MODULE.atomic_write(self.ledger, ledger)
+
+        packet = self.cli("packet", str(self.ledger), task_id)
+
+        self.assertEqual(
+            [
+                {
+                    "id": "architecture-root",
+                    "document": "architecture.md",
+                    "title": "Architecture",
+                }
+            ],
+            packet["related_existing_owners"],
         )
 
     def test_discover_recent_incomplete_campaign_recommends_operator_resume(self):
@@ -3181,6 +3258,18 @@ class MapCampaignTests(unittest.TestCase):
         )
         readme = (self.spine / "_INDEX.md").read_text(encoding="utf-8")
         self.assertIn("[topics/](topics/_INDEX.md)", readme)
+        rendered_manifest = (self.spine / "specspine.json").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('\n  "project": "fixture"', rendered_manifest)
+        published_manifest = json.loads(rendered_manifest)
+        self.assertEqual("fixture", published_manifest["project"])
+        self.assertEqual(manifest["presentation"], published_manifest["presentation"])
+        self.assertEqual(
+            manifest["implementation_freedom"],
+            published_manifest["implementation_freedom"],
+        )
+        self.assertEqual(manifest["assets"], published_manifest["assets"])
         for topic in topics.values():
             body = (self.spine / topic["document"]).read_text(encoding="utf-8")
             self.assertIn("## Связи", body)

@@ -14,7 +14,7 @@ from typing import Any
 import campaign
 
 
-SYNTHESIS_CONTRACT_VERSION = 4
+SYNTHESIS_CONTRACT_VERSION = 6
 MAX_EVIDENCE_STRATA = 8
 
 def source_topics(
@@ -231,6 +231,12 @@ def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
         "corpus_digest": corpus["digest"],
         "operation": corpus["operation"],
         "spine_root": corpus["spine_root"],
+        "existing_owners": [
+            {"id": owner, **profile}
+            for owner, profile in sorted(
+                campaign.spine_owner_registry(Path(corpus["spine_root"])).items()
+            )
+        ],
         "allowed_relationship_types": sorted(campaign.CORE_RELATIONS),
         "source_topic_count": len(topics),
         "leads": leads,
@@ -459,6 +465,7 @@ MAPPING_KEYS = {
     "supporting",
     "open_leads",
     "deferred_leads",
+    "peer_family_review",
 }
 
 
@@ -468,9 +475,76 @@ def normalize_mapping(value: Any, *, field: str) -> dict[str, Any]:
             f"{field} needs exactly topics, covered, supporting, "
             "open_leads, and deferred_leads"
         )
-    if not all(isinstance(value[key], list) for key in MAPPING_KEYS):
+    if not all(
+        isinstance(value[key], list)
+        for key in MAPPING_KEYS - {"peer_family_review"}
+    ):
         raise campaign.CampaignError(f"{field} collections must be lists")
     return value
+
+
+def normalize_peer_family_review(
+    value: Any,
+    *,
+    completion: dict[str, Any],
+    source_ids: set[str],
+    open_lead_ids: set[str],
+) -> dict[str, Any]:
+    keys = {"status", "reason", "source_topic_ids", "open_lead_ids"}
+    if not isinstance(value, dict) or set(value) != keys:
+        raise campaign.CampaignError(
+            "peer_family_review needs status, reason, source_topic_ids, "
+            "and open_lead_ids"
+        )
+    status = value["status"]
+    allowed = {"accounted", "none-found", "not-required"}
+    if status not in allowed:
+        raise campaign.CampaignError("peer_family_review status is invalid")
+    reason = clean_text(value["reason"], "peer_family_review reason")
+    reviewed_sources = value["source_topic_ids"]
+    reviewed_leads = value["open_lead_ids"]
+    if not isinstance(reviewed_sources, list) or not all(
+        isinstance(item, str) for item in reviewed_sources
+    ):
+        raise campaign.CampaignError(
+            "peer_family_review source_topic_ids must be a list of strings"
+        )
+    if not isinstance(reviewed_leads, list) or not all(
+        isinstance(item, str) for item in reviewed_leads
+    ):
+        raise campaign.CampaignError(
+            "peer_family_review open_lead_ids must be a list of strings"
+        )
+    if len(reviewed_sources) != len(set(reviewed_sources)) or len(
+        reviewed_leads
+    ) != len(set(reviewed_leads)):
+        raise campaign.CampaignError("peer_family_review repeats IDs")
+    unknown_sources = set(reviewed_sources) - source_ids
+    unknown_leads = set(reviewed_leads) - open_lead_ids
+    if unknown_sources or unknown_leads:
+        raise campaign.CampaignError(
+            "peer_family_review references unknown IDs: "
+            f"{sorted(unknown_sources | unknown_leads)}"
+        )
+    exhaustive = completion["kind"] == "exhaustive"
+    if exhaustive and status == "not-required":
+        raise campaign.CampaignError(
+            "exhaustive synthesis requires a peer-family review"
+        )
+    if status == "none-found" and (reviewed_sources or reviewed_leads):
+        raise campaign.CampaignError(
+            "none-found peer-family review cannot reference IDs"
+        )
+    if status == "accounted" and not (reviewed_sources or reviewed_leads):
+        raise campaign.CampaignError(
+            "accounted peer-family review needs at least one ID"
+        )
+    return {
+        "status": status,
+        "reason": reason,
+        "source_topic_ids": sorted(reviewed_sources),
+        "open_lead_ids": sorted(reviewed_leads),
+    }
 
 
 def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
@@ -644,6 +718,12 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
         raw["open_leads"],
         Path(corpus["repository_root"]),
     )
+    peer_family_review = normalize_peer_family_review(
+        raw["peer_family_review"],
+        completion=corpus["operation"]["completion"],
+        source_ids=known,
+        open_lead_ids={lead["id"] for lead in open_leads},
+    )
     if raw["deferred_leads"] != corpus["deferred_leads"]:
         raise campaign.CampaignError(
             "semantic mapping deferred_leads differ from discovery corpus"
@@ -654,16 +734,32 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
         "supporting": final_supporting,
         "open_leads": open_leads,
         "deferred_leads": raw["deferred_leads"],
+        "peer_family_review": peer_family_review,
     }
     semantic_topics = final_topics + final_covered
     semantic_ids = {value["id"] for value in semantic_topics}
-    existing_ids = set(
-        campaign.spine_owner_registry(Path(corpus["spine_root"]))
-    )
+    existing_owners = campaign.spine_owner_registry(Path(corpus["spine_root"]))
+    existing_ids = set(existing_owners)
+    existing_documents = {
+        profile["document"]: owner
+        for owner, profile in existing_owners.items()
+    }
     documents = [value["document"] for value in semantic_topics]
     if len(documents) != len(set(documents)):
         raise campaign.CampaignError("semantic mapping repeats canonical documents")
     for topic in semantic_topics:
+        existing_document = existing_owners.get(topic["id"], {}).get("document")
+        if existing_document is not None and topic["document"] != existing_document:
+            raise campaign.CampaignError(
+                f"existing owner {topic['id']} must keep canonical document "
+                f"{existing_document}"
+            )
+        document_owner = existing_documents.get(topic["document"])
+        if document_owner is not None and topic["id"] != document_owner:
+            raise campaign.CampaignError(
+                f"existing document {topic['document']} must keep owner "
+                f"{document_owner}"
+            )
         for relationship in topic["relationships"]:
             if relationship["target"] not in semantic_ids | existing_ids:
                 raise campaign.CampaignError(

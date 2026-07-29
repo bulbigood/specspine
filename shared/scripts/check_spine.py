@@ -559,7 +559,17 @@ def _parse_node(
                 add(findings, "error", "DUPLICATE_ID", path, root, f"duplicate semantic ID: {identifier}", number)
             else:
                 expected = SECTION_PREFIX_KEYS.get(section)
-                if expected and not identifier.startswith(expected + "-"):
+                if identifier.startswith("OBS-") and section != "observed":
+                    add(
+                        findings,
+                        "error",
+                        "ID_SECTION",
+                        path,
+                        root,
+                        f"{identifier} belongs only under observed",
+                        number,
+                    )
+                elif expected and not identifier.startswith(expected + "-"):
                     add(findings, "error", "ID_SECTION", path, root, f"{identifier} does not belong under {section}", number)
                 node.statements[identifier] = (section, number)
             if not region_depth:

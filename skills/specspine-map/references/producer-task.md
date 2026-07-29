@@ -9,8 +9,9 @@ Start with targeted `rg` and narrow excerpts, target at most 10,000 output token
 
 `architecture_unit`, `planned_document`, and `planned_relationships` come from
 the synthesized semantic graph. Verify the responsibility against every evidence
-stratum. A draft publishes exactly `planned_document` and defines the planned
-owner ID. Do not add, remove, or render graph edges: deterministic assembly
+stratum. If `current_owner.exists` is false, create exactly `planned_document`;
+if true, refine that document in place. A draft defines the planned owner ID.
+Do not add, remove, or render graph edges: deterministic assembly
 owns `Relationships`. If an edge or part of the proposed boundary is weak,
 publish the coherent evidence-backed core and record the doubt as a concise
 `directions` question. Do not reject an otherwise useful document because the
@@ -19,13 +20,10 @@ semantic graph may need later Doctor or Evolve refinement. Copy
 
 Evidence may include neighboring owners to prove a boundary. Do not turn those
 files into observations owned by this document and do not restate behavior of
-`planned_relationships` targets. Keep accepted narrative sections unchanged
-unless an authorized source supplies new intent. Place only material repository
-deltas in identified `OBS` claims; never rewrite matching code behavior into
-accepted prose or duplicate accepted prose as `OBS`.
+`planned_relationships` targets. Keep accepted narrative and claims unchanged unless the existing Spine or an explicit user decision supplies accepted intent.
+Code, tests, schemas, and runtime evidence establish only repository observations; place material deltas in `OBS`, and never rewrite matching code behavior into accepted prose.
 
-Read the packet `operation` and `current_owner` before inspecting code. In
-every operation, make one targeted facet pass across applicable observable
+Read packet `operation`, `current_owner`, and `related_existing_owners` first; the latter resolves existing relationship targets to canonical documents. In every operation, make one targeted facet pass across applicable observable
 architecture, behavior, interfaces, data/state ownership, and failure or
 recovery. Check registrations and consumers plus relevant schemas,
 configuration, and tests when they can establish those facets. Do not expand
@@ -38,6 +36,7 @@ observable facets, but write only facts supported by repository evidence.
 Code cannot establish normative guarantees, quality targets, or
 implementation-independent verification; leave those incomplete rather than
 manufacturing them.
+Map never reorganizes the existing Spine. Preserve an existing owner's ID, path, kind, accepted claims, boundary, and content ownership. Never split, merge, move, rename, replace, decompose, or transfer it; preserve suggested topology changes as uncertainty because only Evolve may perform the reorganization.
 
 Choose the narrowest accurate v3 `Kind`. Use `component` for a concrete
 runtime, renderer, plugin, adapter, or independently evolving implementation

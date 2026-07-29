@@ -170,6 +170,8 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("never merge concerns into custom headings", producer)
         self.assertIn("make one targeted facet pass", producer)
         self.assertIn("For `completion.intent: deepen`", producer)
+        self.assertIn("only Evolve may perform the reorganization", producer)
+        self.assertIn("related_existing_owners", producer)
         self.assertIn("current_owner", self.campaign)
 
     def test_resume_recovers_atomic_handoffs_before_redispatch(self):
