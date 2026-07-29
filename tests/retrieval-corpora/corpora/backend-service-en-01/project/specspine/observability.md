@@ -2,7 +2,7 @@
 
 **ID:** `observability` · **Kind:** `concept`
 
-Owns the durable architectural concept `observability`.
+**Summary:** Owns the durable architectural concept `observability`.
 
 ## Responsibility
 

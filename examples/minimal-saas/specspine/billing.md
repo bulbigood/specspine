@@ -2,7 +2,7 @@
 
 **ID:** `billing` · **Kind:** `concept`
 
-Owns subscription state and synchronizes it with an external payment provider.
+**Summary:** Owns subscription state and synchronizes it with an external payment provider.
 
 ## Responsibility
 

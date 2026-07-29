@@ -41,6 +41,7 @@ DOCUMENT_ID_RE = re.compile(DOCUMENT_ID_PATTERN)
 IDENTITY_RE = re.compile(
     r"^\*\*ID:\*\*\s+`([^`]+)`\s+·\s+\*\*Kind:\*\*\s+`([^`]+)`\s*$"
 )
+SUMMARY_RE = re.compile(r"^\*\*Summary:\*\*\s+(.+?)\s*$")
 MANIFEST_FACET_ALIASES = {
     "architecture": {"architecture"},
     "behavior": {"behavior", "event", "lifecycle"},
@@ -334,8 +335,11 @@ def _canonical_documents(root: Path) -> tuple[dict[str, dict[str, object]], list
             while cursor < len(lines) and not lines[cursor].strip():
                 cursor += 1
         summary_lines: list[str] = []
-        while cursor < len(lines) and lines[cursor].strip() and not lines[cursor].startswith("#"):
-            summary_lines.append(lines[cursor].strip())
+        explicit_summary = (
+            SUMMARY_RE.fullmatch(lines[cursor].strip()) if cursor < len(lines) else None
+        )
+        if explicit_summary:
+            summary_lines.append(explicit_summary.group(1).strip())
             cursor += 1
         sections: dict[str, str] = {}
         section_order: list[str] = []

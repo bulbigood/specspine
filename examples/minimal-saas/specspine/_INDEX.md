@@ -17,8 +17,8 @@ This directory contains the project's long-lived architectural intent and archit
 
 ## Contents
 
-- [application.md](application.md)
-- [billing.md](billing.md)
-- [identity.md](identity.md)
-- [operations.md](operations.md)
+- [application.md](application.md) — Provides the user-facing workflows for managing an organization, its members, and its subscription.
+- [billing.md](billing.md) — Owns subscription state and synchronizes it with an external payment provider.
+- [identity.md](identity.md) — Authenticates users and establishes the organization context used by the application.
+- [operations.md](operations.md) — Defines the runtime environment required to configure, deploy, and observe the application.
 - [specspine.json](specspine.json)

@@ -2,7 +2,7 @@
 
 **ID:** `incident-response` · **Kind:** `concept`
 
-Owns the durable architectural concept `incident-response`.
+**Summary:** Owns the durable architectural concept `incident-response`.
 
 ## Responsibility
 

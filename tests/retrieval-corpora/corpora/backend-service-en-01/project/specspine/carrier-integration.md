@@ -2,7 +2,7 @@
 
 **ID:** `carrier-integration` · **Kind:** `concept`
 
-Owns the durable architectural concept `carrier-integration`.
+**Summary:** Owns the durable architectural concept `carrier-integration`.
 
 ## Responsibility
 

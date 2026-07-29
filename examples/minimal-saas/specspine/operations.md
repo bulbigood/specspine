@@ -2,8 +2,7 @@
 
 **ID:** `operations` · **Kind:** `concept`
 
-Defines the runtime environment required to configure, deploy, and observe the
-application.
+**Summary:** Defines the runtime environment required to configure, deploy, and observe the application.
 
 ## Responsibility
 

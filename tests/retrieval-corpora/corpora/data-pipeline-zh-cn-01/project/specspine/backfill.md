@@ -2,7 +2,7 @@
 
 **ID:** `backfill` · **Kind:** `concept`
 
-Owns the durable architectural concept `backfill`.
+**Summary:** Owns the durable architectural concept `backfill`.
 
 ## 职责
 

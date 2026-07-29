@@ -2,7 +2,7 @@
 
 **ID:** `plugin-api` · **Kind:** `concept`
 
-Owns the durable architectural concept `plugin-api`.
+**Summary:** Owns the durable architectural concept `plugin-api`.
 
 ## Responsibility
 

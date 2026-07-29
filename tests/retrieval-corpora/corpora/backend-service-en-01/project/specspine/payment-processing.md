@@ -2,7 +2,7 @@
 
 **ID:** `payment-processing` · **Kind:** `concept`
 
-Owns the durable architectural concept `payment-processing`.
+**Summary:** Owns the durable architectural concept `payment-processing`.
 
 ## Responsibility
 

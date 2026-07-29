@@ -2,7 +2,7 @@
 
 **ID:** `background-jobs` · **Kind:** `concept`
 
-Owns the durable architectural concept `background-jobs`.
+**Summary:** Owns the durable architectural concept `background-jobs`.
 
 ## Responsibility
 

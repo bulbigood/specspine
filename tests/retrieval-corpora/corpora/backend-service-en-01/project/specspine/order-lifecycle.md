@@ -2,7 +2,7 @@
 
 **ID:** `order-lifecycle` · **Kind:** `concept`
 
-Owns the durable architectural concept `order-lifecycle`.
+**Summary:** Owns the durable architectural concept `order-lifecycle`.
 
 ## Responsibility
 

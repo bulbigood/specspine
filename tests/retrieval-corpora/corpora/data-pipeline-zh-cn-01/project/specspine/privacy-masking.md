@@ -2,7 +2,7 @@
 
 **ID:** `privacy-masking` · **Kind:** `concept`
 
-Owns the durable architectural concept `privacy-masking`.
+**Summary:** Owns the durable architectural concept `privacy-masking`.
 
 ## 职责
 

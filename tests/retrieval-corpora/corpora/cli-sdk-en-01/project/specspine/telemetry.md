@@ -2,7 +2,7 @@
 
 **ID:** `telemetry` · **Kind:** `concept`
 
-Owns the durable architectural concept `telemetry`.
+**Summary:** Owns the durable architectural concept `telemetry`.
 
 ## Responsibility
 

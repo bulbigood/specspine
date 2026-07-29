@@ -2,7 +2,7 @@
 
 **ID:** `release-compatibility` · **Kind:** `concept`
 
-Owns the durable architectural concept `release-compatibility`.
+**Summary:** Owns the durable architectural concept `release-compatibility`.
 
 ## Responsibility
 

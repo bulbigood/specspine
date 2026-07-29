@@ -2,7 +2,7 @@
 
 **ID:** `data-quality` · **Kind:** `concept`
 
-Owns the durable architectural concept `data-quality`.
+**Summary:** Owns the durable architectural concept `data-quality`.
 
 ## 职责
 

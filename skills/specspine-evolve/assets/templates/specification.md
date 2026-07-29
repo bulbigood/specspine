@@ -2,7 +2,7 @@
 
 **ID:** `stable-document-id` · **Kind:** `subsystem`
 
-Summarize the concept in one or two sentences.
+**Summary:** Summarize the concept in one short sentence.
 
 ## Responsibility
 

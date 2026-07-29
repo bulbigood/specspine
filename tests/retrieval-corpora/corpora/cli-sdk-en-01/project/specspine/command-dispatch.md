@@ -2,7 +2,7 @@
 
 **ID:** `command-dispatch` · **Kind:** `concept`
 
-Owns the durable architectural concept `command-dispatch`.
+**Summary:** Owns the durable architectural concept `command-dispatch`.
 
 ## Responsibility
 

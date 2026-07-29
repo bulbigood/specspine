@@ -120,7 +120,7 @@ class LifecycleRunnerTests(unittest.TestCase):
             )
             (nested / "payment-processing.md").write_text(
                 "# Payment processing\n\n**ID:** `payment-processing` · **Kind:** `subsystem`\n\n"
-                "Owns payments.\n\n## Responsibility\n\n- owns payment processing.\n",
+                "**Summary:** Owns payments.\n\n## Responsibility\n\n- owns payment processing.\n",
                 encoding="utf-8",
             )
             (workspace / "specspine/specspine.json").write_text(json.dumps({
@@ -158,7 +158,7 @@ class LifecycleRunnerTests(unittest.TestCase):
             self.assertTrue(clean.passed, clean.message)
             (nested / "payment-processing.md").write_text(
                 "# Payment processing\n\n**ID:** `payment-processing` · **Kind:** `subsystem`\n\n"
-                "Owns payments.\n\n## Responsibility\n\n- owns payment processing.\n\n"
+                "**Summary:** Owns payments.\n\n## Responsibility\n\n- owns payment processing.\n\n"
                 "[Missing](missing.md)\n", encoding="utf-8"
             )
             broken = RUNNER.evaluate_assertion(

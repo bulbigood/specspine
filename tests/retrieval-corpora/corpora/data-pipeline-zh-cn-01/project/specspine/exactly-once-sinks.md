@@ -2,7 +2,7 @@
 
 **ID:** `exactly-once-sinks` · **Kind:** `concept`
 
-Owns the durable architectural concept `exactly-once-sinks`.
+**Summary:** Owns the durable architectural concept `exactly-once-sinks`.
 
 ## 职责
 

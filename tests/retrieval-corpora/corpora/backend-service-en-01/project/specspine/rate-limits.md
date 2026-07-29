@@ -2,7 +2,7 @@
 
 **ID:** `rate-limits` · **Kind:** `concept`
 
-Owns the durable architectural concept `rate-limits`.
+**Summary:** Owns the durable architectural concept `rate-limits`.
 
 ## Responsibility
 

@@ -2,7 +2,7 @@
 
 **ID:** `migration-locking` · **Kind:** `concept`
 
-Owns the durable architectural concept `migration-locking`.
+**Summary:** Owns the durable architectural concept `migration-locking`.
 
 ## Responsibility
 

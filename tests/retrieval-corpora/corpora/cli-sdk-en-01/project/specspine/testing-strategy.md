@@ -2,7 +2,7 @@
 
 **ID:** `testing-strategy` · **Kind:** `concept`
 
-Owns the durable architectural concept `testing-strategy`.
+**Summary:** Owns the durable architectural concept `testing-strategy`.
 
 ## Responsibility
 

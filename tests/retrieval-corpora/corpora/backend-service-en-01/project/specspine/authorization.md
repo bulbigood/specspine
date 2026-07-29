@@ -2,7 +2,7 @@
 
 **ID:** `authorization` · **Kind:** `concept`
 
-Owns the durable architectural concept `authorization`.
+**Summary:** Owns the durable architectural concept `authorization`.
 
 ## Responsibility
 

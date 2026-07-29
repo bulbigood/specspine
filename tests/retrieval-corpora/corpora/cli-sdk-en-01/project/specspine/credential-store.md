@@ -2,7 +2,7 @@
 
 **ID:** `credential-store` · **Kind:** `concept`
 
-Owns the durable architectural concept `credential-store`.
+**Summary:** Owns the durable architectural concept `credential-store`.
 
 ## Responsibility
 

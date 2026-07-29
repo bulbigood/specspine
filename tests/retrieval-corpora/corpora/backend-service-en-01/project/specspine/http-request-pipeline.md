@@ -2,7 +2,7 @@
 
 **ID:** `http-request-pipeline` · **Kind:** `concept`
 
-Owns the durable architectural concept `http-request-pipeline`.
+**Summary:** Owns the durable architectural concept `http-request-pipeline`.
 
 ## Responsibility
 

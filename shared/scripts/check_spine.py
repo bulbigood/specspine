@@ -45,6 +45,7 @@ DOCUMENT_ID_RE = re.compile(DOCUMENT_ID_PATTERN)
 IDENTITY_RE = re.compile(
     r"^\*\*ID:\*\*\s+`([^`]+)`\s+·\s+\*\*Kind:\*\*\s+`([^`]+)`\s*$"
 )
+SUMMARY_RE = re.compile(r"^\*\*Summary:\*\*\s+(.+?)\s*$")
 DEFINITION_RE = re.compile(r"^ {0,3}[-+*]\s+\*\*([^*\n]+)\*\*\s+—\s+")
 SEMANTIC_BULLET_RE = re.compile(
     rf"^ {{0,3}}[-+*]\s+\*\*({SEMANTIC_PREFIX_PATTERN}"
@@ -491,13 +492,20 @@ def _parse_node(
             or lines[cursor].strip().startswith("<!--")
         ):
             cursor += 1
-        paragraph: list[str] = []
-        while cursor < len(lines) and lines[cursor].strip() and not lines[cursor].lstrip().startswith("#"):
-            paragraph.append(lines[cursor].strip())
-            cursor += 1
-        node.summary = " ".join(paragraph)
+        explicit_summary = (
+            SUMMARY_RE.fullmatch(lines[cursor].strip()) if cursor < len(lines) else None
+        )
+        if explicit_summary:
+            node.summary = explicit_summary.group(1).strip()
     if not node.summary and node.kind != "index":
-        add(findings, "error", "MISSING_SUMMARY", path, root, "missing summary immediately after identity and aliases")
+        add(
+            findings,
+            "error",
+            "MISSING_SUMMARY",
+            path,
+            root,
+            "missing single-line **Summary:** field immediately after identity and aliases",
+        )
     if node.kind != "index":
         responsibility = node.sections.get("responsibility")
         if responsibility is None:

@@ -2,8 +2,7 @@
 
 **ID:** `identity` · **Kind:** `concept`
 
-Authenticates users and establishes the organization context used by the
-application.
+**Summary:** Authenticates users and establishes the organization context used by the application.
 
 ## Responsibility
 

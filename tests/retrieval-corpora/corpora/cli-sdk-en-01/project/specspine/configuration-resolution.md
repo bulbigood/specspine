@@ -2,7 +2,7 @@
 
 **ID:** `configuration-resolution` · **Kind:** `concept`
 
-Owns the durable architectural concept `configuration-resolution`.
+**Summary:** Owns the durable architectural concept `configuration-resolution`.
 
 ## Responsibility
 

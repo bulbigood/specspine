@@ -2,7 +2,7 @@
 
 **ID:** `runtime-configuration` · **Kind:** `concept`
 
-Owns the durable architectural concept `runtime-configuration`.
+**Summary:** Owns the durable architectural concept `runtime-configuration`.
 
 ## 职责
 

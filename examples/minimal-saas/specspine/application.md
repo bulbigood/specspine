@@ -2,8 +2,7 @@
 
 **ID:** `application` · **Kind:** `concept`
 
-Provides the user-facing workflows for managing an organization, its members,
-and its subscription.
+**Summary:** Provides the user-facing workflows for managing an organization, its members, and its subscription.
 
 ## Responsibility
 

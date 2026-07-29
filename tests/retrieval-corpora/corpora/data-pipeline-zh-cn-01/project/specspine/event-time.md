@@ -2,7 +2,7 @@
 
 **ID:** `event-time` · **Kind:** `concept`
 
-Owns the durable architectural concept `event-time`.
+**Summary:** Owns the durable architectural concept `event-time`.
 
 ## 职责
 

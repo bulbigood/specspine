@@ -2,7 +2,7 @@
 
 **ID:** `checkpoint-recovery` · **Kind:** `concept`
 
-Owns the durable architectural concept `checkpoint-recovery`.
+**Summary:** Owns the durable architectural concept `checkpoint-recovery`.
 
 ## 职责
 

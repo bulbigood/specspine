@@ -329,15 +329,17 @@ Every non-index Markdown document has:
 **ID:** `session-management` · **Kind:** `subsystem`
 **Aliases:** Application sessions
 
-Creates and maintains provider-independent application sessions.
+**Summary:** Creates and maintains provider-independent application sessions.
 
 ## Responsibility
 
 Owns session lifecycle and session state.
 ```
 
-There is exactly one H1. The summary immediately follows identity and optional
-aliases. `Responsibility` is mandatory and nonempty.
+There is exactly one H1. The required, nonempty, single-line `Summary` field
+immediately follows identity and optional aliases. Its short description is
+rendered next to the document link in deterministic indexes. `Responsibility`
+is mandatory and nonempty. Unlabelled summary paragraphs are invalid.
 
 Document IDs match:
 

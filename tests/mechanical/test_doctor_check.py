@@ -32,7 +32,7 @@ PAYMENTS = """# Payments
 **ID:** `payments` · **Kind:** `subsystem`
 **Aliases:** Checkout
 
-Owns payment attempts and results.
+**Summary:** Owns payment attempts and results.
 
 ## Responsibility
 

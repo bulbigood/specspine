@@ -42,7 +42,7 @@ PAYMENTS = """# Payments
 **ID:** `payment-processing` · **Kind:** `subsystem`
 **Aliases:** Checkout
 
-Owns provider payment retries and results.
+**Summary:** Owns provider payment retries and results.
 
 ## Responsibility
 
@@ -77,7 +77,7 @@ POLICY = """# Retry policy
 
 **ID:** `retry-policy` · **Kind:** `policy`
 
-Defines the bounded retry policy.
+**Summary:** Defines the bounded retry policy.
 
 ## Responsibility
 
@@ -288,7 +288,7 @@ class ExtractTests(unittest.TestCase):
 
 **ID:** `base-policy` · **Kind:** `policy`
 
-Defines the system retry ceiling.
+**Summary:** Defines the system retry ceiling.
 
 ## Responsibility
 
@@ -408,7 +408,7 @@ Defines the system retry ceiling.
 
 **ID:** `system-policy` · **Kind:** `system`
 
-Defines system-wide audit policy.
+**Summary:** Defines system-wide audit policy.
 
 ## Responsibility
 
@@ -652,7 +652,7 @@ Example project.
 
 **ID:** `{area}-auth` · **Kind:** `component`
 
-Owns {area} authentication.
+**Summary:** Owns {area} authentication.
 
 ## Responsibility
 

@@ -294,7 +294,7 @@ class ProducerFinalizeTests(unittest.TestCase):
         (self.work / "staging" / "identity.md").write_text(
             "# Identity\n\n"
             "**ID:** `identity` · **Kind:** `concept`\n\n"
-            "Documents the observed identity session boundary.\n\n"
+            "**Summary:** Documents the observed identity session boundary.\n\n"
             "## Responsibility\n\n"
             "Owns the observed session lifecycle evidenced by "
             "`src/identity/session.py`.\n\n"
@@ -329,7 +329,7 @@ class ProducerFinalizeTests(unittest.TestCase):
         candidate.write_text(
             "# Session runtime\n\n"
             "**ID:** `session-runtime` · **Kind:** `component`\n\n"
-            "Documents the observed identity session boundary.\n\n"
+            "**Summary:** Documents the observed identity session boundary.\n\n"
             "## Responsibility\n\n"
             "Owns the observed session lifecycle evidenced by "
             "`src/identity/session.py`.\n\n"
@@ -366,7 +366,7 @@ class ProducerFinalizeTests(unittest.TestCase):
         (self.work / "staging" / "identity.md").write_text(
             "# Identity\n\n"
             "**ID:** `identity` · **Kind:** `concept`\n\n"
-            "Documents the observed identity session boundary.\n\n"
+            "**Summary:** Documents the observed identity session boundary.\n\n"
             "## Responsibility\n\n"
             "Owns the observed session lifecycle.\n\n"
             "<!-- specspine:evidence-baseline "

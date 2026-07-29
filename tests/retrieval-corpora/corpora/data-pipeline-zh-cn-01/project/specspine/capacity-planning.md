@@ -2,7 +2,7 @@
 
 **ID:** `capacity-planning` · **Kind:** `concept`
 
-Owns the durable architectural concept `capacity-planning`.
+**Summary:** Owns the durable architectural concept `capacity-planning`.
 
 ## 职责
 

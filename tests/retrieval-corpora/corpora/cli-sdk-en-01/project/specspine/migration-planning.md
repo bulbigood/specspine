@@ -2,7 +2,7 @@
 
 **ID:** `migration-planning` · **Kind:** `concept`
 
-Owns the durable architectural concept `migration-planning`.
+**Summary:** Owns the durable architectural concept `migration-planning`.
 
 ## Responsibility
 

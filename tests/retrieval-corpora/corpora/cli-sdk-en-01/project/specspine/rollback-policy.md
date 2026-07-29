@@ -2,7 +2,7 @@
 
 **ID:** `rollback-policy` · **Kind:** `concept`
 
-Owns the durable architectural concept `rollback-policy`.
+**Summary:** Owns the durable architectural concept `rollback-policy`.
 
 ## Responsibility
 

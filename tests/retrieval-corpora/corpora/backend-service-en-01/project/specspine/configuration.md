@@ -2,7 +2,7 @@
 
 **ID:** `configuration` · **Kind:** `concept`
 
-Owns the durable architectural concept `configuration`.
+**Summary:** Owns the durable architectural concept `configuration`.
 
 ## Responsibility
 

@@ -213,6 +213,7 @@ Presentation profiles may translate rendered headings but never these keys.
 - `ID` — Document identity field.
 - `Kind` — Document-kind field.
 - `Aliases` — Optional alternate names for retrieval; never alternate identities.
+- `Summary` — Required single-line document description rendered in deterministic indexes.
 - `Evidence` — Repository-relative paths supporting an OBS statement.
 - `Relation` — Typed relationship-table edge token.
 - `Target` — Relative link to the relationship target.

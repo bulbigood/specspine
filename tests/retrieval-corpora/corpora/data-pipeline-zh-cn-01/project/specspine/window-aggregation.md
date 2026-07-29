@@ -2,7 +2,7 @@
 
 **ID:** `window-aggregation` · **Kind:** `concept`
 
-Owns the durable architectural concept `window-aggregation`.
+**Summary:** Owns the durable architectural concept `window-aggregation`.
 
 ## 职责
 

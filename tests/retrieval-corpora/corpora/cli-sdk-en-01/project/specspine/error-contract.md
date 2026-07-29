@@ -2,7 +2,7 @@
 
 **ID:** `error-contract` · **Kind:** `concept`
 
-Owns the durable architectural concept `error-contract`.
+**Summary:** Owns the durable architectural concept `error-contract`.
 
 ## Responsibility
 

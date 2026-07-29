@@ -28,6 +28,36 @@ class IndexError(ValueError):
     pass
 
 
+SUMMARY_RE = re.compile(r"^\*\*Summary:\*\*\s+(.+?)\s*$")
+IDENTITY_RE = re.compile(
+    r"^\*\*ID:\*\*\s+`[^`]+`\s+·\s+\*\*Kind:\*\*\s+`[^`]+`\s*$"
+)
+
+
+def document_summary(path: Path) -> str:
+    """Read the required explicit summary of a specification document."""
+    if path.suffix.casefold() != ".md":
+        return ""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    identity = next(
+        (position for position, line in enumerate(lines) if IDENTITY_RE.fullmatch(line.strip())),
+        None,
+    )
+    if identity is None:
+        return ""
+    cursor = identity + 1
+    while cursor < len(lines) and (
+        not lines[cursor].strip()
+        or lines[cursor].startswith("**Aliases:**")
+        or lines[cursor].strip().startswith("<!--")
+    ):
+        cursor += 1
+    explicit = SUMMARY_RE.fullmatch(lines[cursor].strip()) if cursor < len(lines) else None
+    if explicit:
+        return explicit.group(1).strip()
+    raise IndexError(f"{path}: missing single-line **Summary:** field after identity and aliases")
+
+
 def load_manifest(root: Path) -> dict[str, Any]:
     path = root / MANIFEST_NAME
     try:
@@ -119,18 +149,21 @@ def render_index(
             ]
         )
     lines.extend([f"## {index_text['contents-heading']}", ""])
-    entries: list[tuple[str, str]] = []
+    entries: list[tuple[str, str, str]] = []
     for path in sorted(directory.iterdir(), key=lambda item: item.name.casefold()):
         if path.name == INDEX_NAME or path.is_symlink():
             continue
         if path.is_file():
-            entries.append((path.name, path.name))
+            entries.append((path.name, path.name, document_summary(path)))
         elif path.is_dir():
             child_index = path / INDEX_NAME
             if child_index.is_file() or path in children:
-                entries.append((path.name + "/", f"{path.name}/{INDEX_NAME}"))
+                entries.append((path.name + "/", f"{path.name}/{INDEX_NAME}", ""))
     if entries:
-        lines.extend(f"- [{label}]({target})" for label, target in entries)
+        lines.extend(
+            f"- [{label}]({target})" + (f" — {summary}" if summary else "")
+            for label, target, summary in entries
+        )
     else:
         lines.append(f"- {index_text['empty']}")
     lines.append("")

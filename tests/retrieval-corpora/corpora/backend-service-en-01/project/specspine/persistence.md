@@ -2,7 +2,7 @@
 
 **ID:** `persistence` · **Kind:** `concept`
 
-Owns the durable architectural concept `persistence`.
+**Summary:** Owns the durable architectural concept `persistence`.
 
 ## Responsibility
 

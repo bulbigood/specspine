@@ -2,7 +2,7 @@
 
 **ID:** `runtime` · **Kind:** `concept`
 
-Owns the durable architectural concept `runtime`.
+**Summary:** Owns the durable architectural concept `runtime`.
 
 ## Responsibility
 

@@ -41,7 +41,7 @@ class MapCampaignTests(unittest.TestCase):
         (self.spine / "architecture.md").write_text(
             "# Architecture\n\n"
             "**ID:** `architecture-root` · **Kind:** `system`\n\n"
-            "Broad system architecture owner.\n\n"
+            "**Summary:** Broad system architecture owner.\n\n"
             "## Responsibility\n\n"
             "Owns the broad system boundary.\n\n"
             "<!-- specspine:evidence-baseline "
@@ -360,7 +360,7 @@ class MapCampaignTests(unittest.TestCase):
         (self.spine / filename).write_text(
             f"# {document_id}\n\n"
             f"**ID:** `{document_id}` · **Kind:** `concept`\n\n"
-            "Candidate owner fixture.\n\n"
+            "**Summary:** Candidate owner fixture.\n\n"
             "## Responsibility\n\n"
             "Owns the candidate boundary.\n\n"
             "<!-- specspine:evidence-baseline "
@@ -3312,7 +3312,7 @@ class MapCampaignTests(unittest.TestCase):
             document.write_text(
                 f"# {topics[topic_id]['title']}\n\n"
                 f"**ID:** `{topic_id}` · **Kind:** `component`\n\n"
-                "Observed architectural owner for this fixture boundary.\n\n"
+                "**Summary:** Observed architectural owner for this fixture boundary.\n\n"
                 "## Responsibility\n\n"
                 f"{topics[topic_id]['responsibility']}\n\n"
                 + self.draft_evidence(task_id)
@@ -3722,7 +3722,7 @@ class MapCampaignTests(unittest.TestCase):
         (self.staging / "identity.md").write_text(
             "# Identity\n\n"
             "**ID:** `identity` · **Kind:** `component`\n\n"
-            "Observed identity boundary.\n\n"
+            "**Summary:** Observed identity boundary.\n\n"
             "## Responsibility\n\n"
             "Owns observed session handling.\n\n"
             f"{self.ledger_value()['tasks'][task_id]['evidence_baseline']}\n"

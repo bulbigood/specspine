@@ -2,7 +2,7 @@
 
 **ID:** `output-rendering` · **Kind:** `concept`
 
-Owns the durable architectural concept `output-rendering`.
+**Summary:** Owns the durable architectural concept `output-rendering`.
 
 ## Responsibility
 

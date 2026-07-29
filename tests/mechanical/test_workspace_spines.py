@@ -67,6 +67,33 @@ class WorkspaceSpinesTests(unittest.TestCase):
         self.assertEqual([], second["changed"])
         self.assertIn("[api.yaml](api.yaml)", (contracts / "_INDEX.md").read_text())
 
+    def test_rebuild_renders_explicit_document_summary(self):
+        root = self.root("specspine", "demo")
+        (root / "payments.md").write_text(
+            "# Payments\n\n"
+            "**ID:** `payments` · **Kind:** `subsystem`\n\n"
+            "**Summary:** Owns payment processing and provider outcomes.\n\n"
+            "## Responsibility\n\n"
+            "Owns payments.\n"
+        )
+        INDEXER.rebuild(root)
+        self.assertIn(
+            "[payments.md](payments.md) — Owns payment processing and provider outcomes.",
+            (root / "_INDEX.md").read_text(),
+        )
+
+    def test_rebuild_rejects_unlabelled_summary(self):
+        root = self.root("specspine", "demo")
+        (root / "payments.md").write_text(
+            "# Payments\n\n"
+            "**ID:** `payments` · **Kind:** `subsystem`\n\n"
+            "Owns payment processing and provider outcomes.\n\n"
+            "## Responsibility\n\n"
+            "Owns payments.\n"
+        )
+        with self.assertRaisesRegex(INDEXER.IndexError, r"missing single-line \*\*Summary:\*\*"):
+            INDEXER.rebuild(root)
+
     def test_checker_rejects_stale_directory_index(self):
         root = self.root("specspine", "demo")
         (root / "owner.md").write_text("unindexed\n")

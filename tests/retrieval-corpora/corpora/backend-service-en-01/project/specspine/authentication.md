@@ -2,7 +2,7 @@
 
 **ID:** `authentication` · **Kind:** `concept`
 
-Owns the durable architectural concept `authentication`.
+**Summary:** Owns the durable architectural concept `authentication`.
 
 ## Responsibility
 

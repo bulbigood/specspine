@@ -2,7 +2,7 @@
 
 **ID:** `local-cache` · **Kind:** `concept`
 
-Owns the durable architectural concept `local-cache`.
+**Summary:** Owns the durable architectural concept `local-cache`.
 
 ## Responsibility
 

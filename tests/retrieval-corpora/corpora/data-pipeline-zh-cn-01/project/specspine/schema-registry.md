@@ -2,7 +2,7 @@
 
 **ID:** `schema-registry` · **Kind:** `concept`
 
-Owns the durable architectural concept `schema-registry`.
+**Summary:** Owns the durable architectural concept `schema-registry`.
 
 ## 职责
 

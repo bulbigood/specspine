@@ -2,7 +2,7 @@
 
 **ID:** `webhook-delivery` · **Kind:** `concept`
 
-Owns the durable architectural concept `webhook-delivery`.
+**Summary:** Owns the durable architectural concept `webhook-delivery`.
 
 ## Responsibility
 

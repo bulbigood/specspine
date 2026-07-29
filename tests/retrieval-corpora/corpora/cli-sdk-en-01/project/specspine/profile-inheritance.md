@@ -2,7 +2,7 @@
 
 **ID:** `profile-inheritance` · **Kind:** `concept`
 
-Owns the durable architectural concept `profile-inheritance`.
+**Summary:** Owns the durable architectural concept `profile-inheritance`.
 
 ## Responsibility
 

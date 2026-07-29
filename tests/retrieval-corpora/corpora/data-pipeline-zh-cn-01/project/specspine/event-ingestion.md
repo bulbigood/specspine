@@ -2,7 +2,7 @@
 
 **ID:** `event-ingestion` · **Kind:** `concept`
 
-Owns the durable architectural concept `event-ingestion`.
+**Summary:** Owns the durable architectural concept `event-ingestion`.
 
 ## 职责
 

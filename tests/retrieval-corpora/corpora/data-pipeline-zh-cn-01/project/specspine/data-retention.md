@@ -2,7 +2,7 @@
 
 **ID:** `data-retention` · **Kind:** `concept`
 
-Owns the durable architectural concept `data-retention`.
+**Summary:** Owns the durable architectural concept `data-retention`.
 
 ## 职责
 

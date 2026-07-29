@@ -2,7 +2,7 @@
 
 **ID:** `retry-policy` · **Kind:** `concept`
 
-Owns the durable architectural concept `retry-policy`.
+**Summary:** Owns the durable architectural concept `retry-policy`.
 
 ## Responsibility
 
