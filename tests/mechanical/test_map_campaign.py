@@ -103,6 +103,8 @@ class MapCampaignTests(unittest.TestCase):
             "init",
             str(self.ledger),
             str(self.operation),
+            "--repository-root",
+            str(self.repository),
         )
         self.integration_index = 0
         self.current_workspace = None
@@ -309,6 +311,120 @@ class MapCampaignTests(unittest.TestCase):
         )
         return corpus
 
+    def test_discovery_commands_are_idempotent_and_recover_missing_scouts(self):
+        discovery = self.run / "resumable-discovery"
+        first = self.cli(
+            "discovery-start",
+            str(self.ledger),
+            str(self.repository),
+            str(self.spine),
+            str(discovery),
+            "--inventory-accelerator",
+        )
+        second = self.cli(
+            "discovery-start",
+            str(self.ledger),
+            str(self.repository),
+            str(self.spine),
+            str(discovery),
+            "--inventory-accelerator",
+        )
+        self.assertEqual("written", first["status"])
+        self.assertEqual("already_ready", second["status"])
+
+        results = self.run / "resumable-results"
+        packet = sorted(discovery.rglob("lead-*.json"))[0]
+        relative = packet.relative_to(discovery)
+        value = json.loads(packet.read_text(encoding="utf-8"))
+        result = results / relative
+        result.parent.mkdir(parents=True)
+        result.write_text(
+            json.dumps(
+                {
+                    "lead_id": value["lead"]["id"],
+                    "status": "closed",
+                    "reason": "Recovered fixture result.",
+                    "inspected": {"files": value["lead"]["seed_files"], "queries": []},
+                    "topics": [],
+                    "supporting": (
+                        [
+                            {
+                                "reason": "Recovered supporting evidence.",
+                                "files": value["lead"]["seed_files"],
+                            }
+                        ]
+                        if value["lead"]["seed_files"]
+                        else []
+                    ),
+                    "unresolved_leads": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        recovered = self.cli(
+            "recover",
+            str(self.ledger),
+            "--discovery-results",
+            str(results),
+        )
+        self.assertIn(relative.as_posix(), recovered["scouts"]["complete"])
+        self.assertGreater(len(recovered["scouts"]["missing"]), 0)
+
+    def test_discovery_rejects_runtime_state_inside_repository(self):
+        error = self.cli(
+            "discovery-start",
+            str(self.ledger),
+            str(self.repository),
+            str(self.spine),
+            str(self.repository / ".map-campaign"),
+            "--inventory-accelerator",
+            expected=2,
+        )
+        self.assertIn(
+            "persistent agent runtime storage outside the repository",
+            error["error"],
+        )
+
+    def test_init_rejects_campaign_ledger_inside_repository(self):
+        error = self.cli(
+            "init",
+            str(self.repository / ".hidden-map" / "campaign.json"),
+            str(self.operation),
+            "--repository-root",
+            str(self.repository),
+            expected=2,
+        )
+        self.assertIn(
+            "campaign ledger must be in persistent agent runtime storage",
+            error["error"],
+        )
+
+    def test_synthesis_prepare_is_idempotent_and_recorded(self):
+        corpus = self.discovery_corpus_path()
+        packets = self.run / "synthesis-packets"
+        first = self.cli(
+            "prepare",
+            str(corpus),
+            str(packets),
+            "--ledger",
+            str(self.ledger),
+            script=SYNTHESIS,
+        )
+        second = self.cli(
+            "prepare",
+            str(corpus),
+            str(packets),
+            "--ledger",
+            str(self.ledger),
+            script=SYNTHESIS,
+        )
+        self.assertEqual("written", first["status"])
+        self.assertEqual("already_ready", second["status"])
+        self.assertEqual(
+            str(packets.resolve()),
+            self.ledger_value()["artifacts"]["synthesis"]["packets"]["path"],
+        )
+
     def semantic_discovery_corpus_path(self):
         path = self.discovery_corpus_path()
         corpus = json.loads(path.read_text(encoding="utf-8"))
@@ -360,13 +476,15 @@ class MapCampaignTests(unittest.TestCase):
         task_id = ledger["source_pass"]["topic_tasks"][topics[0]["id"]]
         return task_id, ledger["tasks"][task_id]
 
-    def assign(self, task_id, owner="/root/producer-1"):
+    def assign(self, task_id, owner="/root/producer-1", handoffs=None):
         return self.cli(
             "assign",
             str(self.ledger),
             task_id,
             "--owner",
             owner,
+            "--handoffs-root",
+            str(handoffs or (self.run / "handoffs")),
         )
 
     def checkpoint_payload(
@@ -399,9 +517,10 @@ class MapCampaignTests(unittest.TestCase):
 
     def accept(self, task_id, payload, *, owner="/root/producer-1", expected=0):
         self.checkpoint.write_text(json.dumps(payload), encoding="utf-8")
-        attempt = self.ledger_value()["tasks"][task_id]["attempts"]
-        handoffs = self.run / f"handoffs-{task_id}-{attempt}"
-        package = handoffs / f"{task_id}-{attempt}"
+        task = self.ledger_value()["tasks"][task_id]
+        attempt = task["attempts"]
+        package = Path(task["handoff_package"])
+        handoffs = package.parent
         package.mkdir(parents=True)
         shutil.copy2(self.checkpoint, package / "checkpoint.json")
         shutil.copytree(self.staging, package / "staging")
@@ -737,6 +856,47 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual({}, ledger["tasks"])
         self.assertEqual(0o600, self.ledger.stat().st_mode & 0o777)
 
+    def test_empty_spine_bootstrap_is_idempotent(self):
+        spine = self.run / "empty-spine"
+        first = self.cli(
+            "bootstrap-spine",
+            str(self.ledger),
+            str(spine),
+            "--project",
+            "grafana",
+        )
+        second = self.cli(
+            "bootstrap-spine",
+            str(self.ledger),
+            str(spine),
+            "--project",
+            "grafana",
+        )
+
+        self.assertEqual("created", first["status"])
+        self.assertEqual(["README.md", "specspine.json"], first["created"])
+        self.assertEqual("already_ready", second["status"])
+        self.assertEqual([], second["created"])
+
+    def test_empty_spine_bootstrap_recovers_its_missing_manifest(self):
+        spine = self.run / "partial-empty-spine"
+        spine.mkdir()
+        (spine / "README.md").write_text(
+            CAMPAIGN_MODULE.bootstrap_index("grafana"),
+            encoding="utf-8",
+        )
+
+        result = self.cli(
+            "bootstrap-spine",
+            str(self.ledger),
+            str(spine),
+            "--project",
+            "grafana",
+        )
+
+        self.assertEqual("created", result["status"])
+        self.assertEqual(["specspine.json"], result["created"])
+
     def test_repository_survey_increment_reaches_increment_verified(self):
         ledger = self.ledger_value()
         ledger["operation"]["completion"] = {
@@ -786,6 +946,8 @@ class MapCampaignTests(unittest.TestCase):
                     "init",
                     str(self.run / f"invalid-{intent}-campaign.json"),
                     str(operation),
+                    "--repository-root",
+                    str(self.repository),
                     expected=2,
                 )
                 self.assertIn(
@@ -1045,10 +1207,11 @@ class MapCampaignTests(unittest.TestCase):
             )
         )
 
-    def test_repository_discovery_caps_test_inventory_at_one_thousand_files(self):
+    def test_repository_discovery_has_explicit_test_only_inventory_limit(self):
+        test_limit = 1000
         bulk = self.repository / "bulk"
         bulk.mkdir()
-        for index in range(CAMPAIGN_MODULE.REPOSITORY_DISCOVERY_FILE_LIMIT + 5):
+        for index in range(test_limit + 5):
             (bulk / f"file_{index:04d}.ts").write_text(
                 "export const value = 1;\n",
                 encoding="utf-8",
@@ -1061,6 +1224,8 @@ class MapCampaignTests(unittest.TestCase):
             str(self.spine),
             str(discovery),
             "--inventory-accelerator",
+            "--test-inventory-file-limit",
+            str(test_limit),
         )
         seed = json.loads(
             (discovery / "discovery-seed.json").read_text(encoding="utf-8")
@@ -1074,7 +1239,7 @@ class MapCampaignTests(unittest.TestCase):
         ]
 
         self.assertEqual(
-            CAMPAIGN_MODULE.REPOSITORY_DISCOVERY_FILE_LIMIT,
+            test_limit,
             len(paged),
         )
         self.assertEqual(len(paged), receipt["seed_files"])
@@ -1082,9 +1247,15 @@ class MapCampaignTests(unittest.TestCase):
         self.assertTrue(receipt["inventory_truncated"])
         self.assertEqual(paged, seed["accelerator"]["production_files"])
         self.assertTrue(seed["accelerator"]["truncated"])
+        self.assertEqual(test_limit, seed["accelerator"]["test_file_limit"])
         self.assertEqual(
             receipt["inventory_total_files"],
             seed["accelerator"]["total_production_files"],
+        )
+        self.assertFalse(
+            self.cli("next-action", str(self.ledger))["terminal_gates"][
+                "repository_boundary_complete"
+            ]
         )
 
     def test_discovery_start_rejects_oversized_pages_before_writing(self):
@@ -2223,8 +2394,12 @@ class MapCampaignTests(unittest.TestCase):
             str(self.repository),
         )
 
-        self.assertEqual(1, len(result["campaigns"]))
-        campaign = result["campaigns"][0]
+        self.assertEqual(2, len(result["campaigns"]))
+        campaign = next(
+            value
+            for value in result["campaigns"]
+            if value["ledger"] == str(early_ledger.resolve())
+        )
         self.assertEqual(str(early_ledger.resolve()), campaign["ledger"])
         self.assertEqual("source_pass_missing", campaign["incomplete_reason"])
         self.assertIsNone(campaign["source_current"])
@@ -2281,8 +2456,8 @@ class MapCampaignTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        handoffs = self.run / "resume-handoffs"
-        package = handoffs / f"{task_id}-1"
+        package = Path(self.ledger_value()["tasks"][task_id]["handoff_package"])
+        handoffs = package.parent
         package.mkdir(parents=True)
         shutil.copy2(self.checkpoint, package / "checkpoint.json")
         shutil.copytree(self.staging, package / "staging")
@@ -2324,7 +2499,7 @@ class MapCampaignTests(unittest.TestCase):
         harvested = self.cli(
             "harvest-wave",
             str(self.ledger),
-            str(self.run / "missing-handoffs"),
+            str(self.run / "handoffs"),
             str(self.spine),
             str(self.run / "missing-harvest"),
             "--checker",
@@ -2428,6 +2603,8 @@ class MapCampaignTests(unittest.TestCase):
             str(self.operation),
             "--spine-state",
             "existing",
+            "--repository-root",
+            str(self.repository),
         )
         error = self.cli(
             "source-pass",
@@ -2450,6 +2627,8 @@ class MapCampaignTests(unittest.TestCase):
             str(self.operation),
             "--spine-state",
             "existing",
+            "--repository-root",
+            str(self.repository),
         )
         receipt = self.cli(
             "seed-from-spine",
@@ -2585,9 +2764,26 @@ class MapCampaignTests(unittest.TestCase):
             second,
             "--owner",
             "/root/producer-1",
+            "--handoffs-root",
+            str(self.run / "handoffs"),
             expected=2,
         )
         self.assertIn("one producer may run only one task", error["error"])
+
+    def test_assign_returns_and_records_exact_attempt_handoff_package(self):
+        self.source_pass()
+        task_id, _ = self.task_for_unit("src/identity")
+        handoffs = self.run / "exact handoffs"
+
+        assigned = self.assign(task_id, handoffs=handoffs)
+
+        expected = str((handoffs / f"{task_id}-1").resolve())
+        self.assertEqual(1, assigned["attempt"])
+        self.assertEqual(expected, assigned["handoff_package"])
+        self.assertEqual(
+            expected,
+            self.ledger_value()["tasks"][task_id]["handoff_package"],
+        )
 
     def test_covered_by_owner_requires_existing_semantic_claim(self):
         self.source_pass()
@@ -2702,7 +2898,7 @@ class MapCampaignTests(unittest.TestCase):
         assigned = []
         for index, task in enumerate(ledger["tasks"].values()):
             owner = f"/root/producer-{index}"
-            self.assign(task["id"], owner)
+            self.assign(task["id"], owner, handoffs)
             package = handoffs / f"{task['id']}-1"
             staging = package / "staging"
             staging.mkdir(parents=True)
@@ -2765,7 +2961,7 @@ class MapCampaignTests(unittest.TestCase):
         tasks = list(ledger["tasks"].values())
         for index, task in enumerate(tasks):
             owner = f"/root/producer-{index}"
-            self.assign(task["id"], owner)
+            self.assign(task["id"], owner, handoffs)
             package = handoffs / f"{task['id']}-1"
             (package / "staging").mkdir(parents=True)
             evidence = task["evidence"]
@@ -3419,6 +3615,26 @@ class MapCampaignTests(unittest.TestCase):
             expected=2,
         )
         self.assertIn("campaign Spine snapshot is invalid", error["error"])
+
+    def test_prepare_integration_resumes_matching_edited_workspace(self):
+        self.source_pass()
+        workspace = self.prepare_integration()
+        (workspace / "README.md").write_text(
+            (workspace / "README.md").read_text(encoding="utf-8")
+            + "\nRoot work in progress.\n",
+            encoding="utf-8",
+        )
+        result = self.cli(
+            "prepare-integration",
+            str(self.ledger),
+            str(self.spine),
+            str(workspace),
+        )
+        self.assertEqual("already_ready", result["status"])
+        self.assertIn(
+            "Root work in progress.",
+            (workspace / "README.md").read_text(encoding="utf-8"),
+        )
 
     def test_integration_must_review_every_covered_task(self):
         self.source_pass()

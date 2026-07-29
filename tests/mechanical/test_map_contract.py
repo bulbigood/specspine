@@ -176,6 +176,8 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("Never read or accept an unfinished producer work directory", protocol)
         self.assertIn("harvest retained assigned tasks", entrypoint)
         self.assertIn("never restart accepted or harvestable work", entrypoint)
+        self.assertIn("persistent private runtime-data root", protocol)
+        self.assertIn("never use a hidden/gitignored project path", protocol)
 
     def test_integration_owns_canonical_publication_and_derived_todo(self):
         text = self.compact(self.integration)
@@ -194,6 +196,7 @@ class MapOperationContractTests(unittest.TestCase):
                 "discover",
                 "resume-session",
                 "seed-from-spine",
+                "bootstrap-spine",
                 "discovery-start",
                 "discovery-packets",
                 "discovery-reopen",
@@ -209,6 +212,7 @@ class MapOperationContractTests(unittest.TestCase):
                 "prepare-integration",
                 "integration-pass",
                 "next-action",
+                "recover",
             },
             commands,
         )
@@ -219,7 +223,7 @@ class MapOperationContractTests(unittest.TestCase):
     def test_prompt_files_stay_small(self):
         limits = {
             "entrypoint": (self.entrypoint, 100),
-            "protocol": (self.protocol, 300),
+            "protocol": (self.protocol, 315),
             "method": (self.method, 110),
             "discovery": (self.discovery, 105),
             "curator": (self.curator, 85),

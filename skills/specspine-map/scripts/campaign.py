@@ -31,12 +31,11 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 PRODUCER_CONTRACT_VERSION = 5
 DISCOVERY_CONTRACT_VERSION = 4
 MAX_UNIT_FILES = 80
 MAX_SCOUT_SEED_FILES = 40
-REPOSITORY_DISCOVERY_FILE_LIMIT = 1000
 MAX_CANDIDATE_DOCUMENTS = 12
 DISCOVERY_TERMINAL_STATUSES = {
     "unresolved",
@@ -320,6 +319,48 @@ def digest_json(value: Any) -> str:
     return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
+def path_digest(path: Path) -> str:
+    """Digest a file or directory without depending on mtimes or permissions."""
+    if path.is_file():
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    if not path.is_dir():
+        raise CampaignError(f"artifact does not exist: {path}")
+    entries = [
+        {
+            "path": item.relative_to(path).as_posix(),
+            "digest": hashlib.sha256(item.read_bytes()).hexdigest(),
+        }
+        for item in sorted(path.rglob("*"))
+        if item.is_file()
+    ]
+    return digest_json(entries)
+
+
+def artifact_ref(path: Path, *, input_digest: str) -> dict[str, Any]:
+    resolved = path.resolve()
+    return {
+        "path": str(resolved),
+        "input_digest": input_digest,
+        "artifact_digest": path_digest(resolved),
+    }
+
+
+def same_artifact(
+    recorded: Any,
+    path: Path,
+    *,
+    input_digest: str,
+) -> bool:
+    if not isinstance(recorded, dict):
+        return False
+    resolved = path.resolve()
+    return (
+        recorded.get("path") == str(resolved)
+        and recorded.get("input_digest") == input_digest
+        and recorded.get("artifact_digest") == path_digest(resolved)
+    )
+
+
 def producer_contract() -> dict[str, Any]:
     path = Path(__file__).resolve().parents[1] / "references/producer-task.md"
     try:
@@ -402,6 +443,25 @@ def validate_relative_path(value: Any) -> str:
     if path.is_absolute() or ".." in path.parts or value.startswith("./"):
         raise CampaignError(f"path must be repository-relative: {value!r}")
     return path.as_posix()
+
+
+def require_outside_repository(
+    path: Path,
+    repository_root: Path | None,
+    *,
+    field: str,
+) -> Path:
+    """Keep private Map runtime state out of the inspected source tree."""
+    resolved = path.resolve()
+    if repository_root is None:
+        return resolved
+    repository = repository_root.resolve()
+    if resolved == repository or repository in resolved.parents:
+        raise CampaignError(
+            f"{field} must be in persistent agent runtime storage outside "
+            f"the repository: {resolved}"
+        )
+    return resolved
 
 
 def string_list(
@@ -528,6 +588,25 @@ def atomic_write(path: Path, value: dict[str, Any]) -> None:
         temporary_path.unlink(missing_ok=True)
 
 
+def atomic_write_text(path: Path, value: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(value)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary_path, 0o600)
+        os.replace(temporary_path, path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
 def load(path: Path) -> dict[str, Any]:
     ledger = read_json(path)
     if ledger.get("schema_version") != SCHEMA_VERSION:
@@ -543,6 +622,20 @@ def load(path: Path) -> dict[str, Any]:
         raise CampaignError("campaign updated_at timestamp is invalid")
     validate_operation_spec(ledger.get("operation"))
     ledger_producer_contract(ledger)
+    repository_value = ledger.get("repository_root")
+    if isinstance(repository_value, str):
+        require_outside_repository(
+            path,
+            Path(repository_value),
+            field="campaign ledger",
+        )
+    artifacts = ledger.get("artifacts")
+    if (
+        not isinstance(artifacts, dict)
+        or set(artifacts) != {"discovery", "synthesis", "integration"}
+        or any(not isinstance(artifacts[name], dict) for name in artifacts)
+    ):
+        raise CampaignError("campaign artifact manifest is invalid")
     return ledger
 
 
@@ -560,6 +653,19 @@ def save_locked(path: Path, ledger: dict[str, Any]) -> None:
     ledger["revision"] += 1
     ledger["updated_at"] = utc_timestamp()
     atomic_write(path, ledger)
+
+
+def record_artifact(
+    ledger: dict[str, Any],
+    phase: str,
+    name: str,
+    path: Path,
+    *,
+    input_digest: str,
+) -> dict[str, Any]:
+    reference = artifact_ref(path, input_digest=input_digest)
+    ledger["artifacts"][phase][name] = reference
+    return reference
 
 
 def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
@@ -1166,10 +1272,6 @@ def discovery_packet(
 
 
 def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
-    if args.output_dir.exists():
-        raise CampaignError(
-            f"discovery output directory already exists: {args.output_dir}"
-        )
     if args.page_size > MAX_SCOUT_SEED_FILES:
         raise CampaignError(
             f"discovery page size exceeds {MAX_SCOUT_SEED_FILES} files"
@@ -1182,6 +1284,11 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         )
     if not spine_root.is_dir():
         raise CampaignError(f"Spine root is not a directory: {spine_root}")
+    require_outside_repository(
+        args.output_dir,
+        repository_root,
+        field="discovery output",
+    )
     current = load(args.ledger)
     operation = validate_operation_spec(current["operation"])
     scope = operation["scope"]
@@ -1191,11 +1298,18 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         and recorded_repository != repository_root
     ):
         raise CampaignError("discovery repository root differs from operation")
-    if current.get("discovery") is not None:
-        raise CampaignError("operation discovery already started")
+    existing_discovery = current.get("discovery")
+    if existing_discovery is not None and (
+        existing_discovery.get("root") != str(args.output_dir.resolve())
+    ):
+        raise CampaignError("operation discovery already started elsewhere")
     if args.inventory_accelerator and scope["kind"] != "repository":
         raise CampaignError(
             "flat inventory accelerator is valid only for repository scope"
+        )
+    if args.test_inventory_file_limit is not None and not args.inventory_accelerator:
+        raise CampaignError(
+            "--test-inventory-file-limit requires --inventory-accelerator"
         )
     inventory: dict[str, Any] | None = None
     inventory_files: list[str] = []
@@ -1206,12 +1320,12 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
             spine_root=spine_root,
         )
         inventory_total_files = len(inventory["production_files"])
-        inventory_files = inventory["production_files"][
-            :REPOSITORY_DISCOVERY_FILE_LIMIT
-        ]
-    args.output_dir.mkdir(parents=True)
+        inventory_files = inventory["production_files"]
+        if args.test_inventory_file_limit is not None:
+            inventory_files = inventory_files[: args.test_inventory_file_limit]
+    args.output_dir.mkdir(parents=True, exist_ok=True)
     packets_dir = args.output_dir / "wave-0001"
-    packets_dir.mkdir()
+    packets_dir.mkdir(exist_ok=True)
     leads: list[dict[str, Any]] = [
         {
             "id": "scope-root",
@@ -1255,30 +1369,75 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
                 "production_files": inventory_files,
                 "total_production_files": inventory_total_files,
                 "truncated": inventory_total_files > len(inventory_files),
+                "test_file_limit": args.test_inventory_file_limit,
                 "excluded": inventory["excluded"],
                 "excluded_directories": inventory["excluded_directories"],
             }
         ),
         "initial_leads": [lead["id"] for lead in leads],
     }
-    atomic_write(args.output_dir / "discovery-seed.json", seed)
+    seed_path = args.output_dir / "discovery-seed.json"
+    input_digest = digest_json(
+        {
+            "contract": DISCOVERY_CONTRACT_VERSION,
+            "operation": operation,
+            "repository_root": str(repository_root),
+            "spine_root": str(spine_root),
+            "inventory": None if inventory is None else inventory["digest"],
+            "inventory_files": inventory_files,
+            "page_size": args.page_size,
+        }
+    )
+    if seed_path.exists() and read_json(seed_path) != seed:
+        raise CampaignError("existing discovery seed differs from current inputs")
+    atomic_write(seed_path, seed)
     packets: list[str] = []
+    expected_packet_names: set[str] = set()
     for lead in leads:
         path = packets_dir / f"lead-{lead['id']}.json"
-        atomic_write(path, discovery_packet(seed, lead, source_refs=[]))
+        expected = discovery_packet(seed, lead, source_refs=[])
+        expected_packet_names.add(path.name)
+        if path.exists() and read_json(path) != expected:
+            raise CampaignError(f"existing discovery packet conflicts: {path}")
+        atomic_write(path, expected)
         packets.append(str(path.resolve()))
+    unexpected = sorted(
+        path.name
+        for path in packets_dir.glob("lead-*.json")
+        if path.name not in expected_packet_names
+    )
+    if unexpected:
+        raise CampaignError(f"discovery packet directory has stale packets: {unexpected}")
     with locked_ledger(args.ledger) as ledger:
-        if ledger.get("discovery") is not None:
-            raise CampaignError("operation discovery already started")
-        ledger["discovery"] = {
+        state = {
             "status": "discovering",
             "root": str(args.output_dir.resolve()),
-            "seed": str((args.output_dir / "discovery-seed.json").resolve()),
+            "seed": str(seed_path.resolve()),
             "corpus": None,
+            "test_slice_truncated": (
+                inventory_total_files > len(inventory_files)
+                and args.test_inventory_file_limit is not None
+            ),
         }
-        save_locked(args.ledger, ledger)
+        already_ready = ledger.get("discovery") == state and same_artifact(
+            ledger["artifacts"]["discovery"].get("seed"),
+            seed_path,
+            input_digest=input_digest,
+        )
+        if ledger.get("discovery") is not None and ledger.get("discovery") != state:
+            raise CampaignError("recorded discovery differs from current inputs")
+        ledger["discovery"] = state
+        record_artifact(
+            ledger,
+            "discovery",
+            "seed",
+            seed_path,
+            input_digest=input_digest,
+        )
+        if not already_ready:
+            save_locked(args.ledger, ledger)
     return {
-        "status": "written",
+        "status": "already_ready" if already_ready else "written",
         "seed": str((args.output_dir / "discovery-seed.json").resolve()),
         "packets": packets,
         "scope_kind": scope["kind"],
@@ -1287,6 +1446,7 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         "seed_files": len(inventory_files),
         "inventory_total_files": inventory_total_files,
         "inventory_truncated": inventory_total_files > len(inventory_files),
+        "test_inventory_file_limit": args.test_inventory_file_limit,
     }
 
 
@@ -1363,10 +1523,11 @@ def command_discovery_packets(args: argparse.Namespace) -> dict[str, Any]:
         or seed.get("discovery_contract_version") != DISCOVERY_CONTRACT_VERSION
     ):
         raise CampaignError("discovery seed contract is invalid")
-    if args.output_dir.exists():
-        raise CampaignError(
-            f"discovery packet directory already exists: {args.output_dir}"
-        )
+    require_outside_repository(
+        args.output_dir,
+        Path(seed["repository_root"]),
+        field="discovery packet output",
+    )
     raw = read_json(args.frontier)
     if not isinstance(raw, dict) or set(raw) != {"decisions"} or not isinstance(
         raw["decisions"], list
@@ -1399,25 +1560,45 @@ def command_discovery_packets(args: argparse.Namespace) -> dict[str, Any]:
             if lead_id in queued_ids:
                 raise CampaignError(f"frontier repeats queued lead: {lead_id}")
             queued_ids.add(lead_id)
-    args.output_dir.mkdir(parents=True)
-    atomic_write(args.output_dir / "_frontier.json", {"decisions": decisions})
+    input_digest = digest_json(
+        {
+            "contract": DISCOVERY_CONTRACT_VERSION,
+            "seed": digest_json(seed),
+            "decisions": decisions,
+        }
+    )
+    manifest = {
+        "kind": "discovery-packets",
+        "input_digest": input_digest,
+    }
+    manifest_path = args.output_dir / "_artifact.json"
+    already_ready = manifest_path.is_file()
+    if args.output_dir.exists():
+        if not manifest_path.is_file() or read_json(manifest_path) != manifest:
+            raise CampaignError(
+                f"existing discovery packet directory has different inputs: "
+                f"{args.output_dir}"
+            )
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    frontier_value = {"decisions": decisions}
+    frontier_path = args.output_dir / "_frontier.json"
+    if frontier_path.exists() and read_json(frontier_path) != frontier_value:
+        raise CampaignError("existing frontier artifact conflicts")
+    atomic_write(frontier_path, frontier_value)
+    atomic_write(manifest_path, manifest)
     packets: list[str] = []
     for decision in decisions:
         if decision["disposition"] != "queue":
             continue
         lead = decision["lead"]
         path = args.output_dir / f"lead-{lead['id']}.json"
-        atomic_write(
-            path,
-            discovery_packet(
-                seed,
-                lead,
-                source_refs=decision["sources"],
-            ),
-        )
+        expected = discovery_packet(seed, lead, source_refs=decision["sources"])
+        if path.exists() and read_json(path) != expected:
+            raise CampaignError(f"existing discovery packet conflicts: {path}")
+        atomic_write(path, expected)
         packets.append(str(path.resolve()))
     return {
-        "status": "written",
+        "status": "already_ready" if already_ready else "written",
         "packets": packets,
         "queued": len(packets),
         "duplicate": sum(
@@ -1439,10 +1620,11 @@ def command_discovery_reopen(args: argparse.Namespace) -> dict[str, Any]:
         or seed.get("discovery_contract_version") != DISCOVERY_CONTRACT_VERSION
     ):
         raise CampaignError("discovery seed contract is invalid")
-    if args.output_dir.exists():
-        raise CampaignError(
-            f"discovery packet directory already exists: {args.output_dir}"
-        )
+    require_outside_repository(
+        args.output_dir,
+        Path(seed["repository_root"]),
+        field="reopened discovery output",
+    )
     plan = read_json(args.topic_plan)
     operation = validate_operation_spec(seed["operation"])
     if operation["completion"]["kind"] != "exhaustive":
@@ -1450,7 +1632,7 @@ def command_discovery_reopen(args: argparse.Namespace) -> dict[str, Any]:
     current = load(args.ledger)
     if current["operation"] != operation:
         raise CampaignError("discovery operation differs from ledger")
-    if current.get("discovery", {}).get("status") != "synthesis":
+    if current.get("discovery", {}).get("status") not in {"synthesis", "discovering"}:
         raise CampaignError("ledger is not awaiting synthesis")
     if not isinstance(plan, dict) or set(plan) != {
         "topics",
@@ -1522,30 +1704,78 @@ def command_discovery_reopen(args: argparse.Namespace) -> dict[str, Any]:
                 },
             }
         )
-    args.output_dir.mkdir(parents=True)
-    atomic_write(
-        args.output_dir / "_synthesis-gaps.json",
-        {"proposals": sorted(proposals)},
+    input_digest = digest_json(
+        {
+            "contract": DISCOVERY_CONTRACT_VERSION,
+            "seed": digest_json(seed),
+            "topic_plan": digest_json(plan),
+        }
     )
-    atomic_write(args.output_dir / "_frontier.json", {"decisions": decisions})
+    manifest = {"kind": "discovery-reopen", "input_digest": input_digest}
+    manifest_path = args.output_dir / "_artifact.json"
+    already_ready = manifest_path.is_file()
+    if current.get("discovery", {}).get("status") == "discovering" and not same_artifact(
+        current["artifacts"]["discovery"].get(f"reopen-{args.output_dir.name}"),
+        args.output_dir,
+        input_digest=input_digest,
+    ):
+        raise CampaignError(
+            "discovery is already open for a different or incomplete wave"
+        )
+    if args.output_dir.exists() and (
+        not already_ready or read_json(manifest_path) != manifest
+    ):
+        raise CampaignError(
+            f"existing reopened discovery wave has different inputs: {args.output_dir}"
+        )
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    gaps = {"proposals": sorted(proposals)}
+    frontier = {"decisions": decisions}
+    for path, expected in (
+        (args.output_dir / "_synthesis-gaps.json", gaps),
+        (args.output_dir / "_frontier.json", frontier),
+    ):
+        if path.exists() and read_json(path) != expected:
+            raise CampaignError(f"existing discovery artifact conflicts: {path}")
+        atomic_write(path, expected)
+    atomic_write(manifest_path, manifest)
     packets: list[str] = []
     for decision in decisions:
         lead = decision["lead"]
         path = args.output_dir / f"lead-{lead['id']}.json"
-        atomic_write(
-            path,
-            discovery_packet(seed, lead, source_refs=decision["sources"]),
-        )
+        expected = discovery_packet(seed, lead, source_refs=decision["sources"])
+        if path.exists() and read_json(path) != expected:
+            raise CampaignError(f"existing discovery packet conflicts: {path}")
+        atomic_write(path, expected)
         packets.append(str(path.resolve()))
     with locked_ledger(args.ledger) as ledger:
+        artifact_current = same_artifact(
+            ledger["artifacts"]["discovery"].get(
+                f"reopen-{args.output_dir.name}"
+            ),
+            args.output_dir,
+            input_digest=input_digest,
+        )
         ledger["discovery"] = {
             **ledger["discovery"],
             "status": "discovering",
             "corpus": None,
         }
-        save_locked(args.ledger, ledger)
+        record_artifact(
+            ledger,
+            "discovery",
+            f"reopen-{args.output_dir.name}",
+            args.output_dir,
+            input_digest=input_digest,
+        )
+        if (
+            not already_ready
+            or not artifact_current
+            or current.get("discovery", {}).get("status") != "discovering"
+        ):
+            save_locked(args.ledger, ledger)
     return {
-        "status": "written",
+        "status": "already_ready" if already_ready else "written",
         "packets": packets,
         "reopened": len(packets),
     }
@@ -1942,8 +2172,7 @@ def command_discovery_validate(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
-    if args.output.exists():
-        raise CampaignError(f"discovery corpus already exists: {args.output}")
+    output_existed = args.output.exists()
     seed = read_json(args.seed)
     if (
         not isinstance(seed, dict)
@@ -1951,6 +2180,12 @@ def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
     ):
         raise CampaignError("discovery seed contract is invalid")
     repository_root = Path(seed["repository_root"]).resolve()
+    for path, field in (
+        (args.packets_root, "discovery packet root"),
+        (args.results_root, "discovery result root"),
+        (args.output, "discovery corpus"),
+    ):
+        require_outside_repository(path, repository_root, field=field)
     operation = validate_operation_spec(seed["operation"])
     current = load(args.ledger)
     if current["operation"] != operation:
@@ -2143,18 +2378,44 @@ def command_discovery_collect(args: argparse.Namespace) -> dict[str, Any]:
         "evidence_files": evidence_files,
     }
     corpus["digest"] = digest_json(corpus)
+    input_digest = digest_json(
+        {
+            "contract": DISCOVERY_CONTRACT_VERSION,
+            "seed": digest_json(seed),
+            "packets": path_digest(args.packets_root),
+            "results": path_digest(args.results_root),
+        }
+    )
+    if output_existed and read_json(args.output) != corpus:
+        raise CampaignError(
+            "existing discovery corpus conflicts with current packets/results"
+        )
     atomic_write(args.output, corpus)
     with locked_ledger(args.ledger) as ledger:
         if ledger["operation"] != operation:
             raise CampaignError("discovery operation differs from ledger")
-        ledger["discovery"] = {
+        state = {
             **ledger["discovery"],
             "status": "synthesis",
             "corpus": str(args.output.resolve()),
         }
-        save_locked(args.ledger, ledger)
+        already_ready = output_existed and ledger["discovery"] == state and same_artifact(
+            ledger["artifacts"]["discovery"].get("corpus"),
+            args.output,
+            input_digest=input_digest,
+        )
+        ledger["discovery"] = state
+        record_artifact(
+            ledger,
+            "discovery",
+            "corpus",
+            args.output,
+            input_digest=input_digest,
+        )
+        if not already_ready:
+            save_locked(args.ledger, ledger)
     return {
-        "status": "written",
+        "status": "already_ready" if already_ready else "written",
         "corpus": str(args.output.resolve()),
         "scope_kind": operation["scope"]["kind"],
         "completion_kind": operation["completion"]["kind"],
@@ -2335,6 +2596,12 @@ def validate_empty_reason(
 def command_init(args: argparse.Namespace) -> dict[str, Any]:
     if args.ledger.exists():
         raise CampaignError(f"campaign already exists: {args.ledger}")
+    if args.repository_root is not None:
+        require_outside_repository(
+            args.ledger,
+            args.repository_root,
+            field="campaign ledger",
+        )
     timestamp = utc_timestamp()
     contract = producer_contract()
     operation = validate_operation_spec(read_json(args.operation_spec))
@@ -2360,6 +2627,11 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         "document_change_history": [],
         "documentation_seed": None,
         "discovery": None,
+        "artifacts": {
+            "discovery": {},
+            "synthesis": {},
+            "integration": {},
+        },
         "spine_snapshot": None,
         "source_pass": None,
         "integration_pass": None,
@@ -2426,6 +2698,76 @@ def command_seed_from_spine(args: argparse.Namespace) -> dict[str, Any]:
             "added_todo": [],
             "revision": ledger["revision"],
         }
+
+
+def bootstrap_index(project: str) -> str:
+    return (
+        f"# {project} architecture\n\n"
+        "**ID:** `project-architecture` · **Kind:** `index`\n\n"
+        "This directory contains the project's long-lived architectural intent "
+        "and architecture-relevant repository observations.\n\n"
+        "## Architecture map\n\n"
+        "Architectural entry points appear here as their specifications are "
+        "established.\n"
+    )
+
+
+def bootstrap_manifest(project: str) -> dict[str, Any]:
+    return {
+        "specspine": 3,
+        "project": project,
+        "implementation_freedom": "contract-equivalent",
+        "areas": [],
+        "assets": [],
+    }
+
+
+def command_bootstrap_spine(args: argparse.Namespace) -> dict[str, Any]:
+    ledger = load(args.ledger)
+    if ledger["spine_state"] != "empty":
+        raise CampaignError("bootstrap-spine requires --spine-state empty")
+    if ledger.get("source_pass") is not None:
+        raise CampaignError("bootstrap-spine must run before source-pass")
+    project = args.project.strip()
+    if not project:
+        raise CampaignError("bootstrap project must be nonempty")
+    spine_root = args.spine_root.resolve()
+    spine_root.mkdir(parents=True, exist_ok=True)
+    index_path = spine_root / "README.md"
+    manifest_path = spine_root / "specspine.json"
+    expected_index = bootstrap_index(project)
+    expected_manifest = bootstrap_manifest(project)
+    created: list[str] = []
+
+    if index_path.exists():
+        if index_path.read_text(encoding="utf-8") != expected_index:
+            raise CampaignError(
+                "empty Spine bootstrap found a non-bootstrap README.md"
+            )
+    else:
+        atomic_write_text(index_path, expected_index)
+        created.append("README.md")
+
+    if manifest_path.exists():
+        if read_json(manifest_path) != expected_manifest:
+            raise CampaignError(
+                "empty Spine bootstrap found a non-bootstrap specspine.json"
+            )
+    else:
+        atomic_write(manifest_path, expected_manifest)
+        created.append("specspine.json")
+
+    findings = run_checker(
+        args.checker,
+        spine_root,
+        repository_root=repository_root_from_ledger(ledger),
+    )
+    return {
+        "status": "created" if created else "already_ready",
+        "spine_root": str(spine_root),
+        "created": created,
+        "checker_findings": len(findings),
+    }
 
 
 def validate_topic_plan(
@@ -3078,6 +3420,11 @@ def command_packet(args: argparse.Namespace) -> dict[str, Any]:
     }
     if args.output is None:
         return packet
+    require_outside_repository(
+        args.output,
+        repository_root_from_ledger(ledger),
+        field="producer packet",
+    )
     if args.output.exists():
         raise CampaignError(f"packet output already exists: {args.output}")
     atomic_write(args.output, packet)
@@ -3090,6 +3437,11 @@ def command_packet(args: argparse.Namespace) -> dict[str, Any]:
 
 def command_assign(args: argparse.Namespace) -> dict[str, Any]:
     with locked_ledger(args.ledger) as ledger:
+        require_outside_repository(
+            args.handoffs_root,
+            repository_root_from_ledger(ledger),
+            field="producer handoff root",
+        )
         task = require_task(ledger, args.id)
         if task["state"] != "todo":
             raise CampaignError(f"assign requires todo state: {args.id}")
@@ -3101,12 +3453,18 @@ def command_assign(args: argparse.Namespace) -> dict[str, Any]:
         task["state"] = "assigned"
         task["owner"] = args.owner
         task["attempts"] += 1
+        task["handoff_package"] = str(
+            args.handoffs_root.resolve()
+            / f"{task['id']}-{task['attempts']}"
+        )
         ledger["used_producers"][args.owner] = task["id"]
         save_locked(args.ledger, ledger)
         return {
             "status": "assigned",
             "task": task_definition(task),
             "owner": args.owner,
+            "attempt": task["attempts"],
+            "handoff_package": task["handoff_package"],
             "revision": ledger["revision"],
         }
 
@@ -3118,6 +3476,7 @@ def command_release(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(f"release requires assigned state: {args.id}")
         task["state"] = "todo"
         task["owner"] = None
+        task["handoff_package"] = None
         save_locked(args.ledger, ledger)
         return {
             "status": "released",
@@ -3565,11 +3924,24 @@ def wave_result_paths(
         raise CampaignError(f"assigned task has invalid attempt: {task['id']}")
     name = f"{task['id']}-{attempt}"
     package = handoffs_root / name
+    if task.get("handoff_package") != str(package.resolve()):
+        raise CampaignError(
+            f"handoff root differs from assigned package for task: {task['id']}"
+        )
     return package / "checkpoint.json", package / "staging", harvest_root / f"{name}.json"
 
 
 def command_harvest_wave(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
+    for path, field in (
+        (args.handoffs_root, "producer handoff root"),
+        (args.harvest_root, "harvest receipt root"),
+    ):
+        require_outside_repository(
+            path,
+            repository_root_from_ledger(ledger),
+            field=field,
+        )
     tasks = sorted(
         (
             task
@@ -3753,6 +4125,15 @@ def apply_accepted_result(
 
 def command_accept_wave(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
+    for path, field in (
+        (args.handoffs_root, "producer handoff root"),
+        (args.harvest_root, "harvest receipt root"),
+    ):
+        require_outside_repository(
+            path,
+            repository_root_from_ledger(ledger),
+            field=field,
+        )
     tasks = sorted(
         (
             task
@@ -3911,8 +4292,11 @@ def command_prepare_integration(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
     spine_root = args.spine_root.resolve()
     workspace = args.workspace.resolve()
-    if workspace.exists():
-        raise CampaignError(f"integration workspace already exists: {workspace}")
+    require_outside_repository(
+        workspace,
+        repository_root_from_ledger(ledger),
+        field="integration workspace",
+    )
     if workspace == spine_root or workspace in spine_root.parents or spine_root in workspace.parents:
         raise CampaignError("integration workspace and live Spine must be separate")
     current_hashes = document_hashes(spine_root)
@@ -3925,6 +4309,58 @@ def command_prepare_integration(args: argparse.Namespace) -> dict[str, Any]:
         for task in ledger["tasks"].values()
         if task["state"] in {"published", "review"}
     ]
+    input_digest = digest_json(
+        {
+            "spine_snapshot": current_hashes,
+            "settled_tasks": [
+                {
+                    "id": task["id"],
+                    "state": task["state"],
+                    "checkpoint_digest": task.get("checkpoint_digest"),
+                    "staging_digest": task.get("accepted_staging_digest"),
+                }
+                for task in sorted(settled, key=lambda value: value["id"])
+            ],
+        }
+    )
+    manifest_path = workspace.parent / f".{workspace.name}.map-integration.json"
+    manifest = {
+        "kind": "integration-workspace",
+        "workspace": str(workspace),
+        "spine_root": str(spine_root),
+        "input_digest": input_digest,
+        "spine_snapshot": current_hashes,
+        "settled_tasks": sorted(task["id"] for task in settled),
+    }
+    if workspace.exists():
+        if not workspace.is_dir():
+            raise CampaignError(f"integration workspace is not a directory: {workspace}")
+        if not manifest_path.is_file() or read_json(manifest_path) != manifest:
+            raise CampaignError(
+                "existing integration workspace is stale or has no matching manifest"
+            )
+        with locked_ledger(args.ledger) as mutable:
+            ready = same_artifact(
+                mutable["artifacts"]["integration"].get("workspace"),
+                manifest_path,
+                input_digest=input_digest,
+            )
+            record_artifact(
+                mutable,
+                "integration",
+                "workspace",
+                manifest_path,
+                input_digest=input_digest,
+            )
+            if not ready:
+                save_locked(args.ledger, mutable)
+        return {
+            "status": "already_ready",
+            "workspace": str(workspace),
+            "manifest": str(manifest_path),
+            "settled_tasks": manifest["settled_tasks"],
+            "candidate_files": [],
+        }
     shutil.copytree(spine_root, workspace)
     copied: list[str] = []
     try:
@@ -3947,9 +4383,20 @@ def command_prepare_integration(args: argparse.Namespace) -> dict[str, Any]:
     except Exception:
         shutil.rmtree(workspace, ignore_errors=True)
         raise
+    atomic_write(manifest_path, manifest)
+    with locked_ledger(args.ledger) as mutable:
+        record_artifact(
+            mutable,
+            "integration",
+            "workspace",
+            manifest_path,
+            input_digest=input_digest,
+        )
+        save_locked(args.ledger, mutable)
     return {
         "status": "prepared",
         "workspace": str(workspace),
+        "manifest": str(manifest_path),
         "settled_tasks": sorted(task["id"] for task in settled),
         "candidate_files": sorted(copied),
     }
@@ -4638,6 +5085,10 @@ def terminal_gates(ledger: dict[str, Any]) -> dict[str, bool]:
             isinstance(ledger.get("integration_pass"), dict)
             and ledger["integration_pass"].get("checker_clean") is True
         ),
+        "repository_boundary_complete": not bool(
+            isinstance(ledger.get("discovery"), dict)
+            and ledger["discovery"].get("test_slice_truncated")
+        ),
     }
 
 
@@ -4659,6 +5110,15 @@ def campaign_summary(ledger_path: Path) -> dict[str, Any]:
             if ledger["operation"]["completion"]["kind"] == "increment"
             else "scope_verified"
         )
+    elif (
+        not gates["repository_boundary_complete"]
+        and all(
+            value
+            for name, value in gates.items()
+            if name != "repository_boundary_complete"
+        )
+    ):
+        terminal = "blocked"
     elif (
         gates["todo_empty"]
         and gates["producers_finished"]
@@ -4768,6 +5228,199 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def recorded_artifact_path(ledger: dict[str, Any], phase: str, name: str) -> Path | None:
+    value = ledger["artifacts"][phase].get(name)
+    if not isinstance(value, dict) or not isinstance(value.get("path"), str):
+        return None
+    return Path(value["path"])
+
+
+def command_recover(args: argparse.Namespace) -> dict[str, Any]:
+    """Reconcile durable phase artifacts and return only missing atomic work."""
+    current = load(args.ledger)
+    repository_root = repository_root_from_ledger(current)
+    for path, field in (
+        (args.discovery_results, "discovery result root"),
+        (args.synthesis_packets, "synthesis packet root"),
+        (args.reducer_results, "reducer result root"),
+        (args.global_packet, "global synthesis packet"),
+        (args.mapping, "synthesis mapping"),
+        (args.review, "synthesis review"),
+        (args.topic_plan, "topic plan"),
+        (args.handoffs_root, "producer handoff root"),
+    ):
+        if path is not None:
+            require_outside_repository(path, repository_root, field=field)
+    discovery = current.get("discovery")
+    packet_root = (
+        Path(discovery["root"])
+        if isinstance(discovery, dict) and isinstance(discovery.get("root"), str)
+        else None
+    )
+    seed_path = (
+        Path(discovery["seed"])
+        if isinstance(discovery, dict) and isinstance(discovery.get("seed"), str)
+        else None
+    )
+    seed = read_json(seed_path) if seed_path is not None and seed_path.is_file() else None
+
+    results_root = args.discovery_results or recorded_artifact_path(
+        current, "discovery", "results-root"
+    )
+    scout_complete: list[str] = []
+    scout_missing: list[str] = []
+    scout_invalid: list[dict[str, str]] = []
+    if packet_root is not None and seed is not None:
+        for packet in sorted(packet_root.rglob("lead-*.json")):
+            relative = packet.relative_to(packet_root)
+            if results_root is None:
+                scout_missing.append(relative.as_posix())
+                continue
+            result = results_root / relative
+            if not result.is_file():
+                scout_missing.append(relative.as_posix())
+                continue
+            try:
+                validate_discovery_packet_result(seed, packet, result)
+            except CampaignError as error:
+                scout_invalid.append(
+                    {"packet": relative.as_posix(), "error": str(error)}
+                )
+            else:
+                scout_complete.append(relative.as_posix())
+
+    synthesis_packets = args.synthesis_packets or recorded_artifact_path(
+        current, "synthesis", "packets"
+    )
+    reducer_results = args.reducer_results or recorded_artifact_path(
+        current, "synthesis", "reducer-results-root"
+    )
+    reducer_complete: list[str] = []
+    reducer_missing: list[str] = []
+    reducer_invalid: list[dict[str, str]] = []
+    if synthesis_packets is not None and synthesis_packets.is_dir():
+        for packet in sorted(synthesis_packets.glob("batch-*.json")):
+            result = None if reducer_results is None else reducer_results / packet.name
+            if result is None or not result.is_file():
+                reducer_missing.append(packet.name)
+                continue
+            try:
+                packet_value = read_json(packet)
+                result_value = read_json(result)
+                if result_value.get("batch_id") != packet_value.get("batch_id"):
+                    raise CampaignError("reducer batch_id differs from packet")
+            except CampaignError as error:
+                reducer_invalid.append({"packet": packet.name, "error": str(error)})
+            else:
+                reducer_complete.append(packet.name)
+
+    canonical: dict[str, dict[str, Any]] = {}
+    for name, supplied in (
+        ("global-packet", args.global_packet),
+        ("mapping", args.mapping),
+        ("review", args.review),
+        ("topic-plan", args.topic_plan),
+    ):
+        path = supplied or recorded_artifact_path(current, "synthesis", name)
+        canonical[name] = {
+            "path": None if path is None else str(path.resolve()),
+            "ready": bool(path is not None and path.is_file()),
+        }
+
+    workspace_manifest = recorded_artifact_path(
+        current, "integration", "workspace"
+    )
+    integration_ready = bool(
+        workspace_manifest is not None
+        and workspace_manifest.is_file()
+        and isinstance(read_json(workspace_manifest).get("workspace"), str)
+        and Path(read_json(workspace_manifest)["workspace"]).is_dir()
+    )
+
+    handoffs_root = args.handoffs_root
+    harvestable: list[str] = []
+    pending_producers: list[str] = []
+    for task in sorted(current["tasks"].values(), key=lambda value: value["id"]):
+        if task["state"] != "assigned":
+            continue
+        package_value = task.get("handoff_package")
+        package = Path(package_value) if isinstance(package_value, str) else None
+        if handoffs_root is not None and package is not None:
+            try:
+                package.relative_to(handoffs_root.resolve())
+            except ValueError:
+                package = None
+        if (
+            package is not None
+            and (package / "checkpoint.json").is_file()
+            and (package / "staging").is_dir()
+        ):
+            harvestable.append(task["id"])
+        else:
+            pending_producers.append(task["id"])
+
+    with locked_ledger(args.ledger) as ledger:
+        before = canonical_json(ledger["artifacts"])
+        if results_root is not None and results_root.exists():
+            record_artifact(
+                ledger,
+                "discovery",
+                "results-root",
+                results_root,
+                input_digest=digest_json(
+                    {"seed": None if seed is None else digest_json(seed)}
+                ),
+            )
+        if reducer_results is not None and reducer_results.exists():
+            record_artifact(
+                ledger,
+                "synthesis",
+                "reducer-results-root",
+                reducer_results,
+                input_digest=(
+                    digest_json({"packets": None})
+                    if synthesis_packets is None
+                    else path_digest(synthesis_packets)
+                ),
+            )
+        for name, supplied in (
+            ("global-packet", args.global_packet),
+            ("mapping", args.mapping),
+            ("review", args.review),
+            ("topic-plan", args.topic_plan),
+        ):
+            if supplied is not None and supplied.is_file():
+                record_artifact(
+                    ledger,
+                    "synthesis",
+                    name,
+                    supplied,
+                    input_digest=hashlib.sha256(supplied.read_bytes()).hexdigest(),
+                )
+        if canonical_json(ledger["artifacts"]) != before:
+            save_locked(args.ledger, ledger)
+
+    return {
+        "status": "recovered",
+        "scouts": {
+            "complete": scout_complete,
+            "missing": scout_missing,
+            "invalid": scout_invalid,
+        },
+        "reducers": {
+            "complete": reducer_complete,
+            "missing": reducer_missing,
+            "invalid": reducer_invalid,
+        },
+        "synthesis": canonical,
+        "integration_workspace_ready": integration_ready,
+        "producers": {
+            "harvestable": harvestable,
+            "pending": pending_producers,
+        },
+    }
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     sub = result.add_subparsers(dest="command", required=True)
@@ -4780,7 +5433,7 @@ def parser() -> argparse.ArgumentParser:
         choices=("empty", "existing"),
         default="empty",
     )
-    init.add_argument("--repository-root", type=Path)
+    init.add_argument("--repository-root", type=Path, required=True)
 
     discover = sub.add_parser("discover")
     discover.add_argument("campaign_home", type=Path)
@@ -4803,6 +5456,16 @@ def parser() -> argparse.ArgumentParser:
         default=Path(__file__).with_name("check_spine.py"),
     )
 
+    bootstrap = sub.add_parser("bootstrap-spine")
+    bootstrap.add_argument("ledger", type=Path)
+    bootstrap.add_argument("spine_root", type=Path)
+    bootstrap.add_argument("--project", required=True)
+    bootstrap.add_argument(
+        "--checker",
+        type=Path,
+        default=Path(__file__).with_name("check_spine.py"),
+    )
+
     discovery_start = sub.add_parser("discovery-start")
     discovery_start.add_argument("ledger", type=Path)
     discovery_start.add_argument("repository_root", type=Path)
@@ -4811,6 +5474,11 @@ def parser() -> argparse.ArgumentParser:
     discovery_start.add_argument(
         "--inventory-accelerator",
         action="store_true",
+    )
+    discovery_start.add_argument(
+        "--test-inventory-file-limit",
+        type=positive_int,
+        help="test-only inventory truncation; never use for a completeness claim",
     )
     discovery_start.add_argument(
         "--page-size",
@@ -4867,6 +5535,7 @@ def parser() -> argparse.ArgumentParser:
     assign.add_argument("ledger", type=Path)
     assign.add_argument("id")
     assign.add_argument("--owner", required=True)
+    assign.add_argument("--handoffs-root", required=True, type=Path)
 
     release = sub.add_parser("release")
     release.add_argument("ledger", type=Path)
@@ -4913,6 +5582,17 @@ def parser() -> argparse.ArgumentParser:
     next_action = sub.add_parser("next-action")
     next_action.add_argument("ledger", type=Path)
 
+    recover = sub.add_parser("recover")
+    recover.add_argument("ledger", type=Path)
+    recover.add_argument("--discovery-results", type=Path)
+    recover.add_argument("--synthesis-packets", type=Path)
+    recover.add_argument("--reducer-results", type=Path)
+    recover.add_argument("--global-packet", type=Path)
+    recover.add_argument("--mapping", type=Path)
+    recover.add_argument("--review", type=Path)
+    recover.add_argument("--topic-plan", type=Path)
+    recover.add_argument("--handoffs-root", type=Path)
+
     return result
 
 
@@ -4923,6 +5603,7 @@ def main() -> int:
         "discover": command_discover,
         "resume-session": command_resume_session,
         "seed-from-spine": command_seed_from_spine,
+        "bootstrap-spine": command_bootstrap_spine,
         "discovery-start": command_discovery_start,
         "discovery-packets": command_discovery_packets,
         "discovery-reopen": command_discovery_reopen,
@@ -4938,6 +5619,7 @@ def main() -> int:
         "prepare-integration": command_prepare_integration,
         "integration-pass": command_integration_pass,
         "next-action": command_next_action,
+        "recover": command_recover,
     }
     try:
         value = commands[args.command](args)

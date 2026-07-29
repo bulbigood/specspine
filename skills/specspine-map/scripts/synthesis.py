@@ -133,34 +133,73 @@ def normalize_candidate(
 
 def command_prepare(args: argparse.Namespace) -> dict[str, Any]:
     corpus = load_corpus(args.corpus)
+    repository_root = Path(corpus["repository_root"])
+    campaign.require_outside_repository(
+        args.corpus, repository_root, field="discovery corpus"
+    )
+    campaign.require_outside_repository(
+        args.output_dir, repository_root, field="synthesis packet root"
+    )
     topics, _, leads = source_topics(corpus)
-    if args.output_dir.exists():
+    input_digest = campaign.digest_json(
+        {
+            "contract": SYNTHESIS_CONTRACT_VERSION,
+            "corpus_digest": corpus["digest"],
+            "batch_size": args.batch_size,
+        }
+    )
+    manifest = {"kind": "synthesis-packets", "input_digest": input_digest}
+    manifest_path = args.output_dir / "_artifact.json"
+    already_ready = manifest_path.is_file()
+    if args.output_dir.exists() and (
+        not already_ready or campaign.read_json(manifest_path) != manifest
+    ):
         raise campaign.CampaignError(
-            f"synthesis packet directory already exists: {args.output_dir}"
+            f"existing synthesis packet directory has different inputs: "
+            f"{args.output_dir}"
         )
-    args.output_dir.mkdir(parents=True)
+    args.output_dir.mkdir(parents=True, exist_ok=True)
     packets: list[str] = []
     for offset in range(0, len(topics), args.batch_size):
         batch = topics[offset : offset + args.batch_size]
         batch_id = f"batch-{offset // args.batch_size + 1:04d}"
         batch_lead_ids = {value["lead_id"] for value in batch}
         path = args.output_dir / f"{batch_id}.json"
-        campaign.atomic_write(
-            path,
-            {
-                "synthesis_contract_version": SYNTHESIS_CONTRACT_VERSION,
-                "corpus_digest": corpus["digest"],
-                "batch_id": batch_id,
-                "leads": {
-                    lead_id: leads[lead_id]
-                    for lead_id in sorted(batch_lead_ids)
-                },
-                "source_topics": batch,
+        expected = {
+            "synthesis_contract_version": SYNTHESIS_CONTRACT_VERSION,
+            "corpus_digest": corpus["digest"],
+            "batch_id": batch_id,
+            "leads": {
+                lead_id: leads[lead_id]
+                for lead_id in sorted(batch_lead_ids)
             },
-        )
+            "source_topics": batch,
+        }
+        if path.exists() and campaign.read_json(path) != expected:
+            raise campaign.CampaignError(
+                f"existing synthesis packet conflicts: {path}"
+            )
+        campaign.atomic_write(path, expected)
         packets.append(str(path.resolve()))
+    campaign.atomic_write(manifest_path, manifest)
+    if args.ledger is not None:
+        with campaign.locked_ledger(args.ledger) as ledger:
+            recorded = campaign.same_artifact(
+                ledger["artifacts"]["synthesis"].get("packets"),
+                args.output_dir,
+                input_digest=input_digest,
+            )
+            campaign.record_artifact(
+                ledger,
+                "synthesis",
+                "packets",
+                args.output_dir,
+                input_digest=input_digest,
+            )
+            if not recorded:
+                campaign.save_locked(args.ledger, ledger)
     return {
-        "status": "written",
+        "status": "already_ready" if already_ready else "written",
         "source_topics": len(topics),
         "batches": len(packets),
         "packets": packets,
@@ -254,6 +293,14 @@ def normalize_reducer_result(
 
 def command_merge(args: argparse.Namespace) -> dict[str, Any]:
     corpus = load_corpus(args.corpus)
+    repository_root = Path(corpus["repository_root"])
+    for path, field in (
+        (args.corpus, "discovery corpus"),
+        (args.packets_dir, "synthesis packet root"),
+        (args.results_dir, "reducer result root"),
+        (args.output, "global synthesis packet"),
+    ):
+        campaign.require_outside_repository(path, repository_root, field=field)
     topics, _, leads = source_topics(corpus)
     known = {value["source_id"] for value in topics}
     packets = sorted(args.packets_dir.glob("batch-*.json"))
@@ -597,6 +644,14 @@ def reviewed_mapping(
 
 def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
     corpus = load_corpus(args.corpus)
+    repository_root = Path(corpus["repository_root"])
+    for path, field in (
+        (args.corpus, "discovery corpus"),
+        (args.mapping, "synthesis mapping"),
+        (args.review, "synthesis review"),
+        (args.output, "topic plan"),
+    ):
+        campaign.require_outside_repository(path, repository_root, field=field)
     topics, file_map, _ = source_topics(corpus)
     known = set(file_map)
     raw, review, review_decision = reviewed_mapping(
@@ -797,6 +852,7 @@ def parser() -> argparse.ArgumentParser:
     prepare = sub.add_parser("prepare")
     prepare.add_argument("corpus", type=Path)
     prepare.add_argument("output_dir", type=Path)
+    prepare.add_argument("--ledger", type=Path)
     prepare.add_argument(
         "--batch-size",
         type=positive_int,

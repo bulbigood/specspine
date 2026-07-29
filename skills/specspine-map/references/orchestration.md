@@ -8,22 +8,26 @@ scope → discovery → synthesis → production → integration → verificatio
 
 Only root runs `campaign.py`, edits the integration workspace, and publishes
 the live Spine. Run `next-action` after every state transition.
-
 ## Start or resume
 
-Before creating a campaign in a new session, inspect the private campaign home:
+Choose the platform's persistent private runtime-data root outside the project
+and OS temporary storage; never use a hidden/gitignored project path. Inspect it:
 
 ```text
 python3 <skill>/scripts/campaign.py discover <campaign-home> <repository>
 ```
 
-If it reports an incomplete campaign, require the operator to choose that exact
-campaign or a new run. Resume only the selected ledger:
+If incomplete, require that campaign or a new run. Resume the selection:
 
 ```text
 python3 <skill>/scripts/campaign.py resume-session <campaign>
+python3 <skill>/scripts/campaign.py recover <campaign> [existing-path options]
 python3 <skill>/scripts/campaign.py next-action <campaign>
 ```
+Path options: `--discovery-results`, `--synthesis-packets`, `--reducer-results`,
+`--global-packet`, `--mapping`, `--review`, `--topic-plan`, `--handoffs-root`.
+`recover` records supplied paths, validates results, and
+returns missing/invalid work; later resumes use ledger paths. Discard AI drafts.
 
 Resume preserves every `assigned` task so finalized atomic handoffs are not
 lost. Before spawning producers, recover the interrupted wave:
@@ -34,10 +38,9 @@ python3 <skill>/scripts/campaign.py harvest-wave \
 ```
 
 Cached receipts are reusable. Release each `pending_task` and rejected task;
-these have no acceptable atomic handoff and may be reassigned as a new attempt.
-Do not release harvested tasks. After the releases, run `accept-wave` for the
-remaining assigned tasks. If none remain, continue with `next-action`. Never
-read or accept an unfinished producer work directory.
+they may be reassigned. Do not release harvested tasks. Then run `accept-wave`
+for remaining assigned tasks and `next-action` if none remain. Never read or
+accept an unfinished producer work directory.
 
 Otherwise create a unique private run directory and write `operation.json`:
 
@@ -65,6 +68,15 @@ python3 <skill>/scripts/campaign.py init \
   --repository-root <repository> --spine-state <empty|existing>
 ```
 
+For an empty Spine, create its minimal v3 envelope idempotently before
+discovery. Repeating this command creates only missing bootstrap files and
+rejects unrelated existing content:
+
+```text
+python3 <skill>/scripts/campaign.py bootstrap-spine \
+  <campaign> <spine-root> --project <stable-project-name>
+```
+
 For an existing Spine, record its exact v3 documents and checker baseline:
 
 ```text
@@ -85,9 +97,11 @@ Add `--inventory-accelerator` only for repository scope. The root packet and
 neutral inventory pages form the initial discovery layer. Keep the default
 page size of 40 seed files; a scout packet or unresolved fallback may never
 exceed that limit. This limit does not cap files found while closing the
-packet's semantic boundary. The repository
-accelerator currently caps this test slice at 1,000 production files and
-reports both `inventory_total_files` and `inventory_truncated`.
+packet's semantic boundary. The repository accelerator is exhaustive by
+default. For a deliberate vertical-slice test only, add
+`--test-inventory-file-limit <N>`; the seed and receipt record the limit and
+truncation. Never use a truncated test slice for a repository completeness
+claim.
 
 Set the scout subwave size to the smaller of ten and the runtime's available
 subagent slots. If capacity includes root, reserve one slot. Do not assume ten
@@ -137,11 +151,10 @@ python3 <skill>/scripts/campaign.py discovery-packets \
   <discovery-seed> <frontier.json> <discovery>/wave-NNNN
 ```
 
-Every fallback scout follows the same local exhaustive-closure contract. Use
-the same adaptive limit, exact result paths, barrier, and validation. Curate
-and dispatch another fallback wave only if these scouts still report justified
-`unresolved_leads`. Never create mandatory breadth-first depth waves. Safety
-limits establish blockage, never closure.
+Every fallback scout uses the same closure contract, adaptive limit, exact
+paths, barrier, and validation. Dispatch another wave only for justified
+`unresolved_leads`. Never create mandatory breadth-first waves; safety limits
+establish blockage, not closure.
 
 When the frontier is settled:
 
@@ -150,15 +163,17 @@ python3 <skill>/scripts/campaign.py discovery-collect \
   <campaign> <discovery-seed> <discovery> <results> \
   <discovery-corpus.json>
 ```
-
 ## Synthesize
 
 Prepare compact batches from the complete corpus:
 
 ```text
 python3 <skill>/scripts/synthesis.py prepare \
-  <discovery-corpus.json> <synthesis-packets>
+  <discovery-corpus.json> <synthesis-packets> --ledger <campaign>
 ```
+
+Discovery packet/collect/reopen, synthesis prepare, and integration prepare
+are input-digest-idempotent: reuse `already_ready`; never overwrite conflicts.
 
 Create fresh medium-tier topic reducers, at most five per strict wave. Give
 each reducer only `topic-reduction.md`, one packet, and its exact private result
@@ -221,7 +236,6 @@ python3 <skill>/scripts/campaign.py source-pass \
 ```
 
 Only uncovered `topics` become producer tasks.
-
 ## Produce
 
 For every `dispatch` action, create one strict wave:
@@ -231,11 +245,14 @@ python3 <skill>/scripts/campaign.py ready <campaign> --limit 5
 python3 <skill>/scripts/campaign.py packet \
   <campaign> <task-id> --output <packet.json>
 python3 <skill>/scripts/campaign.py assign \
-  <campaign> <task-id> --owner <fresh-producer-id>
+  <campaign> <task-id> --owner <fresh-producer-id> \
+  --handoffs-root <wave-handoffs>
 ```
 
-Create fresh medium-tier producers. Give each only `producer-task.md`, its
-packet, repository, Spine, private work/handoff paths, and
+Use the exact `handoff_package` returned by `assign`; never construct or rename
+the attempt suffix manually. Create fresh medium-tier producers. Give each
+only `producer-task.md`, its packet, repository, Spine, private work path,
+that returned handoff path, and
 `producer_finalize.py`. Wait for the whole wave without refill. Producers
 atomically expose checked handoffs; never inspect their work directories.
 
@@ -250,7 +267,6 @@ python3 <skill>/scripts/campaign.py accept-wave \
 ```
 
 Acceptance validates evidence and staging but never publishes.
-
 ## Integrate
 
 Read `integration-pass.md`. Create a private copy of the current Spine:
@@ -259,6 +275,9 @@ Read `integration-pass.md`. Create a private copy of the current Spine:
 python3 <skill>/scripts/campaign.py prepare-integration \
   <campaign> <spine-root> <workspace>
 ```
+
+Its adjacent manifest binds source snapshot and settled tasks. Repeating
+continues root's edits; a missing or stale manifest blocks reuse.
 
 Resolve ownership and duplication, merge accepted drafts, update navigation and
 manifest, disposition every task and suggestion, and write the required
@@ -273,7 +292,6 @@ python3 <skill>/scripts/campaign.py integration-pass \
 The command checks the complete workspace and publishes the workspace plus
 ledger transition atomically. Repeat production and integration until
 `next-action` returns `finalize`.
-
 ## Finish
 
 Before every response:

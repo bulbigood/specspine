@@ -38,7 +38,6 @@ Both completion policies use the same artifacts and state machine:
 
 Neither terminal claims that no conceivable architectural concept exists.
 `increment_verified` never claims scope completeness.
-
 ## Required references
 
 - Read [references/spec-semantics.md](references/spec-semantics.md) before
@@ -58,7 +57,6 @@ Neither terminal claims that no conceivable architectural concept exists.
   [producer-task.md](references/producer-task.md).
 - Read [integration-pass.md](references/integration-pass.md) before publishing.
 - Start new files from `assets/templates/`; omit empty sections.
-
 ## Authorities
 
 Discovery finds evidence; synthesis alone defines semantic topics and checks
@@ -70,6 +68,8 @@ atomically publishes canonical discovery results.
 
 Use a flat production-file inventory only as a neutral accelerator for
 repository scope. It grants no grouping, ownership, coverage, or completion.
+It is exhaustive by default; an explicit test-only limit creates a truncated
+vertical slice that cannot support a repository completeness claim.
 
 For exhaustive work, use fresh isolated weak-tier scouts, medium-tier
 curators, topic reducers, reviewers, and one-shot producers, and one fresh
@@ -80,12 +80,14 @@ refill a settled strict wave. An increment may execute the same contracts
 serially in root. If the required execution tier is unavailable, preserve the
 campaign and report it blocked.
 
-Keep the operation durable. Run `campaign.py next-action` before every final
-answer. `may_finish: false` forbids finishing; pause only when it also returns
-`may_pause: true`. Never stop with assigned, review, or unpublished work.
-On resume, harvest retained assigned tasks before releasing only those without
-a valid atomic handoff; never restart accepted or harvestable work.
-
+Keep campaign state in the platform's persistent private runtime-data root,
+never the project or OS temporary storage. Run `campaign.py next-action`
+before final answers; `may_finish: false` forbids finishing unless `may_pause:
+true`. On resume, harvest
+retained assigned tasks before releasing only those without a valid
+atomic handoff; never restart accepted or harvestable work. Before repeating
+discovery or synthesis, run `campaign.py recover`: trust phase manifests and
+input digests, discard unfinished AI drafts, and repeat only missing results.
 Producer acceptance never edits the live Spine. Integrate accepted handoffs in
 one private workspace, run the v3 checker, then publish the workspace and
 ledger transition atomically. Do not invoke Doctor inside Map.
