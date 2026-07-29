@@ -101,6 +101,18 @@ class BootstrapSpineTests(unittest.TestCase):
         self.assertEqual(["_INDEX.md", "specspine.json"], first["created"])
         self.assertEqual("already_ready", second["status"])
 
+    def test_renders_project_placeholder(self):
+        self.index.write_text(
+            "# {project} architecture\n\n"
+            "**ID:** `project-architecture` · **Kind:** `index`\n",
+            encoding="utf-8",
+        )
+        self.cli("--index-file", str(self.index))
+        self.assertIn(
+            "# fixture architecture",
+            (self.spine / "_INDEX.md").read_text(encoding="utf-8"),
+        )
+
     def test_completes_partial_root_without_overwriting_index(self):
         self.spine.mkdir()
         existing = "# Existing\n"

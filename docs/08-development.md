@@ -18,7 +18,6 @@ specspine/
 │   ├── specspine-map/
 │   └── specspine-verify/
 ├── tools/
-│   ├── specspine-adapter-generator/
 │   └── specspine-extract/
 ├── examples/
 └── tests/
@@ -30,14 +29,8 @@ deterministic common tools under `shared/scripts/` are the repository sources
 of truth.
 
 Shared resources appear in consuming skills as relative symbolic links.
-`tools/specspine-adapter-generator/scripts/generate_resources.py` registers and
-validates those links. A private execution protocol stays in its owning skill;
-it must not be registered as a shared resource. The generator also rejects
-unshared byte-identical files across skills.
-
-The adapter generator is maintainer-only repository tooling. It may generate
-framework-specific SDD adapters, but it contains no canonical copies of runtime
-skills and is not installable through `npx skills`.
+A private execution protocol stays in its owning skill rather than under
+`shared/`.
 
 `tools/specspine-extract/` contains repository-only diagnostics for the
 optional retrieval index and evaluation telemetry. It imports the production
@@ -59,13 +52,6 @@ npx skills add . --skill specspine-verify
 ```
 
 ## Validation
-
-Validate or repair shared-resource links:
-
-```bash
-tools/specspine-adapter-generator/scripts/generate_resources.py
-tools/specspine-adapter-generator/scripts/generate_resources.py --check
-```
 
 Run mechanical tests:
 
@@ -105,9 +91,9 @@ agent frameworks. Those systems own feature deltas, plans, and implementation
 workflows. SpecSpine supplies long-lived architectural context through a neutral
 handoff.
 
-Framework-specific integration belongs to adapters outside the runtime skill
-line. Canonical skills do not inspect framework conventions, convert feature
-specifications, or guarantee compatibility.
+Canonical skills do not inspect framework conventions, convert feature
+specifications, or guarantee compatibility. Downstream frameworks may consume
+the neutral handoff without becoming part of the SpecSpine runtime.
 
 ## Contribution guidance
 
@@ -125,10 +111,7 @@ shows that the existing contract cannot solve the problem.
 
 ## Current direction
 
-Completed foundations include the four runtime skills, persistent project-agent
+Completed foundations include the five runtime skills, persistent project-agent
 bootstrap, mechanical checks, deterministic retrieval acceleration with native
-Accelerated Markdown retrieval, exhaustive brownfield orchestration, shared-resource
-validation, and evaluation harnesses.
-
-Future work may add adapters for popular SDD frameworks while keeping the
-runtime skills framework-neutral.
+Accelerated Markdown retrieval, exhaustive brownfield orchestration, and
+evaluation harnesses.

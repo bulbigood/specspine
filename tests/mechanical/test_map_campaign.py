@@ -1045,10 +1045,21 @@ class MapCampaignTests(unittest.TestCase):
     def test_empty_spine_bootstrap_recovers_its_missing_manifest(self):
         spine = self.run / "partial-empty-spine"
         spine.mkdir()
-        (spine / "_INDEX.md").write_text(
-            CAMPAIGN_MODULE.bootstrap_index("grafana"),
-            encoding="utf-8",
+        subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "shared/scripts/bootstrap_spine.py"),
+                str(spine),
+                "--project",
+                "grafana",
+                "--index-file",
+                str(ROOT / "shared/assets/templates/spine-index.md"),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
         )
+        (spine / "specspine.json").unlink()
 
         result = self.cli(
             "bootstrap-spine",

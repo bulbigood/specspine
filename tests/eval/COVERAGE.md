@@ -2,18 +2,12 @@
 
 ## Current inventory
 
-The repository has twenty-nine prose behavioral scenarios. Every scenario is
+The repository has thirty-two prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
-| Area | Documented scenarios | Executable fixtures |
-|---|---:|---:|
-| `specspine-evolve` | 9 | 7 |
-| `specspine-map` | 8 | 4 |
-| `specspine-extract` | 4 | 4 |
-| `specspine-doctor` | 7 | 6 |
-| package generator tooling | 1 | 0 |
-| Total | 29 | 21 |
+Twenty-five scenarios are executable and seven remain planned. The audit
+output is authoritative for category and agent-call counts.
 
 `traceable-rule` is assigned to `specspine-map` because its expected result
 includes repository-backed observations.
@@ -52,9 +46,9 @@ The executable set is divided by resource cost and necessity:
 
 | Category | Manifests | Top-level agent calls | Purpose |
 |---|---:|---:|---|
-| `core` | 7 | 7 | Minimum behavioral regression set, including atomic staged Map output |
+| `core` | 11 | 11 | Minimum behavioral regression set, including atomic staged Map output |
 | `extended` | 14 | 21 | Lifecycle, root-first connection, language detection, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
-| `planned` | 8 | 0 | Documentation and future redesign only |
+| `planned` | 7 | 0 | Documentation and future redesign only |
 
 Core and extended cases currently cover:
 
@@ -78,9 +72,6 @@ Core and extended cases currently cover:
   preserving addressable architectural meaning.
 - Evolve refusal when a specification already has terminal architectural detail
   and the request asks only for implementation-manual content.
-
-Deterministic runtime-skill generation and drift detection remain covered by
-unit tests and do not consume an agent invocation.
 
 Planned cases include deterministic tooling already covered by unit tests,
 redundant focused cases superseded by lifecycle coverage, and cases whose

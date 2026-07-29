@@ -28,11 +28,12 @@ INDEX_IDENTITY = re.compile(
 )
 
 
-def read_index(path: Path) -> str:
+def read_index(path: Path, project: str) -> str:
     try:
         value = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as error:
         raise BootstrapError(f"cannot read rendered index {path}: {error}") from error
+    value = value.replace("{project}", project)
     if not value.strip() or INDEX_IDENTITY.search(value) is None:
         raise BootstrapError(
             "rendered index must be nonempty and identify project-architecture "
@@ -127,7 +128,7 @@ def bootstrap(
     if missing_index and index_file is None:
         raise BootstrapError("--index-file is required when _INDEX.md is absent")
 
-    rendered_index = read_index(index_file) if index_file is not None else None
+    rendered_index = read_index(index_file, project) if index_file is not None else None
     index = rendered_index if missing_index else None
     expected_manifest = manifest(project)
     if require_exact:

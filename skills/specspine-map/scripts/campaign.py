@@ -2937,34 +2937,6 @@ def command_seed_from_spine(args: argparse.Namespace) -> dict[str, Any]:
         }
 
 
-def bootstrap_index(project: str) -> str:
-    return (
-        f"# {project} architecture\n\n"
-        "**ID:** `project-architecture` · **Kind:** `index`\n\n"
-        "SpecSpine is the project's long-lived, linked specification and "
-        "architectural memory used to reconstruct contract-equivalent "
-        "implementations.\n\n"
-        "This directory contains the project's long-lived architectural intent "
-        "and architecture-relevant repository observations.\n\n"
-        "## How to use this Spine\n\n"
-        "- Start with `Contents`, then follow links to the canonical owner of the "
-        "area relevant to the task. Preserve stable document IDs when files move.\n"
-        "- SpecSpine owns accepted durable intent; source code owns the current "
-        "implementation. Neither alone proves that implementation conforms to intent.\n"
-        "- `specspine.json` records areas, completeness, inspection coverage, blockers, "
-        "and registered contract or verification assets.\n"
-        "- `DEC`, `CON`, `REQ`, `GUA`, `INV`, `QLT`, and `VER` identify accepted "
-        "claims. `OBS` records confirmed implementation evidence, `INF` an unconfirmed "
-        "inference, and `OQ` an unresolved question.\n"
-        "- `Known divergences` links accepted intent to conflicting observations. Do "
-        "not silently turn code, `OBS`, or `INF` into accepted intent.\n"
-        "- Update the canonical owner instead of copying a claim into another document; "
-        "preserve unresolved conflicts and blocking questions explicitly.\n\n"
-        "## Contents\n\n"
-        "- [specspine.json](specspine.json)\n"
-    )
-
-
 def command_bootstrap_spine(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
     if ledger["spine_state"] != "empty":
@@ -2975,33 +2947,21 @@ def command_bootstrap_spine(args: argparse.Namespace) -> dict[str, Any]:
     if not project:
         raise CampaignError("bootstrap project must be nonempty")
     spine_root = args.spine_root.resolve()
-    expected_index = bootstrap_index(project)
-    descriptor, index_name = tempfile.mkstemp(
-        dir=args.ledger.resolve().parent,
-        prefix=".map-bootstrap-index.",
-        suffix=".md",
+    process = subprocess.run(
+        [
+            sys.executable,
+            str(args.bootstrapper),
+            str(spine_root),
+            "--project",
+            project,
+            "--index-file",
+            str(args.index_template),
+            "--require-exact",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
     )
-    index_file = Path(index_name)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(expected_index)
-        process = subprocess.run(
-            [
-                sys.executable,
-                str(args.bootstrapper),
-                str(spine_root),
-                "--project",
-                project,
-                "--index-file",
-                str(index_file),
-                "--require-exact",
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-    finally:
-        index_file.unlink(missing_ok=True)
     if process.returncode != 0:
         try:
             detail = json.loads(process.stderr).get("error")
@@ -6218,6 +6178,11 @@ def parser() -> argparse.ArgumentParser:
         "--bootstrapper",
         type=Path,
         default=Path(__file__).with_name("bootstrap_spine.py"),
+    )
+    bootstrap.add_argument(
+        "--index-template",
+        type=Path,
+        default=Path(__file__).parent.parent / "assets/templates/architecture-index.md",
     )
     bootstrap.add_argument(
         "--checker",

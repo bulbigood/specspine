@@ -108,11 +108,10 @@ Run the relevant focused test first, then the complete deterministic gates:
 ```bash
 python3 -m unittest discover -s tests/mechanical -p 'test_*.py'
 python3 tests/eval/run.py --validate --audit
-python3 tools/specspine-adapter-generator/scripts/generate_resources.py --check
 ```
 
-All deterministic unit tests for the eval runner, adapter, assertions, doctor,
-generator, and benchmarks live under `tests/mechanical`. The `tests/eval`
+All deterministic unit tests for the eval runner, agent adapter, assertions,
+runtime skills, and benchmarks live under `tests/mechanical`. The `tests/eval`
 directory contains only agent-evaluation infrastructure and cases.
 
 The npm installation test under `tests/mechanical` and live agent evals are
