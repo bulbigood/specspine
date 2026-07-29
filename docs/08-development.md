@@ -74,6 +74,51 @@ The test suite includes mechanical regression tests, lifecycle scenarios,
 retrieval corpora, and agent evaluations. Multilingual fixtures are test data
 and do not set the language of framework documentation.
 
+## Pre-publish checklist
+
+No shared resource needs to be copied manually into individual skills.
+Normative references, the schema, the vocabulary, and common scripts appear in
+the skill directories as relative symbolic links. `npx skills add --copy`
+resolves them into self-contained installed packages.
+
+When `shared/references/vocabulary.json` changes, regenerate the
+human-readable glossary:
+
+```bash
+python3 shared/scripts/render_vocabulary.py --write
+```
+
+Before publishing any skill, run the complete gate:
+
+```bash
+python3 shared/scripts/prepublish.py
+```
+
+The gate:
+
+1. verifies that `docs/reference/glossary.md` matches the canonical vocabulary;
+2. runs all mechanical tests, including vocabulary, JSON Schema, and
+   executable-contract consistency checks;
+3. installs every published skill twice through `npx skills add --copy` in an
+   isolated workspace and verifies that each installed package contains its
+   glossary and machine vocabulary.
+
+The command is read-only by default and fails when generated documentation is
+stale. To regenerate the glossary and then run the same gate:
+
+```bash
+python3 shared/scripts/prepublish.py --update-generated
+```
+
+For a faster local check that deliberately omits the standalone installation
+test:
+
+```bash
+python3 shared/scripts/prepublish.py --skip-npx
+```
+
+Do not use `--skip-npx` as the final publication gate.
+
 ## Evaluation
 
 SpecSpine is experimental. Its falsifiable hypothesis is that, for the same

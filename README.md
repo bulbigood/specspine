@@ -66,6 +66,9 @@ canonical owner relevant to the task.
 - [Glossary](docs/reference/glossary.md)
 - [Development and maintenance](docs/08-development.md)
 
+Maintainers should run `python3 shared/scripts/prepublish.py` before publishing
+skills.
+
 SpecSpine is experimental. See the development guide for evaluation and
 contribution details.
 
