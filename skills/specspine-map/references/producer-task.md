@@ -61,6 +61,8 @@ specification and verify:
 - section headings follow the canonical concerns in `spec-format`; never merge
   concerns into custom headings such as `Interfaces and lifecycle` or
   `Lifecycle and state`; use separate canonical sections;
+- render those canonical sections using `specspine.json.presentation`
+  headings and order when the profile is present;
 - semantic IDs are stable and links use the required complete labels;
 - implementation inventory and unsupported intent are absent;
 - every direction is a genuine unanswered question; keep required policy

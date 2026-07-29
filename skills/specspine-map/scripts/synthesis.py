@@ -15,29 +15,6 @@ import campaign
 
 
 SYNTHESIS_CONTRACT_VERSION = 3
-CORE_RELATIONS = {
-    "contains",
-    "decomposes-into",
-    "performs",
-    "depends-on",
-    "exposes",
-    "consumes",
-    "publishes",
-    "reads-from",
-    "writes-to",
-    "owns-data",
-    "constrained-by",
-    "implemented-by",
-    "has-evidence",
-    "superseded-by",
-    "related-to",
-    "refines",
-    "satisfies",
-    "verified-by",
-    "specified-by",
-    "compatible-with",
-    "migrates-from",
-}
 
 def source_topics(
     corpus: dict[str, Any],
@@ -169,7 +146,7 @@ def normalize_relationships(value: Any, *, field: str) -> list[dict[str, str]]:
                 f"{field} row {index} needs type, target, and reason"
             )
         relation = clean_text(row["type"], f"{field} row {index} type")
-        if relation not in CORE_RELATIONS and campaign.re.fullmatch(
+        if relation not in campaign.CORE_RELATIONS and campaign.re.fullmatch(
             r"x-[a-z0-9]+(?:-[a-z0-9]+)*", relation
         ) is None:
             raise campaign.CampaignError(

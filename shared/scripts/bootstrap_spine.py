@@ -12,6 +12,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from spec_contract import FORMAT_MAJOR, INDEX_NAME, MANIFEST_NAME
+
 
 class BootstrapError(ValueError):
     pass
@@ -38,7 +43,7 @@ def read_index(path: Path) -> str:
 
 def manifest(project: str) -> dict[str, Any]:
     return {
-        "specspine": 3,
+        "specspine": FORMAT_MAJOR,
         "project": project,
         "implementation_freedom": "contract-equivalent",
         "areas": [],
@@ -111,8 +116,8 @@ def bootstrap(
     root = root.resolve()
     if root.exists() and not root.is_dir():
         raise BootstrapError(f"Spine root is not a directory: {root}")
-    index_path = root / "_INDEX.md"
-    manifest_path = root / "specspine.json"
+    index_path = root / INDEX_NAME
+    manifest_path = root / MANIFEST_NAME
     missing_index = not index_path.exists()
     missing_manifest = not manifest_path.exists()
     if not missing_index and not index_path.is_file():

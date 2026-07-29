@@ -21,6 +21,7 @@
         "exact"
       ]
     },
+    "presentation": {"$ref": "#/$defs/presentation"},
     "areas": {
       "type": "array",
       "items": {"$ref": "#/$defs/area"}
@@ -31,6 +32,77 @@
     }
   },
   "$defs": {
+    "presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "language"],
+      "properties": {
+        "profile": {"const": 1},
+        "language": {"type": "string", "minLength": 1},
+        "headings": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "responsibility": {"type": "string", "minLength": 1},
+            "boundaries": {"type": "string", "minLength": 1},
+            "behavior": {"type": "string", "minLength": 1},
+            "interfaces": {"type": "string", "minLength": 1},
+            "information-model": {"type": "string", "minLength": 1},
+            "data-ownership": {"type": "string", "minLength": 1},
+            "lifecycle-and-invariants": {"type": "string", "minLength": 1},
+            "failure-behavior": {"type": "string", "minLength": 1},
+            "edge-cases": {"type": "string", "minLength": 1},
+            "configuration-contract": {"type": "string", "minLength": 1},
+            "compatibility": {"type": "string", "minLength": 1},
+            "requirements": {"type": "string", "minLength": 1},
+            "guarantees": {"type": "string", "minLength": 1},
+            "invariants": {"type": "string", "minLength": 1},
+            "quality-constraints": {"type": "string", "minLength": 1},
+            "verification": {"type": "string", "minLength": 1},
+            "decisions": {"type": "string", "minLength": 1},
+            "constraints": {"type": "string", "minLength": 1},
+            "observed": {"type": "string", "minLength": 1},
+            "inferred": {"type": "string", "minLength": 1},
+            "open-questions": {"type": "string", "minLength": 1},
+            "known-divergences": {"type": "string", "minLength": 1},
+            "implementation": {"type": "string", "minLength": 1},
+            "relationships": {"type": "string", "minLength": 1},
+            "terminology": {"type": "string", "minLength": 1},
+            "risks": {"type": "string", "minLength": 1},
+            "rationale-and-trade-offs": {"type": "string", "minLength": 1}
+          }
+        },
+        "section_order": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "responsibility", "boundaries", "behavior", "interfaces",
+              "information-model", "data-ownership",
+              "lifecycle-and-invariants", "failure-behavior", "edge-cases",
+              "configuration-contract", "compatibility", "requirements",
+              "guarantees", "invariants", "quality-constraints",
+              "verification", "decisions", "constraints", "observed",
+              "inferred", "open-questions", "known-divergences",
+              "implementation", "relationships", "terminology", "risks",
+              "rationale-and-trade-offs"
+            ]
+          }
+        },
+        "index": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "root-title": {"type": "string", "minLength": 1},
+            "purpose": {"type": "string", "minLength": 1},
+            "scope": {"type": "string", "minLength": 1},
+            "contents-heading": {"type": "string", "minLength": 1},
+            "nested-heading": {"type": "string", "minLength": 1},
+            "empty": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
     "facet": {
       "enum": ["complete", "partial", "missing", "not-applicable"]
     },

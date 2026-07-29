@@ -18,6 +18,8 @@ references own document structure and claim meaning.
   editing, or restructuring specifications. It is the canonical owner of
   document content, organization, identity, relationships, decomposition, and
   terminal detail.
+- Read `specspine.json.presentation` before writing Markdown; use its rendered
+  headings and order without changing canonical v3 meaning.
 - Read [references/spec-semantics.md](references/spec-semantics.md) before
   adding, reclassifying, conflicting, or resolving an architectural claim. It
   is the canonical owner of claim kinds, authority, and conflict handling.

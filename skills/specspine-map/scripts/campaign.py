@@ -30,6 +30,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from spec_contract import CORE_RELATIONS
+
 
 SCHEMA_VERSION = 13
 PRODUCER_CONTRACT_VERSION = 5
@@ -102,13 +107,6 @@ RELATION_ROW_RE = re.compile(
     r"\[[^\]]+\]\(([^)#?]+\.md)\)\s*\|",
     re.MULTILINE,
 )
-CORE_RELATIONS = {
-    "contains", "decomposes-into", "performs", "depends-on", "exposes",
-    "consumes", "publishes", "reads-from", "writes-to", "owns-data",
-    "constrained-by", "implemented-by", "has-evidence", "superseded-by",
-    "related-to", "refines", "satisfies", "verified-by", "specified-by",
-    "compatible-with", "migrates-from",
-}
 SUGGESTION_DISPOSITIONS = {"queued", "covered", "preserved", "rejected"}
 DEFERRED_CHECKER_CODES = {"UNREACHABLE_SPEC"}
 V3_ENVELOPE_BLOCKER_CODES = {
@@ -118,6 +116,7 @@ V3_ENVELOPE_BLOCKER_CODES = {
     "MANIFEST_MISSING",
     "MANIFEST_MISSING_KEY",
     "MANIFEST_PROJECT",
+    "MANIFEST_PRESENTATION",
     "MANIFEST_UNKNOWN_KEY",
     "MANIFEST_VERSION",
 }

@@ -110,6 +110,65 @@ class DoctorCheckerV3Tests(unittest.TestCase):
     def test_accepts_strict_v3_spine(self):
         self.assertEqual([], [item for item in CHECKER.check(self.spine()) if item.severity == "error"])
 
+    def test_accepts_localized_presentation_headings(self):
+        manifest = {
+            "specspine": 3,
+            "project": "test",
+            "implementation_freedom": "contract-equivalent",
+            "presentation": {
+                "profile": 1,
+                "language": "ru",
+                "headings": {
+                    "responsibility": "Ответственность",
+                    "constraints": "Ограничения",
+                    "observed": "Наблюдаемое",
+                    "known-divergences": "Известные расхождения",
+                },
+            },
+            "areas": [{
+                "owner": "payments",
+                "facets": {
+                    name: (
+                        "complete"
+                        if name in {"architecture", "behavior", "failure"}
+                        else "partial"
+                        if name == "verification"
+                        else "not-applicable"
+                    )
+                    for name in CHECKER.FACET_NAMES
+                },
+                "blockers": [],
+            }],
+            "assets": [],
+        }
+        localized = (
+            PAYMENTS
+            .replace("## Responsibility", "## Ответственность")
+            .replace("## Constraints", "## Ограничения")
+            .replace("## Observed", "## Наблюдаемое")
+            .replace("## Known divergences", "## Известные расхождения")
+        )
+        errors = [
+            item
+            for item in CHECKER.check(self.spine(localized, manifest=manifest))
+            if item.severity == "error"
+        ]
+        self.assertEqual([], errors)
+
+    def test_rejects_semantically_ambiguous_presentation(self):
+        root = self.spine()
+        manifest = json.loads((root / "specspine.json").read_text())
+        manifest["presentation"] = {
+            "profile": 1,
+            "language": "en",
+            "headings": {
+                "responsibility": "Contract",
+                "interfaces": "Contract",
+            },
+        }
+        (root / "specspine.json").write_text(json.dumps(manifest))
+        self.assertIn("MANIFEST_PRESENTATION", self.codes(root))
+
     def test_doctor_index_template_is_valid(self):
         template = (
             Path(__file__).parents[2]

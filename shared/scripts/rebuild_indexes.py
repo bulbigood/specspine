@@ -12,9 +12,16 @@ import sys
 from pathlib import Path
 from typing import Any
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-INDEX_NAME = "_INDEX.md"
-MANIFEST_NAME = "specspine.json"
+from spec_contract import (
+    FORMAT_MAJOR,
+    INDEX_NAME,
+    MANIFEST_NAME,
+    PresentationError,
+    presentation,
+)
 
 
 class IndexError(ValueError):
@@ -27,8 +34,12 @@ def load_manifest(root: Path) -> dict[str, Any]:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise IndexError(f"cannot read {path}: {error}") from error
-    if not isinstance(value, dict) or value.get("specspine") != 3:
+    if not isinstance(value, dict) or value.get("specspine") != FORMAT_MAJOR:
         raise IndexError(f"{path} is not a SpecSpine v3 manifest")
+    try:
+        presentation(value)
+    except PresentationError as error:
+        raise IndexError(f"invalid presentation profile: {error}") from error
     return value
 
 
@@ -66,15 +77,26 @@ def owned_directories(root: Path) -> list[Path]:
     return sorted(result)
 
 
-def title_for(directory: Path, root: Path, project: str) -> str:
+def title_for(
+    directory: Path,
+    root: Path,
+    project: str,
+    index_text: dict[str, str],
+) -> str:
     if directory == root:
-        return f"{project} architecture"
+        return index_text["root-title"].format(project=project)
     return directory.name.replace("-", " ").replace("_", " ").strip().title() or "Directory"
 
 
-def render_index(root: Path, directory: Path, project: str, children: list[Path]) -> str:
+def render_index(
+    root: Path,
+    directory: Path,
+    project: str,
+    children: list[Path],
+    index_text: dict[str, str],
+) -> str:
     lines = [
-        f"# {title_for(directory, root, project)}",
+        f"# {title_for(directory, root, project, index_text)}",
         "",
         f"**ID:** `{index_id(root, directory)}` · **Kind:** `index`",
         "",
@@ -82,15 +104,13 @@ def render_index(root: Path, directory: Path, project: str, children: list[Path]
     if directory == root:
         lines.extend(
             [
-                "SpecSpine is the project's long-lived, linked specification and "
-                "architectural memory used to reconstruct contract-equivalent implementations.",
+                index_text["purpose"],
                 "",
-                "This directory contains the project's long-lived architectural intent and "
-                "architecture-relevant repository observations.",
+                index_text["scope"],
                 "",
             ]
         )
-    lines.extend(["## Contents", ""])
+    lines.extend([f"## {index_text['contents-heading']}", ""])
     entries: list[tuple[str, str]] = []
     for path in sorted(directory.iterdir(), key=lambda item: item.name.casefold()):
         if path.name == INDEX_NAME or path.is_symlink():
@@ -104,10 +124,10 @@ def render_index(root: Path, directory: Path, project: str, children: list[Path]
     if entries:
         lines.extend(f"- [{label}]({target})" for label, target in entries)
     else:
-        lines.append("- No indexed entries.")
+        lines.append(f"- {index_text['empty']}")
     lines.append("")
     if directory == root and children:
-        lines.extend(["## Nested SpecSpines", ""])
+        lines.extend([f"## {index_text['nested-heading']}", ""])
         for child in children:
             target = child.relative_to(root).as_posix() + f"/{INDEX_NAME}"
             lines.append(f"- [{child.relative_to(root).as_posix()}]({target})")
@@ -122,10 +142,11 @@ def rebuild(root: Path) -> dict[str, Any]:
     if not project:
         raise IndexError("manifest project must be nonempty")
     children = nested_roots(root)
+    index_text = presentation(manifest)["index"]
     changed: list[str] = []
     for directory in reversed(owned_directories(root)):
         path = directory / INDEX_NAME
-        content = render_index(root, directory, project, children)
+        content = render_index(root, directory, project, children, index_text)
         if not path.is_file() or path.read_text(encoding="utf-8") != content:
             path.write_text(content, encoding="utf-8")
             changed.append(path.relative_to(root).as_posix())

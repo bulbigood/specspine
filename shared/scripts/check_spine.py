@@ -8,11 +8,32 @@ import json
 import os
 import re
 import shutil
+import sys
 import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from spec_contract import (
+    ASSET_ROLES,
+    CORE_KINDS,
+    CORE_RELATIONS,
+    DEFAULT_HEADINGS,
+    FACET_NAMES,
+    FACET_VALUES,
+    FORMAT_MAJOR,
+    INDEX_NAME,
+    KIND_REQUIRED_FACETS,
+    MANIFEST_NAME,
+    NORMATIVE_PREFIXES,
+    PresentationError,
+    SECTION_PREFIX_KEYS,
+    canonical_heading,
+    presentation,
+)
 
 ID_RE = re.compile(
     r"^(DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$"
@@ -47,80 +68,29 @@ MARKDOWN_COMPLETENESS_SECTIONS = {
     "Reconstruction status",
     "Facet status",
 }
-SECTION_PREFIXES = {
-    "Decisions": "DEC",
-    "System-wide decisions": "DEC",
-    "Constraints": "CON",
-    "System-wide constraints": "CON",
-    "Requirements": "REQ",
-    "System-wide requirements": "REQ",
-    "Guarantees": "GUA",
-    "System-wide guarantees": "GUA",
-    "Invariants": "INV",
-    "System-wide invariants": "INV",
-    "Quality constraints": "QLT",
-    "System-wide quality constraints": "QLT",
-    "Verification": "VER",
-    "Observed": "OBS",
-    "Inferred": "INF",
-    "Open questions": "OQ",
-}
-CORE_KINDS = {
-    "index", "system", "subsystem", "component", "capability", "behavior",
-    "interface", "data", "policy", "deployment", "concept",
-}
-CORE_RELATIONS = {
-    "contains", "decomposes-into", "performs", "depends-on", "exposes",
-    "consumes", "publishes", "reads-from", "writes-to", "owns-data",
-    "constrained-by", "implemented-by", "has-evidence", "superseded-by",
-    "related-to", "refines", "satisfies", "verified-by", "specified-by",
-    "compatible-with", "migrates-from",
-}
 RELATION_HEADER = ("Relation", "Target", "Meaning")
 DIVERGENCE_HEADER = ("Intended", "Observed", "Consequence")
-MANIFEST_NAME = "specspine.json"
-INDEX_NAME = "_INDEX.md"
 MANIFEST_KEYS = {
     "specspine", "project", "implementation_freedom", "areas", "assets",
+    "presentation",
 }
+REQUIRED_MANIFEST_KEYS = MANIFEST_KEYS - {"presentation"}
 AREA_KEYS = {"owner", "facets", "blockers"}
-FACET_NAMES = (
-    "architecture", "behavior", "interfaces", "data", "failure", "quality",
-    "verification",
-)
 FACET_NAME_SET = set(FACET_NAMES)
-FACET_VALUES = {"complete", "partial", "missing", "not-applicable"}
 ASSET_KEYS = {"path", "owner", "role", "format", "normative", "verifies"}
-ASSET_ROLES = {
-    "interface-contract", "data-schema", "execution-contract", "scenario",
-    "fixture", "verification",
-}
-KIND_REQUIRED_FACETS = {
-    "system": {"architecture", "behavior", "failure", "verification"},
-    "subsystem": {"architecture", "behavior", "failure", "verification"},
-    "component": {"architecture", "behavior", "failure", "verification"},
-    "capability": {"architecture", "behavior", "failure", "verification"},
-    "behavior": {"architecture", "behavior", "failure", "verification"},
-    "interface": {"architecture", "interfaces", "failure", "verification"},
-    "data": {"architecture", "data", "failure", "verification"},
-    "policy": {"architecture", "behavior", "verification"},
-    "deployment": {"architecture", "failure", "quality", "verification"},
-    "concept": {"architecture"},
-}
-NORMATIVE_PREFIXES = ("DEC-", "CON-", "REQ-", "GUA-", "INV-", "QLT-", "VER-")
 FACET_SUPPORT_SECTIONS = {
     "behavior": {
-        "Behavior", "Lifecycle and invariants", "Requirements", "Guarantees",
-        "Invariants", "Decisions", "Constraints",
+        "behavior", "lifecycle-and-invariants", "requirements", "guarantees",
+        "invariants", "decisions", "constraints",
     },
     "interfaces": {
-        "Interfaces", "Configuration contract", "Compatibility",
+        "interfaces", "configuration-contract", "compatibility",
     },
     "data": {
-        "Information model", "Data ownership", "Lifecycle and invariants",
+        "information-model", "data-ownership", "lifecycle-and-invariants",
     },
-    "failure": {"Failure behavior", "Edge cases"},
-    "quality": {"Quality attributes", "Quality constraints"},
+    "failure": {"failure-behavior", "edge-cases"},
+    "quality": {"quality-constraints"},
 }
 
 
@@ -436,7 +406,12 @@ def _table_rows(lines: list[str], start: int) -> tuple[tuple[str, ...], list[tup
     return header, [(number, cells(value)) for number, value in visible[2:]]
 
 
-def _parse_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
+def _parse_node(
+    path: Path,
+    root: Path,
+    findings: list[Finding],
+    manifest: dict[str, object] | None = None,
+) -> _Node:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeError) as error:
@@ -491,7 +466,8 @@ def _parse_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
             continue
         end = next((candidate - 1 for candidate, candidate_level, _ in headings[index + 1:] if candidate_level <= 2), len(lines))
         body = lines[number:end]
-        node.sections[title] = (number, body)
+        section_key = canonical_heading(title, manifest) or title
+        node.sections[section_key] = (number, body)
         if not any(line.strip() for line in body):
             add(
                 findings,
@@ -519,7 +495,7 @@ def _parse_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
     if not node.summary and node.kind != "index":
         add(findings, "error", "MISSING_SUMMARY", path, root, "missing summary immediately after identity and aliases")
     if node.kind != "index":
-        responsibility = node.sections.get("Responsibility")
+        responsibility = node.sections.get("responsibility")
         if responsibility is None:
             add(findings, "error", "MISSING_RESPONSIBILITY", path, root, "non-index node has no Responsibility section")
         elif not any(line.strip() for line in responsibility[1]):
@@ -556,7 +532,10 @@ def _parse_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
             continue
         heading = ATX_HEADING_RE.match(line)
         if heading and len(heading.group(1)) == 2:
-            section = re.sub(r"[ \t]+#+[ \t]*$", "", heading.group(2) or "").strip()
+            rendered = re.sub(
+                r"[ \t]+#+[ \t]*$", "", heading.group(2) or ""
+            ).strip()
+            section = canonical_heading(rendered, manifest) or rendered
         definition = DEFINITION_RE.match(line)
         semantic_bullet = SEMANTIC_BULLET_RE.match(line)
         if semantic_bullet and not definition:
@@ -576,7 +555,7 @@ def _parse_node(path: Path, root: Path, findings: list[Finding]) -> _Node:
             elif identifier in node.statements:
                 add(findings, "error", "DUPLICATE_ID", path, root, f"duplicate semantic ID: {identifier}", number)
             else:
-                expected = SECTION_PREFIXES.get(section)
+                expected = SECTION_PREFIX_KEYS.get(section)
                 if expected and not identifier.startswith(expected + "-"):
                     add(findings, "error", "ID_SECTION", path, root, f"{identifier} does not belong under {section}", number)
                 node.statements[identifier] = (section, number)
@@ -624,7 +603,7 @@ def _load_manifest(root: Path, findings: list[Finding]) -> dict[str, object] | N
         )
         return None
     unknown = set(value) - MANIFEST_KEYS
-    missing = MANIFEST_KEYS - set(value)
+    missing = REQUIRED_MANIFEST_KEYS - set(value)
     if unknown:
         add(
             findings, "error", "MANIFEST_UNKNOWN_KEY", path, root,
@@ -635,10 +614,16 @@ def _load_manifest(root: Path, findings: list[Finding]) -> dict[str, object] | N
             findings, "error", "MANIFEST_MISSING_KEY", path, root,
             f"missing manifest key: {sorted(missing)[0]}",
         )
-    if value.get("specspine") != 3:
+    if value.get("specspine") != FORMAT_MAJOR:
         add(
             findings, "error", "MANIFEST_VERSION", path, root,
-            "specspine must be the integer 3",
+            f"specspine must be the integer {FORMAT_MAJOR}",
+        )
+    try:
+        presentation(value)
+    except PresentationError as error:
+        add(
+            findings, "error", "MANIFEST_PRESENTATION", path, root, str(error),
         )
     if not isinstance(value.get("project"), str) or not value.get("project", "").strip():
         add(
@@ -715,7 +700,7 @@ def check(
     index = root / INDEX_NAME
     if not index.is_file():
         add(findings, "error", "INDEX_MISSING", index, root, f"root {INDEX_NAME} is required")
-    nodes = [_parse_node(path, root, findings) for path in files]
+    nodes = [_parse_node(path, root, findings, manifest) for path in files]
     by_path = {node.path.resolve(): node for node in nodes}
     nested_roots = nested_spine_roots(root)
     for directory in owned_directories(root):
@@ -889,7 +874,7 @@ def check(
             if ID_RE.fullmatch(link.label) and "#" in link.target:
                 add(findings, "error", "ID_FRAGMENT", node.path, root, "semantic-ID reference must not use a fragment", number)
 
-        relationships = (node.sections or {}).get("Relationships")
+        relationships = (node.sections or {}).get("relationships")
         if relationships:
             header, rows = _table_rows(node.lines, relationships[0])
             if header != RELATION_HEADER:
@@ -1110,7 +1095,7 @@ def check(
             add(findings, "error", "INDEX_KIND", index, root, f"root {INDEX_NAME} must use Kind `index`", index_node.identity_line)
 
     for node in nodes:
-        divergence = (node.sections or {}).get("Known divergences")
+        divergence = (node.sections or {}).get("known-divergences")
         if not divergence:
             continue
         header, rows = _table_rows(node.lines, divergence[0])
@@ -1194,7 +1179,11 @@ def _link_or_copy(source: Path, destination: Path) -> None:
         shutil.copy2(source, destination)
 
 
-def _candidate_sections(path: Path, root: Path) -> list[Finding]:
+def _candidate_sections(
+    path: Path,
+    root: Path,
+    manifest: dict[str, object] | None,
+) -> list[Finding]:
     findings: list[Finding] = []
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -1237,7 +1226,10 @@ def _candidate_sections(path: Path, root: Path) -> list[Finding]:
             elif level == 2:
                 if first_h2 is None:
                     first_h2 = line_number
-                if responsibility_line is None and title == "Responsibility":
+                if (
+                    responsibility_line is None
+                    and canonical_heading(title, manifest) == "responsibility"
+                ):
                     responsibility_line = line_number
                 elif responsibility_line is not None and next_heading is None:
                     next_heading = line_number
@@ -1275,6 +1267,8 @@ def check_candidates(
     if not staging_root.is_dir():
         return [Finding("error", "STAGING_MISSING", ".", None, f"staging root does not exist: {staging_root}")]
 
+    manifest_findings: list[Finding] = []
+    manifest = _load_manifest(spine_root, manifest_findings)
     candidates: list[tuple[Path, Path]] = []
     for path in sorted(staging_root.rglob("*")):
         relative = path.relative_to(staging_root)
@@ -1302,7 +1296,7 @@ def check_candidates(
             add(findings, "error", "DESTINATION_COLLISION", path, staging_root, f"destination already exists: {relative}")
             continue
         candidates.append((path, relative))
-        findings.extend(_candidate_sections(path, staging_root))
+        findings.extend(_candidate_sections(path, staging_root, manifest))
 
     if not candidates:
         return findings

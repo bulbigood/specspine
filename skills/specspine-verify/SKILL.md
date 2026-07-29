@@ -14,6 +14,8 @@ reports evidence; it never creates accepted intent or changes readiness.
   before classifying conformance.
 - Read [references/spec-format.md](references/spec-format.md) for normative
   claims, assets, readiness, and blocking questions.
+- Resolve configured presentation headings to canonical v3 keys before
+  evaluating coverage or conformance.
 - Run `scripts/check_spine.py <spine-root>` before verification.
 - Use installed `specspine-extract` once to obtain the smallest applicable
   normative closure. If unavailable, navigate from the index without expanding

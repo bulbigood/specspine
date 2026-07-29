@@ -73,6 +73,28 @@ class WorkspaceSpinesTests(unittest.TestCase):
         codes = {finding.code for finding in CHECKER.check(root)}
         self.assertIn("INDEX_ENTRY_MISSING", codes)
 
+    def test_rebuild_uses_configured_index_presentation(self):
+        root = self.root("specspine", "demo")
+        value = manifest("demo")
+        value["presentation"] = {
+            "profile": 1,
+            "language": "ru",
+            "index": {
+                "root-title": "Архитектура {project}",
+                "purpose": "Долговременная спецификация проекта.",
+                "scope": "Архитектурные намерения и наблюдения.",
+                "contents-heading": "Содержание",
+                "nested-heading": "Вложенные SpecSpine",
+                "empty": "Нет элементов.",
+            },
+        }
+        (root / "specspine.json").write_text(json.dumps(value))
+        INDEXER.rebuild(root)
+        index = (root / "_INDEX.md").read_text()
+        self.assertIn("# Архитектура demo", index)
+        self.assertIn("## Содержание", index)
+        self.assertIn("Долговременная спецификация проекта.", index)
+
     def test_workspace_graph_connects_nested_roots_and_keeps_siblings(self):
         parent = self.root("docs/specspine", "parent")
         child = self.root("docs/specspine/services/payments/specspine", "child")

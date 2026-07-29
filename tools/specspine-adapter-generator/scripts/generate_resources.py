@@ -46,23 +46,28 @@ SKILL_REFERENCES = {
 SKILL_SCRIPTS = {
     "specspine-extract": {
         "check_spine.py": "check_spine.py",
+        "spec_contract.py": "spec_contract.py",
     },
     "specspine-evolve": {
         "check_spine.py": "check_spine.py",
         "rebuild_indexes.py": "rebuild_indexes.py",
+        "spec_contract.py": "spec_contract.py",
     },
     "specspine-map": {
         "bootstrap_spine.py": "bootstrap_spine.py",
         "check_spine.py": "check_spine.py",
         "rebuild_indexes.py": "rebuild_indexes.py",
+        "spec_contract.py": "spec_contract.py",
     },
     "specspine-doctor": {
         "bootstrap_spine.py": "bootstrap_spine.py",
         "check_spine.py": "check_spine.py",
         "rebuild_indexes.py": "rebuild_indexes.py",
+        "spec_contract.py": "spec_contract.py",
     },
     "specspine-verify": {
         "check_spine.py": "check_spine.py",
+        "spec_contract.py": "spec_contract.py",
     },
 }
 SKILL_ASSETS = {
@@ -80,7 +85,7 @@ SKILL_ASSETS = {
     },
 }
 WORD_BUDGETS = {
-    ("specspine-doctor", "SKILL.md"): 950,
+    ("specspine-doctor", "SKILL.md"): 970,
     ("specspine-doctor", "assets/templates/agent-bootstrap.md"): 60,
     ("specspine-map", "SKILL.md"): 850,
 }

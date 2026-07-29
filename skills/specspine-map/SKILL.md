@@ -44,6 +44,8 @@ Neither terminal claims that no conceivable architectural concept exists.
   classifying claims or disagreement.
 - Read [references/spec-format.md](references/spec-format.md) before changing
   specifications.
+- Read `specspine.json.presentation` before producing Markdown; render its
+  configured headings and order while preserving canonical v3 meaning.
 - Read [references/mapping-method.md](references/mapping-method.md) before
   discovery.
 - Read [references/orchestration.md](references/orchestration.md) completely;

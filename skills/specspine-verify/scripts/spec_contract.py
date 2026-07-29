@@ -1,0 +1,1 @@
+../../../shared/scripts/spec_contract.py

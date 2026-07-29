@@ -2,6 +2,12 @@
 
 This document is the canonical storage contract for SpecSpine v3.
 
+The stored `specspine` integer is the format major. SpecSpine tooling and
+skill releases use semantic versions independently: minor and patch releases
+MUST continue to accept the same v3 storage contract. Change the stored integer
+only for a breaking storage or semantic-contract change; do not store tool
+minor or patch versions in a Spine.
+
 SpecSpine is a human-readable specification graph plus a small deterministic
 manifest. Markdown specification nodes own meaning. `specspine.json` owns
 completeness, reconstruction blockers, and exact non-Markdown assets.
@@ -78,7 +84,7 @@ schema is [specspine.schema.json](specspine.schema.json):
 }
 ```
 
-The root object has exactly these fields:
+The root object has these required fields:
 
 - `specspine`: integer `3`;
 - `project`: nonempty stable project name;
@@ -86,6 +92,76 @@ The root object has exactly these fields:
   `architecture-constrained`, or `exact`;
 - `areas`: one completeness profile for every non-index document;
 - `assets`: the complete registry of non-Markdown files in the Spine.
+
+It may also contain `presentation`, the constrained rendering profile described
+below. No other root fields are allowed.
+
+### Presentation profile
+
+Format v3 has one data and semantic model. An optional `presentation` object
+may localize and order its Markdown rendering without creating a project-
+specific dialect:
+
+```json
+{
+  "profile": 1,
+  "language": "ru",
+  "headings": {
+    "responsibility": "Ответственность",
+    "boundaries": "Границы",
+    "behavior": "Поведение"
+  },
+  "section_order": [
+    "responsibility",
+    "boundaries",
+    "behavior",
+    "interfaces",
+    "information-model",
+    "data-ownership",
+    "lifecycle-and-invariants",
+    "failure-behavior",
+    "edge-cases",
+    "configuration-contract",
+    "compatibility",
+    "requirements",
+    "guarantees",
+    "invariants",
+    "quality-constraints",
+    "verification",
+    "decisions",
+    "constraints",
+    "observed",
+    "inferred",
+    "open-questions",
+    "known-divergences",
+    "implementation",
+    "relationships",
+    "terminology",
+    "risks",
+    "rationale-and-trade-offs"
+  ]
+}
+```
+
+`profile` is integer `1`. `language` is a nonempty BCP 47-style language tag.
+`headings` is a partial mapping from the canonical keys listed in
+`section_order` to unique rendered headings. Omitted headings retain their
+English rendering. When `section_order` is present it contains every canonical
+key exactly once; documents still omit empty sections.
+
+An optional `index` mapping configures only deterministic index text:
+`root-title` (containing `{project}` exactly once), `purpose`, `scope`,
+`contents-heading`, `nested-heading`, and `empty`.
+
+The profile MUST NOT change document identity, kinds, facets, statement
+prefixes, relations, assets, blockers, authority, or reconstruction semantics.
+Agents read it before writing Markdown. Mechanical tools resolve rendered
+headings back to canonical keys before validation or retrieval.
+
+The JSON schema owns portable manifest shape. The shared `spec_contract.py`
+module owns the executable v3 vocabulary and presentation defaults consumed by
+Checker, Extract, bootstrap, and index generation; consumers must not copy
+those constants.
 
 `implementation_freedom` defines what reconstruction means:
 

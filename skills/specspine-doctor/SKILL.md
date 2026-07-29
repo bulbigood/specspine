@@ -38,6 +38,8 @@ implicitly.
   review criteria and repair boundaries.
 - Read [references/spec-format.md](references/spec-format.md) only when a
   finding or repair depends on format, semantic-ID syntax, or stopping rules.
+- Validate `specspine.json.presentation` mechanically as rendering
+  configuration; it cannot change v3 semantics.
 The checker owns mechanical findings. Semantic review is advisory and cannot
 prove validity, reconstruction completeness, or code conformance.
 

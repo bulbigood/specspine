@@ -35,13 +35,6 @@ DOCUMENT_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 IDENTITY_RE = re.compile(
     r"^\*\*ID:\*\*\s+`([^`]+)`\s+·\s+\*\*Kind:\*\*\s+`([^`]+)`\s*$"
 )
-CORE_RELATIONS = {
-    "contains", "decomposes-into", "performs", "depends-on", "exposes",
-    "consumes", "publishes", "reads-from", "writes-to", "owns-data",
-    "constrained-by", "implemented-by", "has-evidence", "superseded-by",
-    "related-to", "refines", "satisfies", "verified-by", "specified-by",
-    "compatible-with", "migrates-from",
-}
 MANIFEST_FACET_ALIASES = {
     "architecture": {"architecture"},
     "behavior": {"behavior", "event", "lifecycle"},
@@ -307,6 +300,7 @@ def _canonical_documents(root: Path) -> tuple[dict[str, dict[str, object]], list
     documents: dict[str, dict[str, object]] = {}
     errors: list[str] = []
     paths: dict[Path, str] = {}
+    manifest = _manifest(root)
     for path in sorted(root.rglob("*.md")):
         if not path.is_file() or path.is_symlink():
             continue
@@ -346,7 +340,9 @@ def _canonical_documents(root: Path) -> tuple[dict[str, dict[str, object]], list
             if heading and len(heading.group(1)) == 2:
                 if current is not None:
                     sections[current] = "\n".join(body).strip()
-                current = heading.group(2).strip()
+                rendered = heading.group(2).strip()
+                key = CHECKER.canonical_heading(rendered, manifest)
+                current = CHECKER.DEFAULT_HEADINGS.get(key, rendered)
                 section_order.append(current)
                 body = []
             elif current is not None:
@@ -386,7 +382,10 @@ def _canonical_documents(root: Path) -> tuple[dict[str, dict[str, object]], list
                     continue
                 relation = cells[0].strip("`")
                 links = markdown_links(cells[1])
-                if relation not in CORE_RELATIONS and not relation.startswith("x-"):
+                if (
+                    relation not in CHECKER.CORE_RELATIONS
+                    and not relation.startswith("x-")
+                ):
                     errors.append(f"{document['path']}: unknown relation {relation}")
                     continue
                 if len(links) != 1 or not links[0].target:
