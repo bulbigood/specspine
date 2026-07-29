@@ -145,6 +145,7 @@ specific dialect:
     "edge-cases",
     "configuration-contract",
     "compatibility",
+    "relationships",
     "requirements",
     "guarantees",
     "invariants",
@@ -152,15 +153,14 @@ specific dialect:
     "verification",
     "decisions",
     "constraints",
+    "known-divergences",
     "observed",
     "inferred",
     "open-questions",
-    "known-divergences",
     "implementation",
-    "relationships",
-    "terminology",
     "risks",
-    "rationale-and-trade-offs"
+    "rationale-and-trade-offs",
+    "terminology"
   ]
 }
 ```
@@ -170,6 +170,16 @@ specific dialect:
 `section_order` to unique rendered headings. Omitted headings retain their
 English rendering. When `section_order` is present it contains every canonical
 key exactly once; documents still omit empty sections.
+
+The default order presents the owned architectural model and relationships
+first, exact accepted claims next, then `Known divergences` before supporting
+`Observed`, `Inferred`, and `Open questions`. Implementation navigation and
+context follow last.
+
+Canonical Markdown MUST NOT hide semantic sections or statements inside HTML
+disclosure elements such as `<details>`. Collapsing is a renderer or IDE
+presentation concern; derived views may collapse supplementary content without
+changing canonical Markdown.
 
 An optional `index` mapping configures only deterministic index text:
 `root-title` (containing `{project}` exactly once), `purpose`, `scope`,

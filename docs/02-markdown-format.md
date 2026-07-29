@@ -51,6 +51,15 @@ Owns the order lifecycle and coordinates reservation, payment, and delivery.
 Other sections are added only when they contain useful architectural
 information.
 
+Use the configured presentation order. By default, put the architectural model
+and `Relationships` first, accepted claims next, then `Known divergences`
+before `Observed`, `Inferred`, and `Open questions`. Put `Implementation`,
+risks, rationale, and terminology last. Omit empty sections.
+
+Canonical specifications MUST NOT wrap semantic content in HTML disclosure
+elements such as `<details>`. A renderer or IDE may collapse supplementary
+sections in a derived view, but the plain Markdown source remains fully visible.
+
 ## Identity
 
 Document IDs MUST match:

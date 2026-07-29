@@ -64,6 +64,7 @@ DEFAULT_HEADINGS = {
     "edge-cases": "Edge cases",
     "configuration-contract": "Configuration contract",
     "compatibility": "Compatibility",
+    "relationships": "Relationships",
     "requirements": "Requirements",
     "guarantees": "Guarantees",
     "invariants": "Invariants",
@@ -71,15 +72,14 @@ DEFAULT_HEADINGS = {
     "verification": "Verification",
     "decisions": "Decisions",
     "constraints": "Constraints",
+    "known-divergences": "Known divergences",
     "observed": "Observed",
     "inferred": "Inferred",
     "open-questions": "Open questions",
-    "known-divergences": "Known divergences",
     "implementation": "Implementation",
-    "relationships": "Relationships",
-    "terminology": "Terminology",
     "risks": "Risks",
     "rationale-and-trade-offs": "Rationale and trade-offs",
+    "terminology": "Terminology",
 }
 DEFAULT_SECTION_ORDER = tuple(DEFAULT_HEADINGS)
 DEFAULT_INDEX_TEXT = {

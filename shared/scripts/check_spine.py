@@ -768,6 +768,20 @@ def check(
     by_id: dict[str, _Node] = {}
     global_statements: dict[str, tuple[_Node, str, int]] = {}
     for node in nodes:
+        for number, line in enumerate(node.lines, 1):
+            if (
+                number in (node.active_lines or set())
+                and re.search(r"<\s*/?\s*details(?:\s|>)", line, re.IGNORECASE)
+            ):
+                add(
+                    findings,
+                    "error",
+                    "SEMANTIC_DISCLOSURE",
+                    node.path,
+                    root,
+                    "canonical semantic content must not use HTML details disclosure",
+                    number,
+                )
         if node.kind == "index" and node.statements:
             add(
                 findings,

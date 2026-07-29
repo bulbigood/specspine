@@ -28,6 +28,11 @@ Store each directed typed edge once. Use ordinary prose links for navigation,
 not as implicit relationships. Omit this section when there are no useful
 typed edges.
 
+Place accepted claim sections after `Relationships`, then `Known divergences`
+before `Observed`, `Inferred`, and `Open questions`. Put implementation
+navigation and contextual sections last. Do not wrap canonical sections in
+HTML `<details>`; derived renderers may collapse supplementary content.
+
 Add a focused Mermaid diagram when readers would otherwise have to reconstruct
 a non-trivial topology, interaction, lifecycle, or data relationship. Add
 `Interfaces`, `Information model`, `Data ownership`, `Lifecycle and

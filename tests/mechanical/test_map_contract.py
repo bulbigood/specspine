@@ -59,6 +59,7 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("never rewrite matching code behavior", producer)
         self.assertIn("inspection", integration)
         self.assertIn("never claims conformance", integration)
+        self.assertIn("never hide canonical content in `<details>`", producer)
 
     def test_operation_is_durable_and_atomic(self):
         entrypoint = self.compact(self.entrypoint)

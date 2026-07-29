@@ -51,7 +51,6 @@ Do not edit the live Spine, repository source, tests, README, or campaign state;
 do not write to handoff, continue to another unit, or integrate navigation.
 
 ## Mandatory preflight and handoff
-
 Before handoff, reread every candidate as a coherent architectural
 specification and verify:
 
@@ -68,6 +67,8 @@ specification and verify:
 - section headings follow the canonical concerns in `spec-format`; never merge
   concerns into custom headings such as `Interfaces and lifecycle` or
   `Lifecycle and state`; use separate canonical sections;
+- follow configured order: `Known divergences` before evidence/uncertainty;
+  never hide canonical content in `<details>`;
 - render those canonical sections using `specspine.json.presentation`
   headings and order when the profile is present;
 - semantic IDs are stable and links use the required complete labels;

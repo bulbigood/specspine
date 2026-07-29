@@ -110,6 +110,19 @@ class DoctorCheckerV3Tests(unittest.TestCase):
     def test_accepts_strict_v3_spine(self):
         self.assertEqual([], [item for item in CHECKER.check(self.spine()) if item.severity == "error"])
 
+    def test_default_order_prioritizes_divergence_before_evidence(self):
+        order = list(CHECKER.DEFAULT_HEADINGS)
+        self.assertLess(order.index("relationships"), order.index("requirements"))
+        self.assertLess(order.index("known-divergences"), order.index("observed"))
+        self.assertLess(order.index("observed"), order.index("implementation"))
+
+    def test_rejects_html_disclosure_in_canonical_markdown(self):
+        payment = PAYMENTS + "\n<details>\n<summary>Evidence</summary>\n</details>\n"
+        self.assertIn("SEMANTIC_DISCLOSURE", self.codes(self.spine(payment=payment)))
+
+        fenced = PAYMENTS + "\n```html\n<details></details>\n```\n"
+        self.assertNotIn("SEMANTIC_DISCLOSURE", self.codes(self.spine(payment=fenced)))
+
     def test_candidate_may_create_integration_indexed_directory(self):
         root = self.spine()
         staging_temporary = tempfile.TemporaryDirectory()
