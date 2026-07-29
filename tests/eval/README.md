@@ -20,8 +20,8 @@ the repository's mechanical suite. The optional installed-package test requires
 npm execution:
 
 ```bash
-SPECSPINE_RUN_NPX=1 python3 -m unittest discover \
-  -s tests/mechanical -p 'test_npx_install.py' -v
+SPECSPINE_RUN_NPX=1 python3 tests/run_mechanical.py \
+  -p 'test_npx_install.py'
 ```
 
 ## Eval design rules

@@ -106,9 +106,13 @@ after the focused test passes.
 Run the relevant focused test first, then the complete deterministic gates:
 
 ```bash
-python3 -m unittest discover -s tests/mechanical -p 'test_*.py'
+python3 tests/run_mechanical.py
 python3 tests/eval/run.py --validate --audit
 ```
+
+The mechanical runner executes individual tests in parallel worker processes.
+By default it uses one fewer worker than the number of CPUs reported by the
+operating system. Override the limit with `--jobs N`.
 
 All deterministic unit tests for the eval runner, agent adapter, assertions,
 runtime skills, and benchmarks live under `tests/mechanical`. The `tests/eval`

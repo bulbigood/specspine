@@ -47,11 +47,7 @@ def main() -> int:
     run(
         [
             sys.executable,
-            "-m",
-            "unittest",
-            "discover",
-            "-s",
-            "tests/mechanical",
+            "tests/run_mechanical.py",
             "-p",
             "test_*.py",
         ]
@@ -62,11 +58,7 @@ def main() -> int:
         run(
             [
                 sys.executable,
-                "-m",
-                "unittest",
-                "discover",
-                "-s",
-                "tests/mechanical",
+                "tests/run_mechanical.py",
                 "-p",
                 "test_npx_install.py",
             ],

@@ -67,8 +67,12 @@ npx skills add . --skill specspine-verify
 Run mechanical tests:
 
 ```bash
-python3 -m unittest discover -s tests/mechanical -p 'test_*.py'
+python3 tests/run_mechanical.py
 ```
+
+The runner executes individual tests in parallel and defaults to one fewer
+worker than the number of CPUs reported by the operating system. Pass
+`--jobs N` to override the worker count.
 
 The test suite includes mechanical regression tests, lifecycle scenarios,
 retrieval corpora, and agent evaluations. Multilingual fixtures are test data
