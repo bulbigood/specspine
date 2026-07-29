@@ -4174,7 +4174,7 @@ def validate_coverage_result(
             "answered owner claims must all be repository observations (OBS-*)"
         )
     evidence_refs = [*task.get("units", []), *inspected]
-    if not any(value in body for value in evidence_refs):
+    if outcome == "answered" and not any(value in body for value in evidence_refs):
         raise CampaignError(
             "coverage owner document does not reference the verified unit or "
             "inspected evidence"
@@ -4884,7 +4884,8 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(
                 f"assemble-integration needs settled producers: {unfinished}"
             )
-        return {"status": "already_integrated", "reviewed_tasks": 0}
+        if not source_pass["topic_plan"].get("covered"):
+            return {"status": "already_integrated", "reviewed_tasks": 0}
     unfinished = [
         task["id"]
         for task in current["tasks"].values()
@@ -5029,6 +5030,13 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                 document.write_text(body, encoding="utf-8")
 
             manifest = read_json(workspace / "specspine.json")
+            baseline = source_pass["evidence_baseline"]
+            completion = source_pass["completion"]
+            inspection_mode = (
+                completion["intent"]
+                if completion["kind"] == "increment"
+                else "exhaustive"
+            )
             areas = {
                 area["owner"]: area
                 for area in manifest.get("areas", [])
@@ -5050,10 +5058,29 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                     )
                     for name in derived
                 }
+                producer_checked = topic["id"] in topic_tasks
+                inspection = {
+                    "source": baseline["source"],
+                    "inspected": baseline["inspected"],
+                    "mode": inspection_mode,
+                    "facets": {
+                        name: (
+                            "checked"
+                            if name == "architecture"
+                            or producer_checked
+                            and name in {
+                                "behavior", "interfaces", "data", "failure"
+                            }
+                            else "not-checked"
+                        )
+                        for name in derived
+                    },
+                }
                 areas[topic["id"]] = {
                     "owner": topic["id"],
                     "facets": facets,
                     "blockers": blockers if isinstance(blockers, list) else [],
+                    "inspection": inspection,
                 }
             manifest["areas"] = [areas[key] for key in sorted(areas)]
             atomic_write(workspace / "specspine.json", manifest)
@@ -5215,10 +5242,6 @@ def validate_integrated_source_publication(
     if task.get("origin") != "source-pass":
         return
     combined = "\n".join(bodies)
-    if "**OBS-" not in combined:
-        raise CampaignError(
-            f"integrated source publication needs a semantic OBS claim: {task['id']}"
-        )
     expected_baseline = task.get("evidence_baseline")
     if expected_baseline is not None and expected_baseline not in combined:
         raise CampaignError(

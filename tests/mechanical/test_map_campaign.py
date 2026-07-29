@@ -2148,7 +2148,7 @@ class MapCampaignTests(unittest.TestCase):
                     "topics": [],
                     "covered": [
                         {
-                            "id": "existing-architecture",
+                            "id": "architecture-root",
                             "title": "Existing architecture",
                             "responsibility": "Owns the fixture architecture.",
                             "reason": "The responsibility is architecturally durable.",
@@ -2193,6 +2193,20 @@ class MapCampaignTests(unittest.TestCase):
         ledger = self.ledger_value()
         self.assertEqual({}, ledger["source_pass"]["topic_tasks"])
         self.assertEqual([], ledger["source_pass"]["todo"])
+        result = self.cli(
+            "assemble-integration",
+            str(self.ledger),
+            str(self.spine),
+            "--checker",
+            str(ROOT / "skills/specspine-map/scripts/check_spine.py"),
+        )
+        self.assertEqual("assembled_and_integrated", result["status"])
+        manifest = json.loads((self.spine / "specspine.json").read_text())
+        inspection = manifest["areas"][0]["inspection"]
+        self.assertEqual("exhaustive", inspection["mode"])
+        self.assertEqual("checked", inspection["facets"]["architecture"])
+        self.assertEqual("not-checked", inspection["facets"]["behavior"])
+        self.assertEqual("not-checked", inspection["facets"]["verification"])
 
     def test_source_pass_rejects_covered_topic_without_defined_claim(self):
         plan = self.run / "invalid-covered-topic-plan.json"

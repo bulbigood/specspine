@@ -1,21 +1,23 @@
 ---
 name: specspine-map
-description: "Map observed brownfield architecture into a linked Markdown SpecSpine v3. Use for one focused survey, deepening, refresh, or drift increment; a broad repository survey; or exhaustive documentation of a named architectural scope or whole repository. Discover semantic responsibilities, filter existing SpecSpine coverage, produce missing observations, integrate centrally, and verify the selected completion claim. Do not infer intended architecture, audit general integrity, implement code, or claim code/spec conformance."
+description: "Map architecture-significant deltas between brownfield repository reality and accepted SpecSpine intent. Use for one focused survey, deepening, refresh, or drift increment; a broad repository survey; or exhaustive comparison of a named architectural scope or whole repository. Discover semantic responsibilities, classify evidence against existing intent, retain only material gaps, divergences, uncertainty, and navigation observations, record bounded inspection coverage, integrate centrally, and verify the selected completion claim. Do not duplicate matching intent, infer intended architecture, audit general integrity, implement code, or claim code/spec conformance."
 ---
 
 # SpecSpine Map
-
-Turn repository evidence into verified SpecSpine observations through one
+Turn repository evidence into a verified delta against SpecSpine intent through one
 operation:
 
 ```text
 scope → discovery → synthesis → production → integration → verification
 ```
-
 Repository evidence establishes `OBS`, not accepted intent. Preserve
 uncertainty and code/spec disagreement; never infer decisions, constraints,
 requirements, guarantees, or conformance.
-
+An `OBS` is an exception layer, not a code mirror. Retain one only for an
+architecture-significant intent gap, divergence, unresolved question, or
+surprising owner/boundary. Evidence already represented by intent is
+`covered-by-intent`: update inspection coverage without an `OBS`. Discard
+compatible implementation freedom and source detail.
 ## Operation
 
 Define two independent axes before discovery:

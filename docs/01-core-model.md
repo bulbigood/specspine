@@ -35,6 +35,13 @@ SpecSpine MUST:
 
 SpecSpine is the source of truth for accepted, durable system intent.
 
+Accepted intent includes the durable architectural model expressed by
+responsibility, boundaries, behavior, interfaces, information and data
+ownership, lifecycle, failure behavior, configuration, compatibility, and
+typed relationships. Addressable normative sections state exact accepted
+claims. Evidence, uncertainty, divergence, implementation navigation, risks,
+terminology, and rationale retain their narrower non-intent semantics.
+
 | Knowledge | Canonical source |
 |---|---|
 | Long-lived architecture, requirements, contracts, and verification | SpecSpine |

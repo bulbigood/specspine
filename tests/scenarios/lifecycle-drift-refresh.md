@@ -38,14 +38,15 @@ specification and named payment evidence boundary.
 The refresh should:
 
 - preserve the accepted idempotency constraint as normative intent;
-- record implemented idempotency-key propagation as `Observed`, with
-  representative evidence;
+- do not duplicate implemented idempotency-key propagation as `Observed`
+  because accepted intent already represents it;
 - record the implemented retry queue and its concrete policy as `Observed`,
   not as a `Decision` or `Constraint`;
 - retain the retry-policy open question and make the intended/observed drift
   explicit rather than resolving it;
 - refresh the evidence baseline only for observations actually rechecked;
-- modify only `specspine/payment-settlement.md`;
+- modify only `specspine/payment-settlement.md` and its inspection record in
+  `specspine/specspine.json`;
 - leave checkout, reporting, the payment overview, and all repository evidence
   unchanged;
 - inspect only the named settlement specification, directly related payment

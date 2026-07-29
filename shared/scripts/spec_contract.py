@@ -31,6 +31,8 @@ FACET_NAMES = (
     "verification",
 )
 FACET_VALUES = frozenset({"complete", "partial", "missing", "not-applicable"})
+INSPECTION_MODES = frozenset({"survey", "deepen", "refresh", "drift", "exhaustive"})
+INSPECTION_FACET_VALUES = frozenset({"checked", "not-checked"})
 ASSET_ROLES = frozenset({
     "interface-contract", "data-schema", "execution-contract", "scenario",
     "fixture", "verification",

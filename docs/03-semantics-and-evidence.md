@@ -25,6 +25,18 @@ should exist. An inference MUST NOT be presented as a decision, constraint, or
 observed fact. A blocking open question MUST explain what is unknown, why it
 matters, and what downstream work must not decide silently.
 
+An observation belongs in SpecSpine only when it is architecture-significant,
+repository-backed, and not already fully represented by accepted intent. It
+MUST either expose a material intent gap, support a confirmed divergence,
+affect an unresolved architectural question, or provide necessary navigation
+to a surprising owner or boundary. Map MUST NOT retain observations merely to
+confirm accepted intent, inventory implementation, or restate source detail.
+Compatible implementation detail remains in code.
+
+When repository evidence is already fully represented by accepted intent, Map
+records inspection coverage without creating a duplicate observation.
+Inspection coverage does not prove conformance.
+
 ## Evidence baseline
 
 Repository observations SHOULD cite representative, repository-relative paths:
@@ -79,6 +91,8 @@ A divergence:
 
 The absence of a divergence is not evidence of conformance unless the area was
 explicitly checked. A suspected but unconfirmed conflict belongs in `Inferred`.
+Even an explicit inspection without retained observations is only a bounded
+comparison at its recorded evidence baseline, not a conformance result.
 
 ## Change and drift lifecycle
 
@@ -104,3 +118,18 @@ changes do not require artificial documentation growth.
 
 An `Observed` statement changes only after evidence is checked again. A Known
 divergence is removed only after its resolution is confirmed.
+
+When accepted intent later represents a previously observed fact, remove the
+redundant active observation if nothing references its ID. If its ID is
+externally referenced, preserve a short supersession tombstone without
+presenting historical evidence as current implementation reality. Version
+control remains the history of unreferenced observations. When implementation
+changes, recheck affected observations: update current facts, remove facts that
+no longer exist, and resolve linked divergences only after confirmation.
+
+Existing Spines migrate incrementally. Map need not rewrite every historical
+observation in one operation; when it touches an owner, it should remove
+unreferenced observations that merely duplicate accepted intent, preserve
+material gaps and divergences, and add or refresh that owner's optional
+inspection record. Areas without inspection remain valid and make no bounded
+comparison claim.

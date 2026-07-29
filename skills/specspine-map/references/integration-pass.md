@@ -40,7 +40,11 @@ The root orchestrator must:
    transitions, failures, ownership questions, and consequences.
 9. Update `specspine.json` in the same batch: add or remove area entries with
     their owners, set only evidence-supported facets, preserve normative facets
-    and blockers, and register no asset a producer did not publish and own.
+    and blockers, and record optional `inspection` separately from specification
+    completeness. Inspection names the source baseline, date, Map mode, and
+    checked versus not-checked facets; it never claims conformance. Record it
+    for `covered-by-intent` results even when Markdown does not change. Register
+    no asset a producer did not publish and own.
     Retain the exact campaign-supplied evidence baseline in every integrated
     source publication; do not invent `repository`, `no-git`, or path-shaped
     baseline values.

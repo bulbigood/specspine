@@ -45,7 +45,12 @@ delivery state, and implementation-specific testing.
 - Typed relationships form a navigable graph.
 - Normative claims, observations, inferences, and open questions remain
   distinct.
+- Map retains observations as an exception layer for material intent gaps,
+  divergences, uncertainty, and surprising navigation instead of mirroring
+  matching implementation behavior.
 - Confirmed intent/reality conflicts remain explicit as Known divergences.
+- Optional per-area inspection coverage records bounded repository comparison
+  separately from specification completeness and conformance.
 - Mandatory `specspine.json` records each owner's completeness facets,
   reconstruction blockers, implementation freedom, and exact assets once.
 - Readiness is derived as `ready`, `incomplete`, or `blocked`.

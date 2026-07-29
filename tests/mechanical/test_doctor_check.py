@@ -421,6 +421,29 @@ class DoctorCheckerV3Tests(unittest.TestCase):
         (root / "specspine.json").write_text(json.dumps(manifest))
         self.assertIn("MANIFEST_BLOCKER", self.codes(root))
 
+    def test_accepts_and_validates_optional_inspection_coverage(self):
+        root = self.spine()
+        manifest = json.loads((root / "specspine.json").read_text())
+        manifest["areas"][0]["inspection"] = {
+            "source": "commit-abc1234",
+            "inspected": "2026-07-29",
+            "mode": "refresh",
+            "facets": {
+                name: (
+                    "checked"
+                    if name in {"architecture", "behavior", "interfaces", "data", "failure"}
+                    else "not-checked"
+                )
+                for name in CHECKER.FACET_NAMES
+            },
+        }
+        (root / "specspine.json").write_text(json.dumps(manifest))
+        self.assertNotIn("MANIFEST_INSPECTION", self.codes(root))
+
+        manifest["areas"][0]["inspection"]["facets"]["quality"] = "complete"
+        (root / "specspine.json").write_text(json.dumps(manifest))
+        self.assertIn("MANIFEST_INSPECTION_FACET_VALUE", self.codes(root))
+
     def test_complete_verification_requires_machine_resolvable_support(self):
         root = self.spine()
         manifest = json.loads((root / "specspine.json").read_text())

@@ -48,6 +48,18 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("deterministic assembly publishes clean results", text)
         self.assertIn("inventory pages, paths, and filenames never define", text)
 
+    def test_map_retains_only_material_repository_delta(self):
+        entrypoint = self.compact(self.entrypoint)
+        method = self.compact(self.method)
+        producer = self.compact(self.producer)
+        integration = self.compact(self.integration)
+        self.assertIn("exception layer, not a code mirror", entrypoint)
+        self.assertIn("`covered-by-intent`", method)
+        self.assertIn("omit the duplicate fact", method)
+        self.assertIn("never rewrite matching code behavior", producer)
+        self.assertIn("inspection", integration)
+        self.assertIn("never claims conformance", integration)
+
     def test_operation_is_durable_and_atomic(self):
         entrypoint = self.compact(self.entrypoint)
         protocol = self.compact(self.protocol)

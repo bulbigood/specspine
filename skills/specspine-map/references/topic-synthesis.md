@@ -1,11 +1,9 @@
 # SpecSpine Map global topic-synthesis contract
-
 Read every `source_topic` in the global synthesis packet and produce one
 semantic mapping. Source titles, responsibilities, reasons, and shared
 discovery context through `leads` define the input; IDs are references only.
 Never read, copy, or invent file lists. Discovery hierarchy and lead
 boundaries are provenance, not architecture.
-
 Use only predicates listed in `allowed_relationship_types` from the synthesis
 packet unless a genuinely project-specific `x-*` relation is unavoidable.
 
@@ -36,11 +34,11 @@ each, use SpecSpine semantic extraction to find candidate owners, then compare
 responsibility, boundaries, lifecycle, state, interfaces, and exact claims.
 Record the result before evaluating the next topic. Mark `covered` only when
 exact documents and claims collectively make another producer unnecessary.
-When an owner exists but lacks the observations, keep one uncovered update
-topic for that owner instead of inventing a parallel owner. An empty Spine
+Accepted prose and normative claims may cover evidence without an `OBS`;
+classify this as `covered-by-intent` without requiring owner evidence paths.
+When an owner has a material gap, keep one uncovered update topic for it. An empty Spine
 covers nothing; an existing Spine with zero covered topics requires explicit
 review rather than silent acceptance.
-
 Write exactly:
 
 ```json
@@ -93,7 +91,6 @@ Write exactly:
   "deferred_leads": []
 }
 ```
-
 An open lead contains exactly `id`, `title`, `question`, `reason`, and
 `seed_files`. Final IDs are stable semantic lowercase kebab-case. Disposition
 every source topic as uncovered, covered, or supporting. Preserve one source
@@ -113,3 +110,7 @@ boundaries, missing data/control-flow edges, weak edges, source-tree mirroring,
 and unsupported coverage. Do not edit the Spine, corpus, campaign, or
 repository. This mapping becomes the canonical production plan after
 deterministic materialization.
+
+State the disposition in existing reason fields: `covered-by-intent`,
+`implementation-freedom`, `retain-observation`, `retain-divergence`,
+`retain-inference`, `retain-open-question`, or `implementation-detail`.

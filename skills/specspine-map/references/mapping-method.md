@@ -67,6 +67,16 @@ corpus by responsibility, checks each topic against existing canonical
 SpecSpine claims, and accounts for every evidence file. A path match,
 navigation entry, or broad neighboring owner is not coverage.
 
+Compare each significant repository fact with its owner's accepted model:
+`covered-by-intent`, `implementation-freedom`, `retain-observation`,
+`retain-divergence` (only against an addressable normative claim),
+`retain-inference`, `retain-open-question`, or `implementation-detail`. Only
+the retain dispositions produce Markdown evidence.
+`covered-by-intent` updates bounded inspection coverage and never asserts
+conformance. A brownfield survey with little accepted intent may retain more
+observations as a transitional map; later accepted intent should replace
+redundant active observations.
+
 One topic does not imply one document. Several topics may converge on one
 canonical owner; one topic may expose multiple independent owners. Producers
 verify assigned topics and may suggest narrower questions, but root decides
@@ -87,6 +97,10 @@ Cite representative concrete paths that support non-obvious claims or future
 navigation. Paths are evidence, not document structure. Stop reading when
 ownership, boundaries, significant behavior, dependencies, state, and failure
 surfaces are understood and further detail would reproduce implementation.
+
+Do not write a repository fact as `Observed` merely because it was inspected.
+If accepted intent already fully represents it, preserve the intent, record the
+inspected facets in `specspine.json`, and omit the duplicate fact.
 
 Use the compression criteria in `spec-format.md` qualitatively. Documentation
 must add non-local information and remain sufficient for reconstruction; never

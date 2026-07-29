@@ -16,6 +16,13 @@ observed behavior and may verify conformance; an external workflow owns backlog
 and delivery state. Drafts, inferences, existing code, and passing tests cannot
 create or rewrite normative claims without acceptance.
 
+Accepted intent includes the durable architectural model expressed by
+responsibility, boundaries, behavior, interfaces, information and data
+ownership, lifecycle, failure behavior, configuration, compatibility, and
+typed relationships. Addressable normative sections make exact accepted
+claims. Evidence, uncertainty, divergences, implementation navigation, risks,
+terminology, and rationale retain their narrower non-intent semantics.
+
 ## Contents
 
 - [Statement kinds](#statement-kinds)
@@ -88,6 +95,15 @@ what is present, not necessarily what is intended or required. Evidence paths
 support provenance and navigation; they do not prove complete code/spec
 conformance.
 
+Retain an observation only when it is architecture-significant, not already
+fully represented by accepted intent, and exposes a material intent gap,
+supports a confirmed divergence, affects an unresolved architectural question,
+or navigates to a surprising owner or boundary. Do not retain an observation
+merely to confirm intent, inventory implementation, or restate source detail.
+When accepted intent already represents the evidence, record bounded inspection
+coverage without creating a duplicate observation. Inspection coverage never
+proves conformance.
+
 ### Inferred
 
 An unconfirmed interpretation of repository evidence. Never present an
@@ -111,6 +127,7 @@ silently.
   until the user or a downstream workflow resolves them.
 - SpecSpine does not prove or guarantee conformance between specifications and
   code.
+- Absence of an observation or divergence is not evidence of conformance.
 
 A confirmed conflict is stored once under `Known divergences`:
 
@@ -124,6 +141,12 @@ The first side references a normative statement (`DEC`, `CON`, `REQ`, `GUA`,
 `INV`, `QLT`, or `VER`), and the second references repository-backed `OBS`.
 Preserve the row until evidence is rechecked; never silently resolve it by
 preferring code or intent.
+
+When accepted intent later represents an observation, remove an unreferenced
+redundant `OBS`. Preserve an externally referenced ID as a short supersession
+tombstone without presenting historical evidence as current reality. Existing
+Spines migrate owner by owner; absence of an inspection record remains valid
+and makes no repository-comparison claim.
 
 ## Reconstruction semantics
 

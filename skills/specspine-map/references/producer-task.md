@@ -19,9 +19,10 @@ semantic graph may need later Doctor or Evolve refinement. Copy
 
 Evidence may include neighboring owners to prove a boundary. Do not turn those
 files into observations owned by this document and do not restate behavior of
-`planned_relationships` targets. Keep narrative concern sections concise;
-place detailed reconstructive facts once in identified `OBS` claims instead of
-duplicating them in prose.
+`planned_relationships` targets. Keep accepted narrative sections unchanged
+unless an authorized source supplies new intent. Place only material repository
+deltas in identified `OBS` claims; never rewrite matching code behavior into
+accepted prose or duplicate accepted prose as `OBS`.
 
 Read the packet `operation` and `current_owner` before inspecting code. In
 every operation, make one targeted facet pass across applicable observable
@@ -57,8 +58,8 @@ specification and verify:
 - one canonical responsibility without duplicated neighboring ownership;
 - observations remain `OBS`; every `Evidence:` span is a complete
   repository-relative path, never prefix-inherited shorthand;
-- every staged owner has an evidence baseline and at least one v3 semantic
-  `OBS` bullet; its baseline exactly matches the task packet;
+- every staged owner containing `OBS` has the exact task-packet evidence
+  baseline; a source draft exists only for a material retained delta;
 - supported relevant boundaries, interfaces, state, lifecycle, and failures
   are present;
 - each applicable observable facet was either documented from evidence or
@@ -110,15 +111,16 @@ Existing owner:
   "summary": "The existing claims cover ownership, invalidation and fallback.",
   "owner": {
     "document": "caching.md",
-    "claims": ["OBS-cache-lifecycle", "OBS-cache-failure-fallback"]
+    "claims": ["DEC-cache-lifecycle", "CON-cache-failure-fallback"]
   },
   "directions": []
 }
 ```
 
-Use `covered` only for a source-pass scope task. The cited claims must
-cover the assigned semantic topic and all of its evidence obligations, not
-merely mention a neighboring concept.
+Use `covered` only for a source-pass scope task. The cited accepted claims and
+architectural owner must cover the assigned semantic topic. The owner need not
+cite inspected source paths: code remains the evidence authority and inspection
+coverage records the bounded comparison without manufacturing `OBS`.
 
 For an integration-derived task, use `"outcome": "answered"` with the same
 `evidence`, `summary`, `owner`, and `directions` fields only when cited claims

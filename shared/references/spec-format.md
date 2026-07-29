@@ -68,7 +68,21 @@ schema is [specspine.schema.json](specspine.schema.json):
         "quality": "partial",
         "verification": "complete"
       },
-      "blockers": []
+      "blockers": [],
+      "inspection": {
+        "source": "commit-abc1234",
+        "inspected": "2026-07-29",
+        "mode": "refresh",
+        "facets": {
+          "architecture": "checked",
+          "behavior": "checked",
+          "interfaces": "checked",
+          "data": "not-checked",
+          "failure": "checked",
+          "quality": "not-checked",
+          "verification": "not-checked"
+        }
+      }
     }
   ],
   "assets": [
@@ -95,6 +109,14 @@ The root object has these required fields:
 
 It may also contain `presentation`, the constrained rendering profile described
 below. No other root fields are allowed.
+
+Each area may contain an optional `inspection` record. It states which
+repository-facing facets were actually inspected by Map at one evidence
+baseline. It is distinct from specification completeness and never claims
+implementation conformance. `source` identifies the inspected repository
+state, `inspected` is an ISO date, `mode` is `survey`, `deepen`, `refresh`,
+`drift`, or `exhaustive`, and every facet is `checked` or `not-checked`. Absence of `inspection`,
+or a `not-checked` facet, means no current comparison claim.
 
 ### Presentation profile
 

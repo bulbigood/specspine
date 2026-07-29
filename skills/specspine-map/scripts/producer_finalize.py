@@ -225,7 +225,11 @@ def validate_covered_owner(
             "answered owner claims must all be repository observations (OBS-*)"
         )
     references = [*task.get("units", []), *evidence]
-    if references and not any(value in body for value in references):
+    if (
+        checkpoint["outcome"] == "answered"
+        and references
+        and not any(value in body for value in references)
+    ):
         raise PreflightError(
             "covered owner does not reference the task unit or inspected evidence"
         )

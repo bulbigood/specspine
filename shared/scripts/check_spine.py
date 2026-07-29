@@ -26,6 +26,8 @@ from spec_contract import (
     FACET_VALUES,
     FORMAT_MAJOR,
     INDEX_NAME,
+    INSPECTION_FACET_VALUES,
+    INSPECTION_MODES,
     KIND_REQUIRED_FACETS,
     MANIFEST_NAME,
     NORMATIVE_PREFIXES,
@@ -75,7 +77,8 @@ MANIFEST_KEYS = {
     "presentation",
 }
 REQUIRED_MANIFEST_KEYS = MANIFEST_KEYS - {"presentation"}
-AREA_KEYS = {"owner", "facets", "blockers"}
+AREA_REQUIRED_KEYS = {"owner", "facets", "blockers"}
+AREA_KEYS = AREA_REQUIRED_KEYS | {"inspection"}
 FACET_NAME_SET = set(FACET_NAMES)
 ASSET_KEYS = {"path", "owner", "role", "format", "normative", "verifies"}
 FACET_SUPPORT_SECTIONS = {
@@ -924,7 +927,7 @@ def check(
                     add(findings, "error", "MANIFEST_AREA", root / MANIFEST_NAME, root, f"{label} must be an object")
                     continue
                 unknown = set(area) - AREA_KEYS
-                missing = AREA_KEYS - set(area)
+                missing = AREA_REQUIRED_KEYS - set(area)
                 if unknown or missing:
                     detail = (
                         f"unknown key {sorted(unknown)[0]}"
@@ -959,6 +962,28 @@ def check(
                         statement = global_statements.get(blocker)
                         if statement is None or not blocker.startswith("OQ-"):
                             add(findings, "error", "MANIFEST_BLOCKER", root / MANIFEST_NAME, root, f"{label} references unknown blocking question: {blocker}")
+                inspection = area.get("inspection")
+                if inspection is not None:
+                    expected = {"source", "inspected", "mode", "facets"}
+                    if not isinstance(inspection, dict) or set(inspection) != expected:
+                        add(findings, "error", "MANIFEST_INSPECTION", root / MANIFEST_NAME, root, f"{label}.inspection must contain exactly source, inspected, mode, and facets")
+                    else:
+                        source = inspection.get("source")
+                        inspected = inspection.get("inspected")
+                        mode = inspection.get("mode")
+                        inspected_facets = inspection.get("facets")
+                        if not isinstance(source, str) or not source.strip():
+                            add(findings, "error", "MANIFEST_INSPECTION_SOURCE", root / MANIFEST_NAME, root, f"{label}.inspection.source must be nonempty")
+                        if not isinstance(inspected, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", inspected) is None:
+                            add(findings, "error", "MANIFEST_INSPECTION_DATE", root / MANIFEST_NAME, root, f"{label}.inspection.inspected must be YYYY-MM-DD")
+                        if mode not in INSPECTION_MODES:
+                            add(findings, "error", "MANIFEST_INSPECTION_MODE", root / MANIFEST_NAME, root, f"{label}.inspection.mode is invalid")
+                        if not isinstance(inspected_facets, dict) or set(inspected_facets) != FACET_NAME_SET:
+                            add(findings, "error", "MANIFEST_INSPECTION_FACETS", root / MANIFEST_NAME, root, f"{label}.inspection.facets must contain exactly {', '.join(sorted(FACET_NAMES))}")
+                        else:
+                            for facet, status in inspected_facets.items():
+                                if status not in INSPECTION_FACET_VALUES:
+                                    add(findings, "error", "MANIFEST_INSPECTION_FACET_VALUE", root / MANIFEST_NAME, root, f"{label}.inspection.facets.{facet} has invalid value: {status}")
 
         assets = manifest.get("assets", [])
         if isinstance(assets, list):

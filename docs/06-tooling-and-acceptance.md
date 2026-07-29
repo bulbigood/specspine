@@ -16,7 +16,10 @@ weights are not canonical specification data.
 - Templates provide minimal valid roots and nodes.
 - Checker owns deterministic integrity findings.
 - Extract owns deterministic structured retrieval.
-- Map records repository observations without manufacturing intent.
+- Map compares repository evidence with accepted intent, retains only
+  architecture-significant gaps, divergences, uncertainty, and necessary
+  navigation observations, and records bounded inspection coverage without
+  manufacturing intent or claiming conformance.
 - Evolve creates and evolves accepted specification.
 - Doctor diagnoses and repairs Spine health within authorization.
 - Verify assesses implementation or reconstruction conformance.

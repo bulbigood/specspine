@@ -141,9 +141,13 @@ the inventory is verified. If fresh producers cannot be created, exhaustive
 mode reports that limitation instead of simulating full coverage in one long
 context.
 
-Map keeps repository observations separate from accepted decisions, preserves
-uncertainty and drift, and recommends a separate Doctor review after an
-exhaustive run.
+Map compares repository evidence with accepted intent. It omits facts already
+represented by intent, discards compatible implementation detail, retains only
+architecture-significant gaps, divergences, uncertainty, and surprising
+navigation, and records bounded inspection coverage separately from
+specification completeness. Neither an empty `Observed` section nor inspection
+coverage proves conformance. Run Verify for conformance and consider a separate
+Doctor review after an exhaustive Map run.
 
 ## Extract task context
 

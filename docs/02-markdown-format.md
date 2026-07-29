@@ -111,6 +111,14 @@ Use the following sections only for their stated responsibility:
 - `Risks` — durable architectural risks, not an issue backlog.
 - `Known divergences` — confirmed intent/reality conflicts.
 
+The architectural-model sections from `Responsibility` through
+`Compatibility`, together with `Relationships`, describe accepted durable
+intent even when they do not use RFC 2119 keywords. The identified normative
+sections make exact accepted claims. `Observed` and `Implementation` describe
+implementation reality; `Inferred` and `Open questions` preserve uncertainty;
+`Known divergences` links accepted intent to conflicting evidence. `Risks`,
+`Terminology`, and rationale provide context rather than requirements.
+
 ## Typed relationships
 
 Typed edges MUST use this table:
