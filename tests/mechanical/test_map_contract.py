@@ -108,6 +108,7 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("SpecSpine semantic extraction", synthesis)
         self.assertIn("`open_leads`", synthesis)
         self.assertIn("`deferred_leads`", synthesis)
+        self.assertIn("missing data/control-flow edges", synthesis)
         self.assertIn("every `source_topic`", synthesis)
         self.assertIn("source_topic_ids", synthesis)
         self.assertIn("source_topics(corpus", self.synthesis_script)
@@ -117,7 +118,7 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("strong-tier global synthesizer", entrypoint)
         self.assertIn("do not split either pass across isolated workers", protocol)
         self.assertIn("do not block production", protocol)
-        self.assertIn("may remain temporarily isolated", synthesis)
+        self.assertIn("may remain isolated only after this explicit audit", synthesis)
 
     def test_scout_parallelism_is_adaptive_and_wave_checked(self):
         protocol = self.compact(self.protocol)
@@ -162,6 +163,8 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("fresh strong-tier producers", protocol)
         self.assertIn("one-shot producers", self.entrypoint)
         self.assertIn("strong-tier one-shot producers", self.entrypoint)
+        self.assertIn("Use `concept` only for shared vocabulary", producer)
+        self.assertIn("never merge concerns into custom headings", producer)
 
     def test_resume_recovers_atomic_handoffs_before_redispatch(self):
         protocol = self.compact(self.protocol)
@@ -173,6 +176,10 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("never restart accepted or harvestable work", entrypoint)
         self.assertIn("<workspace>/.specspine/map", protocol)
         self.assertIn("Never place Map state elsewhere", protocol)
+        self.assertIn(
+            "ledger file `<run>/campaign.json`, never the run directory",
+            protocol,
+        )
         self.assertIn('".specspine"', self.campaign)
         self.assertIn("ensure_map_runtime_root", self.campaign)
 
@@ -220,11 +227,11 @@ class MapOperationContractTests(unittest.TestCase):
     def test_prompt_files_stay_small(self):
         limits = {
             "entrypoint": (self.entrypoint, 115),
-            "protocol": (self.protocol, 340),
+            "protocol": (self.protocol, 345),
             "method": (self.method, 110),
             "discovery": (self.discovery, 105),
             "curator": (self.curator, 85),
-            "synthesis": (self.synthesis, 100),
+            "synthesis": (self.synthesis, 105),
             "producer": (self.producer, 135),
             "integration": (self.integration, 175),
         }

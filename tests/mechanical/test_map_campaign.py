@@ -3748,6 +3748,28 @@ class MapCampaignTests(unittest.TestCase):
         )
         self.assertEqual("finalized", receipt["status"])
         self.assertEqual("scope_verified", receipt["terminal"])
+        self.assertEqual(
+            "selected observation scope completed",
+            receipt["terminal_claim"],
+        )
+        self.assertEqual(
+            {
+                "status": "incomplete",
+                "areas": {
+                    "total": 0,
+                    "ready": 0,
+                    "incomplete": 0,
+                    "blocked": 0,
+                },
+                "facets": {
+                    "complete": 0,
+                    "missing": 0,
+                    "not-applicable": 0,
+                    "partial": 0,
+                },
+            },
+            receipt["reconstruction_readiness"],
+        )
         self.assertEqual([], receipt["changed_documents"])
         self.assertEqual([], receipt["document_change_history"])
 

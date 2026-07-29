@@ -17,6 +17,60 @@ class FinalizeError(ValueError):
     pass
 
 
+FACET_STATES = {"complete", "partial", "missing", "not-applicable"}
+
+
+def reconstruction_readiness(spine_root: Path) -> dict[str, object]:
+    manifest_path = spine_root / "specspine.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise FinalizeError(
+            f"cannot read reconstruction readiness from {manifest_path}: {error}"
+        ) from error
+
+    areas = manifest.get("areas")
+    if not isinstance(areas, list):
+        raise FinalizeError("manifest areas are unavailable after clean checker")
+
+    facet_counts = {state: 0 for state in sorted(FACET_STATES)}
+    ready_areas = 0
+    incomplete_areas = 0
+    blocked_areas = 0
+    for area in areas:
+        facets = area.get("facets", {}) if isinstance(area, dict) else {}
+        blockers = area.get("blockers", []) if isinstance(area, dict) else []
+        for state in facets.values():
+            if state in facet_counts:
+                facet_counts[state] += 1
+        if blockers:
+            blocked_areas += 1
+        elif facets and all(
+            state in {"complete", "not-applicable"} for state in facets.values()
+        ):
+            ready_areas += 1
+        else:
+            incomplete_areas += 1
+
+    status = (
+        "blocked"
+        if blocked_areas
+        else "ready"
+        if areas and ready_areas == len(areas)
+        else "incomplete"
+    )
+    return {
+        "status": status,
+        "areas": {
+            "total": len(areas),
+            "ready": ready_areas,
+            "incomplete": incomplete_areas,
+            "blocked": blocked_areas,
+        },
+        "facets": facet_counts,
+    }
+
+
 def finalize(args: argparse.Namespace) -> dict[str, object]:
     ledger = campaign.load(args.ledger)
     summary = campaign.campaign_summary(args.ledger)
@@ -105,6 +159,14 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
         "ledger_digest": ledger_digest,
         "revision": ledger["revision"],
         "terminal": summary["terminal"],
+        "terminal_claim": (
+            "selected observation scope completed"
+            if summary["terminal"] == "scope_verified"
+            else "selected observation increment completed"
+        ),
+        "reconstruction_readiness": reconstruction_readiness(
+            args.spine_root.resolve()
+        ),
         "terminal_gates": summary["terminal_gates"],
         "published": published,
         "changed_documents": changed_documents,

@@ -44,11 +44,18 @@ reassigned. Repair only `rejected_tasks`, which represent mechanical handoff
 failures. Never read or accept an unfinished producer work directory.
 
 Otherwise create a unique run directory under
-`<workspace>/.specspine/map/<run-name>/` and write `operation.json` there:
+`<workspace>/.specspine/map/<run-name>/`. The campaign argument is always the
+ledger file `<run>/campaign.json`, never the run directory or a sibling file.
+Write the operation to `<run>/operation.json`:
 
 Keep `campaign.json`, `operation.json`, discovery, synthesis, producer work,
 handoffs, receipts, and integration work inside that run directory. Only
 `<repository>` and `<spine-root>` name live project data.
+
+```text
+<run> = <workspace>/.specspine/map/<run-name>
+<campaign> = <run>/campaign.json
+```
 
 ```json
 {
@@ -70,7 +77,7 @@ increment permits only `survey`.
 
 ```text
 python3 <skill>/scripts/campaign.py init \
-  <campaign> <operation.json> \
+  <run>/campaign.json <run>/operation.json \
   --repository-root <repository> --spine-state <empty|existing>
 ```
 
@@ -331,4 +338,7 @@ python3 <skill>/scripts/finalize_run.py \
 ```
 
 Report the operation, exact terminal claim, inspected evidence, deferred and
-verified counts, changed Spine-relative paths, and unresolved uncertainty.
+verified counts, changed Spine-relative paths, unresolved uncertainty, and the
+receipt's reconstruction readiness. Say explicitly that `scope_verified`
+means the selected repository-observation scope was completed; it does not
+mean the Spine is reconstructable or that code conforms to it.

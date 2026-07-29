@@ -89,11 +89,16 @@ every source topic as uncovered, covered, or supporting. Preserve one source
 in several final topics only for genuine independently useful responsibilities.
 Assign every semantic topic one unique canonical Spine-relative Markdown
 `document`. Define the complete directed graph now: `relationships` contains
-only `type`, target owner `id`, and concrete `reason`. Every topic in a
-multi-topic plan may remain temporarily isolated when no high-confidence edge
-is supported. Targets are topics in the same mapping or owner IDs already
-defined in SpecSpine. Use canonical predicates, omit doubtful edges, and never
-add reciprocal navigation edges. Reread the result for duplicates, missing
-boundaries, weak edges, source-tree mirroring, and unsupported coverage. Do
-not edit the Spine, corpus, campaign, or repository. This mapping becomes the
-canonical production plan after deterministic materialization.
+only `type`, target owner `id`, and concrete `reason`. For every topic, inspect
+its described inputs, outputs, dependencies, consumers, data ownership, and
+runtime coordination against every other canonical topic. Add each supported
+architecturally useful edge once. Do not omit an edge merely because README
+navigation makes both nodes reachable. A topic in a multi-topic plan may
+remain isolated only after this explicit audit finds no high-confidence edge.
+Targets are topics in the same mapping or owner IDs already defined in
+SpecSpine. Use canonical predicates, omit doubtful edges, and never add
+reciprocal navigation edges. Reread the result for duplicates, missing
+boundaries, missing data/control-flow edges, weak edges, source-tree mirroring,
+and unsupported coverage. Do not edit the Spine, corpus, campaign, or
+repository. This mapping becomes the canonical production plan after
+deterministic materialization.

@@ -17,6 +17,13 @@ publish the coherent evidence-backed core and record the doubt as a concise
 semantic graph may need later Doctor or Evolve refinement. Copy
 `evidence_baseline` exactly.
 
+Choose the narrowest accurate v3 `Kind`. Use `component` for a concrete
+runtime, renderer, plugin, adapter, or independently evolving implementation
+boundary; `capability` for a responsibility coordinated across components;
+`behavior` for a durable process or lifecycle; and `interface` or `data` when
+that is the actual ownership. Use `concept` only for shared vocabulary or a
+domain model without operational ownership. Never use it as a generic fallback.
+
 Write Markdown only in staging; write checkpoint to `<work-package>/checkpoint.json`.
 Do not edit the live Spine, repository source, tests, README, or campaign state;
 do not write to handoff, continue to another unit, or integrate navigation.
@@ -33,6 +40,9 @@ specification and verify:
   `OBS` bullet; its baseline exactly matches the task packet;
 - supported relevant boundaries, interfaces, state, lifecycle, and failures
   are present;
+- section headings follow the canonical concerns in `spec-format`; never merge
+  concerns into custom headings such as `Interfaces and lifecycle` or
+  `Lifecycle and state`; use separate canonical sections;
 - semantic IDs are stable and links use the required complete labels;
 - implementation inventory and unsupported intent are absent;
 - every direction is a genuine unanswered question; keep required policy
