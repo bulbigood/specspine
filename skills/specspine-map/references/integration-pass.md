@@ -96,7 +96,7 @@ field unless every document was read:
   ],
   "todo": [
     {
-      "id": "session-refresh-race", "basis": "repository-observation",
+      "id": "session-refresh-race",
       "question": "Who owns recovery when refresh races with expiry?",
       "reason": "The integrated lifecycle establishes normal expiry only",
       "evidence": ["src/sessions", "tests/session-refresh.test.ts"],
@@ -148,9 +148,9 @@ Allowed dispositions are:
 
 Increment completion forbids `queued`; its report must contain an empty `todo`.
 
-The root may add ToDo that no producer suggested. Every Map ToDo uses basis
-`repository-observation` and exactly matches visible `anchor.question`; never
-convert required policy into an observable question.
+The root may add ToDo that no producer suggested. Every Map ToDo exactly
+matches visible `anchor.question`; never convert required policy into an
+observable question.
 If `todo` is empty, use:
 
 ```text

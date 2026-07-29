@@ -33,7 +33,7 @@ from typing import Any, Iterator
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from spec_contract import CORE_RELATIONS
+from spec_contract import CORE_RELATIONS, canonical_heading, presentation
 
 
 SCHEMA_VERSION = 14
@@ -747,11 +747,6 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         )
     ]
     excludes = string_list(raw.get("excludes", []), f"ToDo {task_id} excludes")
-    basis = raw.get("basis", "repository-observation")
-    if basis != "repository-observation":
-        raise CampaignError(
-            f"ToDo {task_id} basis must be repository-observation"
-        )
     units = [
         validate_relative_path(value)
         for value in string_list(raw.get("units", []), f"ToDo {task_id} units")
@@ -858,7 +853,6 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         "evidence": evidence,
         "documents": documents,
         "excludes": excludes,
-        "basis": basis,
         "units": units,
         "architecture_unit": architecture_unit,
         "planned_document": planned_document,
@@ -876,9 +870,6 @@ def new_task(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
         "checkpoint_digest": None,
         "producer_suggestions": [],
         "suggestion_reviews": {},
-        "coverage_result": None,
-        "answer_result": None,
-        "uncertainty_result": None,
         "accepted_staging_root": None,
         "accepted_staging_digest": None,
         "terminal_reason": None,
@@ -897,7 +888,6 @@ def task_definition(task: dict[str, Any]) -> dict[str, Any]:
             "evidence",
             "documents",
             "excludes",
-            "basis",
             "units",
             "architecture_unit",
             "planned_document",
@@ -965,52 +955,7 @@ def repository_unit(relative_path: Path) -> str:
     first = parts[0]
     if first in COLLAPSED_DIRECTORIES:
         return first
-    if first == "public":
-        if len(parts) >= 4 and parts[:3] == ("public", "app", "features"):
-            if Path(parts[3]).suffix:
-                return "public/app/features"
-            return Path(*parts[:4]).as_posix()
-        if len(parts) >= 3 and parts[1] == "app":
-            if Path(parts[2]).suffix:
-                return "public/app"
-            return Path(*parts[:3]).as_posix()
-        if len(parts) >= 2:
-            return Path(*parts[:2]).as_posix()
-        return first
-    if (
-        len(parts) >= 3
-        and first == "pkg"
-        and parts[1]
-        in {
-            "api",
-            "cmd",
-            "infra",
-            "plugins",
-            "registry",
-            "services",
-            "storage",
-            "tsdb",
-        }
-    ):
-        if Path(parts[2]).suffix:
-            return Path(*parts[:2]).as_posix()
-        return Path(*parts[:3]).as_posix()
-    if first in {
-        "apps",
-        "cmd",
-        "internal",
-        "kinds",
-        "lib",
-        "modules",
-        "packages",
-        "plugins",
-        "services",
-        "src",
-    }:
-        if Path(parts[1]).suffix:
-            return first
-        return Path(*parts[:2]).as_posix()
-    return first
+    return first if Path(parts[1]).suffix else Path(*parts[:2]).as_posix()
 
 
 def file_classification(path: Path) -> tuple[str, str]:
@@ -1232,17 +1177,20 @@ def repository_inventory(
         for filename in files:
             path = relative_directory / filename
             source = current / filename
-            snapshot.update(f"F\0{path.as_posix()}\0".encode())
-            with source.open("rb") as stream:
-                while chunk := stream.read(1024 * 1024):
-                    snapshot.update(chunk)
-            snapshot.update(b"\n")
             classification, _ = file_classification(path)
             if classification == "queued" and not is_probably_text(source):
                 classification = "opaque-asset"
             if classification == "queued":
+                snapshot.update(f"F\0{path.as_posix()}\0".encode())
+                with source.open("rb") as stream:
+                    while chunk := stream.read(1024 * 1024):
+                        snapshot.update(chunk)
+                snapshot.update(b"\n")
                 production_files.append(path.as_posix())
             else:
+                snapshot.update(
+                    f"X\0{path.as_posix()}\0{classification}\n".encode()
+                )
                 excluded[classification].append(path.as_posix())
     return {
         "repository_root": str(root),
@@ -1489,10 +1437,6 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
             repository_root,
             field="initial discovery plan",
         )
-    if args.test_inventory_file_limit is not None and not args.inventory_accelerator:
-        raise CampaignError(
-            "--test-inventory-file-limit requires --inventory-accelerator"
-        )
     inventory: dict[str, Any] | None = None
     inventory_files: list[str] = []
     inventory_total_files = 0
@@ -1503,8 +1447,6 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         )
         inventory_total_files = len(inventory["production_files"])
         inventory_files = inventory["production_files"]
-        if args.test_inventory_file_limit is not None:
-            inventory_files = inventory_files[: args.test_inventory_file_limit]
     args.output_dir.mkdir(parents=True, exist_ok=True)
     packets_dir = args.output_dir / "wave-0001"
     packets_dir.mkdir(exist_ok=True)
@@ -1559,8 +1501,6 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
                 "digest": inventory["digest"],
                 "production_files": inventory_files,
                 "total_production_files": inventory_total_files,
-                "truncated": inventory_total_files > len(inventory_files),
-                "test_file_limit": args.test_inventory_file_limit,
                 "excluded": inventory["excluded"],
                 "excluded_directories": inventory["excluded_directories"],
             }
@@ -1606,10 +1546,6 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
             "root": str(args.output_dir.resolve()),
             "seed": str(seed_path.resolve()),
             "corpus": None,
-            "test_slice_truncated": (
-                inventory_total_files > len(inventory_files)
-                and args.test_inventory_file_limit is not None
-            ),
         }
         already_ready = ledger.get("discovery") == state and same_artifact(
             ledger["artifacts"]["discovery"].get("seed"),
@@ -1637,8 +1573,6 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         "inventory_accelerator": inventory is not None,
         "seed_files": len(inventory_files),
         "inventory_total_files": inventory_total_files,
-        "inventory_truncated": inventory_total_files > len(inventory_files),
-        "test_inventory_file_limit": args.test_inventory_file_limit,
     }
 
 
@@ -3467,7 +3401,6 @@ def command_source_pass(args: argparse.Namespace) -> dict[str, Any]:
             **ledger["discovery"],
             "status": "production",
         }
-        ledger.setdefault("document_change_history", [])
         save_locked(args.ledger, ledger)
         return {
             "status": "recorded",
@@ -3495,21 +3428,12 @@ def source_task_priority(task: dict[str, Any]) -> tuple[int, int, str]:
             tier = 0
         elif area == "repository-root/manifests":
             tier = 1
-        elif parts[:1] == ("cmd",) or parts[:2] == ("pkg", "cmd"):
+        elif len(parts) == 1:
             tier = 2
-        elif parts[:1] in {("apps",), ("kinds",), ("pkg",)}:
+        elif len(parts) == 2:
             tier = 3
-        elif parts[:1] in {("public",), ("packages",), ("plugins",)}:
-            tier = 4
-        elif area == "repository-root/tooling" or parts[:1] in {
-            (".github",),
-            (".citools",),
-            ("scripts",),
-            ("tools",),
-        }:
-            tier = 6
         else:
-            tier = 5
+            tier = 4
         ranked.append((tier, len(parts)))
     priority = min(ranked) if ranked else (5, 0)
     return priority[0], priority[1], task["id"]
@@ -3725,7 +3649,7 @@ def command_resume_session(args: argparse.Namespace) -> dict[str, Any]:
             if task["state"] == "assigned"
         )
         resumed_at = utc_timestamp()
-        ledger.setdefault("resume_history", []).append(
+        ledger["resume_history"].append(
             {
                 "resumed_at": resumed_at,
                 "retained_assigned_tasks": retained,
@@ -3828,7 +3752,7 @@ def command_retry_blocked(args: argparse.Namespace) -> dict[str, Any]:
         raise CampaignError("retry-blocked requires a nonempty mechanical reason")
     with locked_ledger(args.ledger) as ledger:
         task = require_task(ledger, args.id)
-        history = task.setdefault("retry_history", [])
+        history = task["retry_history"]
         if task["state"] == "todo" and history:
             return {
                 "status": "already_retryable",
@@ -4304,7 +4228,7 @@ def wave_result_paths(
     return package / "checkpoint.json", package / "staging", harvest_root / f"{name}.json"
 
 
-def command_harvest_wave(args: argparse.Namespace) -> dict[str, Any]:
+def harvest_wave(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
     for path, field in (
         (args.handoffs_root, "producer handoff root"),
@@ -4435,7 +4359,7 @@ def apply_accepted_result(
         task["accepted_staging_digest"] = staging_digest(staging)
         task["producer_suggestions"] = suggestions
     elif status in {"covered", "answered"}:
-        result = validate_coverage_result(
+        validate_coverage_result(
             task,
             coverage,
             spine_root,
@@ -4443,26 +4367,12 @@ def apply_accepted_result(
             outcome=status,
         )
         task["state"] = "review"
-        if status == "covered":
-            task["coverage_result"] = result
-        else:
-            task["answer_result"] = result
         task["producer_suggestions"] = suggestions
     elif status == "unresolved":
         task["state"] = "review"
-        task["uncertainty_result"] = {
-            "boundary_summary": raw["summary"].strip(),
-            "reason": raw["reason"].strip(),
-            "evidence": inspected,
-        }
         task["producer_suggestions"] = []
     elif status == "supporting":
         task["state"] = "review"
-        task["support_result"] = {
-            "boundary_summary": raw["summary"].strip(),
-            "reason": raw["reason"].strip(),
-            "evidence": inspected,
-        }
         task["producer_suggestions"] = []
     elif status == "retry":
         task["state"] = "todo"
@@ -4495,7 +4405,7 @@ def apply_accepted_result(
     }
 
 
-def command_accept_wave(args: argparse.Namespace) -> dict[str, Any]:
+def accept_wave(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
     for path, field in (
         (args.handoffs_root, "producer handoff root"),
@@ -4640,7 +4550,7 @@ def command_accept_wave(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_settle_wave(args: argparse.Namespace) -> dict[str, Any]:
-    harvested = command_harvest_wave(args)
+    harvested = harvest_wave(args)
     if harvested["rejected"]:
         return {
             **harvested,
@@ -4651,7 +4561,7 @@ def command_settle_wave(args: argparse.Namespace) -> dict[str, Any]:
             **harvested,
             "status": "waiting_for_handoffs",
         }
-    accepted = command_accept_wave(args)
+    accepted = accept_wave(args)
     return {
         "status": "settled_wave",
         "harvest": harvested,
@@ -4797,13 +4707,13 @@ def command_prepare_integration(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-FACET_HEADINGS = {
-    "behavior": ("behavior", "lifecycle", "invariants"),
-    "interfaces": ("interfaces",),
-    "data": ("information model", "data ownership"),
-    "failure": ("failure behavior",),
-    "quality": ("quality constraints",),
-    "verification": ("verification",),
+FACET_SECTION_KEYS = {
+    "behavior": {"behavior", "lifecycle-and-invariants"},
+    "interfaces": {"interfaces"},
+    "data": {"information-model", "data-ownership"},
+    "failure": {"failure-behavior"},
+    "quality": {"quality-constraints"},
+    "verification": {"verification"},
 }
 
 
@@ -4818,10 +4728,11 @@ def replace_markdown_section(body: str, heading: str, replacement: str) -> str:
     return body.rstrip() + "\n\n" + replacement
 
 
-def conservative_facets(body: str) -> dict[str, str]:
+def conservative_facets(body: str, manifest: dict[str, Any]) -> dict[str, str]:
     headings = {
-        value.strip().lower()
+        key
         for value in re.findall(r"^##\s+(.+?)\s*$", body, re.MULTILINE)
+        if (key := canonical_heading(value, manifest)) is not None
     }
     facets = {
         "architecture": "partial",
@@ -4832,8 +4743,8 @@ def conservative_facets(body: str) -> dict[str, str]:
         "quality": "missing",
         "verification": "missing",
     }
-    for facet, names in FACET_HEADINGS.items():
-        if any(any(name in heading for name in names) for heading in headings):
+    for facet, section_keys in FACET_SECTION_KEYS.items():
+        if headings & section_keys:
             facets[facet] = "partial"
     return facets
 
@@ -4950,6 +4861,8 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(candidates[topic["document"]], destination)
 
+            manifest = read_json(workspace / "specspine.json")
+            relationship_heading = presentation(manifest)["headings"]["relationships"]
             owner_registry = spine_owner_registry(workspace)
             owner_registry.update(
                 {
@@ -4987,15 +4900,15 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                     )
                 if rows:
                     section = (
-                        "## Relationships\n\n"
+                        f"## {relationship_heading}\n\n"
                         "| Relation | Target | Meaning |\n"
                         "|---|---|---|\n"
                         + "\n".join(rows)
                     )
-                    body = replace_markdown_section(body, "Relationships", section)
+                    body = replace_markdown_section(body, relationship_heading, section)
                 else:
                     body = re.sub(
-                        r"^## Relationships\s*$.*?(?=^## |\Z)",
+                        rf"^## {re.escape(relationship_heading)}\s*$.*?(?=^## |\Z)",
                         "",
                         body,
                         count=1,
@@ -5003,7 +4916,6 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                     ).rstrip() + "\n"
                 document.write_text(body, encoding="utf-8")
 
-            manifest = read_json(workspace / "specspine.json")
             baseline = source_pass["evidence_baseline"]
             completion = source_pass["completion"]
             inspection_mode = (
@@ -5020,7 +4932,7 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                 body = (workspace / topic["document"]).read_text(encoding="utf-8")
                 previous = areas.get(topic["id"], {})
                 blockers = previous.get("blockers", [])
-                derived = conservative_facets(body)
+                derived = conservative_facets(body, manifest)
                 previous_facets = previous.get("facets", {})
                 facets = {
                     name: (
@@ -5698,9 +5610,6 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
             if disposition == "retry":
                 task["state"] = "todo"
                 task["checkpoint_outcome"] = None
-                task["support_result"] = None
-                task["answer_result"] = None
-                task["uncertainty_result"] = None
                 task["accepted_staging_root"] = None
                 task["accepted_staging_digest"] = None
                 retried.add(task_id)
@@ -5726,7 +5635,7 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
             "organization": organization,
             "checker_clean": not checker_findings,
         }
-        history = ledger.setdefault("document_change_history", [])
+        history = ledger["document_change_history"]
         history.extend(
             {
                 "publication_epoch": ledger["publication_epoch"],
@@ -5841,10 +5750,6 @@ def terminal_gates(ledger: dict[str, Any]) -> dict[str, bool]:
             isinstance(ledger.get("integration_pass"), dict)
             and ledger["integration_pass"].get("checker_clean") is True
         ),
-        "repository_boundary_complete": not bool(
-            isinstance(ledger.get("discovery"), dict)
-            and ledger["discovery"].get("test_slice_truncated")
-        ),
     }
 
 
@@ -5867,15 +5772,6 @@ def campaign_summary(ledger_path: Path) -> dict[str, Any]:
             else "scope_verified"
         )
     elif (
-        not gates["repository_boundary_complete"]
-        and all(
-            value
-            for name, value in gates.items()
-            if name != "repository_boundary_complete"
-        )
-    ):
-        terminal = "blocked"
-    elif (
         gates["todo_empty"]
         and gates["producers_finished"]
         and gates["publications_integrated"]
@@ -5887,7 +5783,7 @@ def campaign_summary(ledger_path: Path) -> dict[str, Any]:
         "revision": ledger["revision"],
         "states": states,
         "ready": states["todo"],
-        "document_change_history": ledger.get("document_change_history", []),
+        "document_change_history": ledger["document_change_history"],
         "terminal_gates": gates,
         "terminal": terminal,
     }
@@ -6203,11 +6099,6 @@ def parser() -> argparse.ArgumentParser:
         "--initial-plan",
         type=Path,
         help="semantic fan-out plan with 1..10 independent search boundaries",
-    )
-    discovery_start.add_argument(
-        "--test-inventory-file-limit",
-        type=positive_int,
-        help="test-only inventory truncation; never use for a completeness claim",
     )
     discovery_start.add_argument(
         "--page-size",

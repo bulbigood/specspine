@@ -12,25 +12,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import campaign
 
-CHECKPOINT_STATUSES = {
-    "draft",
-    "covered",
-    "answered",
-    "unresolved",
-    "supporting",
-    "retry",
-    "blocked",
-}
-ALLOWED_FIELDS = {
-    "outcome",
-    "evidence",
-    "summary",
-    "owner",
-    "directions",
-    "need",
-    "reason",
-}
 EVIDENCE_BASELINE_RE = re.compile(
     r"<!--\s*specspine:evidence-baseline\s+"
     r"source=[^;\s>]+;\s*inspected=\d{4}-\d{2}-\d{2}\s*-->"
@@ -91,8 +74,9 @@ def relative_path(value: str, field: str) -> str:
 
 
 def task_definition(raw: dict[str, Any]) -> dict[str, Any]:
-    nested = raw.get("task")
-    task = nested if isinstance(nested, dict) else raw
+    task = raw.get("task")
+    if not isinstance(task, dict):
+        raise PreflightError("task packet needs a task object")
     if not isinstance(task.get("id"), str) or not task["id"].strip():
         raise PreflightError("task packet needs a task id")
     strata = task.get("evidence_strata", [])
@@ -116,12 +100,11 @@ def validate_checkpoint(
     task: dict[str, Any],
     staged: dict[str, Path],
 ) -> list[str]:
-    unknown = set(checkpoint) - ALLOWED_FIELDS
-    if unknown:
-        raise PreflightError(f"unknown checkpoint fields: {sorted(unknown)}")
-    outcome = checkpoint.get("outcome")
-    if outcome not in CHECKPOINT_STATUSES:
-        raise PreflightError(f"invalid checkpoint outcome: {outcome!r}")
+    try:
+        campaign.validate_checkpoint(checkpoint, staged)
+    except campaign.CampaignError as error:
+        raise PreflightError(str(error)) from error
+    outcome = checkpoint["outcome"]
     evidence = strings(
         checkpoint.get("evidence"),
         "checkpoint evidence",
@@ -130,45 +113,6 @@ def validate_checkpoint(
     evidence = [
         relative_path(value, "checkpoint evidence") for value in evidence
     ]
-    summary = checkpoint.get("summary")
-    if not isinstance(summary, str) or not summary.strip():
-        raise PreflightError("checkpoint summary must be nonempty")
-    directions = strings(
-        checkpoint.get("directions", []),
-        "checkpoint directions",
-    )
-    if outcome not in {"draft", "covered", "answered"} and directions:
-        raise PreflightError(f"{outcome} cannot emit directions")
-
-    if outcome in {"covered", "answered"}:
-        owner = checkpoint.get("owner")
-        if not isinstance(owner, dict) or set(owner) != {"document", "claims"}:
-            raise PreflightError(
-                f"{outcome} requires owner with document and claims"
-            )
-        if not isinstance(owner["document"], str) or not owner["document"].strip():
-            raise PreflightError(f"{outcome} owner document must be nonempty")
-        strings(owner["claims"], f"{outcome} owner claims", nonempty=True)
-    elif checkpoint.get("owner") is not None:
-        raise PreflightError(f"{outcome} checkpoint must not include owner")
-
-    if outcome == "retry":
-        strings(checkpoint.get("need"), "checkpoint need", nonempty=True)
-    elif checkpoint.get("need") is not None:
-        raise PreflightError(f"{outcome} checkpoint must not include need")
-
-    if outcome in {"blocked", "supporting", "unresolved"}:
-        reason = checkpoint.get("reason")
-        if not isinstance(reason, str) or not reason.strip():
-            raise PreflightError(f"{outcome} checkpoint needs reason")
-    elif checkpoint.get("reason") is not None:
-        raise PreflightError(f"{outcome} checkpoint must not include reason")
-
-    if outcome == "draft" and not staged:
-        raise PreflightError("draft requires at least one staged Markdown file")
-    if outcome != "draft" and staged:
-        raise PreflightError(f"{outcome} must not publish staged files")
-
     if outcome in {"draft", "covered", "answered", "unresolved", "supporting"}:
         samples = {
             value["sample"] for value in task.get("evidence_strata", [])

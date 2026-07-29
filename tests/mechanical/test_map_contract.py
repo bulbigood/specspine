@@ -62,11 +62,10 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("never hide canonical content in `<details>`", producer)
 
     def test_operation_is_durable_and_atomic(self):
-        entrypoint = self.compact(self.entrypoint)
         protocol = self.compact(self.protocol)
-        self.assertIn("campaign.py next-action", entrypoint)
-        self.assertIn("`may_finish: false`", entrypoint)
-        self.assertIn("`may_pause: true`", entrypoint)
+        self.assertIn("campaign.py next-action", protocol)
+        self.assertIn("`may_finish: false`", protocol)
+        self.assertIn("`may_pause: true`", protocol)
         self.assertIn(
             "checks and publishes atomically",
             protocol,
@@ -102,7 +101,6 @@ class MapOperationContractTests(unittest.TestCase):
             self.assertIn(command, text)
 
     def test_discovery_and_synthesis_close_the_selected_frontier(self):
-        entrypoint = self.compact(self.entrypoint)
         protocol = self.compact(self.protocol)
         discovery = self.compact(self.discovery)
         curator = self.compact(self.curator)
@@ -128,14 +126,12 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("publish_validated_plan", self.synthesis_script)
         self.assertIn("zero-existing-coverage", self.synthesis_script)
         self.assertIn("fresh strong-tier synthesizer", protocol)
-        self.assertIn("strong-tier global synthesizer", entrypoint)
         self.assertIn("do not split either pass across isolated workers", protocol)
         self.assertIn("do not block production", protocol)
         self.assertIn("may remain isolated only after this explicit audit", synthesis)
 
     def test_scout_parallelism_is_adaptive_and_wave_checked(self):
         protocol = self.compact(self.protocol)
-        entrypoint = self.compact(self.entrypoint)
         self.assertIn("smaller of ten and the runtime's available subagent slots", protocol)
         self.assertIn("Choose one to ten independent semantic search boundaries", protocol)
         self.assertIn("Dispatch every initial packet", protocol)
@@ -149,10 +145,6 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("exact result path", protocol)
         self.assertIn("Do not write topic IDs, search-query logs", self.discovery)
         self.assertIn("Never write or edit the result directly", self.discovery)
-        self.assertIn("discovery_finalize.py", self.entrypoint)
-        self.assertIn("weak-tier scouts", entrypoint)
-        self.assertIn("at most ten", entrypoint)
-        self.assertIn("Producer waves contain at most ten", entrypoint)
         self.assertIn("MAX_PRODUCER_WAVE = 10", self.campaign)
         self.assertIn("MAX_SCOUT_SEED_FILES = 40", self.campaign)
         self.assertIn("MAX_INITIAL_SCOUTS = 10", self.campaign)
@@ -174,8 +166,6 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("Root repeats mechanical acceptance checks", producer)
         self.assertIn("Wait for the whole wave without refill", protocol)
         self.assertIn("fresh strong-tier producers", protocol)
-        self.assertIn("one-shot producers", self.entrypoint)
-        self.assertIn("strong-tier one-shot producers", self.entrypoint)
         self.assertIn("Use `concept` only for shared vocabulary", producer)
         self.assertIn("never merge concerns into custom headings", producer)
         self.assertIn("make one targeted facet pass", producer)
@@ -184,12 +174,9 @@ class MapOperationContractTests(unittest.TestCase):
 
     def test_resume_recovers_atomic_handoffs_before_redispatch(self):
         protocol = self.compact(self.protocol)
-        entrypoint = self.compact(self.entrypoint)
         self.assertIn("Resume preserves every `assigned` task", protocol)
         self.assertIn("Repair only `rejected_tasks`", protocol)
         self.assertIn("Never read or accept an unfinished producer work directory", protocol)
-        self.assertIn("harvest retained assigned tasks", entrypoint)
-        self.assertIn("never restart accepted or harvestable work", entrypoint)
         self.assertIn("<workspace>/.specspine/map", protocol)
         self.assertIn("Never place Map state elsewhere", protocol)
         self.assertIn(

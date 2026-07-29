@@ -129,7 +129,7 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
             + json.dumps(findings, ensure_ascii=False)
         )
 
-    publication_history = ledger.get("publication_history", [])
+    publication_history = ledger["publication_history"]
     created = sum(
         value.get("operation") == "create" for value in publication_history
     )
@@ -139,7 +139,7 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
     published = sorted(
         {value["path"] for value in publication_history if "path" in value}
     )
-    document_change_history = ledger.get("document_change_history", [])
+    document_change_history = ledger["document_change_history"]
     changed_documents = sorted(
         {
             value["path"]
@@ -150,8 +150,8 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
     ledger_digest = hashlib.sha256(campaign.canonical_json(ledger)).hexdigest()
     source = ledger["source_pass"]
     verified_units = sum(
-        ledger["tasks"].get(task_id, {}).get("state") == "complete"
-        for task_id in source.get("todo", [])
+        ledger["tasks"][task_id]["state"] == "complete"
+        for task_id in source["todo"]
     )
     return {
         "status": "finalized",
@@ -179,18 +179,18 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
             "document_change_events": len(document_change_history),
             "markdown_total": len(actual_documents),
         },
-        "scope": source.get("scope"),
-        "completion": source.get("completion"),
+        "scope": source["scope"],
+        "completion": source["completion"],
         "deferred_leads": len(
-            source.get("topic_plan", {}).get("deferred_leads", [])
+            source["topic_plan"]["deferred_leads"]
         ),
-        "evidence_files": len(source.get("evidence_files", [])),
+        "evidence_files": len(source["evidence_files"]),
         "discovery_leads": len(
-            source.get("discovery_corpus", {}).get("leads", [])
+            source["discovery_corpus"]["leads"]
         ),
         "verified_topics": verified_units,
         "existing_spine_covered_topics": len(
-            source.get("topic_plan", {}).get("covered", [])
+            source["topic_plan"]["covered"]
         ),
         "spine_root": str(args.spine_root.resolve()),
     }

@@ -740,7 +740,6 @@ class MapCampaignTests(unittest.TestCase):
         workspace = workspace or self.current_workspace or self.prepare_integration()
         raw_todo = todo or []
         for value in raw_todo:
-            value.setdefault("basis", "repository-observation")
             anchor = value.get("anchor")
             if anchor is None:
                 continue
@@ -1340,12 +1339,11 @@ class MapCampaignTests(unittest.TestCase):
             [
                 by_unit["repository-root/runtime"],
                 by_unit["repository-root/manifests"],
-                by_unit["cmd/server"],
-                by_unit["apps/advisor"],
-                by_unit["pkg/services/auth"],
             ],
-            ready,
+            ready[:2],
         )
+        self.assertEqual(5, len(ready))
+        self.assertEqual(5, len(set(ready)))
 
     def test_repository_discovery_uses_flat_inventory_as_neutral_accelerator(self):
         for directory in ("alpha", "beta"):
@@ -1375,7 +1373,6 @@ class MapCampaignTests(unittest.TestCase):
             for path in packet["lead"]["seed_files"]
         ]
         self.assertEqual(inventory["production_files"], paged)
-        self.assertFalse(receipt["inventory_truncated"])
         self.assertEqual(len(paged), receipt["inventory_total_files"])
         self.assertTrue(
             all(
@@ -1390,57 +1387,6 @@ class MapCampaignTests(unittest.TestCase):
                 }
                 for packet in packets
             )
-        )
-
-    def test_repository_discovery_has_explicit_test_only_inventory_limit(self):
-        test_limit = 1000
-        bulk = self.repository / "bulk"
-        bulk.mkdir()
-        for index in range(test_limit + 5):
-            (bulk / f"file_{index:04d}.ts").write_text(
-                "export const value = 1;\n",
-                encoding="utf-8",
-            )
-        discovery = self.run / "limited-discovery"
-        receipt = self.cli(
-            "discovery-start",
-            str(self.ledger),
-            str(self.repository),
-            str(self.spine),
-            str(discovery),
-            "--inventory-accelerator",
-            "--test-inventory-file-limit",
-            str(test_limit),
-        )
-        seed = json.loads(
-            (discovery / "discovery-seed.json").read_text(encoding="utf-8")
-        )
-        paged = [
-            path
-            for packet_path in receipt["packets"]
-            for path in json.loads(Path(packet_path).read_text(encoding="utf-8"))[
-                "lead"
-            ]["seed_files"]
-        ]
-
-        self.assertEqual(
-            test_limit,
-            len(paged),
-        )
-        self.assertEqual(len(paged), receipt["seed_files"])
-        self.assertGreater(receipt["inventory_total_files"], len(paged))
-        self.assertTrue(receipt["inventory_truncated"])
-        self.assertEqual(paged, seed["accelerator"]["production_files"])
-        self.assertTrue(seed["accelerator"]["truncated"])
-        self.assertEqual(test_limit, seed["accelerator"]["test_file_limit"])
-        self.assertEqual(
-            receipt["inventory_total_files"],
-            seed["accelerator"]["total_production_files"],
-        )
-        self.assertFalse(
-            self.cli("next-action", str(self.ledger))["terminal_gates"][
-                "repository_boundary_complete"
-            ]
         )
 
     def test_discovery_start_rejects_oversized_pages_before_writing(self):
@@ -3154,6 +3100,14 @@ class MapCampaignTests(unittest.TestCase):
         self.assertTrue((self.spine / "identity.md").is_file())
 
     def test_assembly_materializes_synthesized_graph_and_publishes_once(self):
+        manifest_path = self.spine / "specspine.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["presentation"] = {
+            "profile": 1,
+            "language": "ru",
+            "headings": {"relationships": "Связи"},
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
         self.source_pass()
         ledger = self.ledger_value()
         topics = {
@@ -3229,7 +3183,8 @@ class MapCampaignTests(unittest.TestCase):
         self.assertIn("[topics/](topics/_INDEX.md)", readme)
         for topic in topics.values():
             body = (self.spine / topic["document"]).read_text(encoding="utf-8")
-            self.assertIn("## Relationships", body)
+            self.assertIn("## Связи", body)
+            self.assertNotIn("## Relationships", body)
             topic_index = (self.spine / Path(topic["document"]).parent / "_INDEX.md")
             self.assertIn(Path(topic["document"]).name, topic_index.read_text())
         second = self.cli(
@@ -3606,7 +3561,6 @@ class MapCampaignTests(unittest.TestCase):
             "id": "session-recovery",
             "question": "What recovery behavior is currently observed?",
             "reason": "Recovery evidence remains incomplete",
-            "basis": "repository-observation",
             "evidence": ["src/identity/session.py"],
             "documents": ["architecture.md"],
             "excludes": [],
@@ -3622,32 +3576,6 @@ class MapCampaignTests(unittest.TestCase):
         error = self.integrate(report, workspace=workspace, expected=2)
 
         self.assertIn("exactly match anchor question", error["error"])
-
-    def test_integration_rejects_normative_map_todo_basis(self):
-        self.source_pass()
-        task_id, _ = self.task_for_unit("src/identity")
-        self.covered(task_id, "src/identity/session.py")
-        workspace = self.prepare_integration()
-        todo = {
-            "id": "session-policy",
-            "question": "What recovery guarantee should be accepted?",
-            "reason": "Policy remains undecided",
-            "basis": "normative-policy",
-            "evidence": ["src/identity/session.py"],
-            "documents": ["architecture.md"],
-            "excludes": [],
-            "anchor": {
-                "document": "architecture.md",
-                "location": "Architecture map",
-                "known": "Current behavior is observed",
-                "question": "What recovery guarantee should be accepted?",
-            },
-        }
-
-        report = self.integration_report(todo=[todo], workspace=workspace)
-        error = self.integrate(report, workspace=workspace, expected=2)
-
-        self.assertIn("basis must be repository-observation", error["error"])
 
     def test_integration_records_and_returns_exact_live_document_changes(self):
         self.source_pass()

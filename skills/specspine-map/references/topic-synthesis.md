@@ -100,7 +100,7 @@ Assign every semantic topic one unique canonical Spine-relative Markdown
 only `type`, target owner `id`, and concrete `reason`. For every topic, inspect
 its described inputs, outputs, dependencies, consumers, data ownership, and
 runtime coordination against every other canonical topic. Add each supported
-architecturally useful edge once. Do not omit an edge merely because README
+architecturally useful edge once. Do not omit an edge merely because index
 navigation makes both nodes reachable. A topic in a multi-topic plan may
 remain isolated only after this explicit audit finds no high-confidence edge.
 Targets are topics in the same mapping or owner IDs already defined in

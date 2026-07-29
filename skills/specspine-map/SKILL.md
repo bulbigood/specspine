@@ -57,7 +57,8 @@ Neither terminal claims that no conceivable architectural concept exists.
   [frontier-curation.md](references/frontier-curation.md),
   [topic-synthesis.md](references/topic-synthesis.md),
   [producer-task.md](references/producer-task.md).
-- Read [integration-pass.md](references/integration-pass.md) before publishing.
+- Read [integration-pass.md](references/integration-pass.md) only when
+  deterministic assembly reports `needs_semantic_review`.
 - Start new files from `assets/templates/`; omit empty sections.
 ## Authorities
 
@@ -71,43 +72,13 @@ atomically publishes canonical discovery results.
 
 Use a flat production-file inventory only as a neutral accelerator for
 repository scope. It grants no grouping, ownership, coverage, or completion.
-It is exhaustive by default; an explicit test-only limit creates a truncated
-vertical slice that cannot support a repository completeness claim.
+It is exhaustive.
 
-For exhaustive work, use fresh isolated weak-tier scouts; medium-tier
-curators; strong-tier one-shot producers; and one strong-tier global
-synthesizer. Scout subwaves contain at most
-ten and must also fit the runtime's available subagent slots; reserve the root
-slot when capacity includes it. Producer waves contain at most ten and must
-also fit available slots while reserving root. Never
-refill a settled strict wave. An increment may execute the same contracts
-serially in root. If the required execution tier is unavailable, preserve the
-campaign and report it blocked.
-
-Before semantic discovery, derive one to ten independent search boundaries
-from operation breadth without reading production code. Runtime capacity
-controls how many run per strict subwave, never how many planned boundaries
-must be completed. Repository discovery derives initial packets from the
-neutral inventory accelerator without a duplicate whole-repository scout.
-Complete and validate every initial packet
-before frontier curation.
-
-Keep every Map campaign and temporary artifact under
-`<workspace>/.specspine/map`; never use agent-global or OS temporary storage.
-The runtime directory is excluded from discovery and may contain multiple
-named campaign directories. Run `campaign.py next-action`
-before final answers; `may_finish: false` forbids finishing unless `may_pause:
-true`. On resume, harvest
-retained assigned tasks before releasing only those without a valid
-atomic handoff; never restart accepted or harvestable work. Before repeating
-discovery or synthesis, run `campaign.py recover`: trust phase manifests and
-input digests, discard unfinished AI drafts, and repeat only missing results.
-Never initialize the same incomplete operation again. Reopen a confirmed
-mechanical false blocker with `campaign.py retry-blocked`; preserve every other
-accepted task and artifact.
-Producer acceptance never edits the live Spine. Integrate accepted handoffs in
-one private workspace, run the v3 checker, then publish the workspace and
-ledger transition atomically. Do not invoke Doctor inside Map.
+`orchestration.md` owns worker tiers, wave sizing, runtime placement, recovery,
+terminal gates, and publication. Follow it without restating those rules here.
+Producer acceptance never edits the live Spine; deterministic integration
+checks and publishes one private workspace atomically. Do not invoke Doctor
+inside Map.
 
 The synthesizer operates on every scout description and provenance ID in one
 global packet, never on bulk file lists. It performs global deduplication,

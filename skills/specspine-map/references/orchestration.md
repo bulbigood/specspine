@@ -115,8 +115,9 @@ This seed grants no coverage. A non-v3 root is rejected.
 
 ## Discover
 
-For semantic scope, estimate breadth from `operation.json`, the Spine README,
-and available runtime capacity; do not inspect production code yet. Choose
+For semantic scope, estimate breadth from `operation.json`, the Spine root
+`_INDEX.md`, and available runtime capacity; do not inspect production code
+yet. Choose
 one to ten independent semantic search boundaries: one or two for a narrow
 mechanism, three or four for one service with dependencies, five to seven for
 a subsystem, and eight to ten for a broad cross-cutting scope. Write:
@@ -152,10 +153,7 @@ root scout duplicates them. Keep the default
 page size of 40 seed files; a scout packet or unresolved fallback may never
 exceed that limit. This limit does not cap files found while closing the
 packet's semantic boundary. The repository accelerator is exhaustive by
-default. For a deliberate vertical-slice test only, add
-`--test-inventory-file-limit <N>`; the seed and receipt record the limit and
-truncation. Never use a truncated test slice for a repository completeness
-claim.
+default.
 
 Set the scout subwave size to the smaller of ten and the runtime's available
 subagent slots. If capacity includes root, reserve one slot. Do not assume ten
@@ -324,7 +322,7 @@ python3 <skill>/scripts/campaign.py assemble-integration \
 ```
 
 It requires all waves settled, enforces canonical producer paths, materializes
-synthesized relationships, README navigation, conservative manifest facets, task
+synthesized relationships, index navigation, conservative manifest facets, task
 reviews, and the exact delta, then checks and publishes atomically. It owns the
 campaign-local workspace and report paths; the orchestrator never creates,
 reads, or edits them for a clean run. Repeat it after interruption; matching
