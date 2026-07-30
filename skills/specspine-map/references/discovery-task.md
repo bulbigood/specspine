@@ -14,6 +14,12 @@ share infrastructure. Do not edit the repository, Spine, campaign, packet, or
 another result.
 
 Classify inspected files into provisional architectural topics or `supporting`.
+When one topic groups registered plugins, implementations, protocol variants,
+or other peer families, name every member in `responsibility` or `reason` and
+state the shared owner that justifies grouping them. Do not hide a discovered
+peer only in `files`: synthesis receives descriptions before it resolves files.
+Name distinct customization, lifecycle, input, output, or failure boundaries
+when they may require separate final ownership.
 
 For exhaustive completion, maintain a private queue of every directly exposed
 in-scope responsibility, owner, interface, state, lifecycle, failure,
@@ -40,6 +46,9 @@ ownership, or project-specific cross-cutting contracts. Do not mirror
 directories, generic `models`/`utils`/`services` layers, individual classes,
 static assets, or local implementation details. Repository evidence establishes
 observations only.
+Describe each topic as a boundary, not a label: identify what it receives,
+owns or changes, what it emits or delegates, and its upstream or downstream
+owner when evidence exposes those interactions.
 
 Write only the supplied private draft. `mapped` means the lead produced a
 classification; use `duplicate` or `out_of_scope` only as a terminal semantic

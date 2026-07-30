@@ -134,6 +134,9 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("do not split either pass across isolated workers", protocol)
         self.assertIn("do not block production", protocol)
         self.assertIn("may remain isolated only after this explicit audit", synthesis)
+        self.assertIn("must not erase their names", synthesis)
+        self.assertIn("name every member", discovery)
+        self.assertIn("what it receives", discovery)
 
     def test_scout_parallelism_is_adaptive_and_wave_checked(self):
         protocol = self.compact(self.protocol)
@@ -198,6 +201,9 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("For `completion.intent: deepen`", producer)
         self.assertIn("only Evolve may perform the reorganization", producer)
         self.assertIn("related_existing_owners", producer)
+        self.assertIn("related_planned_owners", producer)
+        self.assertIn("SpecSpine separates accepted intent", producer)
+        self.assertIn("new observation-only owner", producer)
         self.assertIn("current_owner", self.campaign)
 
     def test_receipts_preserve_atomic_handoffs_before_redispatch(self):
@@ -263,11 +269,11 @@ class MapOperationContractTests(unittest.TestCase):
             "protocol": (self.protocol, 390),
             "method": (self.method, 110),
             "planner": (self.planner, 55),
-            "discovery": (self.discovery, 105),
+            "discovery": (self.discovery, 110),
             "curator": (self.curator, 85),
-            "synthesis": (self.synthesis, 116),
+            "synthesis": (self.synthesis, 123),
             "coverage": (self.coverage, 40),
-            "producer": (self.producer, 165),
+            "producer": (self.producer, 190),
             "integration": (self.integration, 175),
         }
         for name, (value, maximum) in limits.items():

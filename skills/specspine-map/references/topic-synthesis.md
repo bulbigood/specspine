@@ -25,7 +25,14 @@ For exhaustive completion, detect responsibilities or boundaries exposed but
 never expanded and place them in `open_leads`. Return no `deferred_leads`. For
 increment completion, return no open leads and reproduce the corpus
 `deferred_leads` exactly.
-For exhaustive completion, audit peer families exposed by evidence in `peer_family_review`; each must be dispositioned or retained as an open lead. Use `none-found` only with a concrete reason; increment may use `not-required`.
+For exhaustive completion, audit peer families exposed by evidence in
+`peer_family_review`; each must be dispositioned or retained as an open lead.
+Allowed statuses are exactly `accounted`, `none-found`, and `not-required`.
+Use `none-found` only with a concrete reason; increment may use `not-required`.
+Use `accounted` when descriptions expose named peer members: every member must
+remain explicit in a final topic responsibility, be separately covered or
+supporting, or have an `open_lead`. Merging peers under one shared owner must
+not erase their names or distinct observable behavior.
 
 When discovery is closed, classify every canonical topic in sequence. For
 each, use SpecSpine semantic extraction to find candidate owners, then compare
@@ -88,7 +95,7 @@ Write exactly:
   ],
   "open_leads": [],
   "deferred_leads": [],
-  "peer_family_review": {"status": "none-found", "reason": "No peer family is exposed by this boundary.", "source_topic_ids": [], "open_lead_ids": []}
+  "peer_family_review": {"status": "accounted", "reason": "Every named transport peer remains explicit in a final owner or disposition.", "source_topic_ids": ["transport-runtime/http-and-grpc"], "open_lead_ids": []}
 }
 ```
 An open lead contains exactly `id`, `title`, `question`, `reason`, and

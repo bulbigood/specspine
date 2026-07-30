@@ -2602,6 +2602,54 @@ class MapCampaignTests(unittest.TestCase):
             packet["related_existing_owners"],
         )
 
+    def test_packet_resolves_incoming_and_outgoing_planned_neighbors(self):
+        self.source_pass()
+        ledger = self.ledger_value()
+        topics = ledger["source_pass"]["topic_plan"]["topics"]
+        self.assertGreaterEqual(len(topics), 2)
+        current, neighbor = topics[:2]
+        relationship = {
+            "type": "depends-on",
+            "target": neighbor["id"],
+            "reason": "The current owner consumes the neighboring lifecycle.",
+        }
+        incoming = {
+            "type": "publishes",
+            "target": current["id"],
+            "reason": "The neighbor publishes state consumed by the current owner.",
+        }
+        current["relationships"] = [relationship]
+        neighbor["relationships"] = [incoming]
+        task_id = ledger["source_pass"]["topic_tasks"][current["id"]]
+        ledger["tasks"][task_id]["planned_relationships"] = [relationship]
+        CAMPAIGN_MODULE.atomic_write(self.ledger, ledger)
+
+        packet = self.cli("packet", str(self.ledger), task_id)
+
+        self.assertEqual(
+            [
+                {
+                    "id": neighbor["id"],
+                    "document": neighbor["document"],
+                    "title": neighbor["title"],
+                    "responsibility": neighbor["responsibility"],
+                    "interactions": [
+                        {
+                            "direction": "incoming",
+                            "type": "publishes",
+                            "reason": incoming["reason"],
+                        },
+                        {
+                            "direction": "outgoing",
+                            "type": "depends-on",
+                            "reason": relationship["reason"],
+                        }
+                    ],
+                }
+            ],
+            packet["related_planned_owners"],
+        )
+
     def test_discover_recent_incomplete_campaign_recommends_operator_resume(self):
         self.source_pass()
         task_id, _ = self.task_for_unit("src/identity")

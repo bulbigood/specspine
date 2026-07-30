@@ -44,8 +44,8 @@ from spec_contract import (
 
 
 SCHEMA_VERSION = 16
-PRODUCER_CONTRACT_VERSION = 10
-DISCOVERY_CONTRACT_VERSION = 6
+PRODUCER_CONTRACT_VERSION = 11
+DISCOVERY_CONTRACT_VERSION = 7
 MAX_UNIT_FILES = 80
 MAX_SCOUT_SEED_FILES = 40
 MAX_INITIAL_SCOUTS = 10
@@ -483,6 +483,9 @@ def producer_packet_input_digest(packet: dict[str, Any]) -> str:
             "campaign_id": packet["campaign_id"],
             "producer_contract": packet["producer_contract"],
             "operation": packet["operation"],
+            "current_owner": packet.get("current_owner"),
+            "related_existing_owners": packet.get("related_existing_owners", []),
+            "related_planned_owners": packet.get("related_planned_owners", []),
             "task": packet["task"],
         }
     )
@@ -700,6 +703,71 @@ def related_existing_owners(
     return [
         {"id": owner, **registry[owner]}
         for owner in sorted(owner_ids)
+    ]
+
+
+def related_planned_owners(
+    ledger: dict[str, Any],
+    task: dict[str, Any],
+) -> list[dict[str, Any]]:
+    source_pass = ledger.get("source_pass")
+    architecture_unit = task.get("architecture_unit")
+    if (
+        not isinstance(source_pass, dict)
+        or not isinstance(architecture_unit, str)
+        or not architecture_unit.startswith("topics/")
+    ):
+        return []
+    current_id = architecture_unit.removeprefix("topics/")
+    topics = source_pass.get("topic_plan", {}).get("topics", [])
+    registry = {
+        topic["id"]: topic
+        for topic in topics
+        if isinstance(topic, dict) and isinstance(topic.get("id"), str)
+    }
+    if current_id not in registry:
+        return []
+
+    interactions: dict[str, list[dict[str, str]]] = {}
+    for relationship in registry[current_id].get("relationships", []):
+        target = relationship.get("target")
+        if target in registry:
+            interactions.setdefault(target, []).append(
+                {
+                    "direction": "outgoing",
+                    "type": relationship["type"],
+                    "reason": relationship["reason"],
+                }
+            )
+    for source_id, topic in registry.items():
+        if source_id == current_id:
+            continue
+        for relationship in topic.get("relationships", []):
+            if relationship.get("target") == current_id:
+                interactions.setdefault(source_id, []).append(
+                    {
+                        "direction": "incoming",
+                        "type": relationship["type"],
+                        "reason": relationship["reason"],
+                    }
+                )
+
+    return [
+        {
+            "id": owner,
+            "document": registry[owner]["document"],
+            "title": registry[owner]["title"],
+            "responsibility": registry[owner]["responsibility"],
+            "interactions": sorted(
+                interactions[owner],
+                key=lambda value: (
+                    value["direction"],
+                    value["type"],
+                    value["reason"],
+                ),
+            ),
+        }
+        for owner in sorted(interactions)
     ]
 
 
@@ -3840,6 +3908,7 @@ def command_packet(args: argparse.Namespace) -> dict[str, Any]:
         "operation": ledger["operation"],
         "current_owner": planned_owner_profile(ledger, task),
         "related_existing_owners": related_existing_owners(ledger, task),
+        "related_planned_owners": related_planned_owners(ledger, task),
         "task": task_definition(task),
     }
     if args.output is None:

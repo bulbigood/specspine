@@ -315,6 +315,10 @@ and available slots after reserving root. Create fresh medium-tier producers. Gi
 only `producer-task.md`, its packet, repository, Spine, private work path,
 that returned handoff path, and
 `producer_finalize.py`. Wait for the whole wave without refill. Producers
+receive compact SpecSpine authority and format semantics inside their sole
+contract; never make them infer keyword authority from an example draft.
+Packets include compact existing and planned neighbor responsibilities so
+parallel production preserves synthesized ownership boundaries.
 atomically expose checked handoffs and write `_receipt.json` last; never
 inspect their work directories.
 

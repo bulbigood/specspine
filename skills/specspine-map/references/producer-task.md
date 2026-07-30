@@ -18,13 +18,36 @@ publish the coherent evidence-backed core and record the doubt as a concise
 semantic graph may need later Doctor or Evolve refinement. Copy
 `evidence_baseline` exactly.
 
+## SpecSpine authority and format
+
+SpecSpine separates accepted intent from repository reality. Accepted prose in
+`Responsibility`, `Boundaries`, `Behavior`, `Interfaces`, information/data,
+lifecycle, failure, configuration, and compatibility sections is authoritative
+architectural intent. `DEC`, `CON`, `REQ`, `GUA`, `INV`, `QLT`, and `VER` are
+normative; code cannot create them. `OBS` is a directly evidenced repository
+fact, `INF` an unconfirmed interpretation, and `OQ` unresolved uncertainty.
+Only accepted intent may use normative `MUST`, `SHOULD`, or `MAY`.
+
+For a new Map owner with no accepted intent, keep `Summary` observational and
+make required `Responsibility` state that the document records observations
+about the planned boundary. Put every code-derived architectural detail under
+`Observed`; do not distribute it through authoritative prose sections. For an
+existing owner, preserve authoritative prose and add only material repository
+delta under `Observed`, `Inferred`, `Open questions`, or `Known divergences`.
+Semantic definitions are bold bullets inside the marker region; each `OBS`
+uses complete repository-relative `Evidence:` paths and the exact baseline.
+
 Evidence may include neighboring owners to prove a boundary. Do not turn those
 files into observations owned by this document and do not restate behavior of
 `planned_relationships` targets. Keep accepted narrative and claims unchanged unless the existing Spine or an explicit user decision supplies accepted intent.
 Code, tests, schemas, and runtime evidence establish only repository observations; place material deltas in `OBS`, and never rewrite matching code behavior into accepted prose.
 Preflight rejects changed normative claims and any `OBS` without non-test evidence; tests alone establish repository expectations, so preserve the question for later verification.
 
-Read packet `operation`, `current_owner`, and `related_existing_owners` first; the latter resolves existing relationship targets to canonical documents. In every operation, make one targeted facet pass across applicable observable
+Read packet `operation`, `current_owner`, `related_existing_owners`, and
+`related_planned_owners` first. Existing owners resolve accepted graph targets;
+planned owners supply the title, responsibility, and incoming or outgoing
+interaction of parallel documents. Use both only to keep this owner narrow;
+do not restate a neighbor. In every operation, make one targeted facet pass across applicable observable
 architecture, behavior, interfaces, data/state ownership, and failure or
 recovery. Check registrations and consumers plus relevant schemas,
 configuration, and tests when they can establish those facets. Do not expand
@@ -57,6 +80,8 @@ specification and verify:
 - one canonical responsibility without duplicated neighboring ownership;
 - observations remain `OBS`; every `Evidence:` span is a complete
   repository-relative path, never prefix-inherited shorthand;
+- a new observation-only owner has no code-derived accepted prose outside
+  `Observed`;
 - every staged owner containing `OBS` has the exact task-packet evidence
   baseline; a source draft exists only for a material retained delta;
 - supported relevant boundaries, interfaces, state, lifecycle, and failures
