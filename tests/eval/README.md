@@ -157,9 +157,8 @@ python3 tests/eval/run.py \
 ```
 
 `run.py` does not select a model itself; it executes the command supplied by
-`--agent-command`. The standard Codex adapter defaults the top-level agent
-(including exhaustive Map orchestration) to `gpt-5.6-terra` with `medium` reasoning and
-creates an isolated Codex runtime whose official
+`--agent-command`. The standard Codex adapter defaults the top-level agent to
+`gpt-5.6-terra` with `medium` reasoning and creates an isolated Codex runtime whose official
 `agents.default_subagent_model` and
 `agents.default_subagent_reasoning_effort` settings resolve the selected
 `weak` role to `gpt-5.6-luna` with `medium` reasoning. Model routing is not
@@ -173,8 +172,8 @@ python3 tests/eval/run.py \
 
 `--case` and `--category` are repeatable and may be combined. There is no
 implicit run-all mode. Planned cases are never executed. Categories are
-disjoint: `core` has 7 executable cases, `extended` has 14, and `planned` has
-8 documented non-executable cases.
+disjoint: `core` has 10 executable cases, `extended` has 13, and `planned` has
+7 documented non-executable cases.
 
 ### Large external Grafana Extract benchmark
 

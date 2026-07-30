@@ -31,7 +31,8 @@ The skill should:
 - identify major runtime components and responsibilities;
 - create root `README.md`, `_INDEX.md`, and `specspine.json`;
 - honor the configured SpecSpine documentation language;
-- create a small set of top-level specification nodes;
+- create one bounded starting owner and report independent neighbors as
+  deferred leads;
 - distinguish observed facts from inferred architecture;
 - record incomplete coverage and open questions;
 - avoid mirroring every directory;

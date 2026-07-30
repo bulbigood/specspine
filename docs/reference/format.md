@@ -117,7 +117,7 @@ repository-facing facets were actually inspected by Map at one evidence
 baseline. It is distinct from specification completeness and never claims
 implementation conformance. `source` identifies the inspected repository
 state, `inspected` is an ISO date, `mode` is `survey`, `deepen`, `refresh`,
-`drift`, or `exhaustive`, and every facet is `checked` or `not-checked`. Absence of `inspection`,
+or `drift`, and every facet is `checked` or `not-checked`. Absence of `inspection`,
 or a `not-checked` facet, means no current comparison claim.
 Repository-derived `OBS`, `INF`, evidence, and inspection coverage MUST NOT
 raise a completeness facet. A new observation-only owner starts with every
@@ -459,8 +459,8 @@ divergence, affects an unresolved architectural question, or provides necessary
 navigation to a surprising owner or boundary. Evidence already represented by
 accepted intent belongs only in inspection coverage.
 
-Repository comparison may propose owner relationships for discovery and
-producer coordination, but it MUST NOT publish those proposals as canonical
+Repository comparison may identify owner relationships for inspection
+context, but it MUST NOT publish those proposals as canonical
 `Relationships`. Preserve existing accepted edges exactly; promote a proposed
 edge only through an intent-authorized workflow such as Evolve.
 

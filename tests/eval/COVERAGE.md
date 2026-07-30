@@ -2,11 +2,11 @@
 
 ## Current inventory
 
-The repository has thirty-two prose behavioral scenarios. Every scenario is
+The repository has thirty prose behavioral scenarios. Every scenario is
 registered in `cases/`, so `run.py --audit` detects additions that have not been
 classified.
 
-Twenty-five scenarios are executable and seven remain planned. The audit
+Twenty-three scenarios are executable and seven remain planned. The audit
 output is authoritative for category and agent-call counts.
 
 `traceable-rule` is assigned to `specspine-map` because its expected result
@@ -14,29 +14,22 @@ includes repository-backed observations.
 
 ### Map coverage
 
-Executable `specspine-map` coverage currently consists of six agent calls
-across four cases:
+Executable `specspine-map` coverage currently consists of three agent calls
+across two cases:
 
 - `lifecycle-survey-deepen`: a shallow initial survey followed by bounded
   deepening without reopening unrelated source;
 - `lifecycle-drift-refresh`: a narrow refresh that preserves accepted intent,
-  records changed implementation as observation, and leaves disagreement open;
-- `traceable-rule`: evidence-backed semantic-ID ownership and cross-document
-  references;
-- `map-staged-producer`: one bounded producer writes a publish-ready candidate
-  to a private output root while the live Spine remains read-only.
+  records changed implementation as observation, and leaves disagreement open.
 
 Remaining distinct behavioral gaps are:
 
 - atomic Map returning no new document when the live Spine already answers the
   bounded question;
 - custom `<spine-root>` handling;
-- report-driven recursive discovery followed by a terminal no-output Map
-  producer;
-- large-Map candidate rejection and path-collision handling;
-- unknown partial producer capacity with rejected starts retained as queued
-  work;
-- focused large-Map scope that ignores unrelated repository areas.
+- bounded inspection that reports an adjacent responsibility without pursuing
+  it;
+- focused scope that ignores unrelated repository areas.
 
 Keep broader parallel scenarios planned until they protect one of these
 distinct gaps with observable assertions. Do not add another final-file-only
@@ -46,8 +39,8 @@ The executable set is divided by resource cost and necessity:
 
 | Category | Manifests | Top-level agent calls | Purpose |
 |---|---:|---:|---|
-| `core` | 11 | 11 | Minimum behavioral regression set, including atomic staged Map output |
-| `extended` | 14 | 21 | Lifecycle, root-first connection, language detection, terminal-depth refusal, idempotency, merge, removal, bounded growth, traceability, and multilingual Extract behavior |
+| `core` | 10 | 10 | Minimum behavioral regression set |
+| `extended` | 13 | 20 | Lifecycle, root-first connection, language detection, terminal-depth refusal, idempotency, merge, removal, bounded growth, and multilingual Extract behavior |
 | `planned` | 7 | 0 | Documentation and future redesign only |
 
 Core and extended cases currently cover:
@@ -61,7 +54,8 @@ Core and extended cases currently cover:
 - production multi-slice Extract handoffs for backend and CLI projects
   in English, a mobile project in Russian, and a data pipeline in Chinese,
   with hidden owner/support/relevance judgments;
-- semantic-ID references and representative repository evidence;
+- semantic-ID references and representative repository evidence across the
+  remaining owner-focused lifecycle cases;
 - semantic Doctor diagnosis and bounded mechanical repair without runtime companions;
 - recursive Doctor link and marker-bounded semantic-ID validation across
   nested specification directories;

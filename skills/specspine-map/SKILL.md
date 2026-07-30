@@ -1,107 +1,203 @@
 ---
 name: specspine-map
-description: "Map boundary-significant deltas between brownfield repository reality and accepted SpecSpine intent. Use for one focused survey, deepening, refresh, or drift increment; a broad repository survey; or exhaustive comparison of a named architectural scope or whole repository. Discover semantic responsibilities, classify evidence against existing intent, retain only material gaps, divergences, uncertainty, and navigation observations, record bounded inspection coverage, integrate centrally, and verify the selected completion claim. Do not duplicate matching intent, infer intended architecture, audit general integrity, implement code, or claim code/spec conformance."
+description: Map one bounded, owner-relative increment between brownfield repository evidence and accepted SpecSpine intent. Use for a focused initial survey, deepening, refresh, or drift inspection of one existing owner or one missing responsibility. Inspect one semantic frontier, retain only material observations, divergences, inferences, and open questions, update bounded inspection coverage, and verify one coherent Spine write batch. Do not recursively map adjacent areas, orchestrate repository-wide campaigns, change accepted intent or topology, implement code, or claim code/spec conformance.
 ---
 
 # SpecSpine Map
-Turn repository evidence into a verified delta against SpecSpine intent through one
-operation:
+
+Compare one bounded repository responsibility with accepted SpecSpine intent:
 
 ```text
-scope → discovery → synthesis → production → integration → verification
+scope → context → inspect → classify → write → verify
 ```
-Repository evidence establishes `OBS`, not accepted intent. Preserve
-uncertainty and code/spec disagreement; never infer decisions, constraints,
-requirements, guarantees, or conformance.
-Map may add observations to an existing canonical owner, but it must not split,
-merge, move, rename, replace, decompose, or redistribute existing Spine
-documents. Reorganization of accepted ownership and document topology belongs
-exclusively to Evolve.
+
+Run the workflow directly in the current agent. Do not create campaign state,
+delegate phases, or recursively pursue adjacent responsibilities. One invocation
+may change at most one non-index content owner plus its deterministic index and
+manifest bookkeeping.
+
+Repository evidence establishes `OBS`, not accepted intent. Preserve uncertainty
+and code/spec disagreement; never infer decisions, constraints, requirements,
+guarantees, relationships, or conformance.
+
 An `OBS` is an exception layer, not a code mirror. Retain one only for a
-boundary-significant intent gap, divergence, unresolved question, or
-surprising owner/boundary. Evidence already represented by intent is
-`covered-by-intent`: update inspection coverage without an `OBS`. Discard
-compatible implementation freedom and source detail. Map owners and contracts
-from outside their boundaries; never document private algorithms, helpers,
-framework state, call order, or file decomposition.
-## Operation
+boundary-significant intent gap, confirmed divergence, unresolved question, or
+surprising owner or boundary. Evidence already represented by accepted intent
+is `covered-by-intent`: update inspection coverage without duplicating it.
 
-Define two independent axes before discovery:
-
-- `scope.kind: semantic` for a named area or question; `repository` when the
-  whole repository is the search boundary.
-- `completion.kind: increment` for one coherent change; `exhaustive` for a
-  completeness request.
-
-Increment intents are `survey`, `deepen`, `refresh`, and `drift`. Repository
-increment supports only `survey`.
-
-Both completion policies use the same artifacts and state machine:
-
-- increment settles one initial discovery layer, preserves adjacent work in
-  `deferred_leads`, forbids derived ToDo, and ends at `increment_verified`;
-- exhaustive scouts close their assigned semantic boundaries internally in one
-  discovery pass; synthesis retains any concrete residual gap in
-  `deferred_leads` instead of reopening discovery. It ends at `scope_verified`
-  when none remain, otherwise at `scope_mapped_with_deferred_leads`.
-
-Neither terminal claims that no conceivable architectural concept exists.
-`increment_verified` never claims scope completeness.
-For exhaustive completion, every peer family exposed by inspected evidence
-must be dispositioned or retained as a deferred lead. `scope_verified` means
-the selected pass left no concrete gap; `scope_mapped_with_deferred_leads`
-publishes useful results without claiming complete coverage.
-## Required references
+## Required resources
 
 - Read [references/spec-semantics.md](references/spec-semantics.md) before
   classifying claims or disagreement.
 - Read [references/spec-format.md](references/spec-format.md) before changing
-  specifications.
-- Use [references/spec-glossary.md](references/spec-glossary.md) as the index
-  of reserved identifiers, tokens, kinds, relations, and manifest values.
-- Read `specspine.json.presentation` before producing Markdown; render its
-  configured headings and order while preserving canonical v4 meaning.
+  specifications or the manifest.
+- Use [references/spec-glossary.md](references/spec-glossary.md) for reserved
+  identifiers, tokens, kinds, relations, and manifest values.
 - Read [references/mapping-method.md](references/mapping-method.md) before
-  discovery.
-- Read [references/orchestration.md](references/orchestration.md) completely;
-  it defines the durable CLI lifecycle.
-- Give isolated workers only their phase contract:
-  [discovery-planner.md](references/discovery-planner.md),
-  [discovery-task.md](references/discovery-task.md),
-  [topic-synthesis.md](references/topic-synthesis.md),
-  [producer-task.md](references/producer-task.md), or
-  [repository-coverage.md](references/repository-coverage.md).
-- Read [integration-pass.md](references/integration-pass.md) only when
-  deterministic assembly reports `needs_semantic_review`.
-- Start new files from `assets/templates/`; omit empty sections.
-## Authorities
+  repository inspection.
+- Read `specspine.json.presentation` before producing Markdown and preserve its
+  configured headings and order.
+- Start a new content owner from `assets/templates/specification.md`.
+- Use only the bundled `bootstrap_spine.py`, `rebuild_indexes.py`, and
+  `check_spine.py` scripts for deterministic writes and validation.
 
-Discovery finds evidence; synthesis defines topics, target documents, a
-provisional evidence graph, and existing coverage; producers verify one topic and stage its
-assigned document; deterministic assembly publishes clean results. Root handles
-only receipts, state transitions, and explicit semantic exceptions. An isolated
-planner chooses the initial semantic search boundaries for every scope. Root
-does not inspect production code or ingest discovery content. Discovery
-hierarchy, paths, and filenames never define architecture.
-Scouts write semantic drafts; `discovery_finalize.py` alone derives and
-atomically publishes canonical discovery results.
+## Authority
 
-`orchestration.md` owns worker tiers, wave sizing, runtime placement, recovery,
-terminal gates, and publication. Follow it without restating those rules here.
-Producer acceptance never edits the live Spine; deterministic integration
-checks and publishes one private workspace atomically. Do not invoke Doctor
-inside Map.
+Use repository files only as evidence of current implementation. Existing
+SpecSpine intent remains authoritative as intent even when code disagrees.
 
-The synthesizer operates on every scout description and provenance ID in one
-global packet, never on bulk file lists. It performs global deduplication,
-coverage classification, granularity, and provisional graph construction in one task.
-`synthesis.py` alone prepares that compact packet, resolves IDs back to corpus
-evidence, reports suspicious coverage or granularity, and atomically writes
-the sole canonical topic plan. Semantic diagnostics are advisory: Map favors
-prompt coverage and leaves later graph refinement to Doctor or Evolve.
-Synthesized relationships coordinate parallel production but never establish
-accepted `Relationships`; only Evolve may promote them after explicit
-acceptance.
-Only whole-repository exhaustive mapping adds an isolated topology coverage
-audit after synthesis. It looks for missing architectural roots, not file
-coverage.
+Map may:
+
+- add, update, or remove repository-backed `OBS` and `INF`;
+- add or preserve an `OQ` exposed by repository uncertainty;
+- record a confirmed code/intent disagreement under `Known divergences`;
+- update the target owner's inspection record;
+- create one new observation-only owner for a bounded missing responsibility.
+
+Map must not:
+
+- add, remove, or change accepted prose or normative claims;
+- publish repository-derived `Relationships`;
+- split, merge, move, rename, replace, or redistribute owners;
+- change completeness facets from repository evidence;
+- edit source, configuration, tests, or project documentation outside the
+  resolved Spine root;
+- treat absence of a retained observation as evidence of conformance.
+
+If evidence suggests a topology or accepted-contract change, preserve the
+question or report it as a deferred lead. Evolve owns that change.
+
+## Workflow
+
+### 1. Scope
+
+Resolve `<spine-root>` using `references/spec-format.md`; absent explicit
+configuration, use `specspine` relative to the current working directory.
+
+Select exactly one target:
+
+- one existing non-index owner; or
+- one bounded missing responsibility that can become one observation-only owner.
+
+Classify the inspection as `survey`, `deepen`, `refresh`, or `drift`. These
+labels guide evidence selection and become `inspection.mode`; they do not create
+different workflows or completion claims.
+
+State the concrete question the inspection must answer. For a broad request,
+choose the smallest useful starting responsibility and treat every independent
+neighbor as a deferred lead. Do not promise whole-repository coverage.
+
+If the Spine does not exist, bootstrap only its v4 envelope:
+
+```text
+python3 <skill>/scripts/bootstrap_spine.py <spine-root> \
+  --project <stable-project-name> \
+  --index-file <skill>/assets/templates/spine-index.md
+```
+
+Then continue with one bounded target. Do not pre-create a repository skeleton.
+
+### 2. Context
+
+Read the root index, manifest, target owner, and only the directly related
+owners needed to understand its accepted boundary. Related owners are read-only.
+For an empty Spine, use the scoped question instead of exploring for a complete
+system decomposition.
+
+Capture the target document and manifest entry before editing so the final diff
+can prove that accepted meaning and completeness were preserved.
+
+### 3. Inspect
+
+Inspect one owner-relative semantic frontier. Read only enough representative
+repository evidence to resolve applicable boundary behavior, interfaces, data
+authority, controls, lifecycle, failures, and navigation.
+
+Direct neighbor evidence may be read when required to understand the target
+boundary. Do not begin mapping that neighbor. Record every independently useful
+adjacent responsibility as a deferred lead for the final report.
+
+Stop when the target boundary is understood well enough to classify the
+inspected facts. Do not continue for file coverage, private mechanics, or a
+recursive completeness claim.
+
+### 4. Classify
+
+Disposition each significant fact as exactly one of:
+
+- `covered-by-intent`;
+- `implementation-freedom`;
+- `retain-observation`;
+- `retain-divergence`;
+- `retain-inference`;
+- `retain-open-question`;
+- `implementation-detail`.
+
+Apply the replacement test from `mapping-method.md`. Only retained dispositions
+produce Markdown evidence. If ownership is ambiguous or accepted intent is
+required, do not choose silently; preserve an `OQ` when it belongs to the target
+or return `blocked`.
+
+### 5. Write
+
+Apply the smallest coherent batch to the target owner and `specspine.json`.
+
+For an existing owner:
+
+- preserve title, ID, kind, summary, accepted prose, normative claims,
+  relationships, path, and completeness facets;
+- update only repository evidence, uncertainty, divergences, and inspection.
+
+For a new observation-only owner:
+
+- describe `Responsibility` explicitly as an observed candidate boundary;
+- keep repository-derived boundary meaning under `Observed` or `Inferred`;
+- omit `Relationships` and all normative sections;
+- register every completeness facet as `missing`.
+
+Use one evidence baseline near the first `Observed` section and cite a small set
+of complete repository-relative paths. Update `inspection.facets` to `checked`
+only for facets actually inspected in this invocation; use `not-checked` for
+the rest. Inspection never raises completeness.
+
+If a new owner was created, rebuild indexes:
+
+```text
+python3 <skill>/scripts/rebuild_indexes.py <spine-root>
+```
+
+Never edit `_INDEX.md` manually.
+
+### 6. Verify
+
+Review the complete target and manifest diff. Confirm:
+
+- no second content owner changed;
+- accepted meaning, relationships, paths, and completeness were preserved;
+- every retained repository claim has representative evidence;
+- inspection coverage matches the files and facets actually inspected;
+- no recursive lead was pursued or encoded as a task queue;
+- no wording implies conformance or scope completeness.
+
+Run the mandatory whole-Spine gate:
+
+```text
+python3 <skill>/scripts/check_spine.py <spine-root>
+```
+
+Correct defects caused by the batch and rerun it. If a pre-existing failure or
+missing architectural authority prevents a clean result, stop and report
+`blocked`; do not broaden the operation.
+
+## Result
+
+Report exactly one outcome:
+
+- `mapped` when the target documentation or inspection record changed;
+- `no-material-delta` when inspected evidence required no Spine change;
+- `blocked` when ownership or accepted intent requires operator or Evolve input.
+
+Report the target owner, inspection mode and baseline, representative evidence,
+changed Spine-relative paths, checker result, unresolved uncertainty, and
+deferred leads. Deferred leads do not make a completed one-step operation
+incomplete and must not be pursued in the same invocation.

@@ -37,5 +37,7 @@ invariants`, `Failure behavior`, `Edge cases`, `Decisions`, `Constraints`,
 `Observed`, `Inferred`, `Known divergences`, or `Open questions` only when
 useful. Retain `Observed` only for boundary-significant intent gaps,
 divergences, unresolved questions, or surprising navigation; do not mirror
-matching intent or private implementation detail. Promote independently owned behavior or cross-cutting policy to its own
-node. Do not copy a feature-SDD outline or create empty sections.
+matching intent or private implementation detail. Report independently owned
+behavior or cross-cutting policy as a deferred lead; do not create a sibling
+owner in the same Map invocation. Do not copy a feature-SDD outline or create
+empty sections.

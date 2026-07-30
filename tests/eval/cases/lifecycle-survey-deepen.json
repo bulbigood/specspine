@@ -22,12 +22,11 @@
     {
       "id": "initial-survey",
       "skill": "skills/specspine-map",
-      "prompt": "Create the smallest useful initial SpecSpine for this brownfield storefront. Survey breadth before depth. Use specspine/payment-processing.md as the canonical, intentionally brief entry point for the payment responsibility so it can be deepened later. Capture both direct repository observations and any useful unconfirmed interpretation with an evidence baseline; do not manufacture decisions or constraints from code. Keep the map flat and state qualitative remaining mapping coverage in the index without using a required heading. Do not modify repository files outside specspine/.",
+      "prompt": "Create the smallest useful initial SpecSpine for this brownfield storefront. Use specspine/payment-processing.md as the single bounded, intentionally brief entry point for the payment responsibility so it can be deepened later. Capture both direct repository observations and any useful unconfirmed interpretation with an evidence baseline; do not manufacture decisions or constraints from code. Report adjacent checkout and runtime responsibilities for later mapping without creating their specifications. Do not modify repository files outside specspine/.",
       "assertions": [
         {"type": "path_exists", "path": "specspine/_INDEX.md"},
         {"type": "path_exists", "path": "specspine/payment-processing.md"},
         {"type": "glob_count", "glob": "specspine/*.md", "min": 3, "max": 6},
-        {"type": "file_contains_any", "path": "specspine/_INDEX.md", "values": ["incomplete", "partial", "remaining", "not mapped", "not yet mapped", "not sufficiently represented"]},
         {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["## Observed", "<!-- specspine:evidence-baseline"]},
         {"type": "changed_only", "paths": ["specspine/**"]},
         {"type": "max_changed_files", "max": 6},

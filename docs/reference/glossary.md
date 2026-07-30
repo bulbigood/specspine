@@ -77,7 +77,6 @@ Project-specific kinds use `x-*`. Statement kinds are not document kinds.
 | `deepen` | Deeper inspection of selected areas. |
 | `refresh` | Refresh against a newer evidence baseline. |
 | `drift` | Inspection focused on repository/specification drift. |
-| `exhaustive` | Exhaustive inspection of the declared scope. |
 
 ### Inspection facet values
 

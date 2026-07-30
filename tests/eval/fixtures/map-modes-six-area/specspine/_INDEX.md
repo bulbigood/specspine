@@ -1,9 +1,0 @@
-# map-modes-six-area architecture
-
-**ID:** `project-architecture` · **Kind:** `index`
-
-## Contents
-
-- [README.md](README.md)
-- [runtime.md](runtime.md) — Owns the durable architectural concept `runtime`.
-- [specspine.json](specspine.json)

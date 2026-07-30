@@ -124,7 +124,6 @@ This directory contains the project's long-lived architectural intent and archit
 - `deepen` — Deeper inspection of selected areas.
 - `refresh` — Refresh against a newer evidence baseline.
 - `drift` — Inspection focused on repository/specification drift.
-- `exhaustive` — Exhaustive inspection of the declared scope.
 
 ### Inspection facet values
 

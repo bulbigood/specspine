@@ -1,112 +1,110 @@
-# SpecSpine brownfield mapping method
+# SpecSpine bounded mapping method
 
-Discover durable architecture without reproducing the source tree.
+Map one owner-relative semantic frontier without reproducing the source tree.
 
-## Search from shape to detail
+## Search from boundary to evidence
 
-Read only enough evidence to resolve owner-relative boundary contracts:
+Start from the scoped owner or responsibility, then inspect only the strongest
+signals needed to understand its boundary:
 
-1. Existing SpecSpine and repository architecture documentation.
-2. Workspace, build, and package manifests.
-3. Runtime entry points and composition roots.
-4. Deployment and runtime configuration.
-5. Public interfaces, consumers, schedulers, and commands.
-6. Owned schemas, migrations, and contracts.
+1. Existing SpecSpine intent and direct relationships.
+2. Architecture documentation specific to the target.
+3. Target manifests, runtime entry points, and composition roots.
+4. Boundary interfaces, consumers, commands, events, and schedulers.
+5. Owned schemas, migrations, and external contracts.
+6. Deployment or runtime configuration affecting the boundary.
 7. Representative integration and failure tests.
-8. Local implementation required by a remaining architectural question.
+8. Local implementation required by one remaining boundary question.
 
-Prefer sources that expose ownership, boundary inputs and outputs, consumers,
-data authority, controls, observable lifecycle, or boundary failures. Documentation may be
-stale; package and directory boundaries may be incidental; test structure may
-reflect fixtures.
+Prefer evidence exposing responsibility, inputs, outputs, consumers, data
+authority, controls, observable lifecycle, or boundary failures. Documentation
+may be stale, directories incidental, and tests fixture-shaped.
 
-## Choose semantic topics
+Direct neighbor evidence may establish what crosses the target boundary. Once a
+neighbor exposes an independently useful responsibility, record it as a
+deferred lead and stop expanding it.
 
-Prefer independently evolving responsibilities:
+## Choose one target
 
-- deployable runtime components;
-- domain or capability ownership;
-- persistence and contract ownership;
-- significant external integrations;
+A useful owner represents an independently evolving responsibility:
+
+- a deployable runtime component;
+- a domain or capability;
+- persistence or contract ownership;
+- a significant external integration;
 - project-specific cross-cutting behavior.
 
-Reject topics based only on generic layers, utilities, individual
+Reject targets based only on generic layers, utilities, individual
 classes/endpoints, framework wiring, generated code, or one-off scripts.
 
-For each candidate ask:
+Ask:
 
 1. Does it own a distinct responsibility?
 2. Would an agent navigate here for a class of changes?
-3. Does it have meaningful inputs, outputs, consumers, data authority,
-   lifecycle, failures, or relationships?
+3. Does it have meaningful boundary inputs, outputs, state, failures, or
+   consumers?
 4. Can it evolve independently?
 5. Is it more stable than the file layout?
 
-If most answers are no, merge it into a broader owner. Apply the canonical
-decomposition rules from `spec-format.md`.
+If most answers are no, keep the evidence with the broader target. If two
+independent owners are required, map one and defer the other.
 
-## Apply the operation policy
+## Apply the inspection intent
 
-For `survey`, establish a linked skeleton of durable owners and their
-interaction boundaries. For `deepen`, start from one existing
-owner, its manifest facets, and direct relationships; investigate its partial
-or missing boundary behavior, interfaces, data, and failure
-surfaces without widening into a general survey. For `refresh` or `drift`,
-inspect only affected specifications and source areas, preserve accepted
-intent, and record unresolved disagreement.
+- `survey`: inspect a shallow initial boundary for one starting responsibility.
+- `deepen`: begin with one owner and fill one selected repository-facing gap.
+- `refresh`: recheck one owner against a newer evidence baseline.
+- `drift`: inspect one suspected code/intent disagreement.
 
-An increment settles one initial discovery layer and defers directly exposed
-continuations. An exhaustive scout recursively closes its assigned semantic
-search boundary inside one run. Every scope begins with a semantic plan;
-whole-repository mapping is merely the widest search boundary, never file
-pagination.
+All intents close only the selected owner's immediate semantic frontier. They
+never recurse into an adjacent responsibility or imply scope completeness.
 
-An exhaustive scout returns an unresolved question only when it needs an
-independent large investigation, exceeds safe context, or crosses into a
-separately owned boundary. Curate and dispatch those questions as targeted
-fallback, not as mandatory breadth-first levels. Synthesis merges the complete
-corpus by responsibility, checks each topic against existing canonical
-SpecSpine claims, and accounts for every evidence file. A path match,
-navigation entry, or broad neighboring owner is not coverage.
+## Classify evidence
 
-Compare each significant repository fact with its owner's accepted model:
-`covered-by-intent`, `implementation-freedom`, `retain-observation`,
-`retain-divergence` (only against an addressable normative claim),
-`retain-inference`, `retain-open-question`, or `implementation-detail`. Only
-the retain dispositions produce Markdown evidence. Apply the replacement test
-before retaining anything: if a replacement behind the same boundary could
-change the fact without affecting a consumer, neighbor, operator, verifier, or
-explicit architecture constraint, classify it as `implementation-detail`.
-`covered-by-intent` updates bounded inspection coverage and never asserts
-conformance. Lack of accepted intent does not turn internal code detail into a
-candidate contract.
+Compare each significant fact with the target owner's accepted model:
 
-One topic does not imply one document. Several topics may converge on one
-canonical owner; one topic may expose multiple independent owners. Producers
-verify assigned topics and may suggest narrower questions, but root decides
-final ownership.
+- `covered-by-intent`: accepted intent already represents it; update inspection
+  coverage without an `OBS`.
+- `implementation-freedom`: it is a compatible implementation choice.
+- `retain-observation`: it exposes a boundary-significant intent gap, unresolved
+  question, or surprising owner/boundary.
+- `retain-divergence`: it contradicts an addressable normative claim.
+- `retain-inference`: it is a useful but unconfirmed boundary interpretation.
+- `retain-open-question`: repository evidence cannot answer required intent or
+  ownership.
+- `implementation-detail`: it is private source detail.
 
-Within each exhaustive packet, establish runtimes, manifests, composition,
-command entry points, and peer families before local detail. Do not let
-alphabetical path order or one large subtree define the system skeleton.
+Apply the replacement test before retaining anything:
+
+> If a replacement behind the same boundary could change the fact without
+> affecting a consumer, neighbor, operator, verifier, or explicit architecture
+> constraint, discard it as implementation detail.
+
+Lack of accepted intent does not turn internal code detail into a contract.
+Repeated implementation does not establish accepted intent.
 
 ## Preserve evidence semantics
 
-Use `spec-semantics.md` as the sole authority for observation, intent,
-interpretation, and uncertainty. Repetition in code does not establish accepted
-intent. Preserve normative questions verbatim; repository evidence cannot
-answer what the system should guarantee.
+Use `spec-semantics.md` as the sole authority for observations, inferences,
+questions, and disagreement. Repository evidence cannot answer what the system
+should guarantee.
 
-Cite a small set of representative paths that proves a boundary claim or
-provides future navigation. Paths are evidence, not document structure. Stop
-reading when responsibility, boundary interactions, data authority, controls,
-observable lifecycle, and failures are understood. Never continue merely to
-document how the owner works internally.
+Cite a small representative set of complete repository-relative paths. Paths
+prove or navigate to evidence; they do not define ownership or document
+structure.
 
-Do not write a repository fact as `Observed` merely because it was inspected.
-If accepted intent already fully represents it, preserve the intent, record the
-inspected facets in `specspine.json`, and omit the duplicate fact.
+Do not retain a fact merely because it was inspected. Stop reading when the
+target's responsibility, boundary interactions, data authority, controls,
+observable lifecycle, and applicable failures are understood. Record exactly
+which facets were inspected and leave the others `not-checked`.
 
-Use the compression criteria in `spec-format.md` qualitatively. Documentation
-must add non-local information and remain sufficient for reconstruction; never
-pad prose to meet a word or source ratio.
+## Bound the write
+
+Change at most one content owner. Preserve every existing owner path and every
+accepted relationship. For a new owner, apply the path and directory-density
+rules in `spec-format.md`, but do not create sibling owners to make the map look
+complete.
+
+The final report may list adjacent responsibilities as deferred leads. Those
+leads are navigation for a future Map invocation, not persistent delivery work
+and not evidence that the current step failed.

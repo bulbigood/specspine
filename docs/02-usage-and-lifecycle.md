@@ -67,10 +67,14 @@ Implementation-only changes do not require artificial specification growth.
 
 ## Compare a repository
 
-Use Map for a bounded survey or explicitly request exhaustive recursive
-coverage. Map discovers owner-relative boundaries rather than documenting code
-structure. It compares evidence with accepted intent and retains an `OBS` only
-when it:
+Use Map for one bounded owner-relative repository comparison. Each invocation
+inspects one existing owner or one missing responsibility and stops after its
+immediate semantic frontier. Adjacent responsibilities are reported as
+deferred leads for later invocations; Map never recursively pursues them or
+claims whole-repository coverage.
+
+Map discovers owner-relative boundaries rather than documenting code structure.
+It compares evidence with accepted intent and retains an `OBS` only when it:
 
 - exposes a boundary-significant intent gap;
 - supports a confirmed divergence;
@@ -81,6 +85,10 @@ Map omits evidence already represented by intent and compatible implementation
 freedom. It records bounded inspection coverage separately instead of creating
 a duplicate observation. Neither inspection coverage nor absence of `OBS`
 proves conformance.
+
+Repository-wide documentation grows through repeated bounded Map operations.
+Each operation changes at most one content owner, then rebuilds navigation when
+needed and checks the whole Spine.
 
 For AI agents, the Spine answers what must remain true and who owns it. Source
 inspection answers how the current implementation achieves it. An agent must

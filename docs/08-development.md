@@ -173,5 +173,5 @@ shows that the existing contract cannot solve the problem.
 
 Completed foundations include the five runtime skills, persistent project-agent
 bootstrap, mechanical checks, deterministic retrieval acceleration with native
-Accelerated Markdown retrieval, exhaustive brownfield orchestration, and
-evaluation harnesses.
+Accelerated Markdown retrieval, bounded brownfield mapping, and evaluation
+harnesses.

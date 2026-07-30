@@ -88,8 +88,7 @@
     "survey": "Broad initial repository inspection.",
     "deepen": "Deeper inspection of selected areas.",
     "refresh": "Refresh against a newer evidence baseline.",
-    "drift": "Inspection focused on repository/specification drift.",
-    "exhaustive": "Exhaustive inspection of the declared scope."
+    "drift": "Inspection focused on repository/specification drift."
   },
   "inspection_facet_values": {
     "checked": "The facet was inspected at the recorded baseline.",

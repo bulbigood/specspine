@@ -23,10 +23,10 @@ node for the next stage.
 
 Expected behavior:
 
-- create a reachable `specspine/_INDEX.md` and a small, flat set of
-  responsibility-oriented specifications;
-- include checkout and payment processing without creating one document per
-  source directory, file, handler, table, or runtime process;
+- create a reachable `specspine/_INDEX.md` and one bounded
+  `payment-processing.md` observation owner;
+- report checkout and runtime responsibilities as deferred leads instead of
+  creating sibling documents;
 - distinguish repository-backed observations from unconfirmed interpretation;
 - attach an evidence baseline to repository-backed observations;
 - leave mapping coverage qualitative and explicitly incomplete;
@@ -48,7 +48,7 @@ Expected behavior:
   depth;
 - preserve `Observed` versus `Inferred` classification and refresh the
   evidence baseline for observations actually checked;
-- update the smallest useful SpecSpine document set;
+- update only the selected content owner and its manifest inspection record;
 - avoid reopening the unrelated reporting branch or repeating a repository-wide
   survey;
 - leave source, tests, configuration, schema, and root documentation unchanged.
