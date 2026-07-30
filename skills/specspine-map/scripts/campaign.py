@@ -629,7 +629,7 @@ def document_hashes(spine_root: Path) -> dict[str, str]:
 def spine_owner_registry(spine_root: Path) -> dict[str, dict[str, str]]:
     owners: dict[str, dict[str, str]] = {}
     for path in sorted(spine_root.rglob("*.md")):
-        if not path.is_file():
+        if not path.is_file() or path == spine_root / "README.md":
             continue
         body = path.read_text(encoding="utf-8")
         identity = DOCUMENT_IDENTITY_RE.search(body)
@@ -1187,7 +1187,7 @@ def candidate_owner_documents(
     broad = [base_area] if len(Path(base_area).parts) >= 2 else []
     candidates: list[tuple[int, str]] = []
     for path in sorted(spine_root.rglob("*.md")):
-        if not path.is_file():
+        if not path.is_file() or path == spine_root / "README.md":
             continue
         body = path.read_text(encoding="utf-8")
         score = (
@@ -6316,7 +6316,7 @@ def parser() -> argparse.ArgumentParser:
     bootstrap.add_argument(
         "--index-template",
         type=Path,
-        default=Path(__file__).parent.parent / "assets/templates/root-spine-index.md",
+        default=Path(__file__).parent.parent / "assets/templates/spine-index.md",
     )
     bootstrap.add_argument(
         "--checker",

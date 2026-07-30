@@ -1,7 +1,5 @@
 # {project} architecture
 
-**ID:** `project-architecture` · **Kind:** `index`
-
 SpecSpine is the project's long-lived, linked specification and architectural memory used to reconstruct contract-equivalent implementations.
 
 This directory contains the project's long-lived architectural intent and architecture-relevant repository observations.
@@ -220,7 +218,4 @@ This directory contains the project's long-lived architectural intent and archit
 
 - `_INDEX.md` — Deterministic physical navigation.
 - `specspine.json` — Manifest and completeness registry.
-
-## Contents
-
-- [specspine.json](specspine.json)
+- `README.md` — Portable SpecSpine introduction, reading guide, and vocabulary.

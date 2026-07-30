@@ -84,7 +84,7 @@ starting a second navigation pass.
    Test for its `_INDEX.md` without listing the project. If present, read it
    and follow only relevant links, unless a non-truncated Extract result
    already supplied it as described above. If absent, immediately initialize
-   `_INDEX.md` and `specspine.json` together from the request; do not run any
+   `README.md`, `_INDEX.md`, and `specspine.json` together from the request; do not run any
    other project discovery or read any other project path.
 2. Classify the operation: initialize, refine, promote, split, merge, rename,
    or link. Identify the canonical owner, specifications whose normative or
@@ -124,7 +124,7 @@ starting a second navigation pass.
 
 ### Initialize
 
-Create the root pair through the bootstrap script, create the smallest useful
+Create the root files through the bootstrap script, create the smallest useful
 set of top-level concept specifications, then rebuild indexes mechanically.
 Do not anticipate the full system or invent repository
 structure. Represent uncertainty and addressability only as defined by the

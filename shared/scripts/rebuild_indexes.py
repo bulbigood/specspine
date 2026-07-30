@@ -20,6 +20,8 @@ from spec_contract import (
     INDEX_NAME,
     MANIFEST_NAME,
     PresentationError,
+    README_NAME,
+    render_root_readme,
     presentation,
 )
 
@@ -83,7 +85,11 @@ def index_id(root: Path, directory: Path) -> str:
 
 
 def is_spine_root(path: Path) -> bool:
-    return (path / INDEX_NAME).is_file() and (path / MANIFEST_NAME).is_file()
+    return (
+        (path / INDEX_NAME).is_file()
+        and (path / MANIFEST_NAME).is_file()
+        and (path / README_NAME).is_file()
+    )
 
 
 def nested_roots(root: Path) -> list[Path]:
@@ -131,23 +137,6 @@ def render_index(
         f"**ID:** `{index_id(root, directory)}` · **Kind:** `index`",
         "",
     ]
-    if directory == root:
-        lines.extend(
-            [
-                index_text["purpose"],
-                "",
-                index_text["scope"],
-                "",
-                f"## {index_text['guide-heading']}",
-                "",
-                index_text["guide"],
-                "",
-                f"## {index_text['glossary-heading']}",
-                "",
-                index_text["glossary"],
-                "",
-            ]
-        )
     lines.extend([f"## {index_text['contents-heading']}", ""])
     entries: list[tuple[str, str, str]] = []
     for path in sorted(directory.iterdir(), key=lambda item: item.name.casefold()):
@@ -167,12 +156,6 @@ def render_index(
     else:
         lines.append(f"- {index_text['empty']}")
     lines.append("")
-    if directory == root and children:
-        lines.extend([f"## {index_text['nested-heading']}", ""])
-        for child in children:
-            target = child.relative_to(root).as_posix() + f"/{INDEX_NAME}"
-            lines.append(f"- [{child.relative_to(root).as_posix()}]({target})")
-        lines.append("")
     return "\n".join(lines)
 
 
@@ -185,6 +168,11 @@ def rebuild(root: Path) -> dict[str, Any]:
     children = nested_roots(root)
     index_text = presentation(manifest)["index"]
     changed: list[str] = []
+    readme_path = root / README_NAME
+    readme_content = render_root_readme(project, index_text)
+    if not readme_path.is_file() or readme_path.read_text(encoding="utf-8") != readme_content:
+        readme_path.write_text(readme_content, encoding="utf-8")
+        changed.append(README_NAME)
     for directory in reversed(owned_directories(root)):
         path = directory / INDEX_NAME
         content = render_index(root, directory, project, children, index_text)

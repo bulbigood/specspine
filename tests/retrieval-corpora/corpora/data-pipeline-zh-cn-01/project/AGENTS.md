@@ -1,7 +1,7 @@
 <!-- specspine:begin -->
 ## SpecSpine documentation
 
-- SpecSpine index: `specspine/_INDEX.md`
+- SpecSpine root: `specspine`
 - SpecSpine documentation language: `zh-CN`
 
 处理架构相关任务时，先阅读 SpecSpine 索引，再沿最少的相关链接读取文档。

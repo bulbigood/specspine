@@ -12,7 +12,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 VOCABULARY_PATH = ROOT / "shared/references/vocabulary.json"
 GLOSSARY_PATH = ROOT / "docs/reference/glossary.md"
-INDEX_TEMPLATE_PATH = ROOT / "shared/assets/templates/root-spine-index.md"
+INDEX_TEMPLATE_PATH = ROOT / "shared/assets/templates/spine-index.md"
+README_TEMPLATE_PATH = ROOT / "shared/assets/templates/root-spine-readme.md"
 
 
 def code_list(values: list[str]) -> str:
@@ -122,35 +123,25 @@ def render(vocabulary: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_index_template() -> str:
+def render_templates() -> tuple[str, str]:
     scripts = str(ROOT / "shared/scripts")
     if scripts not in sys.path:
         sys.path.insert(0, scripts)
-    from spec_contract import DEFAULT_INDEX_TEXT
+    from spec_contract import DEFAULT_INDEX_TEXT, render_root_readme
 
     index = DEFAULT_INDEX_TEXT
-    return "\n".join([
+    rendered_index = "\n".join([
         "# {project} architecture",
         "",
         "**ID:** `project-architecture` · **Kind:** `index`",
         "",
-        index["purpose"],
-        "",
-        index["scope"],
-        "",
-        f"## {index['guide-heading']}",
-        "",
-        index["guide"],
-        "",
-        f"## {index['glossary-heading']}",
-        "",
-        index["glossary"],
-        "",
         f"## {index['contents-heading']}",
         "",
+        f"- [{'README.md'}]({'README.md'})",
         f"- [{'specspine.json'}]({'specspine.json'})",
         "",
     ])
+    return rendered_index, render_root_readme("{project}", index)
 
 
 def main() -> int:
@@ -159,10 +150,11 @@ def main() -> int:
     args = parser.parse_args()
     vocabulary = json.loads(VOCABULARY_PATH.read_text(encoding="utf-8"))
     expected = render(vocabulary)
-    expected_index = render_index_template()
+    expected_index, expected_readme = render_templates()
     if args.write:
         GLOSSARY_PATH.write_text(expected, encoding="utf-8")
         INDEX_TEMPLATE_PATH.write_text(expected_index, encoding="utf-8")
+        README_TEMPLATE_PATH.write_text(expected_readme, encoding="utf-8")
         return 0
     stale = []
     if not GLOSSARY_PATH.is_file() or GLOSSARY_PATH.read_text(encoding="utf-8") != expected:
@@ -171,7 +163,12 @@ def main() -> int:
         not INDEX_TEMPLATE_PATH.is_file()
         or INDEX_TEMPLATE_PATH.read_text(encoding="utf-8") != expected_index
     ):
-        stale.append("shared/assets/templates/root-spine-index.md")
+        stale.append("shared/assets/templates/spine-index.md")
+    if (
+        not README_TEMPLATE_PATH.is_file()
+        or README_TEMPLATE_PATH.read_text(encoding="utf-8") != expected_readme
+    ):
+        stale.append("shared/assets/templates/root-spine-readme.md")
     if stale:
         print(
             ", ".join(stale) + " stale; run "

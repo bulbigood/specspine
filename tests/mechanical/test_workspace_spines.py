@@ -48,6 +48,7 @@ class WorkspaceSpinesTests(unittest.TestCase):
         root = self.workspace / relative
         root.mkdir(parents=True)
         (root / "specspine.json").write_text(json.dumps(manifest(project)))
+        (root / "README.md").write_text("# SpecSpine\n")
         (root / "_INDEX.md").write_text(
             f"# {project}\n\n"
             "**ID:** `project-architecture` · **Kind:** `index`\n\n"
@@ -120,24 +121,26 @@ class WorkspaceSpinesTests(unittest.TestCase):
         (root / "specspine.json").write_text(json.dumps(value))
         INDEXER.rebuild(root)
         index = (root / "_INDEX.md").read_text()
+        readme = (root / "README.md").read_text()
         self.assertIn("# Архитектура demo", index)
         self.assertIn("## Содержание", index)
-        self.assertIn("## Как читать этот Spine", index)
-        self.assertIn("Следуйте ссылкам к владельцу области.", index)
-        self.assertIn("Долговременная спецификация проекта.", index)
+        self.assertNotIn("## Как читать этот Spine", index)
+        self.assertIn("## Как читать этот Spine", readme)
+        self.assertIn("Следуйте ссылкам к владельцу области.", readme)
+        self.assertIn("Долговременная спецификация проекта.", readme)
 
     def test_default_root_index_is_self_describing_without_skills(self):
         root = self.root("specspine", "demo")
-        index = (root / "_INDEX.md").read_text()
-        self.assertIn("## How to use this Spine", index)
-        self.assertIn("SpecSpine owns accepted durable intent", index)
-        self.assertIn("Do not silently turn code", index)
-        self.assertIn("## SpecSpine glossary", index)
-        self.assertIn("`DEC` — Accepted architectural decision.", index)
-        self.assertIn("`OBS` — Confirmed architecture-significant", index)
-        self.assertIn("### Document kinds", index)
-        self.assertIn("`migrates-from`", index)
-        self.assertIn("`implementation_freedom`", index)
+        readme = (root / "README.md").read_text()
+        self.assertIn("## How to use this Spine", readme)
+        self.assertIn("SpecSpine owns accepted durable intent", readme)
+        self.assertIn("Do not silently turn code", readme)
+        self.assertIn("## SpecSpine glossary", readme)
+        self.assertIn("`DEC` — Accepted architectural decision.", readme)
+        self.assertIn("`OBS` — Confirmed architecture-significant", readme)
+        self.assertIn("### Document kinds", readme)
+        self.assertIn("`migrates-from`", readme)
+        self.assertIn("`implementation_freedom`", readme)
 
     def test_workspace_graph_connects_nested_roots_and_keeps_siblings(self):
         parent = self.root("docs/specspine", "parent")
@@ -153,7 +156,7 @@ class WorkspaceSpinesTests(unittest.TestCase):
         self.assertIsNone(rows["docs/specspine"]["parent"])
         self.assertIsNone(rows["mobile/specspine"]["parent"])
         self.assertIn(
-            "services/payments/specspine/_INDEX.md",
+            "services/_INDEX.md",
             (parent / "_INDEX.md").read_text(),
         )
         self.assertEqual([], [

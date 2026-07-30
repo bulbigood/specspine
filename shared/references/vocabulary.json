@@ -2,7 +2,8 @@
   "format_major": 3,
   "reserved_paths": {
     "manifest": "specspine.json",
-    "index": "_INDEX.md"
+    "index": "_INDEX.md",
+    "readme": "README.md"
   },
   "identifier_patterns": {
     "document": "^[a-z0-9]+(?:-[a-z0-9]+)*$",

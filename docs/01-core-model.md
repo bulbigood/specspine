@@ -84,11 +84,12 @@ backlinks, impact reports, and diagram edges are derived.
 
 ## File organization
 
-Every Spine MUST have `_INDEX.md` and `specspine.json`. A flat structure is the
+Every Spine MUST have `README.md`, `_INDEX.md`, and `specspine.json`. A flat structure is the
 default:
 
 ```text
 <spine-root>/
+├── README.md
 ├── _INDEX.md
 ├── specspine.json
 ├── authentication.md

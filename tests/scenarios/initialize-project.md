@@ -15,7 +15,7 @@ process them asynchronously, and search the extracted content.
 
 The skill should:
 
-- create `<spine-root>/_INDEX.md`;
+- create root `README.md`, `_INDEX.md`, and `specspine.json`;
 - create a small set of top-level concept specifications;
 - keep initial specifications concise;
 - record important unknowns as open questions;

@@ -14,6 +14,7 @@ from typing import Any
 
 INDEX_NAME = "_INDEX.md"
 MANIFEST_NAME = "specspine.json"
+README_NAME = "README.md"
 STATE_PATH = Path(".specspine/workspace-index.json")
 PRUNED_NAMES = {".git", ".hg", ".svn", "node_modules", "__pycache__"}
 
@@ -45,7 +46,7 @@ def discover(workspace: Path) -> list[Path]:
             if name not in PRUNED_NAMES
             and (directory / name).resolve() != state_root
         ]
-        if INDEX_NAME in files and MANIFEST_NAME in files:
+        if INDEX_NAME in files and MANIFEST_NAME in files and README_NAME in files:
             roots.append(directory.resolve())
     return sorted(set(roots))
 

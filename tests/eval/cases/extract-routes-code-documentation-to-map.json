@@ -7,7 +7,7 @@
   "category": "core",
   "runs": 1,
   "initial_files": {
-    "AGENTS.md": "<!-- specspine:begin -->\n## SpecSpine documentation\n\n- SpecSpine index: `specspine/_INDEX.md`\n- SpecSpine documentation language: `English`\n\nSpecSpine is the primary source of project architecture intent. Whenever a user asks what the project documentation says or searches for documented project behavior or architecture, use installed `specspine-extract` even if the request does not mention SpecSpine.\n<!-- specspine:end -->\n",
+    "AGENTS.md": "<!-- specspine:begin -->\n## SpecSpine documentation\n\n- SpecSpine root: `specspine`\n- SpecSpine documentation language: `English`\n\nSpecSpine is the primary source of project architecture intent. Whenever a user asks what the project documentation says or searches for documented project behavior or architecture, use installed `specspine-extract` even if the request does not mention SpecSpine.\n<!-- specspine:end -->\n",
     "specspine/_INDEX.md": "# Project architecture\n\n## Architecture map\n\n- [Orders](orders.md)\n",
     "specspine/orders.md": "# Orders\n\n## Responsibility\n\nOwns the order lifecycle.\n",
     "src/orders/cancel.js": "export function cancelOrder(order, events) {\n  if (order.status === \"cancelled\") throw new Error(\"already cancelled\");\n  order.status = \"cancelled\";\n  events.push({ type: \"order.cancelled\", orderId: order.id });\n  return order;\n}\n"

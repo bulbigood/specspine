@@ -23,7 +23,8 @@ normative closure and checked against implementation-independent verification.
   without silently preferring either side.
 - `specspine.json` records completeness, blockers, inspection coverage,
   implementation freedom, and exact assets.
-- `_INDEX.md` provides deterministic, self-describing navigation. Skills
+- Root `README.md` explains SpecSpine; every `_INDEX.md`, including the root,
+  provides the same deterministic physical-navigation structure. Skills
   accelerate retrieval and maintenance but are not required to read a Spine.
 
 `ready` means the specification has no declared completeness gap or blocker for
@@ -54,7 +55,8 @@ Ask Doctor:
 Expose this project's SpecSpine to agents through persistent project instructions.
 ```
 
-Without installed skills, read `<spine-root>/_INDEX.md` and follow links to the
+Without installed skills, open the `<spine-root>` directory, read its
+`README.md`, then use `_INDEX.md` and follow links to the
 canonical owner relevant to the task.
 
 ## Documentation

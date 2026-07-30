@@ -2,15 +2,16 @@
 
 ## Tool-independent use
 
-Every committed Spine is readable without SpecSpine skills. Start at
-`<spine-root>/_INDEX.md`, follow `Contents` to the canonical owner for the task,
+Every committed Spine is readable without SpecSpine skills. Start at the
+`<spine-root>` directory, read `README.md`, then follow `_INDEX.md` contents to
+the canonical owner for the task,
 then inspect its accepted claims, boundaries, relationships, blockers, and
 known divergences. `specspine.json` carries completeness and machine-readable
 assets.
 
-Project instructions should contain only the index location, documentation
+Project instructions should contain only the root directory, documentation
 language, optional retrieval route, and compact authority rules. General
-framework documentation belongs in the root index guide and this documentation,
+framework documentation belongs in the root `README.md` and this documentation,
 not in every-agent instructions.
 
 ## Runtime skills
@@ -39,10 +40,10 @@ Ask Doctor:
 Expose this project's SpecSpine to agents through persistent project instructions.
 ```
 
-Doctor creates a missing `_INDEX.md` and `specspine.json` pair, installs one
-bounded managed block in the selected project instruction file, adds the exact
-`.specspine` ignore rule only at a Git repository root, and runs the mechanical
-checker. It does not overwrite an existing root or create concept
+Doctor creates missing root `README.md`, `_INDEX.md`, and `specspine.json`
+files, installs one bounded managed block containing the root directory in the
+selected project instruction file, and runs the mechanical checker. It does
+not overwrite an existing root or create concept
 specifications.
 
 ## Evolve accepted intent

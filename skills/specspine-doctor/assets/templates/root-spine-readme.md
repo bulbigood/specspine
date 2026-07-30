@@ -1,0 +1,1 @@
+../../../../shared/assets/templates/root-spine-readme.md

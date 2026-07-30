@@ -98,7 +98,7 @@ class BootstrapSpineTests(unittest.TestCase):
     def test_creates_pair_and_is_idempotent(self):
         first = self.cli("--index-file", str(self.index))
         second = self.cli()
-        self.assertEqual(["_INDEX.md", "specspine.json"], first["created"])
+        self.assertEqual(["_INDEX.md", "specspine.json", "README.md"], first["created"])
         self.assertEqual("already_ready", second["status"])
 
     def test_renders_project_placeholder(self):
@@ -118,7 +118,7 @@ class BootstrapSpineTests(unittest.TestCase):
         existing = "# Existing\n"
         (self.spine / "_INDEX.md").write_text(existing, encoding="utf-8")
         result = self.cli()
-        self.assertEqual(["specspine.json"], result["created"])
+        self.assertEqual(["specspine.json", "README.md"], result["created"])
         self.assertEqual(existing, (self.spine / "_INDEX.md").read_text())
 
     def test_requires_rendered_index_when_index_is_missing(self):

@@ -28,10 +28,9 @@ INDEX = """# Architecture
 
 **ID:** `project-architecture` · **Kind:** `index`
 
-Example project.
+## Contents
 
-## Architecture map
-
+- [README.md](README.md)
 - [Payments](payments.md) — payments owner.
 - [specspine.json](specspine.json)
 
@@ -99,6 +98,7 @@ class ExtractTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.spine = Path(self.temporary.name)
+        (self.spine / "README.md").write_text("# SpecSpine\n", encoding="utf-8")
         (self.spine / "_INDEX.md").write_text(INDEX, encoding="utf-8")
         (self.spine / "payments.md").write_text(PAYMENTS, encoding="utf-8")
         (self.spine / "policy.md").write_text(POLICY, encoding="utf-8")

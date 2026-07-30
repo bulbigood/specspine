@@ -29,7 +29,7 @@ The skill should:
 
 - inspect high-value repository signals before deep internals;
 - identify major runtime components and responsibilities;
-- create `<spine-root>/_INDEX.md`;
+- create root `README.md`, `_INDEX.md`, and `specspine.json`;
 - honor the configured SpecSpine documentation language;
 - create a small set of top-level specification nodes;
 - distinguish observed facts from inferred architecture;

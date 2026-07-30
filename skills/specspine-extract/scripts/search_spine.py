@@ -312,6 +312,8 @@ def _canonical_documents(root: Path) -> tuple[dict[str, dict[str, object]], list
         if not path.is_file() or path.is_symlink():
             continue
         relative = path.relative_to(root).as_posix()
+        if relative == "README.md":
+            continue
         text = path.read_text(encoding="utf-8")
         lines = structural_lines(text)
         title = next((match.group(2).strip() for line in lines if (match := HEADING_RE.match(line)) and len(match.group(1)) == 1), "")

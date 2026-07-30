@@ -1,7 +1,7 @@
 <!-- specspine:begin -->
 ## SpecSpine documentation
 
-- SpecSpine index: `specspine/_INDEX.md`
+- SpecSpine root: `specspine`
 - SpecSpine documentation language: `ru`
 
 Для архитектурных изменений сначала прочитайте индекс SpecSpine, затем

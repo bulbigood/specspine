@@ -1,7 +1,7 @@
 <!-- specspine:begin -->
 ## SpecSpine
 
-- SpecSpine index: `specspine/_INDEX.md`
+- SpecSpine root: `specspine`
 - Documentation language: `English`
 
 Use installed `specspine-extract` for architecture, specification,

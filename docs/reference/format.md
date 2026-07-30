@@ -26,6 +26,7 @@ A valid root contains:
 
 ```text
 <spine-root>/
+├── README.md
 ├── _INDEX.md
 ├── specspine.json
 ├── authentication.md
@@ -37,8 +38,8 @@ A valid root contains:
 └── verification/
 ```
 
-Every directory in the Spine contains `_INDEX.md`. Only root `_INDEX.md` and
-`specspine.json` have reserved root paths. Use lowercase
+Every directory in the Spine contains `_INDEX.md`. Root `README.md`,
+`_INDEX.md`, and `specspine.json` have reserved root paths. Use lowercase
 kebab-case paths for specifications. Organize by stable concepts, not source
 directories, features, tickets, or delivery phases.
 
@@ -286,7 +287,12 @@ owner through a precise relation such as `specified-by`, `constrained-by`, or
 
 ## Deterministic indexes
 
-Root `_INDEX.md` is the entry point. Every `_INDEX.md` contains:
+Root `README.md` is the human and agent introduction. It contains the fixed
+SpecSpine purpose statement, project name, scope statement, compact reading
+guide, and complete concise vocabulary.
+
+Every `_INDEX.md`, including the root index, has the same deterministic
+navigation structure and contains:
 
 1. exactly one H1;
 2. a globally unique document ID and `Kind: index`;
@@ -294,13 +300,11 @@ Root `_INDEX.md` is the entry point. Every `_INDEX.md` contains:
    and the `_INDEX.md` of every immediate subdirectory.
 
 The root uses ID `project-architecture`. Nested index IDs are derived
-deterministically from their root-relative directory paths. Only the root
-index contains the fixed SpecSpine purpose statement, project name, scope
-statement, compact reading guide, and complete concise vocabulary. They make the committed Spine
-self-describing for agents and people without installed SpecSpine skills. It
-explains authority, navigation, identifier families, divergence handling, and
-canonical ownership; skills optimize retrieval and maintenance but are not
-required to interpret the format.
+deterministically from their root-relative directory paths. Root `README.md`
+makes the committed Spine self-describing for agents and people without
+installed SpecSpine skills. It explains authority, navigation, identifier
+families, divergence handling, and canonical ownership; skills optimize
+retrieval and maintenance but are not required to interpret the format.
 
 Use this scope statement when creating an index, translated when needed:
 
@@ -520,7 +524,8 @@ Every Markdown specification MUST be reachable from root `_INDEX.md` through
 relative links. Every registered asset is reached from its canonical owner.
 Generated views and external links do not establish reachability.
 
-A nested directory containing its own `_INDEX.md` and `specspine.json` is a
+A nested directory containing its own `README.md`, `_INDEX.md`, and
+`specspine.json` is a
 separate Spine and a traversal boundary. Its documents, IDs, manifest areas,
 and assets do not belong to the parent Spine. Workspace tooling connects the
 nearest ancestor Spine to the nested root and records otherwise independent

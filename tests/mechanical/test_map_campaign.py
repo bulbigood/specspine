@@ -29,11 +29,18 @@ class MapCampaignTests(unittest.TestCase):
         self.repository = self.root / "repository"
         self.spine = self.repository / "specspine"
         self.spine.mkdir(parents=True)
+        (self.spine / "README.md").write_text(
+            (
+                ROOT / "shared/assets/templates/root-spine-readme.md"
+            ).read_text(encoding="utf-8").replace("{project}", "fixture"),
+            encoding="utf-8",
+        )
         (self.spine / "_INDEX.md").write_text(
             "# Architecture\n\n"
             "**ID:** `project-architecture` · **Kind:** `index`\n\n"
             "Architecture fixture.\n\n"
             "## Contents\n\n"
+            "- [README.md](README.md)\n"
             "- [Architecture](architecture.md)\n"
             "- [specspine.json](specspine.json)\n\n",
             encoding="utf-8",
@@ -1174,13 +1181,13 @@ class MapCampaignTests(unittest.TestCase):
         )
 
         self.assertEqual("created", first["status"])
-        self.assertEqual(["_INDEX.md", "specspine.json"], first["created"])
+        self.assertEqual(["_INDEX.md", "specspine.json", "README.md"], first["created"])
         self.assertEqual("already_ready", second["status"])
         self.assertEqual([], second["created"])
-        index = (spine / "_INDEX.md").read_text(encoding="utf-8")
-        self.assertIn("## How to use this Spine", index)
-        self.assertIn("## SpecSpine glossary", index)
-        self.assertIn("`OBS` — Confirmed architecture-significant", index)
+        readme = (spine / "README.md").read_text(encoding="utf-8")
+        self.assertIn("## How to use this Spine", readme)
+        self.assertIn("## SpecSpine glossary", readme)
+        self.assertIn("`OBS` — Confirmed architecture-significant", readme)
 
     def test_empty_spine_bootstrap_recovers_its_missing_manifest(self):
         spine = self.run / "partial-empty-spine"
@@ -1193,7 +1200,7 @@ class MapCampaignTests(unittest.TestCase):
                 "--project",
                 "grafana",
                 "--index-file",
-                str(ROOT / "shared/assets/templates/root-spine-index.md"),
+                str(ROOT / "shared/assets/templates/spine-index.md"),
             ],
             check=True,
             capture_output=True,
@@ -2871,7 +2878,7 @@ class MapCampaignTests(unittest.TestCase):
             str(ledger),
             str(self.spine),
         )
-        self.assertEqual(3, receipt["documents"])
+        self.assertEqual(4, receipt["documents"])
         self.assertEqual([], receipt["added_todo"])
         self.assertEqual(
             [],

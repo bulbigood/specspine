@@ -5,7 +5,7 @@
   "status": "executable",
   "category": "extended",
   "initial_files": {
-    "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n\n<!-- specspine:begin -->\n## SpecSpine documentation\n\n- SpecSpine index: `specspine/_INDEX.md`\n- SpecSpine documentation language: `English`\n\nFor architecture-relevant planning, specification, implementation, or review,\nuse installed `specspine-extract` for a minimal handoff. If it is unavailable,\nread the SpecSpine index and follow relevant links. `Decisions` and `Constraints`\nare accepted intent; preserve conflicts with `Observed`, `Inferred`, and `Open questions`.\n<!-- specspine:end -->\n",
+    "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n\n<!-- specspine:begin -->\n## SpecSpine documentation\n\n- SpecSpine root: `specspine`\n- SpecSpine documentation language: `English`\n\nFor architecture-relevant planning, specification, implementation, or review,\nuse installed `specspine-extract` for a minimal handoff. If it is unavailable,\nread `README.md`, then `_INDEX.md` under the SpecSpine root and follow relevant links. `Decisions` and `Constraints`\nare accepted intent; preserve conflicts with `Observed`, `Inferred`, and `Open questions`.\n<!-- specspine:end -->\n",
     "specspine/_INDEX.md": "# Project architecture\n\n## Architecture map\n\n- [Application](application.md)\n",
     "specspine/application.md": "# Application\n\nOwns application behavior.\n",
     "src/main.txt": "Existing implementation placeholder.\n"

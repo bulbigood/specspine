@@ -31,6 +31,7 @@ from spec_contract import (
     INSPECTION_MODES,
     KIND_REQUIRED_FACETS,
     MANIFEST_NAME,
+    README_NAME,
     NORMATIVE_PREFIXES,
     PresentationError,
     SEMANTIC_ID_PATTERN,
@@ -100,7 +101,11 @@ FACET_SUPPORT_SECTIONS = {
 
 
 def is_spine_root(path: Path) -> bool:
-    return (path / INDEX_NAME).is_file() and (path / MANIFEST_NAME).is_file()
+    return (
+        (path / INDEX_NAME).is_file()
+        and (path / MANIFEST_NAME).is_file()
+        and (path / README_NAME).is_file()
+    )
 
 
 def owned_files(root: Path) -> list[Path]:
@@ -718,10 +723,17 @@ def check(
     if not root.is_dir():
         return [Finding("error", "ROOT_MISSING", ".", None, f"SpecSpine root does not exist: {root}")]
     manifest = _load_manifest(root, findings)
-    files = [path for path in owned_files(root) if path.suffix.casefold() == ".md"]
+    files = [
+        path
+        for path in owned_files(root)
+        if path.suffix.casefold() == ".md" and path != root / README_NAME
+    ]
     index = root / INDEX_NAME
     if not index.is_file():
         add(findings, "error", "INDEX_MISSING", index, root, f"root {INDEX_NAME} is required")
+    readme = root / README_NAME
+    if not readme.is_file():
+        add(findings, "error", "README_MISSING", readme, root, f"root {README_NAME} is required")
     nodes = [_parse_node(path, root, findings, manifest) for path in files]
     by_path = {node.path.resolve(): node for node in nodes}
     nested_roots = nested_spine_roots(root)
@@ -756,8 +768,6 @@ def check(
                 expected.add(child.resolve())
             elif child.is_dir() and (child / INDEX_NAME).is_file():
                 expected.add((child / INDEX_NAME).resolve())
-        if directory == root:
-            expected.update((child / INDEX_NAME).resolve() for child in nested_roots)
         actual: set[Path] = set()
         if node is not None:
             for _, link in node.links or []:

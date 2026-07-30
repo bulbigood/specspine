@@ -13,6 +13,7 @@ VOCABULARY = json.loads(VOCABULARY_PATH.read_text(encoding="utf-8"))
 FORMAT_MAJOR = VOCABULARY["format_major"]
 MANIFEST_NAME = VOCABULARY["reserved_paths"]["manifest"]
 INDEX_NAME = VOCABULARY["reserved_paths"]["index"]
+README_NAME = VOCABULARY["reserved_paths"]["readme"]
 DOCUMENT_ID_PATTERN = VOCABULARY["identifier_patterns"]["document"]
 SEMANTIC_ID_PATTERN = VOCABULARY["identifier_patterns"]["semantic"]
 SEMANTIC_PREFIXES = tuple(VOCABULARY["semantic_prefixes"])
@@ -87,6 +88,7 @@ def compact_glossary() -> str:
             {
                 VOCABULARY["reserved_paths"]["index"]: "Deterministic physical navigation.",
                 VOCABULARY["reserved_paths"]["manifest"]: "Manifest and completeness registry.",
+                VOCABULARY["reserved_paths"]["readme"]: "Portable SpecSpine introduction, reading guide, and vocabulary.",
             },
         ),
     ]
@@ -125,6 +127,28 @@ DEFAULT_INDEX_TEXT = {
     "nested-heading": "Nested SpecSpines",
     "empty": "No indexed entries.",
 }
+
+
+def render_root_readme(project: str, index_text: dict[str, str]) -> str:
+    """Render portable SpecSpine information outside the deterministic index."""
+    return "\n".join(
+        [
+            f"# {index_text['root-title'].format(project=project)}",
+            "",
+            index_text["purpose"],
+            "",
+            index_text["scope"],
+            "",
+            f"## {index_text['guide-heading']}",
+            "",
+            index_text["guide"],
+            "",
+            f"## {index_text['glossary-heading']}",
+            "",
+            index_text["glossary"],
+            "",
+        ]
+    )
 SECTION_PREFIX_KEYS = {
     definition["section"]: prefix
     for prefix, definition in VOCABULARY["semantic_prefixes"].items()

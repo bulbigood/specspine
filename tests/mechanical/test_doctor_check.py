@@ -18,10 +18,9 @@ INDEX = """# Architecture
 
 **ID:** `project-architecture` · **Kind:** `index`
 
-Project architecture.
+## Contents
 
-## Architecture map
-
+- [README.md](README.md)
 - [Payments](payments.md) — owns payments.
 - [specspine.json](specspine.json)
 
@@ -62,6 +61,7 @@ class DoctorCheckerV3Tests(unittest.TestCase):
     def spine(self, payment=PAYMENTS, index=INDEX, extra=None, manifest=None):
         temporary = tempfile.TemporaryDirectory()
         root = Path(temporary.name)
+        (root / "README.md").write_text("# SpecSpine\n", encoding="utf-8")
         (root / "_INDEX.md").write_text(index, encoding="utf-8")
         (root / "payments.md").write_text(payment, encoding="utf-8")
         for name, content in (extra or {}).items():
@@ -209,15 +209,21 @@ class DoctorCheckerV3Tests(unittest.TestCase):
     def test_doctor_index_template_is_valid(self):
         template = (
             Path(__file__).parents[2]
-            / "skills/specspine-doctor/assets/templates/root-spine-index.md"
+            / "skills/specspine-doctor/assets/templates/spine-index.md"
         ).read_text(encoding="utf-8")
-        self.assertIn(
-            "This directory contains the project's long-lived architectural intent",
-            template,
-        )
+        self.assertNotIn("## How to use this Spine", template)
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name)
+        readme = (
+            Path(__file__).parents[2]
+            / "skills/specspine-doctor/assets/templates/root-spine-readme.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "This directory contains the project's long-lived architectural intent",
+            readme,
+        )
+        (root / "README.md").write_text(readme, encoding="utf-8")
         (root / "_INDEX.md").write_text(template, encoding="utf-8")
         manifest = (
             Path(__file__).parents[2]

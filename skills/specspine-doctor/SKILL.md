@@ -24,14 +24,14 @@ implicitly.
   [assets/templates/agent-bootstrap.md](assets/templates/agent-bootstrap.md)
   and, when the operator requests README exposure,
   [assets/templates/readme-bootstrap.md](assets/templates/readme-bootstrap.md);
-  use
-  [assets/templates/root-spine-index.md](assets/templates/root-spine-index.md).
+  use [assets/templates/spine-index.md](assets/templates/spine-index.md)
+  and [assets/templates/root-spine-readme.md](assets/templates/root-spine-readme.md).
 - Run `scripts/check_spine.py <spine-root>` for reproducible checks. Use
   `--json` only when structured output is useful.
 - Run `scripts/workspace_spines.py <workspace>` for workspace-wide discovery
   and connectivity. Use `--rebuild` only for an authorized repair.
 - Use `scripts/bootstrap_spine.py <spine-root>` for project initialization; it
-  creates the root pair without consulting Git. Never write these artifacts
+  creates the root index, README, and manifest without consulting Git. Never write these artifacts
   directly and never pass `--workspace`.
 - Read [references/spec-semantics.md](references/spec-semantics.md) for a
   semantic review.
@@ -52,9 +52,9 @@ Follow the connection contract exactly. `connect` idempotently creates,
 refreshes, or changes the requested connection from observed state. Preserve
 recognized settings not explicitly changed.
 
-Connect may modify only that managed block and an absent root pair. Render the
-accepted-language index; `bootstrap_spine.py` writes the pair without a
-workspace argument. Preserve existing roots and project instructions.
+Connect may modify only that managed block and absent root files. Render the
+accepted-language README and deterministic index; `bootstrap_spine.py` writes
+the root files without a workspace argument. Preserve existing roots and project instructions.
 Disconnect removes only the managed block, never the Spine, workspace state,
 or instruction file. A satisfied target state causes no write.
 
@@ -65,9 +65,10 @@ unless the request independently authorizes that work.
 ## Health scope
 
 Resolve `<workspace>` first. For workspace-wide work, discover all roots
-mechanically. Otherwise resolve `<spine-root>` from the request, project
-instructions, an existing managed bootstrap, or the default `specspine`;
-require its `_INDEX.md`.
+mechanically. Otherwise resolve the `<spine-root>` directory from the request,
+project instructions, an existing managed bootstrap, or the default
+`specspine`. Reject `_INDEX.md`, `README.md`, or any other file path as a root;
+require the directory's `README.md`, `_INDEX.md`, and `specspine.json`.
 Check is read-only. Doctor may repair files under `<spine-root>` after the
 operator approves the proposed repair; an explicit request that already names
 the defect and requested correction is approval for that correction.
@@ -138,8 +139,8 @@ workspace wrapper. Never ask an AI agent to curate index entries.
   instructions or hints. Read project files only when an operation and its
   protocol explicitly name them, and only for the stated purpose.
 - Never edit source code or other skills.
-- In connection mode, own only the managed project-instruction block and a new
-  root pair; do not edit existing specifications or `.gitignore`.
+- In connection mode, own only the managed project-instruction block and new
+  root files; do not edit existing specifications or `.gitignore`.
 - In health mode, inspect no project-specific file outside `<spine-root>` and
   do not edit project integration artifacts.
 - Do not edit specifications before operator approval.

@@ -69,6 +69,7 @@ Create:
 
 Modify:
 - <spine-root>/authentication.md
+- <spine-root>/README.md
 - <spine-root>/_INDEX.md
 
 Read-only context:

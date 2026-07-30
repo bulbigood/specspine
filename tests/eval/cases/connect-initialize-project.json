@@ -33,12 +33,15 @@
       "skill": "skills/specspine-doctor",
       "prompt": "Use `specspine` as the root and accept English and `AGENTS.md` as the remaining defaults. Complete setup now.",
       "assertions": [
-        {"type": "changed_only", "paths": ["AGENTS.md", "specspine/_INDEX.md"]},
+        {"type": "changed_only", "paths": ["AGENTS.md", "specspine/README.md", "specspine/_INDEX.md", "specspine/specspine.json"]},
         {"type": "file_contains", "path": "AGENTS.md", "value": "Preserve this user-authored sentence."},
         {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1},
-        {"type": "file_contains", "path": "AGENTS.md", "values": ["SpecSpine index: `specspine/_INDEX.md`", "SpecSpine documentation language: `English`"]},
+        {"type": "file_contains", "path": "AGENTS.md", "values": ["SpecSpine root: `specspine`", "SpecSpine documentation language: `English`"]},
         {"type": "path_exists", "path": "specspine/_INDEX.md"},
-        {"type": "file_contains", "path": "specspine/_INDEX.md", "values": ["# Project architecture", "## Purpose", "## Architecture map"]},
+        {"type": "path_exists", "path": "specspine/README.md"},
+        {"type": "path_exists", "path": "specspine/specspine.json"},
+        {"type": "file_contains", "path": "specspine/_INDEX.md", "values": ["# Project architecture", "## Contents"]},
+        {"type": "file_contains", "path": "specspine/README.md", "values": ["## How to use this Spine", "## SpecSpine glossary"]},
         {"type": "command_includes", "value": "check_spine.py"},
         {"type": "no_template_placeholders", "glob": "AGENTS.md"},
         {"type": "no_template_placeholders", "glob": "specspine/**"}
@@ -46,8 +49,8 @@
     }
   ],
   "final_assertions": [
-    {"type": "changed_only", "paths": ["AGENTS.md", "specspine/_INDEX.md"]},
-    {"type": "glob_count", "glob": "specspine/*.md", "min": 1, "max": 1},
+    {"type": "changed_only", "paths": ["AGENTS.md", "specspine/README.md", "specspine/_INDEX.md", "specspine/specspine.json"]},
+    {"type": "glob_count", "glob": "specspine/*.md", "min": 2, "max": 2},
     {"type": "balanced_markers", "path": "AGENTS.md", "begin": "<!-- specspine:begin -->", "end": "<!-- specspine:end -->", "count": 1}
   ]
 }

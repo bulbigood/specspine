@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Idempotently initialize a workspace and its SpecSpine v3 root pair."""
+"""Idempotently initialize a workspace and its SpecSpine v3 root files."""
 
 from __future__ import annotations
 
@@ -15,7 +15,14 @@ from typing import Any
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from spec_contract import FORMAT_MAJOR, INDEX_NAME, MANIFEST_NAME
+from spec_contract import (
+    DEFAULT_INDEX_TEXT,
+    FORMAT_MAJOR,
+    INDEX_NAME,
+    MANIFEST_NAME,
+    README_NAME,
+    render_root_readme,
+)
 
 
 class BootstrapError(ValueError):
@@ -39,6 +46,17 @@ def read_index(path: Path, project: str) -> str:
             "rendered index must be nonempty and identify project-architecture "
             "as an index"
         )
+    return value if value.endswith("\n") else value + "\n"
+
+
+def read_readme(path: Path, project: str) -> str:
+    try:
+        value = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise BootstrapError(f"cannot read rendered README {path}: {error}") from error
+    value = value.replace("{project}", project)
+    if not value.strip():
+        raise BootstrapError("rendered README must be nonempty")
     return value if value.endswith("\n") else value + "\n"
 
 
@@ -108,6 +126,7 @@ def bootstrap(
     project: str,
     index_file: Path | None,
     *,
+    readme_file: Path | None = None,
     require_exact: bool = False,
     workspace: Path | None = None,
 ) -> dict[str, Any]:
@@ -119,16 +138,23 @@ def bootstrap(
         raise BootstrapError(f"Spine root is not a directory: {root}")
     index_path = root / INDEX_NAME
     manifest_path = root / MANIFEST_NAME
+    readme_path = root / README_NAME
     missing_index = not index_path.exists()
     missing_manifest = not manifest_path.exists()
+    missing_readme = not readme_path.exists()
     if not missing_index and not index_path.is_file():
         raise BootstrapError("_INDEX.md is not a regular file")
     if not missing_manifest and not manifest_path.is_file():
         raise BootstrapError("specspine.json is not a regular file")
+    if not missing_readme and not readme_path.is_file():
+        raise BootstrapError("README.md is not a regular file")
     if missing_index and index_file is None:
         raise BootstrapError("--index-file is required when _INDEX.md is absent")
 
     rendered_index = read_index(index_file, project) if index_file is not None else None
+    rendered_readme = (
+        read_readme(readme_file, project) if readme_file is not None else None
+    )
     index = rendered_index if missing_index else None
     expected_manifest = manifest(project)
     if require_exact:
@@ -151,6 +177,9 @@ def bootstrap(
         json.dumps(expected_manifest, ensure_ascii=False, indent=2).encode("utf-8")
         + b"\n"
     )
+    readme_bytes = (
+        rendered_readme or render_root_readme(project, DEFAULT_INDEX_TEXT)
+    ).encode("utf-8")
     created: list[str] = []
     try:
         if index is not None:
@@ -159,6 +188,9 @@ def bootstrap(
         if missing_manifest:
             exclusive_write(manifest_path, manifest_bytes)
             created.append("specspine.json")
+        if missing_readme:
+            exclusive_write(readme_path, readme_bytes)
+            created.append("README.md")
     except Exception:
         for name in created:
             (root / name).unlink(missing_ok=True)
@@ -178,6 +210,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("spine_root", type=Path)
     result.add_argument("--project", required=True)
     result.add_argument("--index-file", type=Path)
+    result.add_argument("--readme-file", type=Path)
     result.add_argument("--require-exact", action="store_true")
     result.add_argument(
         "--workspace",
@@ -194,6 +227,7 @@ def main() -> int:
             args.spine_root,
             args.project,
             args.index_file,
+            readme_file=args.readme_file,
             require_exact=args.require_exact,
             workspace=args.workspace,
         )

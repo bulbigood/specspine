@@ -147,7 +147,7 @@ class VocabularyContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertEqual(1, template.count("<!-- specspine:readme:begin -->"))
         self.assertEqual(1, template.count("<!-- specspine:readme:end -->"))
-        self.assertIn("{{SPINE_ROOT}}/_INDEX.md", template)
+        self.assertIn("{{SPINE_ROOT}}/", template)
         self.assertNotIn("## Semantic identifier families", template)
 
 
