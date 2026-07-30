@@ -24,14 +24,32 @@ destination_dir="$project_dir/.agents/skills"
 mkdir -p -- "$destination_dir"
 
 # Dereference repository-relative symlinks so every installed skill remains
-# self-contained after it is copied outside this repository.
+# self-contained after it is copied outside this repository. Exclude local
+# Python caches and bytecode that may have been generated in ignored paths.
 staging_dir=$(mktemp -d "$project_dir/.agents/.skills-staging.XXXXXX")
 cleanup() {
   rm -rf -- "$staging_dir"
 }
 trap cleanup EXIT
 
-cp -RL -- "$source_dir/." "$staging_dir/"
+tar -chf - \
+  --exclude='*/__pycache__' \
+  --exclude='*/__pycache__/*' \
+  --exclude='*.pyc' \
+  --exclude='*.pyo' \
+  --exclude='*$py.class' \
+  --exclude='*/.pytest_cache' \
+  --exclude='*/.pytest_cache/*' \
+  --exclude='*/.mypy_cache' \
+  --exclude='*/.mypy_cache/*' \
+  --exclude='*/.pyright' \
+  --exclude='*/.pyright/*' \
+  --exclude='*/.ruff_cache' \
+  --exclude='*/.ruff_cache/*' \
+  --exclude='*/.hypothesis' \
+  --exclude='*/.hypothesis/*' \
+  -C "$source_dir" . |
+  tar -xf - -C "$staging_dir"
 
 for staged_skill in "$staging_dir"/*; do
   [[ -d "$staged_skill" ]] || continue
