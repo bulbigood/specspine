@@ -14,12 +14,12 @@ share infrastructure. Do not edit the repository, Spine, campaign, packet, or
 another result.
 
 Classify inspected files into provisional architectural topics or `supporting`.
-When one topic groups registered plugins, implementations, protocol variants,
-or other peer families, name every member in `responsibility` or `reason` and
-state the shared owner that justifies grouping them. Do not hide a discovered
-peer only in `files`: synthesis receives descriptions before it resolves files.
-Name distinct customization, lifecycle, input, output, or failure boundaries
-when they may require separate final ownership.
+Keep peer responsibilities separate at discovery time. Emit one provisional topic per registered plugin, implementation, protocol variant, or other peer
+with a distinct input model, configuration, state or lifecycle, failure
+behavior, consumer-visible behavior, or reason to change. A shared renderer,
+host, framework, registry, package, or helper is a dependency, not evidence that peers share ownership. Record a shared mechanism separately only when it
+owns an independent interface, state, lifecycle, or consumer contract. Discovery preserves candidate granularity; global synthesis alone may merge
+peer topics. Do not split one peer into separate facet topics or individual classes and functions.
 
 For exhaustive completion, maintain a private queue of every directly exposed
 in-scope responsibility, owner, interface, state, lifecycle, failure,
