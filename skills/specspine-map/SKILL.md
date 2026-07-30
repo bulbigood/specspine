@@ -1,6 +1,6 @@
 ---
 name: specspine-map
-description: "Map architecture-significant deltas between brownfield repository reality and accepted SpecSpine intent. Use for one focused survey, deepening, refresh, or drift increment; a broad repository survey; or exhaustive comparison of a named architectural scope or whole repository. Discover semantic responsibilities, classify evidence against existing intent, retain only material gaps, divergences, uncertainty, and navigation observations, record bounded inspection coverage, integrate centrally, and verify the selected completion claim. Do not duplicate matching intent, infer intended architecture, audit general integrity, implement code, or claim code/spec conformance."
+description: "Map boundary-significant deltas between brownfield repository reality and accepted SpecSpine intent. Use for one focused survey, deepening, refresh, or drift increment; a broad repository survey; or exhaustive comparison of a named architectural scope or whole repository. Discover semantic responsibilities, classify evidence against existing intent, retain only material gaps, divergences, uncertainty, and navigation observations, record bounded inspection coverage, integrate centrally, and verify the selected completion claim. Do not duplicate matching intent, infer intended architecture, audit general integrity, implement code, or claim code/spec conformance."
 ---
 
 # SpecSpine Map
@@ -17,11 +17,13 @@ Map may add observations to an existing canonical owner, but it must not split,
 merge, move, rename, replace, decompose, or redistribute existing Spine
 documents. Reorganization of accepted ownership and document topology belongs
 exclusively to Evolve.
-An `OBS` is an exception layer, not a code mirror. Retain one only for an
-architecture-significant intent gap, divergence, unresolved question, or
+An `OBS` is an exception layer, not a code mirror. Retain one only for a
+boundary-significant intent gap, divergence, unresolved question, or
 surprising owner/boundary. Evidence already represented by intent is
 `covered-by-intent`: update inspection coverage without an `OBS`. Discard
-compatible implementation freedom and source detail.
+compatible implementation freedom and source detail. Map owners and contracts
+from outside their boundaries; never document private algorithms, helpers,
+framework state, call order, or file decomposition.
 ## Operation
 
 Define two independent axes before discovery:
@@ -58,7 +60,7 @@ publishes useful results without claiming complete coverage.
 - Use [references/spec-glossary.md](references/spec-glossary.md) as the index
   of reserved identifiers, tokens, kinds, relations, and manifest values.
 - Read `specspine.json.presentation` before producing Markdown; render its
-  configured headings and order while preserving canonical v3 meaning.
+  configured headings and order while preserving canonical v4 meaning.
 - Read [references/mapping-method.md](references/mapping-method.md) before
   discovery.
 - Read [references/orchestration.md](references/orchestration.md) completely;

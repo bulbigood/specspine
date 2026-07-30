@@ -16,7 +16,7 @@ reports evidence; it never creates accepted intent or changes readiness.
   claims, assets, readiness, and blocking questions.
 - Use [references/spec-glossary.md](references/spec-glossary.md) as the index
   of reserved identifiers, tokens, kinds, relations, and manifest values.
-- Resolve configured presentation headings to canonical v3 keys before
+- Resolve configured presentation headings to canonical v4 keys before
   evaluating coverage or conformance.
 - Run `scripts/check_spine.py <spine-root>` before verification.
 - Use installed `specspine-extract` once to obtain the smallest applicable
@@ -30,8 +30,9 @@ reports evidence; it never creates accepted intent or changes readiness.
    invalid.
 3. Resolve implementation freedom, the primary owner, normative claims, owned
    contracts, verification assets, known divergences, and blocking questions.
-4. Select only implementation evidence needed for the requested scope: public
-   surfaces, configuration, tests, build results, or runtime observations.
+4. Select only evidence needed to exercise the owner boundary: inputs, outputs,
+   controls, observable state effects and failures, conformance assets, or
+   runtime observations.
 5. Run owned conformance checks when safe and authorized. Treat their output as
    verification evidence, not normative authority.
 6. Classify each applicable normative claim as:
@@ -53,7 +54,8 @@ to invent as a specification gap.
 
 - Never infer a requirement from `OBS`, code, tests, or runtime repetition.
 - Evaluate only the equivalence promised by `implementation_freedom`; do not
-  require source or internal similarity from a contract-equivalent result.
+  inspect or require private algorithms, call structure, helpers, framework
+  state, source layout, or internal similarity.
 - Never change manifest facets or blockers; Evolve owns accepted specification
   changes.
 - Never claim untested statements are verified.

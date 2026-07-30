@@ -2296,8 +2296,8 @@ def main() -> int:
         (runtime_root / "home" / ".zprofile").write_text(profile, encoding="utf-8")
         tool_targets = {
             "git": Path("/Applications/Xcode.app/Contents/Developer/usr/bin/git"),
-            "python": Path("/Applications/Xcode.app/Contents/Developer/usr/bin/python3"),
-            "python3": Path("/Applications/Xcode.app/Contents/Developer/usr/bin/python3"),
+            "python": Path(sys.executable),
+            "python3": Path(sys.executable),
         }
         for name, target in tool_targets.items():
             if target.is_file():

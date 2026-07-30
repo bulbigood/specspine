@@ -1,4 +1,4 @@
-{"specspine":3,"project":"data-pipeline-zh-cn-01","implementation_freedom":"contract-equivalent","areas":[
+{"specspine": 4,"project":"data-pipeline-zh-cn-01","implementation_freedom":"contract-equivalent","areas":[
 {"owner":"backfill","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
 {"owner":"capacity-planning","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
 {"owner":"checkpoint-recovery","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},

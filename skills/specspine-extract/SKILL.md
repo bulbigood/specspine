@@ -49,7 +49,13 @@ the SpecSpine itself.
 }
 ```
 
-In the answer, cite returned paths as `<spine-root>/<returned-path>`. Preserve
+In the answer, present the selected owners as boundary contracts: responsibility,
+inputs and outputs, controls, data authority, boundary-visible behavior and
+failures, relationships, and explicit architecture constraints. Do not
+interpret omitted private mechanics as a gap and do not supplement the result
+from source code.
+
+Cite returned paths as `<spine-root>/<returned-path>`. Preserve
 the single status object, implementation freedom, aggregate and requested
 facets, blockers, normative claims, registered assets, observations,
 inferences, omissions, conflicts, evidence labels, and open questions. Treat

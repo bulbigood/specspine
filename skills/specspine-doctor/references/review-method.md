@@ -31,16 +31,19 @@ Look for architectural risks supported by the inspected specifications:
 - important direct relationships hidden behind unnecessary navigation hops;
 - temporary feature scope, delivery acceptance, tasks, or status;
 - source-level walkthroughs and fragile implementation inventories;
-- missing architecturally significant edge or failure behavior required by the
+- private algorithms, call sequences, helpers, framework state, or source
+  layout presented as canonical contract;
+- statements that fail the replacement test: a replacement behind the same
+  boundary may change them without violating any consumer-visible promise,
+  ownership assignment, or explicit architecture constraint;
+- missing boundary-significant edge or failure behavior required by the
   specification's stated responsibility;
 - non-trivial topology, interaction, lifecycle, or data relationships that
   prose makes the reader reconstruct despite the format's visual criterion;
 - diagrams that are the only source of important meaning;
 - semantic IDs used indiscriminately or changed after external reference.
-- computed `ready` status without closed normative behavior, registered
-  contracts, verification, resolution of applicable blocking questions, or an
-  owned execution contract when exact toolchains, build units, generators, or
-  entry points constrain reconstruction.
+- computed `ready` status without closed boundary behavior, registered
+  contracts, verification, or resolution of applicable blocking questions.
 
 Describe each material risk with its evidence, likely impact, confidence, and a
 next action. Use framework terms when they clarify the issue, but do not force a

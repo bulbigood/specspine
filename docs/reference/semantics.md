@@ -1,11 +1,11 @@
 # SpecSpine semantics
 
-SpecSpine is a long-lived system specification and architectural memory layer.
-It maintains a linked network of normative architecture, durable product and
-behavior contracts, repository observations, unconfirmed interpretations, and
-unresolved uncertainty. A sufficiently specified area can be reconstructed as
-an independently implemented, contract-equivalent system without claiming
-source-text identity or exact conformance of the current code.
+SpecSpine is a long-lived graph of canonical owners and their durable boundary
+contracts. Each owner is described from outside its boundary: what
+responsibility it owns, what crosses the boundary, which controls constrain
+it, which information it owns, how peers depend on it, and what a conforming
+implementation must make observable. A sufficiently specified area can be
+reconstructed independently without reproducing its current internals.
 
 SpecSpine is the source of truth for accepted durable system intent:
 architecture, requirements, guarantees, invariants, quality constraints, and
@@ -16,20 +16,53 @@ observed behavior and may verify conformance; an external workflow owns backlog
 and delivery state. Drafts, inferences, existing code, and passing tests cannot
 create or rewrite normative claims without acceptance.
 
-Accepted intent includes the durable architectural model expressed by
-responsibility, boundaries, behavior, interfaces, information and data
-ownership, lifecycle, failure behavior, configuration, compatibility, and
-typed relationships. Addressable normative sections make exact accepted
-claims. Evidence, uncertainty, divergences, implementation navigation, risks,
-terminology, and rationale retain their narrower non-intent semantics.
+Accepted intent includes only durable boundary meaning and the minimum
+architecture needed to assign it: owner identity and responsibility, boundary
+inputs and outputs, controls, data authority, observable lifecycle and failure
+behavior, relationships, and explicit architecture constraints. Addressable
+normative sections make accepted claims. Evidence, uncertainty, divergences,
+implementation navigation, risks, terminology, and rationale retain their
+narrower non-intent semantics.
 
 ## Contents
 
 - [Statement kinds](#statement-kinds)
+- [Boundary-contract rule](#boundary-contract-rule)
 - [Conflict semantics](#conflict-semantics)
 - [Reconstruction semantics](#reconstruction-semantics)
 - [Statement identity](#statement-identity)
 - [Architecture versus feature artifacts](#architecture-versus-feature-artifacts)
+
+## Boundary-contract rule
+
+“External” is relative to the canonical owner. A contract between two internal
+components is external to both component boundaries and belongs in SpecSpine
+when it is durable. A private interaction inside one owner does not.
+
+A statement belongs in a canonical owner only when at least one is true:
+
+- a consumer, neighboring owner, operator, or implementation-independent
+  verifier can observe its violation;
+- it assigns responsibility, data authority, trust, or policy across a
+  boundary;
+- it fixes a topology, technology, or mechanism as an explicitly accepted
+  architecture constraint.
+
+Apply the replacement test: if the owner were reimplemented behind the same
+boundary, the statement must still constrain the replacement. Otherwise leave
+it in code, tests, or implementation documentation.
+
+Inputs include calls, commands, events, data, and stimuli. Outputs include
+responses, events, state effects, and failures. Controls include policy,
+configuration, compatibility, security, and quality constraints. Mechanisms
+are normally implementation freedom; name one only when it is another
+canonical owner or an explicit architecture constraint.
+
+Do not canonize private algorithms, helper structure, class or function
+decomposition, framework state, internal call order, incidental file layout,
+or a source walkthrough. Shared implementation machinery does not make peer
+responsibilities one owner. Conversely, do not split one responsibility into
+documents for its private stages or implementation facets.
 
 ## Statement kinds
 
@@ -95,7 +128,7 @@ what is present, not necessarily what is intended or required. Evidence paths
 support provenance and navigation; they do not prove complete code/spec
 conformance.
 
-Retain an observation only when it is architecture-significant, not already
+Retain an observation only when it is boundary-significant, not already
 fully represented by accepted intent, and exposes a material intent gap,
 supports a confirmed divergence, affects an unresolved architectural question,
 or navigates to a surprising owner or boundary. Do not retain an observation
@@ -192,7 +225,7 @@ Keep an artifact in SpecSpine when it:
 - describes a relationship between architectural concepts;
 - records a long-lived decision, requirement, guarantee, invariant, constraint,
   or verification contract;
-- defines a durable public or cross-component contract;
+- defines a durable owner-relative boundary contract;
 - supplies a machine-readable schema, conformance scenario, or fixture needed
   to implement and verify that durable contract;
 - is expected to remain useful across multiple changes;
@@ -205,6 +238,8 @@ Leave an artifact to a downstream feature or implementation workflow when it:
 - decomposes implementation tasks;
 - tracks implementation, release, or review status;
 - exists primarily for one feature, release, or pull request.
+- describes private algorithms, call sequences, helpers, framework state, or
+  source layout without an explicit architecture constraint.
 
 After a change is accepted, promote only its durable normative meaning and
 implementation-independent verification into canonical SpecSpine owners.

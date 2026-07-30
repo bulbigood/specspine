@@ -44,10 +44,10 @@ Observations may orient the work but do not become reconstruction requirements.
 
 - `contract-equivalent` permits any internals satisfying the normative closure;
 - `architecture-constrained` also preserves specified components and
-  interactions;
-- `exact` preserves only implementation choices explicitly declared exact.
+  interactions, topology, and mechanisms that are explicitly accepted
+  architecture constraints.
 
-Undocumented source details never become exact requirements automatically.
+Private implementation details never belong to the reconstruction contract.
 
 ## Conformance
 

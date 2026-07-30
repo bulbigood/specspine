@@ -96,7 +96,7 @@ python3 <skill>/scripts/campaign.py init \
   --repository-root <repository> --spine-state <empty|existing>
 ```
 
-For an empty Spine, create its minimal v3 envelope idempotently before
+For an empty Spine, create its minimal v4 envelope idempotently before
 discovery. Repeating this command creates only missing bootstrap files and
 rejects unrelated existing content:
 
@@ -105,14 +105,14 @@ python3 <skill>/scripts/campaign.py bootstrap-spine \
   <campaign> <spine-root> --project <stable-project-name>
 ```
 
-For an existing Spine, record its exact v3 documents and checker baseline:
+For an existing Spine, record its exact v4 documents and checker baseline:
 
 ```text
 python3 <skill>/scripts/campaign.py seed-from-spine \
   <campaign> <spine-root>
 ```
 
-This seed grants no coverage. A non-v3 root is rejected.
+This seed grants no coverage. A non-v4 root is rejected.
 
 ## Discover
 

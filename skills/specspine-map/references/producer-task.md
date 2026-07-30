@@ -2,8 +2,9 @@
 
 Handle exactly one bounded ToDo, write one checkpoint, and terminate only after
 revising it to a checked atomic handoff. Inspect every packet `sample`, then read
-only enough evidence to establish responsibility, interfaces, lifecycle, state,
-dependencies, failures, and boundaries. This file is the complete producer
+only enough evidence to establish responsibility, boundary inputs and outputs,
+consumers, data authority, controls, observable lifecycle, failures, and
+relationships. This file is the complete producer
 instruction set: do not load the Map `SKILL.md` or any other Map reference.
 Start with targeted `rg` and narrow excerpts, target at most 10,000 output tokens per call, and never dump complete large files; exceed the target only for a concrete unresolved boundary.
 
@@ -33,9 +34,9 @@ Every bullet in `Open questions` must be a semantic definition with a stable
 Only accepted intent may use normative `MUST`, `SHOULD`, or `MAY`.
 
 For a new Map owner with no accepted intent, keep `Summary` observational and
-make required `Responsibility` state that the document records observations
-about the planned boundary. Put every code-derived architectural detail under
-`Observed`; do not distribute it through authoritative prose sections. For an
+make required `Responsibility` state that the document records evidence about
+one observed candidate boundary. Retain only boundary-significant facts under
+`Observed`; do not distribute code-derived facts through authoritative prose sections. For an
 existing owner, preserve authoritative prose and add only material repository
 delta under `Observed`, `Inferred`, `Open questions`, or `Known divergences`.
 Semantic definitions are bold bullets inside the marker region; each `OBS`
@@ -51,24 +52,25 @@ Read packet `operation`, `current_owner`, `related_existing_owners`, and
 `related_planned_owners` first. Existing owners resolve accepted graph targets;
 planned owners supply the title, responsibility, and incoming or outgoing
 interaction of parallel documents. Use both only to keep this owner narrow;
-do not restate a neighbor. In every operation, make one targeted facet pass across applicable observable
-architecture, behavior, interfaces, data/state ownership, and failure or
-recovery. Check registrations and consumers plus relevant schemas,
-configuration, and tests when they can establish those facets. Do not expand
-into implementation inventory or unrelated neighboring ownership.
+do not restate a neighbor. In every operation, make one targeted pass across
+boundary inputs, outputs, consumers, controls, data authority, observable
+lifecycle, failure, and recovery. Check registrations and consumers plus
+relevant schemas, configuration, and tests when they establish those surfaces.
+A private algorithm, helper, hook, framework state, internal call order, or
+file layout is `implementation-detail`, even when stable or complex.
 
 For `completion.intent: deepen`, update the existing `current_owner.document`
 instead of creating a parallel owner. Preserve all accepted normative claims
 and unrelated observations. Concentrate on its `partial` and `missing`
-observable facets, but write only facts supported by repository evidence.
+boundary facets, but write only facts supported by repository evidence.
 Code cannot establish normative guarantees, quality targets, or
 implementation-independent verification; leave those incomplete rather than
 manufacturing them.
 Map never reorganizes the existing Spine. Preserve an existing owner's ID, path, kind, accepted claims, boundary, and content ownership. Never split, merge, move, rename, replace, decompose, or transfer it; preserve suggested topology changes as uncertainty because only Evolve may perform the reorganization.
 
-Choose the narrowest accurate v3 `Kind`. Use `component` for a concrete
-runtime, renderer, plugin, adapter, or independently evolving implementation
-boundary; `capability` for a responsibility coordinated across components;
+Choose the narrowest accurate v4 `Kind`. Use `component` for a runtime,
+renderer, plugin, adapter, or other independently evolving owner only when it
+has a distinct boundary contract; `capability` for a responsibility coordinated across components;
 `behavior` for a durable process or lifecycle; and `interface` or `data` when
 that is the actual ownership. Use `concept` only for shared vocabulary or a
 domain model without operational ownership. Never use it as a generic fallback.
@@ -88,9 +90,9 @@ specification and verify:
   `Observed`;
 - every staged owner containing `OBS` has the exact task-packet evidence
   baseline; a source draft exists only for a material retained delta;
-- supported relevant boundaries, interfaces, state, lifecycle, and failures
-  are present;
-- each applicable observable facet was either documented from evidence or
+- supported relevant inputs, outputs, consumers, controls, data authority,
+  observable lifecycle, and boundary failures are present;
+- each applicable boundary facet was either documented from evidence or
   deliberately left incomplete because the inspected repository cannot
   establish it;
 - section headings follow the canonical concerns in `spec-format`; never merge
@@ -101,7 +103,8 @@ specification and verify:
 - render those canonical sections using `specspine.json.presentation`
   headings and order when the profile is present;
 - semantic IDs are stable and links use the required complete labels;
-- implementation inventory and unsupported intent are absent;
+- source walkthroughs, private implementation detail, and unsupported intent
+  are absent;
 - every direction is a genuine unanswered question; keep required policy
   distinct from observable repository behavior and never rewrite one as the
   other.

@@ -1,16 +1,16 @@
-# SpecSpine v3 format
+# SpecSpine v4 format
 
-This document is the canonical storage contract for SpecSpine v3.
+This document is the canonical storage and semantic contract for SpecSpine v4.
 
 The stored `specspine` integer is the format major. SpecSpine tooling and
 skill releases use semantic versions independently: minor and patch releases
-MUST continue to accept the same v3 storage contract. Change the stored integer
+MUST continue to accept the same v4 contract. Change the stored integer
 only for a breaking storage or semantic-contract change; do not store tool
 minor or patch versions in a Spine.
 
 SpecSpine is a human-readable specification graph plus a small deterministic
 manifest. Markdown specification nodes own meaning. `specspine.json` owns
-completeness, reconstruction blockers, and exact non-Markdown assets.
+completeness, reconstruction blockers, and normative non-Markdown assets.
 Deterministic `_INDEX.md` files, embeddings, databases, and workspace graphs
 are disposable.
 
@@ -55,7 +55,7 @@ expose the same schema beside this reference as `specspine.schema.json`:
 
 ```json
 {
-  "specspine": 3,
+  "specspine": 4,
   "project": "example",
   "implementation_freedom": "contract-equivalent",
   "areas": [
@@ -102,10 +102,10 @@ expose the same schema beside this reference as `specspine.schema.json`:
 
 The root object has these required fields:
 
-- `specspine`: integer `3`;
+- `specspine`: integer `4`;
 - `project`: nonempty stable project name;
-- `implementation_freedom`: `contract-equivalent`,
-  `architecture-constrained`, or `exact`;
+- `implementation_freedom`: `contract-equivalent` or
+  `architecture-constrained`;
 - `areas`: one completeness profile for every non-index document;
 - `assets`: the complete registry of non-Markdown files in the Spine.
 
@@ -125,7 +125,7 @@ facet `missing`; Map preserves the accepted facets of an existing owner.
 
 ### Presentation profile
 
-Format v3 has one data and semantic model. An optional `presentation` object
+Format v4 has one data and semantic model. An optional `presentation` object
 may localize and order its Markdown rendering without creating a project-
 specific dialect:
 
@@ -211,10 +211,12 @@ Extract, bootstrap, and index generation; consumers must not copy its values.
 
 - `contract-equivalent` permits any internals satisfying all normative
   behavior, interfaces, data rules, qualities, and verification;
-- `architecture-constrained` additionally requires the specified component
-  boundaries and interactions;
-- `exact` requires implementation choices explicitly declared exact by the
-  specifications. It does not turn undocumented source details into intent.
+- `architecture-constrained` additionally requires explicitly accepted owner
+  boundaries, interactions, topology, and mechanisms.
+
+Neither value permits canonical documents to describe private implementation.
+An architecture constraint is admissible only when the accepted system
+contract intentionally restricts replacement implementations.
 
 ### Areas and computed status
 
@@ -270,8 +272,8 @@ Each record has exactly:
 
 - `path`: unique root-relative path;
 - `owner`: non-index document ID;
-- `role`: `interface-contract`, `data-schema`, `execution-contract`,
-  `scenario`, `fixture`, or `verification`;
+- `role`: `interface-contract`, `data-schema`, `scenario`, `fixture`, or
+  `verification`;
 - `format`: nonempty precise format identifier;
 - `normative`: whether conformance depends on the asset;
 - `verifies`: zero or more globally unique `VER-*` IDs.
@@ -280,13 +282,10 @@ The file MUST exist and its owner MUST link to it using a relative Markdown
 link. Registration establishes identity and machine retrieval; the owner
 explains purpose, scope, versioning, and authority.
 
-Use an `execution-contract` only when reconstruction depends on exact
-toolchains or versions, deployable or build units, required generators, or
-build and verification entry points. Its Markdown owner explains which fields
-are normative and why. Do not register ordinary lockfiles, build output,
-implementation scripts, or incidental local tooling. Connect the affected
-owner through a precise relation such as `specified-by`, `constrained-by`, or
-`depends-on` so task closure retrieves the contract when it applies.
+Do not register lockfiles, build output, implementation scripts, toolchain
+recipes, or incidental local tooling. An accepted topology or mechanism is
+stated as an architecture constraint and related to its canonical owner; the
+private recipe that implements it remains outside the Spine.
 
 ## Deterministic indexes
 
@@ -372,15 +371,17 @@ not document kinds. Project-specific kinds use `x-*`.
 
 Use only sections that carry durable information:
 
-- `Responsibility` — canonical ownership;
-- `Boundaries` — what is inside, outside, or owned elsewhere;
-- `Behavior` — externally significant outcomes and coordination;
-- `Interfaces` — APIs, commands, events, ports, and exact asset links;
+- `Responsibility` — canonical boundary ownership;
+- `Boundaries` — accepted inputs, emitted outputs, controls, owned authority,
+  and delegated responsibilities;
+- `Behavior` — owner-relative observable outcomes and coordination;
+- `Interfaces` — boundary APIs, commands, events, ports, and contract links;
 - `Information model` — durable entities, values, and relationships;
 - `Data ownership` — creation, mutation, reading, and consistency authority;
-- `Lifecycle and invariants` — states, transitions, and durable truths;
-- `Failure behavior` — errors, retry, degradation, compensation, and recovery;
-- `Edge cases` — only architecture-significant boundaries;
+- `Lifecycle and invariants` — boundary-visible states, transitions, and truths;
+- `Failure behavior` — boundary-visible errors, retry, degradation,
+  compensation, and recovery;
+- `Edge cases` — only boundary-significant conditions;
 - `Configuration contract` — settings, defaults, precedence, invalid
   combinations, and reload behavior;
 - `Compatibility` — versioning, interoperability, deprecation, and supported
@@ -391,16 +392,18 @@ Use only sections that carry durable information:
 - `Quality constraints` — measurable non-functional requirements;
 - `Verification` — implementation-independent conformance criteria;
 - `Decisions` and `Constraints` — accepted intent;
-- `Observed` — selected architecture-significant exception evidence, never an
+- `Observed` — selected boundary-significant exception evidence, never an
   implementation inventory;
 - `Inferred` — explicitly unconfirmed interpretation;
 - `Open questions` — unresolved choices;
 - `Known divergences` — confirmed differences between intent and reality;
-- `Implementation` — representative repository-relative evidence paths;
+- `Implementation` — two to six non-normative representative
+  repository-relative navigation anchors, never a walkthrough;
 - `Terminology`, `Risks`, and `Rationale and trade-offs` when durable.
 
-Do not store plans, tasks, delivery acceptance, progress, changelogs, generated
-source walkthroughs, or temporary feature deltas. Promote accepted durable
+Do not store plans, tasks, delivery acceptance, progress, changelogs, private
+algorithms, call sequences, helpers, framework state, generated source
+walkthroughs, or temporary feature deltas. Promote accepted durable boundary
 meaning into its canonical owner.
 
 ## Normative statements
@@ -438,7 +441,7 @@ label and target the owning document:
 [GUA-session-revocation](session-management.md)
 ```
 
-Do not add a URL fragment. Semantic IDs are globally unique in v3. A replaced
+Do not add a URL fragment. Semantic IDs are globally unique in v4. A replaced
 statement retains a tombstone linked to its successor.
 
 Canonical headings determine prefixes: `Decisions`/`DEC`,
@@ -556,4 +559,4 @@ An area is `ready` only when a capable agent can implement it without source
 access or policy invention, using the selected closure, registered assets, and
 verification criteria. `ready` claims contract or architecture equivalence
 according to `implementation_freedom`; it never claims source-code identity
-unless exact choices are themselves specified.
+or reproduction of private implementation choices.

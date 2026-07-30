@@ -125,6 +125,22 @@ class VocabularyContractTests(unittest.TestCase):
             definitions["asset"]["properties"]["verifies"]["items"]["pattern"],
         )
 
+    def test_v4_excludes_private_implementation_contracts(self):
+        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+        semantics = (ROOT / "docs/reference/semantics.md").read_text(encoding="utf-8")
+        format_reference = (ROOT / "docs/reference/format.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertEqual(4, self.vocabulary["format_major"])
+        self.assertEqual(4, schema["properties"]["specspine"]["const"])
+        self.assertNotIn("exact", self.vocabulary["implementation_freedom"])
+        self.assertNotIn("execution-contract", self.vocabulary["asset_roles"])
+        self.assertIn("“External” is relative to the canonical owner", semantics)
+        self.assertIn("Apply the replacement test", semantics)
+        self.assertIn("Do not canonize private algorithms", semantics)
+        self.assertIn("never a walkthrough", format_reference)
+
     def test_glossary_is_current(self):
         completed = subprocess.run(
             [sys.executable, str(ROOT / "shared/scripts/render_vocabulary.py")],

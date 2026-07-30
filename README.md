@@ -1,12 +1,12 @@
 # SpecSpine
 
-**A reconstructable system specification and architectural memory layer for
-AI-assisted software development.**
+**Durable boundary contracts and architectural ownership for AI-assisted
+software development.**
 
-SpecSpine preserves accepted durable system intent in linked Markdown
-specifications. Source code remains the authority for current implementation
-reality; SpecSpine does not mirror source or claim that implementation conforms
-to intent.
+SpecSpine preserves accepted durable intent as a graph of canonical owners and
+their owner-relative boundary contracts. Source code owns internal mechanisms
+and current implementation reality; SpecSpine does not mirror source or claim
+that implementation conforms to intent.
 
 A sufficiently specified area can be independently reimplemented from its
 normative closure and checked against implementation-independent verification.
@@ -14,15 +14,15 @@ normative closure and checked against implementation-independent verification.
 ## Model
 
 - Each architectural concept has one canonical owner.
-- Responsibilities, boundaries, behavior, contracts, and typed relationships
-  express accepted durable intent.
-- `OBS` records only architecture-significant exception evidence: a material
+- Responsibilities, boundary inputs and outputs, controls, data authority,
+  observable behavior, and typed relationships express accepted durable intent.
+- `OBS` records only boundary-significant exception evidence: a material
   intent gap, confirmed divergence, unresolved question, or surprising
   ownership boundary. It is not an implementation inventory.
 - `Known divergences` links accepted intent to conflicting `OBS` evidence
   without silently preferring either side.
 - `specspine.json` records completeness, blockers, inspection coverage,
-  implementation freedom, and exact assets.
+  implementation freedom, and normative assets.
 - Root `README.md` explains SpecSpine; every `_INDEX.md`, including the root,
   provides the same deterministic physical-navigation structure. Skills
   accelerate retrieval and maintenance but are not required to read a Spine.

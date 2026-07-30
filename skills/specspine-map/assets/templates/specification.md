@@ -6,12 +6,13 @@
 
 ## Responsibility
 
-Describe what this concept owns and why it exists.
+For a new Map owner, state that this document records evidence about one
+observed candidate boundary and name its apparent responsibility.
 
 ## Boundaries
 
-Describe what belongs to this concept and what belongs elsewhere. Link to the
-canonical specifications for neighboring responsibilities.
+Preserve accepted boundary prose for an existing owner. For a new owner, keep
+code-derived boundary facts in `Observed`.
 
 ## Behavior
 
@@ -38,7 +39,7 @@ a non-trivial topology, interaction, lifecycle, or data relationship. Add
 `Interfaces`, `Information model`, `Data ownership`, `Lifecycle and
 invariants`, `Failure behavior`, `Edge cases`, `Decisions`, `Constraints`,
 `Observed`, `Inferred`, `Known divergences`, or `Open questions` only when
-useful. Retain `Observed` only for architecture-significant intent gaps,
+useful. Retain `Observed` only for boundary-significant intent gaps,
 divergences, unresolved questions, or surprising navigation; do not mirror
-matching intent or implementation detail. Promote independently owned behavior or cross-cutting policy to its own
+matching intent or private implementation detail. Promote independently owned behavior or cross-cutting policy to its own
 node. Do not copy a feature-SDD outline or create empty sections.

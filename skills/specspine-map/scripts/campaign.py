@@ -3272,7 +3272,7 @@ def command_seed_from_spine(args: argparse.Namespace) -> dict[str, Any]:
     ]
     if envelope_blockers:
         raise CampaignError(
-            "seed-from-spine accepts only the current SpecSpine v3 format: "
+            "seed-from-spine accepts only the current SpecSpine v4 format: "
             + json.dumps(envelope_blockers, ensure_ascii=False)
         )
     documents = document_hashes(spine_root)
@@ -6393,7 +6393,7 @@ def terminal_gates(
             isinstance(source_pass, dict) and units_verified
         ),
         "integration_current": current_integration(ledger),
-        "spine_v3_clean": (
+        "spine_v4_clean": (
             isinstance(ledger.get("integration_pass"), dict)
             and ledger["integration_pass"].get("checker_clean") is True
         ),
@@ -6524,7 +6524,7 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
         and gates["publications_integrated"]
         and gates["operation_snapshot_current"]
         and gates["integration_current"]
-        and gates["spine_v3_clean"]
+        and gates["spine_v4_clean"]
     )
     return {
         "campaign_id": summary["campaign_id"],

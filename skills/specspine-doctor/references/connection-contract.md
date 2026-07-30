@@ -3,7 +3,7 @@
 ## Purpose
 
 The connection records operator-owned SpecSpine configuration in persistent
-project-agent instructions and ensures the configured v3 root files exist. The
+project-agent instructions and ensures the configured v4 root files exist. The
 bootstrap gives every project agent a stable route to architectural context. It
 is project configuration, not architecture and not a downstream workflow
 adapter.
@@ -85,7 +85,7 @@ directory indexes use the same deterministic navigation structure.
 |---|---|
 | Path absent | Offer `English`; create the directory, README, index, and manifest only after confirmation |
 | Empty directory | Treat as new; offer `English` |
-| Complete v3 root files present | Read and preserve them; offer the README's clearly detected language |
+| Complete v4 root files present | Read and preserve them; offer the README's clearly detected language |
 | Some root files present | Report an incomplete root; require confirmation before creating the missing files |
 | Empty or mixed-language `README.md` | Explain uncertainty; offer `English`; accept another explicit choice |
 | Nonempty directory without root files | Report immediate entries; do not infer their language; require confirmation before adding the pair |
@@ -176,7 +176,7 @@ all other bytes and do not delete an otherwise empty instruction file. It does
 not inspect, validate, modify, or remove the configured Spine.
 
 Connect is satisfied when the selected file contains exactly one current
-managed region with the requested values and its configured v3 root files exist.
+managed region with the requested values and its configured v4 root files exist.
 Disconnect is satisfied when the selected file contains no managed region.
 When the requested state is already satisfied, report it and write nothing.
 

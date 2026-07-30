@@ -6,13 +6,17 @@ Never read, copy, or invent file lists. Discovery hierarchy and lead
 boundaries are provenance, not architecture.
 Use only predicates listed in `allowed_relationship_types` from the synthesis packet unless a genuinely project-specific `x-*` relation is unavoidable. `existing_owners` maps current owner IDs to canonical documents and titles; use it for existing graph targets and uncovered owner updates.
 First perform one global semantic pass across all sources. Merge sources that
-express one durable responsibility even when parents or names differ. Keep
+express one durable responsibility and one boundary contract even when parents or names differ. Keep
 independently evolving responsibilities separate. Remove directory-shaped,
 framework, tooling, `models`, `utils`, and `services` categories unless the
 descriptions establish a project-specific architectural contract. Resolve
 overlap by responsibility, interfaces, lifecycle, state, data ownership,
 failures, and consumers. Then enforce the operation's inclusion and exclusion
 rules, classify existing coverage, and construct the complete graph.
+Merge peers only when consumers interact with them through the same contract
+and their input model, configuration, state, lifecycle, failure behavior, and
+reason to change are materially the same. A shared registry, renderer, host,
+framework, helper, or package is not evidence of shared ownership.
 Do not create a topic merely for a facet such as failures, configuration,
 interfaces, tests, or observability. Keep that facet with its responsible
 owner unless the sources establish an independently evolving mechanism with
@@ -39,10 +43,11 @@ For exhaustive completion, audit peer families exposed by evidence in
 `peer_family_review`; each must be dispositioned or retained as an open lead.
 Allowed statuses are exactly `accounted`, `none-found`, and `not-required`.
 Use `none-found` only with a concrete reason; increment may use `not-required`.
-Use `accounted` when descriptions expose named peer members: every member must
-remain explicit in a final topic responsibility, be separately covered or
-supporting, or have an `open_lead`. Merging peers under one shared owner must
-not erase their names or distinct observable behavior.
+Use `accounted` when descriptions expose named peer members: every member with
+a distinct boundary contract must remain a final topic, be separately covered
+or supporting, or have an `open_lead`. Do not preserve distinct peers merely
+as names inside a family owner. Do not split one peer into documents for its
+configuration, failures, interfaces, or private stages.
 
 When discovery is closed, classify every canonical topic in sequence. For
 each, use SpecSpine semantic extraction to find candidate owners, then compare

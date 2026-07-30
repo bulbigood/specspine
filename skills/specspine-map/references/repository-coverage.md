@@ -19,7 +19,7 @@ Write one result:
 ```json
 {
   "status": "clear",
-  "reason": "Every architecture-significant topology root is represented.",
+  "reason": "Every boundary-significant topology root is represented.",
   "inspected_roots": ["workspace manifests", "runtime entry points"],
   "open_leads": []
 }

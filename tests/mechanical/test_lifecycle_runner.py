@@ -124,7 +124,7 @@ class LifecycleRunnerTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (workspace / "specspine/specspine.json").write_text(json.dumps({
-                "specspine": 3,
+                "specspine": 4,
                 "project": "test",
                 "implementation_freedom": "contract-equivalent",
                 "areas": [{

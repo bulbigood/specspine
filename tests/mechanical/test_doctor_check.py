@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 MODULE_PATH = Path(__file__).parents[2] / "shared/scripts/check_spine.py"
-SPEC = importlib.util.spec_from_file_location("specspine_v3_check", MODULE_PATH)
+SPEC = importlib.util.spec_from_file_location("specspine_v4_check", MODULE_PATH)
 assert SPEC and SPEC.loader
 CHECKER = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = CHECKER
@@ -76,7 +76,7 @@ class DoctorCheckerV3Tests(unittest.TestCase):
                     if (match := CHECKER.IDENTITY_RE.fullmatch(line))
                 )
             manifest = {
-                "specspine": 3,
+                "specspine": 4,
                 "project": "test",
                 "implementation_freedom": "contract-equivalent",
                 "areas": [
@@ -107,7 +107,7 @@ class DoctorCheckerV3Tests(unittest.TestCase):
     def codes(self, root):
         return {item.code for item in CHECKER.check(root)}
 
-    def test_accepts_strict_v3_spine(self):
+    def test_accepts_strict_v4_spine(self):
         self.assertEqual([], [item for item in CHECKER.check(self.spine()) if item.severity == "error"])
 
     def test_default_order_prioritizes_divergence_before_evidence(self):
@@ -149,7 +149,7 @@ class DoctorCheckerV3Tests(unittest.TestCase):
 
     def test_accepts_localized_presentation_headings(self):
         manifest = {
-            "specspine": 3,
+            "specspine": 4,
             "project": "test",
             "implementation_freedom": "contract-equivalent",
             "presentation": {
@@ -405,7 +405,7 @@ class DoctorCheckerV3Tests(unittest.TestCase):
         ))
         self.assertIn("DIVERGENCE_INTENDED_KIND", self.codes(root))
 
-    def test_accepts_v3_normative_claims_and_relations(self):
+    def test_accepts_v4_normative_claims_and_relations(self):
         normative = PAYMENTS.replace(
             "## Constraints",
             """## Requirements
@@ -531,7 +531,7 @@ class DoctorCheckerV3Tests(unittest.TestCase):
         (root / "specspine.json").write_text(json.dumps(manifest))
         self.assertNotIn("UNREGISTERED_SPEC_ASSET", self.codes(root))
 
-    def test_accepts_owned_execution_contract_asset(self):
+    def test_rejects_legacy_execution_contract_asset(self):
         root = self.spine()
         contracts = root / "contracts"
         contracts.mkdir()
@@ -558,7 +558,7 @@ class DoctorCheckerV3Tests(unittest.TestCase):
         })
         (root / "specspine.json").write_text(json.dumps(manifest))
 
-        self.assertNotIn("MANIFEST_ASSET_ROLE", self.codes(root))
+        self.assertIn("MANIFEST_ASSET_ROLE", self.codes(root))
         self.assertNotIn("UNREGISTERED_SPEC_ASSET", self.codes(root))
 
     def test_unreachable_node_is_error(self):

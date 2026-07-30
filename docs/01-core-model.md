@@ -2,10 +2,10 @@
 
 ## Purpose
 
-SpecSpine is a human-readable, long-lived system specification and
-architectural memory layer for people and AI agents. It stores responsibilities,
-durable behavior, contracts, accepted normative claims, uncertainty, and
-relationships without duplicating implementation source.
+SpecSpine is a human-readable, long-lived graph of canonical owners and their
+durable boundary contracts for people and AI agents. It stores what each owner
+must provide across its boundary and the minimum architecture needed to assign
+that responsibility, without duplicating implementation source.
 
 Its primary success criterion is:
 
@@ -26,8 +26,7 @@ SpecSpine MUST:
 - form a connected typed graph;
 - preserve accepted intent, evidence provenance, and unresolved uncertainty;
 - support deterministic script-only extraction of task-specific context;
-- avoid reproducing implementation detail already represented more clearly by
-  code;
+- exclude private implementation detail owned by code;
 - permit owned machine-readable contracts and implementation-independent
   verification where exact reconstruction semantics require them.
 
@@ -35,11 +34,10 @@ SpecSpine MUST:
 
 SpecSpine is the source of truth for accepted, durable system intent.
 
-Accepted intent includes the durable architectural model expressed by
-responsibility, boundaries, behavior, interfaces, information and data
-ownership, lifecycle, failure behavior, configuration, compatibility, and
-typed relationships. Addressable normative sections state exact accepted
-claims. Evidence, uncertainty, divergence, implementation navigation, risks,
+Accepted intent includes durable owner-relative contracts: responsibility,
+inputs and outputs, controls, data authority, observable lifecycle and failure
+behavior, compatibility, relationships, and explicit architecture constraints.
+Evidence, uncertainty, divergence, implementation navigation, risks,
 terminology, and rationale retain their narrower non-intent semantics.
 
 | Knowledge | Canonical source |
@@ -109,18 +107,24 @@ used.
 
 Include information that:
 
-- defines stable responsibility or ownership;
-- describes an architectural relationship;
-- records accepted long-lived intent;
+- defines a stable owner responsibility or boundary;
+- describes an owner-to-owner relationship;
+- records accepted long-lived boundary intent;
 - defines durable requirements, guarantees, interfaces, invariants, quality
   constraints, or implementation-independent verification;
-- preserves architecture-significant uncertainty or divergence;
+- preserves boundary-significant uncertainty or divergence;
 - remains useful across multiple changes.
 
 Keep proposed feature deltas, temporary delivery acceptance, implementation
 tasks, delivery state, release scope, pull-request details, temporary runtime
 metrics, and source-level walkthroughs in downstream systems. Promote accepted
 durable behavior and reusable black-box verification into SpecSpine.
+
+Use the replacement test: a statement belongs here when it must remain true if
+the owner is reimplemented behind the same boundary. Private algorithms, call
+sequences, helpers, framework state, class/function decomposition, and
+incidental source layout belong to code unless an accepted architecture
+constraint deliberately fixes them.
 
 ## Non-goals
 

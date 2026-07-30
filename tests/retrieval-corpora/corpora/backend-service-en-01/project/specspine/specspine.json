@@ -1,4 +1,4 @@
-{"specspine":3,"project":"backend-service-en-01","implementation_freedom":"contract-equivalent","areas":[
+{"specspine": 4,"project":"backend-service-en-01","implementation_freedom":"contract-equivalent","areas":[
 {"owner":"authentication","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
 {"owner":"authorization","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},
 {"owner":"background-jobs","facets":{"architecture":"complete","behavior":"not-applicable","interfaces":"not-applicable","data":"not-applicable","failure":"not-applicable","quality":"not-applicable","verification":"not-applicable"},"blockers":[]},

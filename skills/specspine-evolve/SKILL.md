@@ -5,9 +5,9 @@ description: Create or evolve accepted architecture and durable system specifica
 
 # SpecSpine Evolve
 
-Maintain a linked network of architecture and durable system specifications.
-Record stable responsibilities, requirements, guarantees, invariants,
-interfaces, quality constraints, verification contracts, and uncertainty
+Maintain a graph of canonical owners and durable boundary contracts.
+Record stable responsibilities, inputs, outputs, controls, data authority,
+guarantees, invariants, relationships, verification contracts, and uncertainty
 without turning the Spine into a delivery or implementation workflow. This file
 owns Evolve's authority and editing procedure; the linked format and semantics
 references own document structure and claim meaning.
@@ -21,7 +21,7 @@ references own document structure and claim meaning.
 - Use [references/spec-glossary.md](references/spec-glossary.md) as the index
   of reserved identifiers, tokens, kinds, relations, and manifest values.
 - Read `specspine.json.presentation` before writing Markdown; use its rendered
-  headings and order without changing canonical v3 meaning.
+  headings and order without changing canonical v4 meaning.
 - Read [references/spec-semantics.md](references/spec-semantics.md) before
   adding, reclassifying, conflicting, or resolving an architectural claim. It
   is the canonical owner of claim kinds, authority, and conflict handling.
@@ -93,7 +93,7 @@ starting a second navigation pass.
    the index and relevant specification. Compare the requested material with
    the terminal-detail boundary in `references/spec-format.md`. If the request
    adds no durable normative or architectural meaning within Evolve's scope and
-   only asks for implementation mechanics, stop without editing or seeking
+   only asks for private implementation mechanics, stop without editing or seeking
    implementation evidence.
 3. Choose owners and decomposition using `references/spec-format.md`. Reuse an
    existing owner when possible; do not create a specification merely because a
@@ -178,8 +178,7 @@ automatic authority to move documents or split owners.
   `references/spec-format.md`.
 - Never imply that documented intent is implemented or conformant.
 - Never silently resolve uncertainty, conflicts, or ownership ambiguity.
-- Keep specifications linked, source-independent, and concise at their chosen
-  reconstruction profile. Exact durable contracts may use the machine-readable
-  assets allowed by the canonical format.
+- Keep specifications linked, source-independent, boundary-oriented, and
+  concise. Reject content that fails the replacement test.
 - Never omit the final mechanical gate after a write, including initialization,
   rename, merge, split, and deletion.

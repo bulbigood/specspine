@@ -1,5 +1,5 @@
 {
-  "format_major": 3,
+  "format_major": 4,
   "reserved_paths": {
     "manifest": "specspine.json",
     "index": "_INDEX.md",
@@ -12,7 +12,7 @@
     "index": "Deterministic physical navigation; never owns project claims.",
     "system": "A whole system boundary.",
     "subsystem": "A major independently owned part of a system.",
-    "component": "A stable architectural unit with a distinct responsibility.",
+    "component": "A stable owner with a distinct responsibility and boundary contract.",
     "capability": "A durable system ability spanning one or more units.",
     "behavior": "Externally significant behavior or coordination.",
     "interface": "An API, command, event, port, protocol, or integration boundary.",
@@ -42,7 +42,7 @@
     "INV": {"section": "invariants", "meaning": "Truth that holds across all valid states and transitions.", "normative": true, "supports_facets": ["behavior"]},
     "QLT": {"section": "quality-constraints", "meaning": "Measurable non-functional constraint.", "normative": true, "supports_facets": ["quality"]},
     "VER": {"section": "verification", "meaning": "Implementation-independent conformance criterion.", "normative": true},
-    "OBS": {"section": "observed", "meaning": "Confirmed architecture-significant repository evidence; not intent.", "normative": false},
+    "OBS": {"section": "observed", "meaning": "Confirmed boundary-significant repository evidence; not intent.", "normative": false},
     "INF": {"section": "inferred", "meaning": "Explicitly unconfirmed interpretation; not intent.", "normative": false},
     "OQ": {"section": "open-questions", "meaning": "Unresolved choice; it blocks reconstruction only when listed in manifest blockers.", "normative": false}
   },
@@ -70,12 +70,12 @@
     "migrates-from": "Source is the migration successor of the target."
   },
   "facets": {
-    "architecture": "Responsibilities, boundaries, decomposition, and relationships.",
-    "behavior": "Externally significant outcomes and coordination.",
-    "interfaces": "APIs, commands, events, ports, protocols, and contracts.",
-    "data": "Information models, ownership, mutation, and consistency.",
-    "failure": "Errors, retry, degradation, compensation, and recovery.",
-    "quality": "Measurable non-functional constraints.",
+    "architecture": "Owner responsibility, boundary, decomposition, relationships, and explicit architecture constraints.",
+    "behavior": "Owner-relative observable outcomes and coordination.",
+    "interfaces": "Inputs, outputs, APIs, commands, events, ports, protocols, and contracts crossing the owner boundary.",
+    "data": "Boundary information models, data authority, mutation rights, and consistency promises.",
+    "failure": "Boundary-visible errors, retry, degradation, compensation, and recovery.",
+    "quality": "Measurable boundary qualities.",
     "verification": "Implementation-independent conformance criteria."
   },
   "facet_values": {
@@ -97,8 +97,7 @@
   },
   "implementation_freedom": {
     "contract-equivalent": "Any internals satisfying normative contracts are permitted.",
-    "architecture-constrained": "Specified component boundaries and interactions are also required.",
-    "exact": "Choices explicitly declared exact are required."
+    "architecture-constrained": "Explicitly accepted owner boundaries, interactions, topology, and mechanisms are also required."
   },
   "computed_statuses": {
     "blocked": "At least one manifest blocker is present.",
@@ -107,8 +106,7 @@
   },
   "asset_roles": {
     "interface-contract": "Machine-readable interface contract.",
-    "data-schema": "Machine-readable data schema.",
-    "execution-contract": "Exact reconstruction-critical toolchain or execution contract.",
+    "data-schema": "Machine-readable boundary data schema.",
     "scenario": "Implementation-independent conformance scenario.",
     "fixture": "Normative conformance fixture.",
     "verification": "Verification asset."
@@ -143,14 +141,14 @@
     "terminology": "Terminology"
   },
   "heading_meanings": {
-    "responsibility": "Canonical ownership and purpose.",
-    "boundaries": "What is inside, outside, or owned elsewhere.",
-    "behavior": "Externally significant outcomes and coordination.",
-    "interfaces": "APIs, commands, events, ports, protocols, and exact contract links.",
+    "responsibility": "Canonical boundary ownership and purpose.",
+    "boundaries": "What the owner accepts, emits, controls, owns, and delegates elsewhere.",
+    "behavior": "Owner-relative observable outcomes and coordination.",
+    "interfaces": "Boundary inputs, outputs, APIs, commands, events, ports, protocols, and contract links.",
     "information-model": "Durable entities, values, and relationships.",
     "data-ownership": "Creation, mutation, reading, and consistency authority.",
-    "lifecycle-and-invariants": "States, transitions, and durable truths.",
-    "failure-behavior": "Errors, retry, degradation, compensation, and recovery.",
+    "lifecycle-and-invariants": "Boundary-visible states, transitions, and durable truths.",
+    "failure-behavior": "Boundary-visible errors, retry, degradation, compensation, and recovery.",
     "edge-cases": "Architecture-significant boundary conditions.",
     "configuration-contract": "Settings, defaults, precedence, validation, and reload behavior.",
     "compatibility": "Versioning, interoperability, deprecation, and evolution.",
@@ -163,18 +161,18 @@
     "decisions": "Accepted architectural choices.",
     "constraints": "Accepted limits on valid implementations.",
     "known-divergences": "Confirmed conflicts between accepted intent and observations.",
-    "observed": "Confirmed architecture-significant repository evidence.",
+    "observed": "Confirmed boundary-significant repository evidence.",
     "inferred": "Explicitly unconfirmed interpretation.",
     "open-questions": "Unresolved architectural choices.",
-    "implementation": "Representative repository-relative navigation evidence.",
+    "implementation": "Non-normative representative repository-relative navigation anchors; never a source walkthrough.",
     "risks": "Durable architecture-relevant risks.",
     "rationale-and-trade-offs": "Reasons and consequences behind accepted choices.",
     "terminology": "Project-specific domain terms and exact meanings."
   },
   "manifest_fields": {
-    "specspine": "Stored format major; exactly 3 for this contract.",
+    "specspine": "Stored format major; exactly 4 for this contract.",
     "project": "Stable nonempty project name.",
-    "implementation_freedom": "How closely a reconstruction must preserve implementation choices.",
+    "implementation_freedom": "Whether explicit architecture constraints supplement boundary-contract equivalence.",
     "areas": "Completeness and inspection records for non-index document owners.",
     "assets": "Complete registry of non-Markdown files inside the Spine.",
     "presentation": "Optional language, heading, order, and index rendering profile.",

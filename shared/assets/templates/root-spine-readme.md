@@ -29,7 +29,7 @@ This directory contains the project's long-lived architectural intent and archit
 - `INV` — Truth that holds across all valid states and transitions.
 - `QLT` — Measurable non-functional constraint.
 - `VER` — Implementation-independent conformance criterion.
-- `OBS` — Confirmed architecture-significant repository evidence; not intent.
+- `OBS` — Confirmed boundary-significant repository evidence; not intent.
 - `INF` — Explicitly unconfirmed interpretation; not intent.
 - `OQ` — Unresolved choice; it blocks reconstruction only when listed in manifest blockers.
 
@@ -38,7 +38,7 @@ This directory contains the project's long-lived architectural intent and archit
 - `index` — Deterministic physical navigation; never owns project claims.
 - `system` — A whole system boundary.
 - `subsystem` — A major independently owned part of a system.
-- `component` — A stable architectural unit with a distinct responsibility.
+- `component` — A stable owner with a distinct responsibility and boundary contract.
 - `capability` — A durable system ability spanning one or more units.
 - `behavior` — Externally significant behavior or coordination.
 - `interface` — An API, command, event, port, protocol, or integration boundary.
@@ -49,14 +49,14 @@ This directory contains the project's long-lived architectural intent and archit
 
 ### Canonical section keys
 
-- `responsibility` — Canonical ownership and purpose.
-- `boundaries` — What is inside, outside, or owned elsewhere.
-- `behavior` — Externally significant outcomes and coordination.
-- `interfaces` — APIs, commands, events, ports, protocols, and exact contract links.
+- `responsibility` — Canonical boundary ownership and purpose.
+- `boundaries` — What the owner accepts, emits, controls, owns, and delegates elsewhere.
+- `behavior` — Owner-relative observable outcomes and coordination.
+- `interfaces` — Boundary inputs, outputs, APIs, commands, events, ports, protocols, and contract links.
 - `information-model` — Durable entities, values, and relationships.
 - `data-ownership` — Creation, mutation, reading, and consistency authority.
-- `lifecycle-and-invariants` — States, transitions, and durable truths.
-- `failure-behavior` — Errors, retry, degradation, compensation, and recovery.
+- `lifecycle-and-invariants` — Boundary-visible states, transitions, and durable truths.
+- `failure-behavior` — Boundary-visible errors, retry, degradation, compensation, and recovery.
 - `edge-cases` — Architecture-significant boundary conditions.
 - `configuration-contract` — Settings, defaults, precedence, validation, and reload behavior.
 - `compatibility` — Versioning, interoperability, deprecation, and evolution.
@@ -69,10 +69,10 @@ This directory contains the project's long-lived architectural intent and archit
 - `decisions` — Accepted architectural choices.
 - `constraints` — Accepted limits on valid implementations.
 - `known-divergences` — Confirmed conflicts between accepted intent and observations.
-- `observed` — Confirmed architecture-significant repository evidence.
+- `observed` — Confirmed boundary-significant repository evidence.
 - `inferred` — Explicitly unconfirmed interpretation.
 - `open-questions` — Unresolved architectural choices.
-- `implementation` — Representative repository-relative navigation evidence.
+- `implementation` — Non-normative representative repository-relative navigation anchors; never a source walkthrough.
 - `risks` — Durable architecture-relevant risks.
 - `rationale-and-trade-offs` — Reasons and consequences behind accepted choices.
 - `terminology` — Project-specific domain terms and exact meanings.
@@ -103,12 +103,12 @@ This directory contains the project's long-lived architectural intent and archit
 
 ### Facets
 
-- `architecture` — Responsibilities, boundaries, decomposition, and relationships.
-- `behavior` — Externally significant outcomes and coordination.
-- `interfaces` — APIs, commands, events, ports, protocols, and contracts.
-- `data` — Information models, ownership, mutation, and consistency.
-- `failure` — Errors, retry, degradation, compensation, and recovery.
-- `quality` — Measurable non-functional constraints.
+- `architecture` — Owner responsibility, boundary, decomposition, relationships, and explicit architecture constraints.
+- `behavior` — Owner-relative observable outcomes and coordination.
+- `interfaces` — Inputs, outputs, APIs, commands, events, ports, protocols, and contracts crossing the owner boundary.
+- `data` — Boundary information models, data authority, mutation rights, and consistency promises.
+- `failure` — Boundary-visible errors, retry, degradation, compensation, and recovery.
+- `quality` — Measurable boundary qualities.
 - `verification` — Implementation-independent conformance criteria.
 
 ### Facet values
@@ -134,8 +134,7 @@ This directory contains the project's long-lived architectural intent and archit
 ### Implementation freedom
 
 - `contract-equivalent` — Any internals satisfying normative contracts are permitted.
-- `architecture-constrained` — Specified component boundaries and interactions are also required.
-- `exact` — Choices explicitly declared exact are required.
+- `architecture-constrained` — Explicitly accepted owner boundaries, interactions, topology, and mechanisms are also required.
 
 ### Computed statuses
 
@@ -146,17 +145,16 @@ This directory contains the project's long-lived architectural intent and archit
 ### Asset roles
 
 - `interface-contract` — Machine-readable interface contract.
-- `data-schema` — Machine-readable data schema.
-- `execution-contract` — Exact reconstruction-critical toolchain or execution contract.
+- `data-schema` — Machine-readable boundary data schema.
 - `scenario` — Implementation-independent conformance scenario.
 - `fixture` — Normative conformance fixture.
 - `verification` — Verification asset.
 
 ### Manifest fields
 
-- `specspine` — Stored format major; exactly 3 for this contract.
+- `specspine` — Stored format major; exactly 4 for this contract.
 - `project` — Stable nonempty project name.
-- `implementation_freedom` — How closely a reconstruction must preserve implementation choices.
+- `implementation_freedom` — Whether explicit architecture constraints supplement boundary-contract equivalence.
 - `areas` — Completeness and inspection records for non-index document owners.
 - `assets` — Complete registry of non-Markdown files inside the Spine.
 - `presentation` — Optional language, heading, order, and index rendering profile.

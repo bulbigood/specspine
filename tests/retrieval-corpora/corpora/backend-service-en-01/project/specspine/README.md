@@ -1,6 +1,6 @@
 # backend-service-en-01 architecture
 
-SpecSpine is the project's long-lived, linked specification and architectural memory used to reconstruct contract-equivalent implementations.
+SpecSpine is the project's graph of canonical owners and durable boundary contracts used to reconstruct contract-equivalent implementations.
 
 This directory contains the project's long-lived architectural intent and architecture-relevant repository observations.
 
@@ -29,7 +29,7 @@ This directory contains the project's long-lived architectural intent and archit
 - `INV` — Truth that holds across all valid states and transitions.
 - `QLT` — Measurable non-functional constraint.
 - `VER` — Implementation-independent conformance criterion.
-- `OBS` — Confirmed architecture-significant repository evidence; not intent.
+- `OBS` — Confirmed boundary-significant repository evidence; not intent.
 - `INF` — Explicitly unconfirmed interpretation; not intent.
 - `OQ` — Unresolved choice; it blocks reconstruction only when listed in manifest blockers.
 
@@ -52,7 +52,7 @@ This directory contains the project's long-lived architectural intent and archit
 - `responsibility` — Canonical ownership and purpose.
 - `boundaries` — What is inside, outside, or owned elsewhere.
 - `behavior` — Externally significant outcomes and coordination.
-- `interfaces` — APIs, commands, events, ports, protocols, and exact contract links.
+- `interfaces` — Boundary inputs, outputs, APIs, commands, events, ports, protocols, and contract links.
 - `information-model` — Durable entities, values, and relationships.
 - `data-ownership` — Creation, mutation, reading, and consistency authority.
 - `lifecycle-and-invariants` — States, transitions, and durable truths.
@@ -69,10 +69,10 @@ This directory contains the project's long-lived architectural intent and archit
 - `decisions` — Accepted architectural choices.
 - `constraints` — Accepted limits on valid implementations.
 - `known-divergences` — Confirmed conflicts between accepted intent and observations.
-- `observed` — Confirmed architecture-significant repository evidence.
+- `observed` — Confirmed boundary-significant repository evidence.
 - `inferred` — Explicitly unconfirmed interpretation.
 - `open-questions` — Unresolved architectural choices.
-- `implementation` — Representative repository-relative navigation evidence.
+- `implementation` — Non-normative representative repository-relative navigation anchors; never a source walkthrough.
 - `risks` — Durable architecture-relevant risks.
 - `rationale-and-trade-offs` — Reasons and consequences behind accepted choices.
 - `terminology` — Project-specific domain terms and exact meanings.
@@ -135,7 +135,6 @@ This directory contains the project's long-lived architectural intent and archit
 
 - `contract-equivalent` — Any internals satisfying normative contracts are permitted.
 - `architecture-constrained` — Specified component boundaries and interactions are also required.
-- `exact` — Choices explicitly declared exact are required.
 
 ### Computed statuses
 
@@ -147,14 +146,13 @@ This directory contains the project's long-lived architectural intent and archit
 
 - `interface-contract` — Machine-readable interface contract.
 - `data-schema` — Machine-readable data schema.
-- `execution-contract` — Exact reconstruction-critical toolchain or execution contract.
 - `scenario` — Implementation-independent conformance scenario.
 - `fixture` — Normative conformance fixture.
 - `verification` — Verification asset.
 
 ### Manifest fields
 
-- `specspine` — Stored format major; exactly 3 for this contract.
+- `specspine` — Stored format major; exactly 4 for this contract.
 - `project` — Stable nonempty project name.
 - `implementation_freedom` — How closely a reconstruction must preserve implementation choices.
 - `areas` — Completeness and inspection records for non-index document owners.

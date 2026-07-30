@@ -8,7 +8,7 @@
     "AGENTS.md": "# Project instructions\n\nPreserve this user-authored sentence.\n",
     "architecture/README.md": "# Архитектура проекта\n\nСистема обрабатывает документы и предоставляет поиск по извлечённому содержимому.\n",
     "architecture/_INDEX.md": "# Архитектура проекта\n\n**ID:** `project-architecture` · **Kind:** `index`\n\n## Содержание\n\n- [README.md](README.md)\n- [Обработка документов](document-processing.md)\n- [specspine.json](specspine.json)\n",
-    "architecture/specspine.json": "{\"specspine\":3,\"project\":\"project\",\"implementation_freedom\":\"contract-equivalent\",\"areas\":[],\"assets\":[]}\n",
+    "architecture/specspine.json": "{\"specspine\":4,\"project\":\"project\",\"implementation_freedom\":\"contract-equivalent\",\"areas\":[],\"assets\":[]}\n",
     "architecture/document-processing.md": "# Обработка документов\n\nОтвечает за приём документов и асинхронное извлечение содержимого.\n"
   },
   "stages": [

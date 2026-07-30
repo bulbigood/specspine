@@ -28,7 +28,7 @@ WORKSPACE = load(
 
 def manifest(project):
     return {
-        "specspine": 3,
+        "specspine": 4,
         "project": project,
         "implementation_freedom": "contract-equivalent",
         "areas": [],
@@ -137,7 +137,7 @@ class WorkspaceSpinesTests(unittest.TestCase):
         self.assertIn("Do not silently turn code", readme)
         self.assertIn("## SpecSpine glossary", readme)
         self.assertIn("`DEC` — Accepted architectural decision.", readme)
-        self.assertIn("`OBS` — Confirmed architecture-significant", readme)
+        self.assertIn("`OBS` — Confirmed boundary-significant", readme)
         self.assertIn("### Document kinds", readme)
         self.assertIn("`migrates-from`", readme)
         self.assertIn("`implementation_freedom`", readme)

@@ -32,7 +32,7 @@ format rule.
 - [Manifest JSON Schema](../shared/references/specspine.schema.json) — portable
   machine-readable manifest shape.
 
-The reference documents and schema define SpecSpine v3 together. The terms
+The reference documents and schema define SpecSpine v4 together. The terms
 **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** express
 requirement levels; violating a `SHOULD` requires an explicit reason.
 

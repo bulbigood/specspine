@@ -6,17 +6,17 @@
 
 ## Responsibility
 
-Describe what this concept owns and why it exists.
+Describe the outcome this owner is accountable for.
 
 ## Boundaries
 
-Describe what belongs to this concept and what belongs elsewhere. Link to the
-canonical specifications for neighboring responsibilities.
+Describe accepted inputs, emitted outputs, controls, data authority, and what
+belongs elsewhere. Link neighboring canonical owners.
 
 ## Behavior
 
-Describe significant externally observable or architecturally relevant
-behavior, including important failure or edge behavior.
+Describe owner-relative observable outcomes, including important failure or
+edge behavior. Apply the replacement test; omit private implementation.
 
 For a reconstructable owner, add only applicable normative sections:
 
@@ -26,11 +26,8 @@ For a reconstructable owner, add only applicable normative sections:
 - `Quality constraints` (`QLT-*`) for measurable non-functional limits;
 - `Verification` (`VER-*`) for durable black-box conformance.
 
-Link exact OpenAPI, Protobuf, JSON Schema, CUE, scenario, or fixture assets
+Link OpenAPI, Protobuf, JSON Schema, CUE, scenario, or fixture assets
 owned by this specification instead of paraphrasing their full content.
-When reconstruction genuinely depends on exact toolchains, runtime versions,
-build units, generators, or entry points, link one owned machine-readable
-`execution-contract` and explain why those choices are normative.
 
 ## Relationships
 
@@ -48,4 +45,5 @@ invariants`, `Failure behavior`, `Edge cases`, `Configuration contract`,
 `Compatibility`, `Decisions`, `Constraints`, `Observed`, `Inferred`, `Known
 divergences`, or `Open questions` only when useful. Promote independently owned
 behavior or cross-cutting policy to its own node. Do not copy a temporary
-feature-SDD outline or create empty sections.
+feature-SDD outline, internal algorithm, call sequence, helper inventory, or
+framework walkthrough, and do not create empty sections.

@@ -4,7 +4,7 @@ Discover durable architecture without reproducing the source tree.
 
 ## Search from shape to detail
 
-Read only enough evidence to resolve architectural boundaries:
+Read only enough evidence to resolve owner-relative boundary contracts:
 
 1. Existing SpecSpine and repository architecture documentation.
 2. Workspace, build, and package manifests.
@@ -15,8 +15,8 @@ Read only enough evidence to resolve architectural boundaries:
 7. Representative integration and failure tests.
 8. Local implementation required by a remaining architectural question.
 
-Prefer sources that expose ownership, runtime shape, interfaces, state,
-lifecycle, cross-component behavior, or failure handling. Documentation may be
+Prefer sources that expose ownership, boundary inputs and outputs, consumers,
+data authority, controls, observable lifecycle, or boundary failures. Documentation may be
 stale; package and directory boundaries may be incidental; test structure may
 reflect fixtures.
 
@@ -37,7 +37,8 @@ For each candidate ask:
 
 1. Does it own a distinct responsibility?
 2. Would an agent navigate here for a class of changes?
-3. Does it have meaningful boundaries, relationships, state, or decisions?
+3. Does it have meaningful inputs, outputs, consumers, data authority,
+   lifecycle, failures, or relationships?
 4. Can it evolve independently?
 5. Is it more stable than the file layout?
 
@@ -46,10 +47,10 @@ decomposition rules from `spec-format.md`.
 
 ## Apply the operation policy
 
-For `survey`, establish a small linked skeleton of major runtime, capability,
-ownership, and data-flow boundaries. For `deepen`, start from one existing
+For `survey`, establish a linked skeleton of durable owners and their
+interaction boundaries. For `deepen`, start from one existing
 owner, its manifest facets, and direct relationships; investigate its partial
-or missing observable architecture, behavior, interfaces, data, and failure
+or missing boundary behavior, interfaces, data, and failure
 surfaces without widening into a general survey. For `refresh` or `drift`,
 inspect only affected specifications and source areas, preserve accepted
 intent, and record unresolved disagreement.
@@ -72,11 +73,13 @@ Compare each significant repository fact with its owner's accepted model:
 `covered-by-intent`, `implementation-freedom`, `retain-observation`,
 `retain-divergence` (only against an addressable normative claim),
 `retain-inference`, `retain-open-question`, or `implementation-detail`. Only
-the retain dispositions produce Markdown evidence.
+the retain dispositions produce Markdown evidence. Apply the replacement test
+before retaining anything: if a replacement behind the same boundary could
+change the fact without affecting a consumer, neighbor, operator, verifier, or
+explicit architecture constraint, classify it as `implementation-detail`.
 `covered-by-intent` updates bounded inspection coverage and never asserts
-conformance. A brownfield survey with little accepted intent may retain more
-observations as a transitional map; later accepted intent should replace
-redundant active observations.
+conformance. Lack of accepted intent does not turn internal code detail into a
+candidate contract.
 
 One topic does not imply one document. Several topics may converge on one
 canonical owner; one topic may expose multiple independent owners. Producers
@@ -94,10 +97,11 @@ interpretation, and uncertainty. Repetition in code does not establish accepted
 intent. Preserve normative questions verbatim; repository evidence cannot
 answer what the system should guarantee.
 
-Cite representative concrete paths that support non-obvious claims or future
-navigation. Paths are evidence, not document structure. Stop reading when
-ownership, boundaries, significant behavior, dependencies, state, and failure
-surfaces are understood and further detail would reproduce implementation.
+Cite a small set of representative paths that proves a boundary claim or
+provides future navigation. Paths are evidence, not document structure. Stop
+reading when responsibility, boundary interactions, data authority, controls,
+observable lifecycle, and failures are understood. Never continue merely to
+document how the owner works internally.
 
 Do not write a repository fact as `Observed` merely because it was inspected.
 If accepted intent already fully represents it, preserve the intent, record the

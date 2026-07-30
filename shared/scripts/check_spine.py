@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check deterministic integrity rules for a SpecSpine v3 bundle."""
+"""Check deterministic integrity rules for a SpecSpine v4 bundle."""
 
 from __future__ import annotations
 
@@ -655,7 +655,7 @@ def _load_manifest(root: Path, findings: list[Finding]) -> dict[str, object] | N
             "project must be a nonempty string",
         )
     if value.get("implementation_freedom") not in {
-        "contract-equivalent", "architecture-constrained", "exact",
+        "contract-equivalent", "architecture-constrained",
     }:
         add(
             findings, "error", "MANIFEST_IMPLEMENTATION_FREEDOM", path, root,
@@ -714,7 +714,7 @@ def check(
     *,
     repository_root: Path | None = None,
 ) -> list[Finding]:
-    """Validate the canonical v3 specification graph and manifest."""
+    """Validate the canonical v4 specification graph and manifest."""
     root = root.resolve()
     findings: list[Finding] = []
     if not root.is_dir():

@@ -42,9 +42,11 @@ implicitly.
 - Read [references/spec-glossary.md](references/spec-glossary.md) when an
   operation needs the complete reserved vocabulary.
 - Validate `specspine.json.presentation` mechanically as rendering
-  configuration; it cannot change v3 semantics.
+  configuration; it cannot change v4 semantics.
 The checker owns mechanical findings. Semantic review is advisory and cannot
 prove validity, reconstruction completeness, or code conformance.
+Semantic review applies the replacement test and treats owner-relative
+boundary contracts—not internal implementation—as the canonical subject.
 
 ## Connection administration
 

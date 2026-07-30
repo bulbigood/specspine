@@ -1,4 +1,4 @@
-# SpecSpine v3 glossary
+# SpecSpine v4 glossary
 
 This file is generated from the canonical
 [`shared/references/vocabulary.json`](../../shared/references/vocabulary.json).
@@ -26,7 +26,7 @@ the format and semantics references own their normative usage.
 | `INV` | `invariants` | Truth that holds across all valid states and transitions. | normative |
 | `QLT` | `quality-constraints` | Measurable non-functional constraint. | normative |
 | `VER` | `verification` | Implementation-independent conformance criterion. | normative |
-| `OBS` | `observed` | Confirmed architecture-significant repository evidence; not intent. | non-normative |
+| `OBS` | `observed` | Confirmed boundary-significant repository evidence; not intent. | non-normative |
 | `INF` | `inferred` | Explicitly unconfirmed interpretation; not intent. | non-normative |
 | `OQ` | `open-questions` | Unresolved choice; it blocks reconstruction only when listed in manifest blockers. | non-normative |
 
@@ -35,7 +35,7 @@ the format and semantics references own their normative usage.
 - `index` — Deterministic physical navigation; never owns project claims.
 - `system` — A whole system boundary.
 - `subsystem` — A major independently owned part of a system.
-- `component` — A stable architectural unit with a distinct responsibility.
+- `component` — A stable owner with a distinct responsibility and boundary contract.
 - `capability` — A durable system ability spanning one or more units.
 - `behavior` — Externally significant behavior or coordination.
 - `interface` — An API, command, event, port, protocol, or integration boundary.
@@ -52,12 +52,12 @@ Project-specific kinds use `x-*`. Statement kinds are not document kinds.
 
 | Token | Meaning |
 |---|---|
-| `architecture` | Responsibilities, boundaries, decomposition, and relationships. |
-| `behavior` | Externally significant outcomes and coordination. |
-| `interfaces` | APIs, commands, events, ports, protocols, and contracts. |
-| `data` | Information models, ownership, mutation, and consistency. |
-| `failure` | Errors, retry, degradation, compensation, and recovery. |
-| `quality` | Measurable non-functional constraints. |
+| `architecture` | Owner responsibility, boundary, decomposition, relationships, and explicit architecture constraints. |
+| `behavior` | Owner-relative observable outcomes and coordination. |
+| `interfaces` | Inputs, outputs, APIs, commands, events, ports, protocols, and contracts crossing the owner boundary. |
+| `data` | Boundary information models, data authority, mutation rights, and consistency promises. |
+| `failure` | Boundary-visible errors, retry, degradation, compensation, and recovery. |
+| `quality` | Measurable boundary qualities. |
 | `verification` | Implementation-independent conformance criteria. |
 
 ### Facet values
@@ -91,8 +91,7 @@ Project-specific kinds use `x-*`. Statement kinds are not document kinds.
 | Token | Meaning |
 |---|---|
 | `contract-equivalent` | Any internals satisfying normative contracts are permitted. |
-| `architecture-constrained` | Specified component boundaries and interactions are also required. |
-| `exact` | Choices explicitly declared exact are required. |
+| `architecture-constrained` | Explicitly accepted owner boundaries, interactions, topology, and mechanisms are also required. |
 
 ### Computed statuses
 
@@ -107,8 +106,7 @@ Project-specific kinds use `x-*`. Statement kinds are not document kinds.
 | Token | Meaning |
 |---|---|
 | `interface-contract` | Machine-readable interface contract. |
-| `data-schema` | Machine-readable data schema. |
-| `execution-contract` | Exact reconstruction-critical toolchain or execution contract. |
+| `data-schema` | Machine-readable boundary data schema. |
 | `scenario` | Implementation-independent conformance scenario. |
 | `fixture` | Normative conformance fixture. |
 | `verification` | Verification asset. |
@@ -142,14 +140,14 @@ Project-specific relations use `x-*`.
 
 ## Canonical section keys
 
-- `responsibility` — Canonical ownership and purpose. Default rendering: “Responsibility”.
-- `boundaries` — What is inside, outside, or owned elsewhere. Default rendering: “Boundaries”.
-- `behavior` — Externally significant outcomes and coordination. Default rendering: “Behavior”.
-- `interfaces` — APIs, commands, events, ports, protocols, and exact contract links. Default rendering: “Interfaces”.
+- `responsibility` — Canonical boundary ownership and purpose. Default rendering: “Responsibility”.
+- `boundaries` — What the owner accepts, emits, controls, owns, and delegates elsewhere. Default rendering: “Boundaries”.
+- `behavior` — Owner-relative observable outcomes and coordination. Default rendering: “Behavior”.
+- `interfaces` — Boundary inputs, outputs, APIs, commands, events, ports, protocols, and contract links. Default rendering: “Interfaces”.
 - `information-model` — Durable entities, values, and relationships. Default rendering: “Information model”.
 - `data-ownership` — Creation, mutation, reading, and consistency authority. Default rendering: “Data ownership”.
-- `lifecycle-and-invariants` — States, transitions, and durable truths. Default rendering: “Lifecycle and invariants”.
-- `failure-behavior` — Errors, retry, degradation, compensation, and recovery. Default rendering: “Failure behavior”.
+- `lifecycle-and-invariants` — Boundary-visible states, transitions, and durable truths. Default rendering: “Lifecycle and invariants”.
+- `failure-behavior` — Boundary-visible errors, retry, degradation, compensation, and recovery. Default rendering: “Failure behavior”.
 - `edge-cases` — Architecture-significant boundary conditions. Default rendering: “Edge cases”.
 - `configuration-contract` — Settings, defaults, precedence, validation, and reload behavior. Default rendering: “Configuration contract”.
 - `compatibility` — Versioning, interoperability, deprecation, and evolution. Default rendering: “Compatibility”.
@@ -162,10 +160,10 @@ Project-specific relations use `x-*`.
 - `decisions` — Accepted architectural choices. Default rendering: “Decisions”.
 - `constraints` — Accepted limits on valid implementations. Default rendering: “Constraints”.
 - `known-divergences` — Confirmed conflicts between accepted intent and observations. Default rendering: “Known divergences”.
-- `observed` — Confirmed architecture-significant repository evidence. Default rendering: “Observed”.
+- `observed` — Confirmed boundary-significant repository evidence. Default rendering: “Observed”.
 - `inferred` — Explicitly unconfirmed interpretation. Default rendering: “Inferred”.
 - `open-questions` — Unresolved architectural choices. Default rendering: “Open questions”.
-- `implementation` — Representative repository-relative navigation evidence. Default rendering: “Implementation”.
+- `implementation` — Non-normative representative repository-relative navigation anchors; never a source walkthrough. Default rendering: “Implementation”.
 - `risks` — Durable architecture-relevant risks. Default rendering: “Risks”.
 - `rationale-and-trade-offs` — Reasons and consequences behind accepted choices. Default rendering: “Rationale and trade-offs”.
 - `terminology` — Project-specific domain terms and exact meanings. Default rendering: “Terminology”.
@@ -174,9 +172,9 @@ Presentation profiles may translate rendered headings but never these keys.
 
 ## Manifest fields
 
-- `specspine` — Stored format major; exactly 3 for this contract.
+- `specspine` — Stored format major; exactly 4 for this contract.
 - `project` — Stable nonempty project name.
-- `implementation_freedom` — How closely a reconstruction must preserve implementation choices.
+- `implementation_freedom` — Whether explicit architecture constraints supplement boundary-contract equivalence.
 - `areas` — Completeness and inspection records for non-index document owners.
 - `assets` — Complete registry of non-Markdown files inside the Spine.
 - `presentation` — Optional language, heading, order, and index rendering profile.

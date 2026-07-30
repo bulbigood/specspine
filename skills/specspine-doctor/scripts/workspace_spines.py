@@ -75,7 +75,7 @@ def graph(workspace: Path, roots: list[Path]) -> dict[str, Any]:
                 ),
             }
         )
-    return {"specspine": 3, "workspace": str(workspace), "roots": rows}
+    return {"specspine": 4, "workspace": str(workspace), "roots": rows}
 
 
 def write_graph(workspace: Path, value: dict[str, Any]) -> bool:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Idempotently initialize a workspace and its SpecSpine v3 root files."""
+"""Idempotently initialize a workspace and its SpecSpine v4 root files."""
 
 from __future__ import annotations
 

@@ -131,7 +131,8 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("do not split either pass across isolated workers", protocol)
         self.assertIn("do not block production", protocol)
         self.assertIn("may remain isolated only after this explicit audit", synthesis)
-        self.assertIn("must not erase their names", synthesis)
+        self.assertIn("Do not preserve distinct peers merely as names", synthesis)
+        self.assertIn("shared registry, renderer, host", synthesis)
         self.assertIn("Keep peer responsibilities separate", discovery)
         self.assertIn("one provisional topic per registered plugin", discovery)
         self.assertIn("is a dependency, not evidence that peers share ownership", discovery)
@@ -204,7 +205,8 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("fresh medium-tier producers", protocol)
         self.assertIn("Use `concept` only for shared vocabulary", producer)
         self.assertIn("never merge concerns into custom headings", producer)
-        self.assertIn("make one targeted facet pass", producer)
+        self.assertIn("make one targeted pass across boundary inputs", producer)
+        self.assertIn("is `implementation-detail`, even when stable", producer)
         self.assertIn("For `completion.intent: deepen`", producer)
         self.assertIn("only Evolve may perform the reorganization", producer)
         self.assertIn("related_existing_owners", producer)
@@ -278,12 +280,12 @@ class MapOperationContractTests(unittest.TestCase):
         limits = {
             "entrypoint": (self.entrypoint, 118),
             "protocol": (self.protocol, 420),
-            "method": (self.method, 110),
+            "method": (self.method, 112),
             "planner": (self.planner, 55),
             "discovery": (self.discovery, 110),
-            "synthesis": (self.synthesis, 135),
+            "synthesis": (self.synthesis, 138),
             "coverage": (self.coverage, 40),
-            "producer": (self.producer, 195),
+            "producer": (self.producer, 197),
             "integration": (self.integration, 175),
         }
         for name, (value, maximum) in limits.items():

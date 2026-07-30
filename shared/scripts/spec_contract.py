@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Canonical machine vocabulary and presentation profile for SpecSpine v3."""
+"""Canonical machine vocabulary and presentation profile for SpecSpine v4."""
 
 from __future__ import annotations
 

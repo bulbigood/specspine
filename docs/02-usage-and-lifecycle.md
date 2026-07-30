@@ -53,6 +53,13 @@ an accepted durable change. Evolve treats the request and existing Spine as the
 project-specific authorities. It does not inspect source code by default and
 does not infer acceptance from existing implementation.
 
+Developers update SpecSpine when a change alters an owner responsibility,
+boundary input or output, control, data authority, relationship, observable
+failure, compatibility promise, quality constraint, or explicit architecture
+constraint. Refactoring private mechanisms behind an unchanged contract needs
+no SpecSpine edit. Reviewers discuss contracts and ownership in the Spine and
+implementation choices in code review.
+
 An SDD or other authorized workflow owns a proposed delta until acceptance.
 Promote its durable requirements, guarantees, invariants, relationships, and
 reusable verification into canonical owners before or with implementation.
@@ -61,10 +68,11 @@ Implementation-only changes do not require artificial specification growth.
 ## Compare a repository
 
 Use Map for a bounded survey or explicitly request exhaustive recursive
-coverage. Map compares evidence with accepted intent and retains an `OBS` only
+coverage. Map discovers owner-relative boundaries rather than documenting code
+structure. It compares evidence with accepted intent and retains an `OBS` only
 when it:
 
-- exposes an architecture-significant intent gap;
+- exposes a boundary-significant intent gap;
 - supports a confirmed divergence;
 - affects an unresolved architectural question; or
 - provides necessary navigation to a surprising owner or boundary.
@@ -73,6 +81,11 @@ Map omits evidence already represented by intent and compatible implementation
 freedom. It records bounded inspection coverage separately instead of creating
 a duplicate observation. Neither inspection coverage nor absence of `OBS`
 proves conformance.
+
+For AI agents, the Spine answers what must remain true and who owns it. Source
+inspection answers how the current implementation achieves it. An agent must
+not treat missing internal detail as a documentation gap or expand a contract
+into a source walkthrough.
 
 ## Retrieve task context
 

@@ -67,7 +67,7 @@ def load_manifest(root: Path) -> dict[str, Any]:
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise IndexError(f"cannot read {path}: {error}") from error
     if not isinstance(value, dict) or value.get("specspine") != FORMAT_MAJOR:
-        raise IndexError(f"{path} is not a SpecSpine v3 manifest")
+        raise IndexError(f"{path} is not a SpecSpine v4 manifest")
     try:
         presentation(value)
     except PresentationError as error:

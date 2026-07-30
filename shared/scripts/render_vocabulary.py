@@ -13,6 +13,16 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 VOCABULARY_PATH = ROOT / "shared/references/vocabulary.json"
 GLOSSARY_PATH = ROOT / "docs/reference/glossary.md"
+SKILL_GLOSSARY_PATHS = tuple(
+    ROOT / "skills" / name / "references/spec-glossary.md"
+    for name in (
+        "specspine-doctor",
+        "specspine-evolve",
+        "specspine-extract",
+        "specspine-map",
+        "specspine-verify",
+    )
+)
 INDEX_TEMPLATE_PATH = ROOT / "shared/assets/templates/spine-index.md"
 README_TEMPLATE_PATH = ROOT / "shared/assets/templates/root-spine-readme.md"
 
@@ -32,7 +42,7 @@ def render(vocabulary: dict[str, Any]) -> str:
     patterns = vocabulary["identifier_patterns"]
     reserved = vocabulary["reserved_paths"]
     lines = [
-        "# SpecSpine v3 glossary",
+        "# SpecSpine v4 glossary",
         "",
         "This file is generated from the canonical",
         "[`shared/references/vocabulary.json`](../../shared/references/vocabulary.json).",
@@ -161,12 +171,17 @@ def main() -> int:
     expected_index, expected_readme = render_templates()
     if args.write:
         GLOSSARY_PATH.write_text(expected, encoding="utf-8")
+        for path in SKILL_GLOSSARY_PATHS:
+            path.write_text(expected, encoding="utf-8")
         INDEX_TEMPLATE_PATH.write_text(expected_index, encoding="utf-8")
         README_TEMPLATE_PATH.write_text(expected_readme, encoding="utf-8")
         return 0
     stale = []
     if not GLOSSARY_PATH.is_file() or GLOSSARY_PATH.read_text(encoding="utf-8") != expected:
         stale.append("docs/reference/glossary.md")
+    for path in SKILL_GLOSSARY_PATHS:
+        if not path.is_file() or path.read_text(encoding="utf-8") != expected:
+            stale.append(str(path.relative_to(ROOT)))
     if (
         not INDEX_TEMPLATE_PATH.is_file()
         or INDEX_TEMPLATE_PATH.read_text(encoding="utf-8") != expected_index

@@ -9,14 +9,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 SEARCH_PATH = ROOT / "skills/specspine-extract/scripts/search_spine.py"
-SPEC = importlib.util.spec_from_file_location("specspine_v3_extract", SEARCH_PATH)
+SPEC = importlib.util.spec_from_file_location("specspine_v4_extract", SEARCH_PATH)
 assert SPEC and SPEC.loader
 SEARCH = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = SEARCH
 SPEC.loader.exec_module(SEARCH)
 INDEXER_PATH = ROOT / "shared/scripts/rebuild_indexes.py"
 INDEXER_SPEC = importlib.util.spec_from_file_location(
-    "specspine_v3_indexer", INDEXER_PATH
+    "specspine_v4_indexer", INDEXER_PATH
 )
 assert INDEXER_SPEC and INDEXER_SPEC.loader
 INDEXER = importlib.util.module_from_spec(INDEXER_SPEC)
@@ -122,7 +122,7 @@ class ExtractTests(unittest.TestCase):
             "quality", "verification",
         ]
         payload = {
-            "specspine": 3,
+            "specspine": 4,
             "project": "test",
             "implementation_freedom": "contract-equivalent",
             "areas": [
@@ -191,7 +191,7 @@ class ExtractTests(unittest.TestCase):
             [item["id"] for item in result["inferences"]],
         )
 
-    def test_returns_v3_normative_claims_and_computed_status(self):
+    def test_returns_v4_normative_claims_and_computed_status(self):
         self.write_manifest(payment_status="complete")
         (self.spine / "payments.md").write_text(
             PAYMENTS.replace(
@@ -669,7 +669,7 @@ Example project.
                 for name in SEARCH.CHECKER.FACET_NAMES
             }
             (root / "specspine.json").write_text(json.dumps({
-                "specspine": 3,
+                "specspine": 4,
                 "project": "test",
                 "implementation_freedom": "contract-equivalent",
                 "areas": [

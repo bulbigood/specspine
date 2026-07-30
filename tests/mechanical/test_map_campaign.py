@@ -63,7 +63,7 @@ class MapCampaignTests(unittest.TestCase):
         (self.spine / "specspine.json").write_text(
             json.dumps(
                 {
-                    "specspine": 3,
+                    "specspine": 4,
                     "project": "fixture",
                     "implementation_freedom": "contract-equivalent",
                     "areas": [{
@@ -1199,7 +1199,7 @@ class MapCampaignTests(unittest.TestCase):
         readme = (spine / "README.md").read_text(encoding="utf-8")
         self.assertIn("## How to use this Spine", readme)
         self.assertIn("## SpecSpine glossary", readme)
-        self.assertIn("`OBS` — Confirmed architecture-significant", readme)
+        self.assertIn("`OBS` — Confirmed boundary-significant", readme)
 
     def test_empty_spine_bootstrap_recovers_its_missing_manifest(self):
         spine = self.run / "partial-empty-spine"
@@ -3108,7 +3108,7 @@ class MapCampaignTests(unittest.TestCase):
             str(self.topic_plan_path()),
         )
 
-    def test_documentation_seed_rejects_non_v3_spine(self):
+    def test_documentation_seed_rejects_non_v4_spine(self):
         ledger = self.run / "invalid-existing.json"
         self.cli(
             "init",
@@ -3132,10 +3132,10 @@ class MapCampaignTests(unittest.TestCase):
             expected=2,
         )
 
-        self.assertIn("current SpecSpine v3", error["error"])
+        self.assertIn("current SpecSpine v4", error["error"])
         self.assertIn("MANIFEST_VERSION", error["error"])
 
-    def test_documentation_seed_records_current_v3_defects_as_baseline(self):
+    def test_documentation_seed_records_current_v4_defects_as_baseline(self):
         ledger = self.run / "defective-v3.json"
         self.cli(
             "init",
@@ -3148,7 +3148,7 @@ class MapCampaignTests(unittest.TestCase):
             "--allow-duplicate-incomplete",
         )
         with (self.spine / "_INDEX.md").open("a", encoding="utf-8") as stream:
-            stream.write("\n## Coverage\n\nNon-semantic status in a v3 document.\n")
+            stream.write("\n## Coverage\n\nNon-semantic status in a v4 document.\n")
 
         receipt = self.cli("seed-from-spine", str(ledger), str(self.spine))
 
@@ -4180,7 +4180,7 @@ class MapCampaignTests(unittest.TestCase):
             self.cli("next-action", str(self.ledger))["terminal"],
         )
 
-    def test_unclean_v3_integration_requires_repair_before_finalize(self):
+    def test_unclean_v4_integration_requires_repair_before_finalize(self):
         self.verify_all_source_units()
         ledger = self.ledger_value()
         ledger["integration_pass"]["checker_clean"] = False
@@ -4188,7 +4188,7 @@ class MapCampaignTests(unittest.TestCase):
 
         next_action = self.cli("next-action", str(self.ledger))
 
-        self.assertFalse(next_action["terminal_gates"]["spine_v3_clean"])
+        self.assertFalse(next_action["terminal_gates"]["spine_v4_clean"])
         self.assertIsNone(next_action["terminal"])
         self.assertEqual("repair", next_action["action"])
         self.assertFalse(next_action["may_finish"])
