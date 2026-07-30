@@ -819,16 +819,10 @@ class MapCampaignTests(unittest.TestCase):
             package / "_receipt.json",
             "producer-handoff",
             input_digest=CAMPAIGN_MODULE.producer_packet_input_digest(
-                {
-                    "campaign_id": ledger["campaign_id"],
-                    "producer_contract": (
-                        CAMPAIGN_MODULE.ledger_producer_contract(ledger)
-                    ),
-                    "operation": ledger["operation"],
-                    "task": CAMPAIGN_MODULE.task_definition(
-                        ledger["tasks"][task_id]
-                    ),
-                }
+                CAMPAIGN_MODULE.producer_packet(
+                    ledger,
+                    ledger["tasks"][task_id],
+                )
             ),
             outputs=[package / "checkpoint.json", package / "staging"],
         )
@@ -1239,6 +1233,32 @@ class MapCampaignTests(unittest.TestCase):
         next_action = self.verify_single_topic_operation()
 
         self.assertEqual("scope_verified", next_action["terminal"])
+        self.assertEqual("finalize", next_action["action"])
+        self.assertTrue(next_action["may_finish"])
+
+    def test_semantic_exhaustive_reports_deferred_terminal_honestly(self):
+        self.set_semantic_operation()
+        self.verify_single_topic_operation()
+        ledger = self.ledger_value()
+        ledger["source_pass"]["topic_plan"]["deferred_leads"] = [
+            {
+                "id": "session-recovery",
+                "title": "Session recovery",
+                "question": "Who owns session recovery?",
+                "reason": "The failure boundary remains unexpanded.",
+                "parent_ids": [],
+                "seed_files": ["src/identity/session.py"],
+                "deferral_reason": "One-pass exhaustive mapping ended.",
+            }
+        ]
+        self.ledger.write_text(json.dumps(ledger), encoding="utf-8")
+
+        next_action = self.cli("next-action", str(self.ledger))
+
+        self.assertEqual(
+            "scope_mapped_with_deferred_leads",
+            next_action["terminal"],
+        )
         self.assertEqual("finalize", next_action["action"])
         self.assertTrue(next_action["may_finish"])
 
@@ -1951,6 +1971,85 @@ class MapCampaignTests(unittest.TestCase):
             value["topics"][0]["evidence_strata"],
         )
         self.assertNotIn("source_topic_ids", value["topics"][0])
+
+    def test_exhaustive_synthesis_defers_open_leads_without_reopen(self):
+        corpus = self.semantic_discovery_corpus_path()
+        packet_path = self.run / "one-pass-synthesis-packet.json"
+        self.cli(
+            "prepare",
+            str(corpus),
+            str(packet_path),
+            script=SYNTHESIS,
+        )
+        source = json.loads(packet_path.read_text(encoding="utf-8"))[
+            "source_topics"
+        ][0]
+        mapping = self.run / "one-pass-semantic-mapping.json"
+        mapping.write_text(
+            json.dumps(
+                {
+                    "topics": [
+                        {
+                            "id": "session-runtime",
+                            "document": "sessions/runtime.md",
+                            "title": source["title"],
+                            "responsibility": source["responsibility"],
+                            "reason": source["reason"],
+                            "relationships": [],
+                            "source_topic_ids": [source["source_id"]],
+                        }
+                    ],
+                    "covered": [],
+                    "supporting": [],
+                    "open_leads": [
+                        {
+                            "id": "session-recovery",
+                            "title": "Session recovery",
+                            "question": "Who owns session recovery?",
+                            "reason": "The failure boundary remains unexpanded.",
+                            "seed_files": ["src/identity/session.py"],
+                        }
+                    ],
+                    "deferred_leads": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        plan = self.run / "one-pass-topic-plan.json"
+
+        materialized = self.cli(
+            "materialize",
+            str(corpus),
+            str(mapping),
+            str(plan),
+            script=SYNTHESIS,
+        )
+
+        value = json.loads(plan.read_text(encoding="utf-8"))
+        self.assertEqual(1, materialized["open_leads"])
+        self.assertEqual([], value["open_leads"])
+        self.assertEqual("session-recovery", value["deferred_leads"][0]["id"])
+        self.assertIn(
+            "one-pass exhaustive budget",
+            value["deferred_leads"][0]["deferral_reason"],
+        )
+        revised = json.loads(mapping.read_text(encoding="utf-8"))
+        revised["topics"][0]["reason"] = "A corrected synthesis reason."
+        mapping.write_text(json.dumps(revised), encoding="utf-8")
+
+        repeated = self.cli(
+            "materialize",
+            str(corpus),
+            str(mapping),
+            str(plan),
+            script=SYNTHESIS,
+        )
+
+        self.assertEqual("written", repeated["status"])
+        self.assertEqual(
+            "A corrected synthesis reason.",
+            json.loads(plan.read_text(encoding="utf-8"))["topics"][0]["reason"],
+        )
 
     def test_synthesis_packet_contains_all_sources_for_global_deduplication(self):
         corpus_path = self.semantic_discovery_corpus_path()

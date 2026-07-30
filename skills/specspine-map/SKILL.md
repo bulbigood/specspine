@@ -38,15 +38,17 @@ Both completion policies use the same artifacts and state machine:
 
 - increment settles one initial discovery layer, preserves adjacent work in
   `deferred_leads`, forbids derived ToDo, and ends at `increment_verified`;
-- exhaustive scouts close their assigned semantic boundaries internally,
-  dispatch only justified unresolved fallback, forbid deferral, and end at
-  `scope_verified`.
+- exhaustive scouts close their assigned semantic boundaries internally in one
+  discovery pass; synthesis retains any concrete residual gap in
+  `deferred_leads` instead of reopening discovery. It ends at `scope_verified`
+  when none remain, otherwise at `scope_mapped_with_deferred_leads`.
 
 Neither terminal claims that no conceivable architectural concept exists.
 `increment_verified` never claims scope completeness.
 For exhaustive completion, every peer family exposed by inspected evidence
-must be dispositioned or retained as an `open_lead`; otherwise Map cannot reach
-`scope_verified`.
+must be dispositioned or retained as a deferred lead. `scope_verified` means
+the selected pass left no concrete gap; `scope_mapped_with_deferred_leads`
+publishes useful results without claiming complete coverage.
 ## Required references
 
 - Read [references/spec-semantics.md](references/spec-semantics.md) before
@@ -64,7 +66,6 @@ must be dispositioned or retained as an `open_lead`; otherwise Map cannot reach
 - Give isolated workers only their phase contract:
   [discovery-planner.md](references/discovery-planner.md),
   [discovery-task.md](references/discovery-task.md),
-  [frontier-curation.md](references/frontier-curation.md),
   [topic-synthesis.md](references/topic-synthesis.md),
   [producer-task.md](references/producer-task.md), or
   [repository-coverage.md](references/repository-coverage.md).
@@ -98,4 +99,4 @@ the sole canonical topic plan. Semantic diagnostics are advisory: Map favors
 prompt coverage and leaves later graph refinement to Doctor or Evolve.
 Only whole-repository exhaustive mapping adds an isolated topology coverage
 audit after synthesis. It looks for missing architectural roots, not file
-coverage, and reopens only concrete gaps.
+coverage.

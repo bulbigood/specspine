@@ -14,7 +14,7 @@ from typing import Any
 import campaign
 
 
-SYNTHESIS_CONTRACT_VERSION = 8
+SYNTHESIS_CONTRACT_VERSION = 9
 MAX_EVIDENCE_STRATA = 8
 
 def source_topics(
@@ -729,12 +729,34 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
         raise campaign.CampaignError(
             "semantic mapping deferred_leads differ from discovery corpus"
         )
+    deferred_leads = list(raw["deferred_leads"])
+    if corpus["operation"]["completion"]["kind"] == "exhaustive":
+        deferred_leads.extend(
+            lead
+            | {
+                "parent_ids": [],
+                "deferral_reason": (
+                    "The one-pass exhaustive budget ended after global synthesis; "
+                    "map this concrete gap separately when needed."
+                )
+            }
+            for lead in open_leads
+        )
+        if open_leads:
+            peer_family_review = peer_family_review | {
+                "reason": (
+                    peer_family_review["reason"]
+                    + " Remaining concrete gaps were retained as deferred leads "
+                    "instead of reopening discovery."
+                ),
+                "open_lead_ids": [],
+            }
     plan = {
         "topics": sorted(final_topics, key=lambda value: value["id"]),
         "covered": sorted(final_covered, key=lambda value: value["id"]),
         "supporting": final_supporting,
-        "open_leads": open_leads,
-        "deferred_leads": raw["deferred_leads"],
+        "open_leads": [],
+        "deferred_leads": deferred_leads,
         "peer_family_review": peer_family_review,
     }
     semantic_topics = final_topics + final_covered
@@ -771,10 +793,7 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
                 raise campaign.CampaignError(
                     f"topic {topic['id']} cannot relate to itself"
                 )
-    if not open_leads:
-        publish_validated_plan(args.output, plan, corpus=corpus)
-    else:
-        campaign.atomic_write(args.output, plan)
+    publish_validated_plan(args.output, plan, corpus=corpus)
     receipt_path = args.output.with_name(f".{args.output.name}.receipt.json")
     receipt_ready = campaign.commit_receipt(
         receipt_path,
@@ -782,6 +801,7 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
         input_digest=input_digest,
         inputs=[args.corpus, args.mapping],
         outputs=[args.output],
+        supersede=True,
     )
     semantic_values = raw["topics"] + raw["covered"]
     singleton_passthrough = sum(
@@ -800,6 +820,7 @@ def command_materialize(args: argparse.Namespace) -> dict[str, Any]:
         "final_topics": len(final_topics) + len(final_covered),
         "singleton_topics": singleton_passthrough,
         "open_leads": len(open_leads),
+        "deferred_leads": len(deferred_leads),
         "diagnostics": diagnostics,
         "output": str(args.output.resolve()),
     }

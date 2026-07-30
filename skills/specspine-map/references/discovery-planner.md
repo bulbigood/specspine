@@ -25,6 +25,12 @@ tests, configuration, observability, or failures when they belong to one owner.
 Do not mirror directories or assign files. A lead is a semantic question that a
 scout can close recursively.
 
+When the scope contains a registry, plugin system, adapter family, protocol
+implementations, or other named peers, enumerate the in-scope members from
+registrations or manifests during planning. Give that family an explicit lead,
+or name every member in the lead that owns it. Do not rely on synthesis to
+discover peers absent from the initial scout boundaries.
+
 Write only:
 
 ```json

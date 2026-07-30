@@ -74,7 +74,11 @@ def reconstruction_readiness(spine_root: Path) -> dict[str, object]:
 def finalize(args: argparse.Namespace) -> dict[str, object]:
     ledger = campaign.load(args.ledger)
     summary = campaign.campaign_summary(args.ledger)
-    if summary["terminal"] not in {"increment_verified", "scope_verified"}:
+    if summary["terminal"] not in {
+        "increment_verified",
+        "scope_verified",
+        "scope_mapped_with_deferred_leads",
+    }:
         raise FinalizeError(
             "operation is not verified: "
             + json.dumps(summary["terminal_gates"], ensure_ascii=False)
@@ -162,7 +166,11 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
         "terminal_claim": (
             "selected observation scope completed"
             if summary["terminal"] == "scope_verified"
-            else "selected observation increment completed"
+            else (
+                "selected observation scope mapped with deferred leads"
+                if summary["terminal"] == "scope_mapped_with_deferred_leads"
+                else "selected observation increment completed"
+            )
         ),
         "reconstruction_readiness": reconstruction_readiness(
             args.spine_root.resolve()

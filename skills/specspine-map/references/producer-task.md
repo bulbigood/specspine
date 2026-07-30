@@ -26,6 +26,8 @@ lifecycle, failure, configuration, and compatibility sections is authoritative
 architectural intent. `DEC`, `CON`, `REQ`, `GUA`, `INV`, `QLT`, and `VER` are
 normative; code cannot create them. `OBS` is a directly evidenced repository
 fact, `INF` an unconfirmed interpretation, and `OQ` unresolved uncertainty.
+Every bullet in `Open questions` must be a semantic definition with a stable
+`OQ-*` ID; never emit an anonymous question bullet.
 Only accepted intent may use normative `MUST`, `SHOULD`, or `MAY`.
 
 For a new Map owner with no accepted intent, keep `Summary` observational and

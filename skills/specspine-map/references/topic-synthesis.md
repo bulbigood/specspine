@@ -22,9 +22,10 @@ one canonical responsibility; relationships may reference a neighbor but may
 not duplicate its owned behavior.
 
 For exhaustive completion, detect responsibilities or boundaries exposed but
-never expanded and place them in `open_leads`. Return no `deferred_leads`. For
-increment completion, return no open leads and reproduce the corpus
-`deferred_leads` exactly.
+never expanded and place them in `open_leads`; deterministic materialization
+retains them as deferred work without another discovery or synthesis pass.
+Reproduce corpus `deferred_leads` exactly. For increment completion, return no
+open leads and reproduce corpus `deferred_leads` exactly.
 For exhaustive completion, audit peer families exposed by evidence in
 `peer_family_review`; each must be dispositioned or retained as an open lead.
 Allowed statuses are exactly `accounted`, `none-found`, and `not-required`.

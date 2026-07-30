@@ -47,8 +47,8 @@ from spec_contract import (
 
 
 SCHEMA_VERSION = 16
-PRODUCER_CONTRACT_VERSION = 11
-DISCOVERY_CONTRACT_VERSION = 7
+PRODUCER_CONTRACT_VERSION = 12
+DISCOVERY_CONTRACT_VERSION = 8
 MAX_UNIT_FILES = 80
 MAX_SCOUT_SEED_FILES = 40
 MAX_INITIAL_SCOUTS = 10
@@ -394,6 +394,7 @@ def commit_receipt(
     input_digest: str,
     inputs: list[Path] | None = None,
     outputs: list[Path],
+    supersede: bool = False,
 ) -> bool:
     expected = receipt_value(
         stage,
@@ -402,7 +403,7 @@ def commit_receipt(
         outputs=outputs,
     )
     already_ready = path.is_file() and read_json(path) == expected
-    if path.exists() and not already_ready:
+    if path.exists() and not already_ready and not supersede:
         raise CampaignError(f"existing stage receipt conflicts: {path}")
     atomic_write(path, expected)
     return already_ready
@@ -492,6 +493,18 @@ def producer_packet_input_digest(packet: dict[str, Any]) -> str:
             "task": packet["task"],
         }
     )
+
+
+def producer_packet(ledger: dict[str, Any], task: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "campaign_id": ledger["campaign_id"],
+        "producer_contract": ledger_producer_contract(ledger),
+        "operation": ledger["operation"],
+        "current_owner": planned_owner_profile(ledger, task),
+        "related_existing_owners": related_existing_owners(ledger, task),
+        "related_planned_owners": related_planned_owners(ledger, task),
+        "task": task_definition(task),
+    }
 
 
 def ledger_producer_contract(ledger: dict[str, Any]) -> dict[str, Any]:
@@ -1806,8 +1819,7 @@ def command_discovery_packets(args: argparse.Namespace) -> dict[str, Any]:
 def command_discovery_defer(args: argparse.Namespace) -> dict[str, Any]:
     seed = read_json(args.seed)
     operation = validate_operation_spec(seed["operation"])
-    if operation["completion"]["kind"] != "increment":
-        raise CampaignError("discovery-defer is only for increment completion")
+    completion_kind = operation["completion"]["kind"]
     repository_root = Path(seed["repository_root"]).resolve()
     require_map_runtime_path(
         args.output_dir,
@@ -1834,7 +1846,14 @@ def command_discovery_defer(args: argparse.Namespace) -> dict[str, Any]:
                         for key in ("title", "question", "reason", "seed_files")
                     }
                     | {"id": deferred_id, "parent_ids": [parent]},
-                    "reason": "Increment stops after the initial semantic layer.",
+                    "reason": (
+                        "Increment stops after the initial semantic layer."
+                        if completion_kind == "increment"
+                        else (
+                            "One-pass exhaustive discovery records this concrete "
+                            "gap for a later focused Map operation."
+                        )
+                    ),
                 }
             )
     value = {"decisions": decisions}
@@ -2862,8 +2881,6 @@ def load_discovery_corpus(
             )
             | {"deferral_reason": reason.strip()}
         )
-    if operation["completion"]["kind"] == "exhaustive" and deferred_leads:
-        raise CampaignError("exhaustive discovery corpus cannot defer leads")
     if deferred_leads != corpus["deferred_leads"]:
         raise CampaignError("discovery corpus deferred_leads are not canonical")
     candidate_files = {
@@ -2966,6 +2983,7 @@ def incomplete_duplicate_campaign(
             and summary["terminal"] not in {
                 "increment_verified",
                 "scope_verified",
+                "scope_mapped_with_deferred_leads",
             }
         ):
             return candidate.resolve()
@@ -3194,12 +3212,45 @@ def validate_topic_plan(
         raise CampaignError("exhaustive topic plan requires peer-family review")
     if peer_family_review["open_lead_ids"]:
         raise CampaignError("published peer-family review cannot retain open leads")
-    if completion_kind == "exhaustive" and raw["deferred_leads"]:
-        raise CampaignError("exhaustive topic plan cannot defer discovery leads")
-    if raw["deferred_leads"] != expected_deferred_leads:
+    if (
+        completion_kind == "increment"
+        and raw["deferred_leads"] != expected_deferred_leads
+    ):
         raise CampaignError(
             "topic plan deferred_leads differ from the discovery corpus"
         )
+    if (
+        completion_kind == "exhaustive"
+        and raw["deferred_leads"][: len(expected_deferred_leads)]
+        != expected_deferred_leads
+    ):
+        raise CampaignError(
+            "topic plan must preserve discovery-corpus deferred leads"
+        )
+    deferred_ids: set[str] = set()
+    for index, value in enumerate(raw["deferred_leads"], start=1):
+        if not isinstance(value, dict) or "deferral_reason" not in value:
+            raise CampaignError(f"topic plan deferred lead {index} is invalid")
+        reason = value["deferral_reason"]
+        if not isinstance(reason, str) or not reason.strip():
+            raise CampaignError(
+                f"topic plan deferred lead {index} needs a deferral_reason"
+            )
+        lead = dict(value)
+        lead.pop("deferral_reason")
+        normalized = normalize_discovery_lead(
+            lead,
+            field=f"topic plan deferred lead {index}",
+        ) | {"deferral_reason": reason.strip()}
+        if value != normalized:
+            raise CampaignError(
+                f"topic plan deferred lead {index} is not canonical"
+            )
+        if normalized["id"] in deferred_ids:
+            raise CampaignError(
+                f"topic plan repeats deferred lead: {normalized['id']}"
+            )
+        deferred_ids.add(normalized["id"])
     evidence = set(evidence_files)
     topics: list[dict[str, Any]] = []
     topic_ids: set[str] = set()
@@ -3901,19 +3952,11 @@ def command_discover(args: argparse.Namespace) -> dict[str, Any]:
 
 def command_packet(args: argparse.Namespace) -> dict[str, Any]:
     ledger = load(args.ledger)
-    contract = require_current_producer_contract(ledger)
+    require_current_producer_contract(ledger)
     task = require_task(ledger, args.id)
     if task["state"] != "todo":
         raise CampaignError(f"packet requires todo state: {args.id}")
-    packet = {
-        "campaign_id": ledger["campaign_id"],
-        "producer_contract": contract,
-        "operation": ledger["operation"],
-        "current_owner": planned_owner_profile(ledger, task),
-        "related_existing_owners": related_existing_owners(ledger, task),
-        "related_planned_owners": related_planned_owners(ledger, task),
-        "task": task_definition(task),
-    }
+    packet = producer_packet(ledger, task)
     if args.output is None:
         return packet
     require_map_runtime_path(
@@ -4584,12 +4627,7 @@ def harvest_wave(args: argparse.Namespace) -> dict[str, Any]:
             producer_receipt,
             "producer-handoff",
             input_digest=producer_packet_input_digest(
-                {
-                    "campaign_id": ledger["campaign_id"],
-                    "producer_contract": ledger_producer_contract(ledger),
-                    "operation": ledger["operation"],
-                    "task": task_definition(task),
-                }
+                producer_packet(ledger, task)
             ),
         )
         if not checkpoint.is_file() or not staging_root.is_dir() or not receipt_valid:
@@ -6181,11 +6219,12 @@ def campaign_summary(ledger_path: Path) -> dict[str, Any]:
     }
     terminal: str | None = None
     if all(gates.values()):
-        terminal = (
-            "increment_verified"
-            if ledger["operation"]["completion"]["kind"] == "increment"
-            else "scope_verified"
-        )
+        if ledger["operation"]["completion"]["kind"] == "increment":
+            terminal = "increment_verified"
+        elif ledger["source_pass"]["topic_plan"]["deferred_leads"]:
+            terminal = "scope_mapped_with_deferred_leads"
+        else:
+            terminal = "scope_verified"
     elif (
         gates["todo_empty"]
         and gates["producers_finished"]
@@ -6247,7 +6286,11 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
     summary = campaign_summary(args.ledger)
     states = summary["states"]
     gates = summary["terminal_gates"]
-    if summary["terminal"] in {"increment_verified", "scope_verified"}:
+    if summary["terminal"] in {
+        "increment_verified",
+        "scope_verified",
+        "scope_mapped_with_deferred_leads",
+    }:
         action = "finalize"
         may_finish = True
         reason = summary["terminal"]

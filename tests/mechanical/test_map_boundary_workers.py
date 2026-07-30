@@ -43,7 +43,7 @@ class MapBoundaryWorkerTests(unittest.TestCase):
         packet = self.write(
             "planner-packet.json",
             {
-                "planner_contract_version": 1,
+                "planner_contract_version": PLANNING.PLANNER_CONTRACT_VERSION,
                 "operation": {},
                 "repository_root": str(self.repository),
                 "spine_root": str(self.spine),
@@ -69,7 +69,10 @@ class MapBoundaryWorkerTests(unittest.TestCase):
             type("Args", (), {"packet": packet, "draft": draft, "output": output})
         )
         self.assertEqual(1, receipt["leads"])
-        self.assertEqual([], json.loads(output.read_text())["leads"][0]["seed_files"])
+        self.assertEqual(
+            [],
+            json.loads(output.read_text())["leads"][0]["seed_files"],
+        )
 
     def test_coverage_finalizer_rejects_clear_review_with_gaps(self):
         source = self.repository / "src.py"

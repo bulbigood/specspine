@@ -18,7 +18,6 @@ class MapOperationContractTests(unittest.TestCase):
         cls.method = read("references/mapping-method.md")
         cls.planner = read("references/discovery-planner.md")
         cls.discovery = read("references/discovery-task.md")
-        cls.curator = read("references/frontier-curation.md")
         cls.synthesis = read("references/topic-synthesis.md")
         cls.coverage = read("references/repository-coverage.md")
         cls.producer = read("references/producer-task.md")
@@ -85,11 +84,9 @@ class MapOperationContractTests(unittest.TestCase):
             "seed-from-spine",
             "discovery-start",
             "discovery-defer",
-            "discovery-packets",
             "discovery-validate",
             "discovery_finalize.py",
             "discovery-collect",
-            "discovery-reopen",
             "coverage-reopen",
             "synthesis.py prepare",
             "synthesis.py materialize",
@@ -108,7 +105,6 @@ class MapOperationContractTests(unittest.TestCase):
     def test_discovery_and_synthesis_close_the_selected_frontier(self):
         protocol = self.compact(self.protocol)
         discovery = self.compact(self.discovery)
-        curator = self.compact(self.curator)
         synthesis = self.compact(self.synthesis)
         self.assertIn("Every packet seed file", discovery)
         self.assertIn("private queue", discovery)
@@ -116,8 +112,9 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("Use `unresolved_leads` only as fallback", discovery)
         self.assertIn("fallback_kind", discovery)
         self.assertIn("targeted fallback", self.compact(self.method))
-        self.assertIn("Never create mandatory breadth-first", protocol)
-        self.assertIn("Disposition every proposal exactly once", curator)
+        self.assertIn("without another scout wave", protocol)
+        self.assertIn("one global synthesis", protocol)
+        self.assertIn("converts residual `open_leads` into `deferred_leads`", protocol)
         self.assertIn("Increment", protocol)
         self.assertIn("Exhaustive", protocol)
         self.assertIn("classify every canonical topic", synthesis)
@@ -137,19 +134,21 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("must not erase their names", synthesis)
         self.assertIn("name every member", discovery)
         self.assertIn("what it receives", discovery)
+        self.assertIn("enumerate the in-scope members", self.compact(self.planner))
 
     def test_scout_parallelism_is_adaptive_and_wave_checked(self):
         protocol = self.compact(self.protocol)
-        self.assertIn("smaller of ten and the runtime's available subagent slots", protocol)
+        self.assertIn("at most five weak-tier scouts concurrently", protocol)
+        self.assertIn("one fresh weak-tier replacement", protocol)
+        self.assertIn("second capacity failure is a platform blocker", protocol)
         self.assertIn("isolated semantic planner", protocol)
         self.assertIn("same pipeline; never partition it into mandatory file pages", protocol)
-        self.assertIn("Dispatch every initial packet", protocol)
-        self.assertIn("Never start frontier curation", protocol)
+        self.assertIn("Dispatch initial packets", protocol)
+        self.assertIn("Never synthesize while an initial packet is missing", protocol)
         self.assertIn("--initial-plan", protocol)
         self.assertIn("at most 40 seed files", protocol)
         self.assertIn("reserve one slot", protocol)
         self.assertIn("fresh weak-tier scouts", protocol)
-        self.assertIn("fresh weak-tier curator", protocol)
         self.assertIn("discovery_finalize.py", protocol)
         self.assertIn("discovery-validate", protocol)
         self.assertIn("exact result path", protocol)
@@ -204,6 +203,7 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("related_planned_owners", producer)
         self.assertIn("SpecSpine separates accepted intent", producer)
         self.assertIn("new observation-only owner", producer)
+        self.assertIn("Every bullet in `Open questions`", producer)
         self.assertIn("current_owner", self.campaign)
 
     def test_receipts_preserve_atomic_handoffs_before_redispatch(self):
@@ -270,10 +270,9 @@ class MapOperationContractTests(unittest.TestCase):
             "method": (self.method, 110),
             "planner": (self.planner, 55),
             "discovery": (self.discovery, 110),
-            "curator": (self.curator, 85),
-            "synthesis": (self.synthesis, 123),
+            "synthesis": (self.synthesis, 125),
             "coverage": (self.coverage, 40),
-            "producer": (self.producer, 190),
+            "producer": (self.producer, 192),
             "integration": (self.integration, 175),
         }
         for name, (value, maximum) in limits.items():

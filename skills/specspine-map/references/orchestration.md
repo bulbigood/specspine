@@ -143,12 +143,14 @@ subwaves, not discovery coverage. A scout packet or unresolved fallback may
 contain at most 40 seed files, but the scout may find more while closing its
 semantic boundary.
 
-Set the scout subwave size to the smaller of ten and the runtime's available
-subagent slots. If capacity includes root, reserve one slot. Do not assume ten
-slots exist. Dispatch every initial packet, in stable path order, across as
-many strict subwaves as necessary. Never start frontier curation while an
-initial packet is missing or invalid. For each packet in the next subwave,
-derive:
+The logical scout wave may contain at most ten packets, but run at most five
+weak-tier scouts concurrently and never exceed the runtime's available
+subagent slots. If capacity includes root, reserve one slot. Dispatch initial
+packets in stable path order across strict cohorts. A capacity failure gets one
+fresh weak-tier replacement after the current cohort settles; a second capacity
+failure is a platform blocker, not an unbounded retry loop. Never synthesize
+while an initial packet is missing or invalid. For each packet in the next
+cohort, derive:
 
 ```text
 <draft> = <private-scout-work>/<lead-id>/draft.json
@@ -175,33 +177,14 @@ python3 <skill>/scripts/campaign.py discovery-validate \
   <discovery-seed> <discovery> <results> <packet>...
 ```
 
-Any failure invalidates the subwave; repair or rerun it before continuing.
-After every initial packet validates, combine their `unresolved_leads` counts.
-If the total is zero, collect the corpus immediately.
-
-- Increment: deterministically defer every continuation without a curator:
+Any invalid result blocks the cohort until repaired. After every initial packet
+validates, deterministically defer every unresolved continuation without
+another scout wave:
 
 ```text
 python3 <skill>/scripts/campaign.py discovery-defer \
   <discovery-seed> <discovery> <results> <discovery>/deferred
 ```
-
-- Exhaustive: when continuations exist, give one fresh weak-tier curator the
-  operation, unresolved proposals, and compact lead registry under
-  `frontier-curation.md`. It queues every unique in-scope continuation and
-  defers nothing.
-
-Persist the exhaustive decision and execute only targeted fallback packets:
-
-```text
-python3 <skill>/scripts/campaign.py discovery-packets \
-  <discovery-seed> <frontier.json> <discovery>/wave-NNNN
-```
-
-Every fallback scout uses the same closure contract, adaptive limit, exact
-paths, barrier, and validation. Dispatch another wave only for justified
-`unresolved_leads`. Never create mandatory breadth-first waves; safety limits
-establish blockage, not closure.
 
 When the frontier is settled:
 
@@ -219,8 +202,8 @@ python3 <skill>/scripts/synthesis.py prepare \
   <discovery-corpus.json> <synthesis-packet.json>
 ```
 
-Discovery packet/collect/reopen, synthesis prepare, and integration prepare
-are input-digest-idempotent: reuse `already_ready`; never overwrite conflicts.
+Discovery packet/collect, synthesis prepare, and integration prepare are
+input-digest-idempotent: reuse `already_ready`; never overwrite conflicts.
 
 Give the packet to one fresh strong-tier synthesizer under
 `topic-synthesis.md`. It writes a semantic mapping containing exactly
@@ -240,23 +223,18 @@ python3 <skill>/scripts/synthesis.py materialize \
 ```
 
 Never handwrite or repair `topic-plan.json`. Repair the semantic mapping and
-rerun the deterministic commands. Closed materialization
-validates a private temporary plan before atomically replacing the canonical
-path; a plan containing open leads is only an atomic input to discovery reopen.
+rerun the deterministic commands. Materialization validates a private
+temporary plan before atomically replacing the canonical path. For exhaustive
+work it converts residual `open_leads` into `deferred_leads`; it never reopens
+discovery automatically.
 Record diagnostics such as `zero-existing-coverage`, `high-singleton-ratio`,
 or `low-semantic-reduction`, but do not block production. Doctor or Evolve may
 refine ownership and granularity later.
 
 - Increment reproduces the corpus `deferred_leads` exactly and returns no
   `open_leads`.
-- Exhaustive returns no `deferred_leads`. Reopen every `open_lead`, close the
-  new frontier, collect again, and rerun whole-corpus synthesis:
-
-```text
-python3 <skill>/scripts/campaign.py discovery-reopen \
-  <campaign> <discovery-seed> <topic-plan.json> \
-  <discovery>/wave-NNNN
-```
+- Exhaustive performs one global synthesis. Materialization retains every
+  residual open lead as deferred work and continues to production.
 
 When the materialized synthesis is closed:
 
@@ -387,3 +365,5 @@ verified counts, changed Spine-relative paths, unresolved uncertainty, and the
 receipt's reconstruction readiness. Say explicitly that `scope_verified`
 means the selected repository-observation scope was completed; it does not
 mean the Spine is reconstructable or that code conforms to it.
+`scope_mapped_with_deferred_leads` means useful results were published after
+the single pass while named coverage gaps remain.

@@ -459,6 +459,40 @@ class ProducerFinalizeTests(unittest.TestCase):
 
         self.assertIn("uses only test evidence", error["error"])
 
+    def test_open_question_bullets_require_semantic_ids(self):
+        (self.work / "staging" / "identity.md").write_text(
+            "# Identity\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "- **OBS-identity-session** — Sessions exist. "
+            "Evidence: `src/identity/session.py`.\n\n"
+            "## Open questions\n\n"
+            "- Who owns failed session recovery?\n",
+            encoding="utf-8",
+        )
+        self.checkpoint()
+
+        error = self.execute(expected=2)
+
+        self.assertIn("need stable OQ-* semantic IDs", error["error"])
+
+    def test_open_question_bullets_accept_semantic_ids(self):
+        (self.work / "staging" / "identity.md").write_text(
+            "# Identity\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "- **OBS-identity-session** — Sessions exist. "
+            "Evidence: `src/identity/session.py`.\n\n"
+            "## Open questions\n\n"
+            "- **OQ-session-recovery-owner** — Who owns failed session recovery?\n",
+            encoding="utf-8",
+        )
+        self.checkpoint()
+
+        receipt = self.execute()
+
+        self.assertEqual("ready", receipt["status"])
+
     def test_answered_rejects_normative_owner_claim(self):
         packet = json.loads(self.packet.read_text(encoding="utf-8"))
         packet["task"]["origin"] = "integration-1"

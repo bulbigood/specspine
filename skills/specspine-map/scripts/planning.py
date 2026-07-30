@@ -13,7 +13,7 @@ from typing import Any
 
 import campaign
 
-PLANNER_CONTRACT_VERSION = 1
+PLANNER_CONTRACT_VERSION = 2
 
 
 class PlanningError(ValueError):

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -15,6 +16,8 @@ import campaign
 
 EVIDENCE_BASELINE_RE = campaign.EVIDENCE_BASELINE_RE
 OBS_DEFINITION_RE = campaign.OBS_DEFINITION_RE
+OQ_DEFINITION_RE = re.compile(r"^- \*\*OQ-[a-z0-9][a-z0-9-]*\*\*\s+[—-]\s+\S")
+HEADING_RE = re.compile(r"^##\s+(.+?)\s*#*\s*$")
 
 
 class PreflightError(ValueError):
@@ -229,8 +232,15 @@ def run_candidate_checker(
 def validate_draft_semantics(
     staged: dict[str, Path],
     task: dict[str, Any],
+    spine_root: Path,
 ) -> None:
     expected_baseline = task.get("evidence_baseline")
+    manifest_path = spine_root / "specspine.json"
+    manifest = (
+        read_object(manifest_path)
+        if manifest_path.is_file()
+        else None
+    )
     for relative, path in staged.items():
         body = path.read_text(encoding="utf-8")
         if EVIDENCE_BASELINE_RE.search(body) is None:
@@ -245,6 +255,24 @@ def validate_draft_semantics(
             raise PreflightError(
                 f"candidate needs a semantic OBS definition: {relative}"
             )
+        in_open_questions = False
+        for line_number, line in enumerate(body.splitlines(), start=1):
+            heading = HEADING_RE.match(line)
+            if heading:
+                in_open_questions = (
+                    campaign.canonical_heading(heading.group(1), manifest)
+                    == "open-questions"
+                )
+                continue
+            if (
+                in_open_questions
+                and line.startswith("- ")
+                and not OQ_DEFINITION_RE.match(line)
+            ):
+                raise PreflightError(
+                    "open question bullets need stable OQ-* semantic IDs: "
+                    f"{relative}:{line_number}"
+                )
     planned_document = task.get("planned_document")
     if not isinstance(planned_document, str) or not planned_document.strip():
         raise PreflightError("draft task needs a canonical planned_document")
@@ -294,7 +322,7 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
     validate_repository_evidence(repository_root, evidence)
     validate_covered_owner(checkpoint, task, spine_root, evidence)
     if checkpoint["outcome"] == "draft":
-        validate_draft_semantics(staged, task)
+        validate_draft_semantics(staged, task, spine_root)
         try:
             campaign.validate_map_candidate_policy(staged, spine_root)
         except campaign.CampaignError as error:
