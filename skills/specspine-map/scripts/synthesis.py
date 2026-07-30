@@ -14,8 +14,27 @@ from typing import Any
 import campaign
 
 
-SYNTHESIS_CONTRACT_VERSION = 9
+SYNTHESIS_CONTRACT_VERSION = 10
 MAX_EVIDENCE_STRATA = 8
+INDEX_DENSITY_GUIDE = 20
+
+
+def projected_index_load(documents: list[str]) -> dict[str, int]:
+    entries: dict[str, set[str]] = {}
+    for document in sorted(set(documents)):
+        parts = Path(document).parts
+        for depth in range(len(parts)):
+            directory = Path(*parts[:depth]).as_posix() if depth else "."
+            entry = (
+                parts[depth]
+                if depth == len(parts) - 1
+                else f"{parts[depth]}/_INDEX.md"
+            )
+            entries.setdefault(directory, set()).add(entry)
+    return {
+        directory: len(values)
+        for directory, values in sorted(entries.items())
+    }
 
 def source_topics(
     corpus: dict[str, Any],
@@ -421,6 +440,26 @@ def synthesis_diagnostics(
                 ),
             }
         )
+    existing_owner_documents = [
+        profile["document"]
+        for profile in campaign.spine_owner_registry(
+            Path(corpus["spine_root"])
+        ).values()
+    ]
+    projected_documents = existing_owner_documents + [
+        value["document"] for value in semantic_values
+    ]
+    for directory, count in projected_index_load(projected_documents).items():
+        if count > INDEX_DENSITY_GUIDE:
+            diagnostics.append(
+                {
+                    "code": "dense-index-directory",
+                    "message": (
+                        f"Projected directory {directory!r} has {count} immediate "
+                        "index entries; recheck stable semantic subdirectories."
+                    ),
+                }
+            )
     return diagnostics
 
 

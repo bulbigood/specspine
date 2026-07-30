@@ -97,7 +97,10 @@ starting a second navigation pass.
    implementation evidence.
 3. Choose owners and decomposition using `references/spec-format.md`. Reuse an
    existing owner when possible; do not create a specification merely because a
-   file is long or a feature is new.
+   file is long or a feature is new. Before choosing final paths, project each
+   affected directory's deterministic index entries and apply the shared soft
+   density threshold. Prefer stable semantic child directories when an index
+   would grow beyond about 20 entries; never create arbitrary buckets.
 4. Treat an explicit in-scope operation or architectural decision as approval.
    Approval does not override Evolve's scope or terminal-detail boundary. Apply
    navigation, evidence-only, and clearly meaning-preserving edits directly.
@@ -155,8 +158,15 @@ relationship rules from `references/spec-format.md`. Use
 `references/spec-semantics.md` only when the operation changes claim meaning,
 authority, uncertainty, or conflict state. For a link operation, first classify
 the link as navigation, a statement reference, or a typed relationship; do not
-create a reciprocal typed edge unless it expresses a distinct approved
+ create a reciprocal typed edge unless it expresses a distinct approved
 relationship.
+
+For structural work, review every affected directory rather than only the
+edited document. Evolve may redistribute existing documents into stable
+conceptual subdirectories when the approved operation includes reorganization;
+preserve document IDs and rebuild all deterministic indexes afterward. A count
+above the shared density threshold is a prompt for semantic review, not
+automatic authority to move documents or split owners.
 
 ## Invariants
 

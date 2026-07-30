@@ -135,6 +135,9 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("name every member", discovery)
         self.assertIn("what it receives", discovery)
         self.assertIn("enumerate the in-scope members", self.compact(self.planner))
+        self.assertIn("about 20 entries", synthesis)
+        self.assertIn("Map may organize only new documents", synthesis)
+        self.assertIn("dense-index-directory", self.synthesis_script)
 
     def test_scout_parallelism_is_adaptive_and_wave_checked(self):
         protocol = self.compact(self.protocol)
@@ -270,7 +273,7 @@ class MapOperationContractTests(unittest.TestCase):
             "method": (self.method, 110),
             "planner": (self.planner, 55),
             "discovery": (self.discovery, 110),
-            "synthesis": (self.synthesis, 125),
+            "synthesis": (self.synthesis, 135),
             "coverage": (self.coverage, 40),
             "producer": (self.producer, 192),
             "integration": (self.integration, 175),

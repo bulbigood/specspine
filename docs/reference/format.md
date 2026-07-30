@@ -520,6 +520,22 @@ Split a node when a concern has independent ownership, lifecycle, contracts,
 constraints, consumers, or evolution. Do not split merely because a document
 is long. Do not mirror classes or directories.
 
+Plan directories as semantic navigation groups. Treat about 20 immediate index entries
+as a soft density threshold, not a format limit: when a directory would
+list more, explicitly reconsider whether stable conceptual subgroups or reading
+routes justify child directories. Count each immediate specification file and
+each immediate child-directory `_INDEX.md` as one entry. Never create arbitrary
+numbered buckets, mirror source layout, or separate one coherent owner merely
+to satisfy the threshold; a dense directory is valid when no durable semantic
+grouping improves navigation.
+
+Map applies this rule only while choosing paths for new owners. It MUST preserve
+every existing owner's document path and may place new coherent groups in child
+directories without moving existing documents. Evolve applies the same rule to
+initialization and structural change and may move existing documents when the
+approved operation permits reorganization, while preserving document IDs,
+links, relationships, assets, and reachability.
+
 Every Markdown specification MUST be reachable from root `_INDEX.md` through
 relative links. Every registered asset is reached from its canonical owner.
 Generated views and external links do not establish reachability.

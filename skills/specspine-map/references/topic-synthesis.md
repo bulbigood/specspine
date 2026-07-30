@@ -21,6 +21,15 @@ mapping, compare every pair of topics and assign each observation to exactly
 one canonical responsibility; relationships may reference a neighbor but may
 not duplicate its owned behavior.
 
+Before emitting canonical `document` paths, project deterministic index load
+from `existing_owners` plus every planned topic. Count each immediate document
+and child-directory index as one entry. When a directory would exceed the
+shared soft threshold of about 20 entries, reconsider stable semantic child
+directories and reading routes. Do not create numbered buckets or mirror source
+paths. Preserve every existing owner path exactly; Map may organize only new
+documents. A dense directory is acceptable only when no durable semantic
+grouping improves navigation.
+
 For exhaustive completion, detect responsibilities or boundaries exposed but
 never expanded and place them in `open_leads`; deterministic materialization
 retains them as deferred work without another discovery or synthesis pass.

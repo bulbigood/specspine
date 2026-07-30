@@ -2136,7 +2136,10 @@ class MapCampaignTests(unittest.TestCase):
         with mock.patch.dict(sys.modules, {"campaign": CAMPAIGN_MODULE}):
             specification.loader.exec_module(module)
         semantic_values = [
-            {"source_topic_ids": [f"lead/topic-{index:02d}"]}
+            {
+                "document": f"topics/topic-{index:02d}.md",
+                "source_topic_ids": [f"lead/topic-{index:02d}"],
+            }
             for index in range(20)
         ]
         diagnostics = module.synthesis_diagnostics(
@@ -2153,6 +2156,39 @@ class MapCampaignTests(unittest.TestCase):
             },
             {value["code"] for value in diagnostics},
         )
+
+    def test_synthesis_diagnostics_flag_dense_projected_index(self):
+        specification = importlib.util.spec_from_file_location(
+            "map_synthesis_layout_diagnostics",
+            SYNTHESIS,
+        )
+        assert specification is not None and specification.loader is not None
+        module = importlib.util.module_from_spec(specification)
+        with mock.patch.dict(sys.modules, {"campaign": CAMPAIGN_MODULE}):
+            specification.loader.exec_module(module)
+        semantic_values = [
+            {
+                "document": f"visualizations/topic-{index:02d}.md",
+                "source_topic_ids": [f"lead/topic-{index:02d}"],
+            }
+            for index in range(21)
+        ]
+
+        diagnostics = module.synthesis_diagnostics(
+            corpus={"spine_root": str(self.spine)},
+            source_count=21,
+            semantic_values=semantic_values,
+            covered_count=0,
+        )
+
+        dense = [
+            value
+            for value in diagnostics
+            if value["code"] == "dense-index-directory"
+        ]
+        self.assertEqual(1, len(dense))
+        self.assertIn("'visualizations'", dense[0]["message"])
+        self.assertIn("21 immediate index entries", dense[0]["message"])
 
     def test_exhaustive_synthesis_requires_peer_family_review(self):
         specification = importlib.util.spec_from_file_location(
