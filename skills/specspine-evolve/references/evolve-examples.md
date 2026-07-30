@@ -25,7 +25,9 @@ manage customers, subscriptions, and invoices.
 
 ```text
 <spine-root>/
+├── README.md
 ├── _INDEX.md
+├── specspine.json
 ├── application.md
 ├── identity.md
 ├── billing.md
@@ -44,7 +46,9 @@ screen.
 
 ```text
 <spine-root>/
+├── README.md
 ├── _INDEX.md
+├── specspine.json
 ├── authentication.md
 └── users.md
 ```
@@ -69,7 +73,8 @@ Create:
 
 Modify:
 - <spine-root>/authentication.md
-- <spine-root>/README.md
+
+Regenerate mechanically:
 - <spine-root>/_INDEX.md
 
 Read-only context:

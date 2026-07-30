@@ -54,6 +54,9 @@ class MapCampaignTests(unittest.TestCase):
             "<!-- specspine:evidence-baseline "
             "source=fixture; inspected=2026-07-28 -->\n"
             "<!-- specspine:semantic-ids:begin -->\n"
+            "## Constraints\n\n"
+            "- **CON-architecture-boundary** — The system boundary MUST remain "
+            "owned by this specification.\n\n"
             "## Observed\n\n"
             "- **OBS-architecture-root** — Broad system owner. "
             "Evidence: `src/identity/session.py`, `pyproject.toml`.\n"
@@ -771,7 +774,12 @@ class MapCampaignTests(unittest.TestCase):
             payload["owner"] = (
                 {
                     "document": owner_document,
-                    "claims": owner_claim_ids or ["OBS-architecture-root"],
+                    "claims": owner_claim_ids
+                    or (
+                        ["OBS-architecture-root"]
+                        if outcome == "answered"
+                        else ["CON-architecture-boundary"]
+                    ),
                 }
             )
         elif outcome == "retry":
@@ -2467,7 +2475,7 @@ class MapCampaignTests(unittest.TestCase):
                             "coverage": [
                                 {
                                     "document": "architecture.md",
-                                    "claims": ["OBS-architecture-root"],
+                                    "claims": ["CON-architecture-boundary"],
                                 }
                             ],
                         }
@@ -2532,7 +2540,7 @@ class MapCampaignTests(unittest.TestCase):
                             "coverage": [
                                 {
                                     "document": "architecture.md",
-                                    "claims": ["OBS-not-defined"],
+                                    "claims": ["GUA-not-defined"],
                                 }
                             ],
                         }
@@ -2558,6 +2566,50 @@ class MapCampaignTests(unittest.TestCase):
         )
 
         self.assertIn("claim is not defined", error["error"])
+
+    def test_source_pass_rejects_observation_as_covered_intent(self):
+        plan = self.run / "observed-covered-topic-plan.json"
+        plan.write_text(
+            json.dumps(
+                {
+                    "topics": [],
+                    "covered": [
+                        {
+                            "id": "architecture-root",
+                            "title": "Existing architecture",
+                            "responsibility": "Owns the fixture architecture.",
+                            "reason": "Repository evidence repeats an observation.",
+                            "files": ["src/identity/session.py"],
+                            "coverage_reason": "An OBS is not accepted intent.",
+                            "coverage": [
+                                {
+                                    "document": "architecture.md",
+                                    "claims": ["OBS-architecture-root"],
+                                }
+                            ],
+                        }
+                    ],
+                    "supporting": [],
+                    "open_leads": [],
+                    "deferred_leads": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        error = self.cli(
+            "source-pass",
+            str(self.ledger),
+            str(self.repository),
+            str(self.spine),
+            "--discovery-corpus",
+            str(self.discovery_corpus_path()),
+            "--topic-plan",
+            str(plan),
+            expected=2,
+        )
+
+        self.assertIn("invalid semantic claim", error["error"])
 
     def test_inventory_classifies_nonproduction_files(self):
         additions = {
@@ -3136,7 +3188,7 @@ class MapCampaignTests(unittest.TestCase):
         self.assertIn("MANIFEST_VERSION", error["error"])
 
     def test_documentation_seed_records_current_v4_defects_as_baseline(self):
-        ledger = self.run / "defective-v3.json"
+        ledger = self.run / "defective-envelope.json"
         self.cli(
             "init",
             str(ledger),
@@ -3501,7 +3553,7 @@ class MapCampaignTests(unittest.TestCase):
         self.integrate(workspace=workspace)
         self.assertTrue((self.spine / "identity.md").is_file())
 
-    def test_assembly_materializes_synthesized_graph_and_publishes_once(self):
+    def test_assembly_keeps_synthesized_graph_provisional_and_publishes_once(self):
         manifest_path = self.spine / "specspine.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest["presentation"] = {
@@ -3626,7 +3678,7 @@ class MapCampaignTests(unittest.TestCase):
             )
         for topic in topics.values():
             body = (self.spine / topic["document"]).read_text(encoding="utf-8")
-            self.assertIn("## Связи", body)
+            self.assertNotIn("## Связи", body)
             self.assertNotIn("## Relationships", body)
             topic_index = (self.spine / Path(topic["document"]).parent / "_INDEX.md")
             self.assertIn(Path(topic["document"]).name, topic_index.read_text())
@@ -3953,7 +4005,7 @@ class MapCampaignTests(unittest.TestCase):
         error = self.integrate(report, expected=2)
         self.assertIn("cannot discard producer publications", error["error"])
 
-    def test_new_owner_requires_typed_graph_connection(self):
+    def test_new_observation_owner_does_not_require_accepted_graph_connection(self):
         neighbor_source = self.repository / "src/neighbor/service.py"
         neighbor_source.parent.mkdir(parents=True)
         neighbor_source.write_text("SERVICE = True\n", encoding="utf-8")
@@ -3989,9 +4041,13 @@ class MapCampaignTests(unittest.TestCase):
         workspace = self.prepare_integration()
         report = self.integration_report(workspace=workspace)
 
-        error = self.integrate(report, workspace=workspace, expected=2)
+        result = self.integrate(report, workspace=workspace)
 
-        self.assertIn("typed relationship", error["error"])
+        self.assertEqual("integrated", result["status"])
+        self.assertNotIn(
+            "## Relationships",
+            (self.spine / "identity.md").read_text(encoding="utf-8"),
+        )
 
     def test_integration_adds_document_derived_todo(self):
         self.source_pass()

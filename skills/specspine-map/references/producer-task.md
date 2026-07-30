@@ -14,8 +14,10 @@ stratum. If `current_owner.exists` is false, create exactly `planned_document`;
 if true, refine that document in place. A draft defines exactly the owner ID
 named by the `topics/<owner-id>` architecture unit; preflight rejects any
 different identity before the handoff becomes visible.
-Do not add, remove, or render graph edges: deterministic assembly
-owns `Relationships`. If an edge or part of the proposed boundary is weak,
+Do not add, remove, or render graph edges. Preserve an existing owner's
+accepted `Relationships` exactly; omit `Relationships` from a new
+observation-only owner. Synthesized edges are producer context until Evolve
+accepts them. If an edge or part of the proposed boundary is weak,
 publish the coherent evidence-backed core and record the doubt as a concise
 `directions` question. Do not reject an otherwise useful document because the
 semantic graph may need later Doctor or Evolve refinement. Copy
@@ -29,8 +31,8 @@ lifecycle, failure, configuration, and compatibility sections is authoritative
 architectural intent. `DEC`, `CON`, `REQ`, `GUA`, `INV`, `QLT`, and `VER` are
 normative; code cannot create them. `OBS` is a directly evidenced repository
 fact, `INF` an unconfirmed interpretation, and `OQ` unresolved uncertainty.
-Every bullet in `Open questions` must be a semantic definition with a stable
-`OQ-*` ID; never emit an anonymous question bullet.
+Give an open question a stable `OQ-*` ID only when a blocker, statement,
+asset, or workflow must address it exactly.
 Only accepted intent may use normative `MUST`, `SHOULD`, or `MAY`.
 
 For a new Map owner with no accepted intent, keep `Summary` observational and
@@ -88,6 +90,10 @@ specification and verify:
   repository-relative path, never prefix-inherited shorthand;
 - a new observation-only owner has no code-derived accepted prose outside
   `Observed`;
+- a new observation-only owner has no accepted sections other than its required
+  meta-`Responsibility`, and no `Relationships`;
+- an existing owner's title, identity, aliases, summary, accepted prose, and
+  `Relationships` remain unchanged;
 - every staged owner containing `OBS` has the exact task-packet evidence
   baseline; a source draft exists only for a material retained delta;
 - supported relevant inputs, outputs, consumers, controls, data authority,
@@ -150,8 +156,9 @@ Existing owner:
 }
 ```
 
-Use `covered` only for a source-pass scope task. The cited accepted claims and
-architectural owner must cover the assigned semantic topic. The owner need not
+Use `covered` only for a source-pass scope task. Every cited claim must be
+normative accepted intent; an `OBS` cannot establish this outcome. The accepted
+claims and architectural owner must cover the assigned semantic topic. The owner need not
 cite inspected source paths: code remains the evidence authority and inspection
 coverage records the bounded comparison without manufacturing `OBS`.
 

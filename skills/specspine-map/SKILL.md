@@ -76,8 +76,8 @@ publishes useful results without claiming complete coverage.
 - Start new files from `assets/templates/`; omit empty sections.
 ## Authorities
 
-Discovery finds evidence; synthesis defines topics, canonical documents, the
-typed graph, and existing coverage; producers verify one topic and stage its
+Discovery finds evidence; synthesis defines topics, target documents, a
+provisional evidence graph, and existing coverage; producers verify one topic and stage its
 assigned document; deterministic assembly publishes clean results. Root handles
 only receipts, state transitions, and explicit semantic exceptions. An isolated
 planner chooses the initial semantic search boundaries for every scope. Root
@@ -94,11 +94,14 @@ inside Map.
 
 The synthesizer operates on every scout description and provenance ID in one
 global packet, never on bulk file lists. It performs global deduplication,
-coverage classification, granularity, and graph construction in one task.
+coverage classification, granularity, and provisional graph construction in one task.
 `synthesis.py` alone prepares that compact packet, resolves IDs back to corpus
 evidence, reports suspicious coverage or granularity, and atomically writes
 the sole canonical topic plan. Semantic diagnostics are advisory: Map favors
 prompt coverage and leaves later graph refinement to Doctor or Evolve.
+Synthesized relationships coordinate parallel production but never establish
+accepted `Relationships`; only Evolve may promote them after explicit
+acceptance.
 Only whole-repository exhaustive mapping adds an isolated topology coverage
 audit after synthesis. It looks for missing architectural roots, not file
 coverage.

@@ -44,7 +44,8 @@ class MapOperationContractTests(unittest.TestCase):
     def test_authority_is_split_without_duplicate_coverage_claims(self):
         text = self.compact(self.entrypoint)
         self.assertIn("Discovery finds evidence", text)
-        self.assertIn("synthesis defines topics, canonical documents", text)
+        self.assertIn("synthesis defines topics, target documents", text)
+        self.assertIn("provisional evidence graph", text)
         self.assertIn("producers verify one topic", text)
         self.assertIn("deterministic assembly publishes clean results", text)
         self.assertIn("paths, and filenames never define", text)
@@ -121,7 +122,7 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("SpecSpine semantic extraction", synthesis)
         self.assertIn("`open_leads`", synthesis)
         self.assertIn("`deferred_leads`", synthesis)
-        self.assertIn("missing data/control-flow edges", synthesis)
+        self.assertIn("missing data/control-flow proposals", synthesis)
         self.assertIn("every `source_topic`", synthesis)
         self.assertIn("source_topic_ids", synthesis)
         self.assertIn("source_topics(corpus", self.synthesis_script)
@@ -213,7 +214,10 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("related_planned_owners", producer)
         self.assertIn("SpecSpine separates accepted intent", producer)
         self.assertIn("new observation-only owner", producer)
-        self.assertIn("Every bullet in `Open questions`", producer)
+        self.assertIn("omit `Relationships`", producer)
+        self.assertIn("normative accepted intent", producer)
+        self.assertIn("runtime planning data", protocol)
+        self.assertIn("Give an open question a stable `OQ-*` ID only", producer)
         self.assertIn("current_owner", self.campaign)
 
     def test_receipts_preserve_atomic_handoffs_before_redispatch(self):
@@ -232,7 +236,7 @@ class MapOperationContractTests(unittest.TestCase):
 
     def test_integration_owns_canonical_publication_and_derived_todo(self):
         text = self.compact(self.integration)
-        self.assertIn("Confirm or correct ownership", text)
+        self.assertIn("Confirm or correct evidence ownership", text)
         self.assertIn("Every suggestion emitted", text)
         self.assertIn("Increment completion forbids `queued`", text)
         self.assertIn("changed_documents", text)
@@ -283,9 +287,9 @@ class MapOperationContractTests(unittest.TestCase):
             "method": (self.method, 112),
             "planner": (self.planner, 55),
             "discovery": (self.discovery, 110),
-            "synthesis": (self.synthesis, 138),
+            "synthesis": (self.synthesis, 145),
             "coverage": (self.coverage, 40),
-            "producer": (self.producer, 197),
+            "producer": (self.producer, 205),
             "integration": (self.integration, 175),
         }
         for name, (value, maximum) in limits.items():

@@ -124,9 +124,10 @@ repository evidence.
 
 For directory decomposition, propose the exact moves and every affected
 Markdown link. Preserve document IDs, canonical ownership, accepted claims, and
-graph relationships. Do not introduce directory index files or new
-containment relationships unless they add independently justified navigation
-value. Moving an already coherent set of specifications is
+graph relationships. Rebuild every mandatory directory `_INDEX.md`
+mechanically; it is physical navigation and needs no separate semantic
+justification. Do not introduce new containment relationships unless they add
+independently justified architectural meaning. Moving an already coherent set of specifications is
 meaning-preserving; deciding ambiguous group membership requires operator
 approval.
 

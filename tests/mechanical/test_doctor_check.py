@@ -57,7 +57,7 @@ PAYMENTS = """# Payments
 """
 
 
-class DoctorCheckerV3Tests(unittest.TestCase):
+class DoctorCheckerV4Tests(unittest.TestCase):
     def spine(self, payment=PAYMENTS, index=INDEX, extra=None, manifest=None):
         temporary = tempfile.TemporaryDirectory()
         root = Path(temporary.name)

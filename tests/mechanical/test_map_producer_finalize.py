@@ -215,6 +215,26 @@ class ProducerFinalizeTests(unittest.TestCase):
         self.checker.write_text("raise SystemExit(99)\n", encoding="utf-8")
         (self.spine / "identity.md").write_text(
             "# Identity\n\n"
+            "- **GUA-identity-session** — Sessions remain available.\n",
+            encoding="utf-8",
+        )
+        self.checkpoint(
+            outcome="covered",
+            owner={
+                "document": "identity.md",
+                "claims": ["GUA-identity-session"],
+            },
+        )
+
+        receipt = self.execute()
+
+        self.assertEqual("not_applicable", receipt["mechanical_preflight"])
+        self.assertFalse(self.work.exists())
+        self.assertTrue((self.handoff / "checkpoint.json").is_file())
+
+    def test_covered_checkpoint_rejects_observation_as_intent(self):
+        (self.spine / "identity.md").write_text(
+            "# Identity\n\n"
             "- **OBS-identity-session** — `src/identity/session.py`.\n",
             encoding="utf-8",
         )
@@ -226,11 +246,10 @@ class ProducerFinalizeTests(unittest.TestCase):
             },
         )
 
-        receipt = self.execute()
+        error = self.execute(expected=2)
 
-        self.assertEqual("not_applicable", receipt["mechanical_preflight"])
-        self.assertFalse(self.work.exists())
-        self.assertTrue((self.handoff / "checkpoint.json").is_file())
+        self.assertIn("accepted intent", error["error"])
+        self.assertTrue(self.work.is_dir())
 
     def test_invalid_covered_owner_stays_private(self):
         self.checkpoint(
@@ -440,6 +459,52 @@ class ProducerFinalizeTests(unittest.TestCase):
         self.assertIn("cannot add, remove, or change", error["error"])
         self.assertTrue(self.work.is_dir())
 
+    def test_new_draft_cannot_add_accepted_boundary_section(self):
+        (self.work / "staging" / "identity.md").write_text(
+            "# Identity\n\n"
+            "**ID:** `identity` · **Kind:** `component`\n\n"
+            "**Summary:** Documents an observed candidate boundary.\n\n"
+            "## Responsibility\n\n"
+            "Records repository evidence about a candidate identity boundary.\n\n"
+            "## Boundaries\n\n"
+            "Accepts credentials and emits sessions.\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "- **OBS-identity-session** — Session code exists. "
+            "Evidence: `src/identity/session.py`.\n",
+            encoding="utf-8",
+        )
+        self.checkpoint()
+
+        error = self.execute(expected=2)
+
+        self.assertIn("accepted sections require Evolve", error["error"])
+        self.assertIn("boundaries", error["error"])
+
+    def test_new_draft_cannot_add_relationships(self):
+        (self.work / "staging" / "identity.md").write_text(
+            "# Identity\n\n"
+            "**ID:** `identity` · **Kind:** `component`\n\n"
+            "**Summary:** Documents an observed candidate boundary.\n\n"
+            "## Responsibility\n\n"
+            "Records repository evidence about a candidate identity boundary.\n\n"
+            "## Relationships\n\n"
+            "| Relation | Target | Meaning |\n"
+            "|---|---|---|\n"
+            "| `related-to` | [Identity](identity.md) | Candidate interaction |\n\n"
+            "<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "- **OBS-identity-session** — Session code exists. "
+            "Evidence: `src/identity/session.py`.\n",
+            encoding="utf-8",
+        )
+        self.checkpoint()
+
+        error = self.execute(expected=2)
+
+        self.assertIn("accepted sections require Evolve", error["error"])
+        self.assertIn("relationships", error["error"])
+
     def test_existing_draft_cannot_change_normative_claim(self):
         (self.spine / "identity.md").write_text(
             "# Identity\n\n"
@@ -462,6 +527,70 @@ class ProducerFinalizeTests(unittest.TestCase):
 
         self.assertIn("cannot add, remove, or change", error["error"])
 
+    def test_existing_draft_cannot_change_accepted_responsibility(self):
+        accepted = (
+            "# Identity\n\n"
+            "**ID:** `identity` · **Kind:** `component`\n\n"
+            "**Summary:** Owns application identity.\n\n"
+            "## Responsibility\n\n"
+            "Owns application identity.\n"
+        )
+        (self.spine / "identity.md").write_text(accepted, encoding="utf-8")
+        (self.work / "staging" / "identity.md").write_text(
+            accepted.replace(
+                "Owns application identity.\n\n<!--",
+                "Owns application sessions.\n\n<!--",
+            )
+            .rstrip()
+            + "\n\n<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "- **OBS-identity-session** — Session code exists. "
+            "Evidence: `src/identity/session.py`.\n",
+            encoding="utf-8",
+        )
+        # Replace the responsibility occurrence, not the summary.
+        candidate = self.work / "staging" / "identity.md"
+        body = candidate.read_text(encoding="utf-8")
+        body = body.replace(
+            "## Responsibility\n\nOwns application identity.",
+            "## Responsibility\n\nOwns application sessions.",
+        )
+        candidate.write_text(body, encoding="utf-8")
+        self.checkpoint()
+
+        error = self.execute(expected=2)
+
+        self.assertIn("accepted prose or relationships", error["error"])
+        self.assertIn("responsibility", error["error"])
+
+    def test_existing_draft_cannot_change_accepted_relationships(self):
+        accepted = (
+            "# Identity\n\n"
+            "**ID:** `identity` · **Kind:** `component`\n\n"
+            "**Summary:** Owns application identity.\n\n"
+            "## Responsibility\n\n"
+            "Owns application identity.\n\n"
+            "## Relationships\n\n"
+            "| Relation | Target | Meaning |\n"
+            "|---|---|---|\n"
+            "| `related-to` | [Identity](identity.md) | Stable accepted edge |\n"
+        )
+        (self.spine / "identity.md").write_text(accepted, encoding="utf-8")
+        (self.work / "staging" / "identity.md").write_text(
+            accepted.replace("Stable accepted edge", "Repository-derived edge")
+            + "\n<!-- specspine:evidence-baseline "
+            "source=fixture; inspected=2026-07-28 -->\n"
+            "- **OBS-identity-session** — Session code exists. "
+            "Evidence: `src/identity/session.py`.\n",
+            encoding="utf-8",
+        )
+        self.checkpoint()
+
+        error = self.execute(expected=2)
+
+        self.assertIn("accepted prose or relationships", error["error"])
+        self.assertIn("relationships", error["error"])
+
     def test_observation_cannot_rely_only_on_test_evidence(self):
         tests = self.repository / "tests"
         tests.mkdir()
@@ -483,7 +612,7 @@ class ProducerFinalizeTests(unittest.TestCase):
 
         self.assertIn("uses only test evidence", error["error"])
 
-    def test_open_question_bullets_require_semantic_ids(self):
+    def test_unaddressed_open_question_bullets_do_not_require_semantic_ids(self):
         (self.work / "staging" / "identity.md").write_text(
             "# Identity\n\n"
             "**ID:** `identity` · **Kind:** `component`\n\n"
@@ -497,9 +626,9 @@ class ProducerFinalizeTests(unittest.TestCase):
         )
         self.checkpoint()
 
-        error = self.execute(expected=2)
+        receipt = self.execute()
 
-        self.assertIn("need stable OQ-* semantic IDs", error["error"])
+        self.assertEqual("ready", receipt["status"])
 
     def test_open_question_bullets_accept_semantic_ids(self):
         (self.work / "staging" / "identity.md").write_text(

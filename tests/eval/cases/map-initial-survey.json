@@ -18,7 +18,7 @@
   "assertions": [
     {"type": "path_exists", "path": "specspine/_INDEX.md"},
     {"type": "glob_count", "glob": "specspine/*.md", "min": 3, "max": 7},
-    {"type": "file_contains", "path": "specspine/_INDEX.md", "value": "## Mapping status"},
+    {"type": "file_not_contains", "path": "specspine/_INDEX.md", "value": "## Mapping status"},
     {"type": "unchanged", "paths": ["AGENTS.md", "_INDEX.md", "package.json", "apps/**", "packages/**", "docker-compose.yml"]},
     {"type": "changed_only", "paths": ["specspine/**"]},
     {"type": "markdown_links_valid", "glob": "specspine/*.md"}

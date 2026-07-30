@@ -28,7 +28,7 @@ SpecSpine MUST:
 - support deterministic script-only extraction of task-specific context;
 - exclude private implementation detail owned by code;
 - permit owned machine-readable contracts and implementation-independent
-  verification where exact reconstruction semantics require them.
+  verification where contract-equivalent reconstruction requires them.
 
 ## Authority boundaries
 

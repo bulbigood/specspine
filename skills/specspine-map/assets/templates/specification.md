@@ -21,13 +21,9 @@ this section from repository evidence alone.
 
 ## Relationships
 
-| Relation | Target | Meaning |
-|---|---|---|
-| `depends-on` | [Neighbor](neighbor.md) | Explain the architectural consequence |
-
-Store each directed typed edge once. Use ordinary prose links for navigation,
-not as implicit relationships. Omit this section when there are no useful
-typed edges.
+Preserve this section exactly when updating an existing owner. Omit it from a
+new observation-only owner: repository-derived interactions remain `OBS`,
+uncertainty, or Map runtime planning data until Evolve accepts them.
 
 Place accepted claim sections after `Relationships`, then `Known divergences`
 before `Observed`, `Inferred`, and `Open questions`. Put implementation

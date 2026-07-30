@@ -5,7 +5,7 @@
   "category": "extended",
   "eval_language": "English",
   "initial_files": {
-    "specspine/_INDEX.md": "# Commerce architecture\n\n## Architecture map\n\n- [Checkout](checkout.md)\n- [Payment processing](payment-processing.md)\n- [Inventory reservations](inventory-reservations.md)\n\n## Mapping status\n\nThe main purchase responsibilities are mapped. Operational policy remains intentionally incomplete.\n",
+    "specspine/_INDEX.md": "# Commerce architecture\n\n**ID:** `project-architecture` · **Kind:** `index`\n\n## Contents\n\n- [Checkout](checkout.md)\n- [Payment processing](payment-processing.md)\n- [Inventory reservations](inventory-reservations.md)\n",
     "specspine/checkout.md": "# Checkout\n\n## Responsibility\n\nOwns purchase submission and coordinates payment with inventory reservation.\n\n## Boundaries\n\nPayment execution belongs to [Payment processing](payment-processing.md). Stock reservation belongs to [Inventory reservations](inventory-reservations.md).\n",
     "specspine/payment-processing.md": "# Payment processing\n\n## Responsibility\n\nOwns provider-independent payment attempts and their outcomes.\n\n## Boundaries\n\nCheckout supplies the order and requested amount through [Checkout](checkout.md). Inventory ownership remains outside payment processing.\n",
     "specspine/inventory-reservations.md": "# Inventory reservations\n\n## Responsibility\n\nOwns temporary stock reservation for an in-progress checkout.\n\n## Boundaries\n\n[Checkout](checkout.md) requests and releases reservations; inventory decides whether stock can be held.\n",

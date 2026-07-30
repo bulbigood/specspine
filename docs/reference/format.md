@@ -459,6 +459,11 @@ divergence, affects an unresolved architectural question, or provides necessary
 navigation to a surprising owner or boundary. Evidence already represented by
 accepted intent belongs only in inspection coverage.
 
+Repository comparison may propose owner relationships for discovery and
+producer coordination, but it MUST NOT publish those proposals as canonical
+`Relationships`. Preserve existing accepted edges exactly; promote a proposed
+edge only through an intent-authorized workflow such as Evolve.
+
 A document containing repository observations records one evidence baseline
 near its first `Observed` section:
 

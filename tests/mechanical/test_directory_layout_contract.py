@@ -6,6 +6,26 @@ ROOT = Path(__file__).parents[2]
 
 
 class DirectoryLayoutContractTests(unittest.TestCase):
+    def test_evolve_uses_shared_bootstrap(self):
+        script = ROOT / "skills/specspine-evolve/scripts/bootstrap_spine.py"
+        self.assertTrue(script.is_symlink())
+        self.assertEqual(
+            (ROOT / "shared/scripts/bootstrap_spine.py").resolve(),
+            script.resolve(),
+        )
+        index_template = (
+            ROOT / "skills/specspine-evolve/assets/templates/spine-index.md"
+        )
+        self.assertTrue(index_template.is_symlink())
+        self.assertEqual(
+            (ROOT / "shared/assets/templates/spine-index.md").resolve(),
+            index_template.resolve(),
+        )
+        evolve_text = (
+            ROOT / "skills/specspine-evolve/SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("scripts/bootstrap_spine.py", evolve_text)
+
     def test_format_is_shared_authority_for_directory_density(self):
         format_text = (ROOT / "docs/reference/format.md").read_text(encoding="utf-8")
         map_text = (

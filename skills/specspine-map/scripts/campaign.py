@@ -5,7 +5,7 @@ The campaign deliberately separates four authorities:
 
 * scoped discovery builds the semantic evidence frontier;
 * one-shot producers verify one bounded task and stage missing observations;
-* the root orchestrator publishes and integrates accepted results;
+* the root orchestrator publishes checked evidence results;
 * the ledger derives the selected completion claim from evidence and integration.
 
 Producer prose is never treated as proof of coverage or saturation.
@@ -46,8 +46,8 @@ from spec_contract import (
 )
 
 
-SCHEMA_VERSION = 17
-PRODUCER_CONTRACT_VERSION = 13
+SCHEMA_VERSION = 18
+PRODUCER_CONTRACT_VERSION = 14
 DISCOVERY_CONTRACT_VERSION = 8
 MAX_UNIT_FILES = 80
 MAX_SCOUT_SEED_FILES = 40
@@ -96,7 +96,7 @@ REVIEW_DISPOSITIONS = {
 ANCHOR_DISPOSITIONS = {"resolved", "refined", "still-open", "blocking"}
 OQ_ID_RE = re.compile(semantic_id_pattern(("OQ",)))
 COVERAGE_CLAIM_ID_RE = re.compile(
-    semantic_id_pattern(NORMATIVE_SEMANTIC_PREFIXES + ("OBS",))
+    semantic_id_pattern(NORMATIVE_SEMANTIC_PREFIXES)
 )
 EVIDENCE_BASELINE_RE = re.compile(
     r"<!--\s*specspine:evidence-baseline\s+"
@@ -117,14 +117,36 @@ DOCUMENT_IDENTITY_RE = re.compile(
     r"\*\*Kind:\*\*\s+`((?!index`)[^`]+)`\s*$",
     re.MULTILINE,
 )
-RELATION_ROW_RE = re.compile(
-    r"^\|\s*`(?:[a-z][a-z0-9-]*|x-[a-z0-9-]+)`\s*\|\s*"
-    r"\[[^\]]+\]\(([^)#?]+\.md)\)\s*\|",
-    re.MULTILINE,
+DOCUMENT_TITLE_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
+DOCUMENT_ALIASES_RE = re.compile(r"^\*\*Aliases:\*\*\s*(.+?)\s*$", re.MULTILINE)
+DOCUMENT_SUMMARY_RE = re.compile(r"^\*\*Summary:\*\*\s*(.+?)\s*$", re.MULTILINE)
+SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*#*\s*$", re.MULTILINE)
+ACCEPTED_SECTION_KEYS = frozenset(
+    {
+        "responsibility",
+        "boundaries",
+        "behavior",
+        "interfaces",
+        "information-model",
+        "data-ownership",
+        "lifecycle-and-invariants",
+        "failure-behavior",
+        "edge-cases",
+        "configuration-contract",
+        "compatibility",
+        "relationships",
+        "requirements",
+        "guarantees",
+        "invariants",
+        "quality-constraints",
+        "verification",
+        "decisions",
+        "constraints",
+    }
 )
 SUGGESTION_DISPOSITIONS = {"queued", "covered", "preserved", "rejected"}
 DEFERRED_CHECKER_CODES = {"UNREACHABLE_SPEC"}
-V3_ENVELOPE_BLOCKER_CODES = {
+SPINE_ENVELOPE_BLOCKER_CODES = {
     "INDEX_MISSING",
     "MANIFEST_IMPLEMENTATION_FREEDOM",
     "MANIFEST_INVALID",
@@ -3268,7 +3290,7 @@ def command_seed_from_spine(args: argparse.Namespace) -> dict[str, Any]:
         value
         for value in findings
         if isinstance(value, dict)
-        and value.get("code") in V3_ENVELOPE_BLOCKER_CODES
+        and value.get("code") in SPINE_ENVELOPE_BLOCKER_CODES
     ]
     if envelope_blockers:
         raise CampaignError(
@@ -4548,12 +4570,21 @@ def validate_coverage_result(
         raise CampaignError(
             f"coverage owner claim IDs do not exist in owner document: {missing}"
         )
-    if outcome == "answered" and any(
-        not claim_id.startswith("OBS-")
+    if outcome == "answered":
+        if any(
+            not claim_id.startswith("OBS-")
+            for claim_id in coverage["owner_claim_ids"]
+        ):
+            raise CampaignError(
+                "answered owner claims must all be repository observations (OBS-*)"
+            )
+    elif any(
+        COVERAGE_CLAIM_ID_RE.fullmatch(claim_id) is None
         for claim_id in coverage["owner_claim_ids"]
     ):
         raise CampaignError(
-            "answered owner claims must all be repository observations (OBS-*)"
+            "covered owner claims must express accepted intent, not repository "
+            "observations"
         )
     evidence_refs = [*task.get("units", []), *inspected]
     if outcome == "answered" and not any(value in body for value in evidence_refs):
@@ -4626,6 +4657,24 @@ def semantic_definition_blocks(body: str) -> dict[str, str]:
     return result
 
 
+def extracted_field(body: str, pattern: re.Pattern[str]) -> str | None:
+    match = pattern.search(body)
+    return match.group(0).strip() if match else None
+
+
+def canonical_section_blocks(
+    body: str,
+    manifest: dict[str, Any] | None,
+) -> dict[str, str]:
+    matches = list(SECTION_HEADING_RE.finditer(body))
+    result: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        key = canonical_heading(match.group(1), manifest)
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(body)
+        result[key] = body[match.start() : end].strip()
+    return result
+
+
 def test_evidence_path(value: str) -> bool:
     path = Path(value)
     components = {part.casefold() for part in path.parts}
@@ -4641,25 +4690,27 @@ def validate_map_candidate_policy(
     staging: dict[str, Path],
     spine_root: Path,
 ) -> None:
+    manifest_path = spine_root / "specspine.json"
+    manifest = read_json(manifest_path) if manifest_path.is_file() else None
     for relative, candidate in staging.items():
-        candidate_blocks = semantic_definition_blocks(
-            candidate.read_text(encoding="utf-8")
-        )
+        candidate_body = candidate.read_text(encoding="utf-8")
+        candidate_blocks = semantic_definition_blocks(candidate_body)
         candidate_normative = {
             identifier: block
             for identifier, block in candidate_blocks.items()
             if identifier.startswith(NORMATIVE_PREFIXES)
         }
         live = spine_root / relative
+        live_body = live.read_text(encoding="utf-8") if live.is_file() else None
         live_normative = (
             {
                 identifier: block
                 for identifier, block in semantic_definition_blocks(
-                    live.read_text(encoding="utf-8")
+                    live_body
                 ).items()
                 if identifier.startswith(NORMATIVE_PREFIXES)
             }
-            if live.is_file()
+            if live_body is not None
             else {}
         )
         if candidate_normative != live_normative:
@@ -4667,6 +4718,42 @@ def validate_map_candidate_policy(
                 "Map cannot add, remove, or change accepted normative claims; "
                 f"use Evolve: {relative}"
             )
+        candidate_sections = canonical_section_blocks(candidate_body, manifest)
+        if live_body is None:
+            forbidden = sorted(
+                set(candidate_sections)
+                & (ACCEPTED_SECTION_KEYS - {"responsibility"})
+            )
+            if forbidden:
+                raise CampaignError(
+                    "new Map owners may contain only observational or contextual "
+                    f"sections; accepted sections require Evolve: {relative}: "
+                    f"{forbidden}"
+                )
+        else:
+            live_sections = canonical_section_blocks(live_body, manifest)
+            changed = sorted(
+                key
+                for key in ACCEPTED_SECTION_KEYS
+                if candidate_sections.get(key) != live_sections.get(key)
+            )
+            if changed:
+                raise CampaignError(
+                    "Map cannot add, remove, or change accepted prose or "
+                    f"relationships; use Evolve: {relative}: {changed}"
+                )
+            for field, pattern in (
+                ("title", DOCUMENT_TITLE_RE),
+                ("identity", DOCUMENT_IDENTITY_RE),
+                ("aliases", DOCUMENT_ALIASES_RE),
+                ("summary", DOCUMENT_SUMMARY_RE),
+            ):
+                if extracted_field(candidate_body, pattern) != extracted_field(
+                    live_body, pattern
+                ):
+                    raise CampaignError(
+                        f"Map cannot change accepted {field}; use Evolve: {relative}"
+                    )
         for identifier, block in candidate_blocks.items():
             if not identifier.startswith("OBS-"):
                 continue
@@ -5273,17 +5360,6 @@ def command_prepare_integration(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def replace_markdown_section(body: str, heading: str, replacement: str) -> str:
-    pattern = re.compile(
-        rf"^## {re.escape(heading)}\s*$.*?(?=^## |\Z)",
-        re.MULTILINE | re.DOTALL,
-    )
-    replacement = replacement.rstrip() + "\n\n"
-    if pattern.search(body):
-        return pattern.sub(replacement, body, count=1).rstrip() + "\n"
-    return body.rstrip() + "\n\n" + replacement
-
-
 def observation_only_facets() -> dict[str, str]:
     """Repository observations never establish accepted specification intent."""
     return {
@@ -5413,22 +5489,11 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                 shutil.copy2(candidates[topic["document"]], destination)
 
             manifest = read_json(workspace / "specspine.json")
-            relationship_heading = presentation(manifest)["headings"]["relationships"]
-            owner_registry = spine_owner_registry(workspace)
-            owner_registry.update(
-                {
-                    topic["id"]: {
-                        "document": topic["document"],
-                        "title": topic["title"],
-                    }
-                    for topic in topics.values()
-                }
-            )
             for topic in topics.values():
                 document = workspace / topic["document"]
                 if not document.is_file():
                     raise CampaignError(
-                        f"canonical graph document is absent: {topic['document']}"
+                        f"planned evidence document is absent: {topic['document']}"
                     )
                 body = document.read_text(encoding="utf-8")
                 identity = DOCUMENT_IDENTITY_RE.search(body)
@@ -5437,35 +5502,6 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                         f"canonical document {topic['document']} must define "
                         f"owner ID {topic['id']}"
                     )
-                rows: list[str] = []
-                for relationship in topic["relationships"]:
-                    target = owner_registry[relationship["target"]]
-                    relative = os.path.relpath(
-                        workspace / target["document"], start=document.parent
-                    )
-                    title = target["title"].replace("|", "\\|")
-                    meaning = relationship["reason"].replace("|", "\\|")
-                    rows.append(
-                        f"| `{relationship['type']}` | "
-                        f"[{title}]({Path(relative).as_posix()}) | {meaning} |"
-                    )
-                if rows:
-                    section = (
-                        f"## {relationship_heading}\n\n"
-                        "| Relation | Target | Meaning |\n"
-                        "|---|---|---|\n"
-                        + "\n".join(rows)
-                    )
-                    body = replace_markdown_section(body, relationship_heading, section)
-                else:
-                    body = re.sub(
-                        rf"^## {re.escape(relationship_heading)}\s*$.*?(?=^## |\Z)",
-                        "",
-                        body,
-                        count=1,
-                        flags=re.MULTILINE | re.DOTALL,
-                    ).rstrip() + "\n"
-                document.write_text(body, encoding="utf-8")
 
             baseline = source_pass["evidence_baseline"]
             completion = source_pass["completion"]
@@ -5558,8 +5594,9 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                         "task": task["id"],
                         "disposition": "integrated",
                         "reason": (
-                            "Canonical owner and graph edges were accepted by "
-                            "the synthesized production plan."
+                            "The evidence document passed producer and integration "
+                            "checks; synthesized graph proposals remained runtime "
+                            "planning data."
                         ),
                     }
                     for task in sorted(settled.values(), key=lambda row: row["id"])
@@ -5771,43 +5808,6 @@ def validate_integrated_source_publication(
     if not any(value in combined for value in evidence):
         raise CampaignError(
             f"integrated source publication must reference its unit or evidence: {task['id']}"
-        )
-
-
-def validate_published_graph(
-    settled: dict[str, dict[str, Any]],
-    workspace: Path,
-) -> None:
-    documents = {
-        path.relative_to(workspace).as_posix(): path.read_text(encoding="utf-8")
-        for path in workspace.rglob("*.md")
-        if path.is_file() and path.name != "_INDEX.md"
-    }
-    owners = {
-        relative
-        for relative, body in documents.items()
-        if DOCUMENT_IDENTITY_RE.search(body)
-    }
-    if len(owners) <= 1:
-        return
-    connected: set[str] = set()
-    for relative, body in documents.items():
-        source = Path(relative)
-        for target in RELATION_ROW_RE.findall(body):
-            resolved = (source.parent / target).as_posix()
-            if resolved in owners:
-                connected.update((relative, resolved))
-    missing = sorted(
-        relative
-        for task in settled.values()
-        if task["state"] == "published"
-        for relative in task.get("published", [])
-        if relative in owners and relative not in connected
-    )
-    if missing:
-        raise CampaignError(
-            "integrated source owners need an incoming or outgoing typed "
-            f"relationship: {missing}"
         )
 
 
@@ -6158,7 +6158,14 @@ def command_integration_pass(args: argparse.Namespace) -> dict[str, Any]:
         for task_id, task in settled.items():
             if task["state"] == "published":
                 validate_integrated_source_publication(task, workspace)
-        validate_published_graph(settled, workspace)
+        source_candidates = {
+            relative: workspace / relative
+            for task in settled.values()
+            if task["state"] == "published" and task.get("origin") == "source-pass"
+            for relative in task.get("published", [])
+        }
+        if source_candidates:
+            validate_map_candidate_policy(source_candidates, spine_root)
         expected_suggestions = {
             (task_id, suggestion["id"])
             for task_id, task in settled.items()

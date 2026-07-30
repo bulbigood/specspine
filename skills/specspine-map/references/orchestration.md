@@ -316,7 +316,7 @@ that returned handoff path, and
 receive compact SpecSpine authority and format semantics inside their sole
 contract; never make them infer keyword authority from an example draft.
 Packets include compact existing and planned neighbor responsibilities so
-parallel production preserves synthesized ownership boundaries.
+parallel production respects provisional ownership boundaries. Producers
 atomically expose checked handoffs and write `_receipt.json` last; never
 inspect their work directories.
 
@@ -347,8 +347,9 @@ python3 <skill>/scripts/campaign.py assemble-integration \
 ```
 
 It requires all waves settled, enforces canonical producer paths and owner
-IDs, materializes
-synthesized relationships, index navigation, conservative manifest facets, task
+IDs, preserves existing accepted relationships, leaves synthesized
+relationships as runtime planning data, materializes index navigation,
+conservative manifest facets, task
 reviews, and the exact delta, then checks and publishes atomically. It owns the
 campaign-local workspace and report paths; the orchestrator never creates,
 reads, or edits them for a clean run. Repeat it after interruption; matching
@@ -358,7 +359,7 @@ restores the recorded backup after interruption. Only an explicit
 `needs_semantic_review` status authorizes semantic integration. A command error
 or mechanical rejection does not: repair the named producer artifact and rerun
 deterministic assembly. Never use `integration-pass` to repair identity, paths,
-baselines, relationship rendering, manifest areas, indexes, or changed-file
+baselines, accepted relationships, manifest areas, indexes, or changed-file
 bookkeeping. When assembly returns `needs_semantic_review`, read
 `integration-pass.md` and use
 `prepare-integration` plus `integration-pass` only for the reported ownership,

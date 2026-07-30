@@ -58,6 +58,11 @@ configuration, compatibility, security, and quality constraints. Mechanisms
 are normally implementation freedom; name one only when it is another
 canonical owner or an explicit architecture constraint.
 
+Typed owner relationships are accepted architectural intent. Repository
+evidence may suggest an interaction, but Map must retain it as an observation,
+inference, question, or disposable planning proposal until an authorized
+workflow accepts the edge.
+
 Do not canonize private algorithms, helper structure, class or function
 decomposition, framework state, internal call order, incidental file layout,
 or a source walkthrough. Shared implementation machinery does not make peer

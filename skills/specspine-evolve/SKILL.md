@@ -30,6 +30,11 @@ references own document structure and claim meaning.
 - When creating files, start from the templates under `assets/templates/` and
   omit empty sections. Create and maintain mandatory `specspine.json` from its
   template in the same write batch.
+- Run `scripts/bootstrap_spine.py` with `<spine-root>`,
+  `--project <stable-project-name>`, and
+  `--index-file assets/templates/spine-index.md`. It creates missing root
+  `README.md`, `_INDEX.md`, and `specspine.json` idempotently; never emulate
+  its writes.
 - Run `scripts/check_spine.py <spine-root>` after every write batch. It is the
   mandatory whole-Spine mechanical gate.
 
@@ -127,7 +132,7 @@ starting a second navigation pass.
 
 ### Initialize
 
-Create the root files through the bootstrap script, create the smallest useful
+Create the root files through `scripts/bootstrap_spine.py`, create the smallest useful
 set of top-level concept specifications, then rebuild indexes mechanically.
 Do not anticipate the full system or invent repository
 structure. Represent uncertainty and addressability only as defined by the

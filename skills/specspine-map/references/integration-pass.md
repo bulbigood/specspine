@@ -1,10 +1,11 @@
 # Root integration and ToDo derivation
 
 Use this manual pass only when `assemble-integration` reports semantic
-exceptions. Clean producer drafts are assembled directly from the synthesized
-graph plan. Acceptance proves checkpoint shape and evidence references; this
-fallback resolves only reported ownership, direction, conflict, or graph
-disagreement.
+exceptions. Clean producer drafts are assembled from the synthesized runtime
+plan. Acceptance proves checkpoint shape and evidence references; this
+fallback resolves only reported evidence ownership, uncertainty, or
+non-duplication problems. It cannot promote repository-derived graph proposals
+to accepted intent.
 
 ## Integrate publications
 
@@ -19,15 +20,17 @@ The root orchestrator must:
 
 1. Read every private draft and `covered`, `answered`, `unresolved`, or
    `supporting` receipt, its claimed owner, and relevant graph neighbors.
-2. Confirm or correct ownership, boundaries, terminology, and non-duplication.
+2. Confirm or correct evidence ownership, candidate boundaries, terminology,
+   and non-duplication.
    Treat `architecture_unit` as a synthesized topic, not a required document
    path. Correct its final ownership when evidence demands it; never publish a
    models/utils/services document merely because the repository has that
    directory.
 3. Do not edit `_INDEX.md`; deterministic integration rebuilds every directory
    index after document and manifest changes.
-4. Add architectural edges through canonical `Relationships` tables; never add
-   reciprocal rows only for navigation.
+4. Preserve every existing `Relationships` table exactly and omit it from new
+   observation-only owners. Record an uncertain interaction in `Observed`,
+   `Inferred`, or an open question; use Evolve for accepted edges.
 5. Use semantic IDs as complete link labels when targeting statements.
 6. Preserve one canonical definition and ask before choosing among materially
    different plausible owners.
@@ -85,7 +88,7 @@ field unless every document was read:
   ],
   "task_reviews": [
     {"task": "identity-sessions", "disposition": "integrated",
-     "reason": "The new owner and consumes edge are canonical",
+     "reason": "The observation owner and evidence were integrated",
      "anchor_disposition": {"status": "resolved",
        "reason": "The integrated owner replaces the original question"}}
   ],
@@ -134,15 +137,16 @@ Every non-retried task with an anchor needs `anchor_disposition`:
 
 Root cannot independently mark a queued source unit non-architectural.
 `confirmed_supporting` is valid only for a producer `supporting` receipt.
-Integration fails if a published owner was deleted, lacks semantic `OBS`,
-loses source evidence, or has no incoming or outgoing typed relationship.
+Integration fails if a published owner was deleted, lacks semantic `OBS`, or
+loses source evidence.
 Correct a poor draft in place; do not terminally discard it.
 
 Every suggestion emitted by those tasks needs one `suggestion_reviews` row.
 Allowed dispositions are:
 
 - `queued`, with a matching `todo`;
-- `covered`, when the integrated graph already answers it;
+- `covered`, when accepted intent or an integrated observation already answers
+  the same repository-observable question;
 - `preserved`, with a document containing the exact normative question;
 - `rejected`, with a concrete architectural reason.
 

@@ -3,7 +3,9 @@ Read every `source_topic` in the global synthesis packet and produce one
 semantic mapping. Source titles, responsibilities, reasons, and shared
 discovery context through `leads` define the input; IDs are references only.
 Never read, copy, or invent file lists. Discovery hierarchy and lead
-boundaries are provenance, not architecture.
+boundaries are provenance, not architecture. Emitted relationships are
+evidence-backed planning proposals for producer coordination, not accepted
+SpecSpine edges.
 Use only predicates listed in `allowed_relationship_types` from the synthesis packet unless a genuinely project-specific `x-*` relation is unavoidable. `existing_owners` maps current owner IDs to canonical documents and titles; use it for existing graph targets and uncovered owner updates.
 First perform one global semantic pass across all sources. Merge sources that
 express one durable responsibility and one boundary contract even when parents or names differ. Keep
@@ -12,7 +14,7 @@ framework, tooling, `models`, `utils`, and `services` categories unless the
 descriptions establish a project-specific architectural contract. Resolve
 overlap by responsibility, interfaces, lifecycle, state, data ownership,
 failures, and consumers. Then enforce the operation's inclusion and exclusion
-rules, classify existing coverage, and construct the complete graph.
+rules, classify existing coverage, and construct the complete provisional graph.
 Merge peers only when consumers interact with them through the same contract
 and their input model, configuration, state, lifecycle, failure behavior, and
 reason to change are materially the same. A shared registry, renderer, host,
@@ -53,9 +55,10 @@ When discovery is closed, classify every canonical topic in sequence. For
 each, use SpecSpine semantic extraction to find candidate owners, then compare
 responsibility, boundaries, lifecycle, state, interfaces, and exact claims.
 Record the result before evaluating the next topic. Mark `covered` only when
-exact documents and claims collectively make another producer unnecessary.
-Accepted prose and normative claims may cover evidence without an `OBS`;
-classify this as `covered-by-intent` without requiring owner evidence paths.
+exact documents and cited normative claims collectively make another producer
+unnecessary. Accepted prose may scope the comparison but cannot replace those
+addressable claims. Classify this as `covered-by-intent` without requiring
+owner evidence paths.
 When an owner has a material gap, keep one uncovered update topic for it. An empty Spine
 covers nothing; an existing Spine with zero covered topics requires explicit
 review rather than silent acceptance.
@@ -97,7 +100,7 @@ Write exactly:
       "coverage": [
         {
           "document": "security/audit.md",
-          "claims": ["OBS-audit-retention", "CON-audit-expiry"]
+          "claims": ["CON-audit-expiry"]
         }
       ]
     }
@@ -117,7 +120,7 @@ An open lead contains exactly `id`, `title`, `question`, `reason`, and
 `seed_files`. Final IDs are stable semantic lowercase kebab-case. Disposition
 every source topic as uncovered, covered, or supporting. Preserve one source
 in several final topics only for genuine independently useful responsibilities.
-Assign each topic one canonical `document` and define its directed graph using
+Assign each topic one target `document` and define its provisional directed graph using
 only `type`, target owner `id`, and concrete `reason`. Audit inputs, outputs,
 dependencies, consumers, owned data, and runtime coordination across all topics.
 Use predicates operationally: `publishes` makes an event, intent, or result available without implying mutation; `consumes` processes such output;
@@ -131,7 +134,9 @@ Add each high-confidence useful edge once; omit a doubtful edge or preserve a
 question. Reciprocal edges require two distinct directed interactions with
 different objects or consequences, never backlinks or navigation. A topic may
 remain isolated only after this explicit audit. Targets are planned or existing owners.
-Reread for duplicates, missing data/control-flow edges, weak edges, and unsupported coverage. Do not edit inputs; materialization publishes the canonical plan.
+Reread for duplicates, missing data/control-flow proposals, weak proposals,
+and unsupported coverage. Do not edit inputs; materialization publishes the
+canonical runtime plan, not accepted SpecSpine relationships.
 
 State the disposition in existing reason fields: `covered-by-intent`,
 `implementation-freedom`, `retain-observation`, `retain-divergence`,

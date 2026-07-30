@@ -139,7 +139,15 @@ class VocabularyContractTests(unittest.TestCase):
         self.assertIn("“External” is relative to the canonical owner", semantics)
         self.assertIn("Apply the replacement test", semantics)
         self.assertIn("Do not canonize private algorithms", semantics)
+        self.assertIn(
+            "Typed owner relationships are accepted architectural intent",
+            semantics,
+        )
         self.assertIn("never a walkthrough", format_reference)
+        self.assertIn(
+            "MUST NOT publish those proposals as canonical",
+            format_reference,
+        )
 
     def test_glossary_is_current(self):
         completed = subprocess.run(

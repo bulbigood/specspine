@@ -531,7 +531,7 @@ def _parse_node(
                 "LEGACY_SEMANTIC_DEFINITION",
                 path,
                 root,
-                "v3 semantic definitions must be bold bullets with an em dash",
+                "v4 semantic definitions must be bold bullets with an em dash",
                 number,
             )
         if stripped == ID_REGION_BEGIN:
@@ -826,7 +826,7 @@ def check(
                 "COMPLETENESS_IN_MARKDOWN",
                 node.path,
                 root,
-                "v3 completeness belongs only in specspine.json; "
+                "v4 completeness belongs only in specspine.json; "
                 f"remove {section}",
                 node.sections[section][0],
             )
