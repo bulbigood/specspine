@@ -305,7 +305,12 @@ class RunnerTests(unittest.TestCase):
             (spine / "_INDEX.md").write_text(
                 "# Architecture\n\n**ID:** `project-architecture` · **Kind:** `index`\n\n"
                 "Architecture.\n\n## Contents\n\n"
+                "- [README.md](README.md)\n"
                 "- [specspine.json](specspine.json)\n\n## Empty\n",
+                encoding="utf-8",
+            )
+            (spine / "README.md").write_text(
+                "# Test architecture\n",
                 encoding="utf-8",
             )
             (spine / "specspine.json").write_text(json.dumps({
