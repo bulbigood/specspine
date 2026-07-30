@@ -1155,7 +1155,25 @@ class MapCampaignTests(unittest.TestCase):
             ledger["producer_contract_digest"],
         )
         self.assertEqual({}, ledger["tasks"])
+        self.assertEqual({}, ledger["discovery_capacity"])
         self.assertEqual(0o600, self.ledger.stat().st_mode & 0o777)
+
+    def test_initial_discovery_plan_validation_is_idempotent(self):
+        draft = {
+            "discovery_plan_version": 1,
+            "rationale": "One semantic boundary.",
+            "leads": [{
+                "id": "rendering",
+                "title": "Rendering",
+                "question": "Who owns rendering?",
+                "reason": "Rendering is independently searchable.",
+            }],
+        }
+        canonical = CAMPAIGN_MODULE.validate_initial_discovery_plan(draft)
+        self.assertEqual(
+            canonical,
+            CAMPAIGN_MODULE.validate_initial_discovery_plan(canonical),
+        )
 
     def test_empty_spine_bootstrap_is_idempotent(self):
         spine = self.run / "empty-spine"
@@ -2855,7 +2873,7 @@ class MapCampaignTests(unittest.TestCase):
             str(self.repository),
             "--allow-duplicate-incomplete",
         )
-        self.assertEqual(16, created["schema_version"])
+        self.assertEqual(CAMPAIGN_MODULE.SCHEMA_VERSION, created["schema_version"])
 
     def test_discover_stale_unchanged_campaign_still_recommends_resume(self):
         self.source_pass()
@@ -4124,6 +4142,106 @@ class MapCampaignTests(unittest.TestCase):
         self.assertEqual("synthesize", result["action"])
         self.assertTrue(result["may_pause"])
         self.assertFalse(result["may_finish"])
+
+    def test_discovery_capacity_is_persistent_and_resumable(self):
+        discovery = self.run / "discovery"
+        plan = self.run / "capacity-plan.json"
+        plan.write_text(
+            json.dumps(
+                {
+                    "discovery_plan_version": 1,
+                    "rationale": "Two independent fixture boundaries.",
+                    "leads": [
+                        {
+                            "id": f"capacity-{index}",
+                            "title": f"Capacity {index}",
+                            "question": f"Who owns capacity boundary {index}?",
+                            "reason": "Each boundary is independently searchable.",
+                        }
+                        for index in range(2)
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.cli(
+            "discovery-start",
+            str(self.ledger),
+            str(self.repository),
+            str(self.spine),
+            str(discovery),
+            "--initial-plan",
+            str(plan),
+        )
+        packets = sorted(discovery.rglob("lead-*.json"))
+        results = self.run / "results"
+        completed_packet = json.loads(packets[0].read_text(encoding="utf-8"))
+        completed_result = results / packets[0].relative_to(discovery)
+        completed_result.parent.mkdir(parents=True, exist_ok=True)
+        completed_result.write_text(
+            json.dumps(
+                {
+                    "lead_id": completed_packet["lead"]["id"],
+                    "status": "closed",
+                    "reason": "Fixture discovery completed.",
+                    "inspected": {
+                        "files": ["src/identity/session.py"],
+                        "queries": [],
+                    },
+                    "topics": [],
+                    "supporting": [],
+                    "unresolved_leads": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.cli(
+            "discovery-validate",
+            str(discovery / "discovery-seed.json"),
+            str(discovery),
+            str(results),
+            str(packets[0]),
+        )
+
+        first = self.cli(
+            "discovery-capacity",
+            str(self.ledger),
+            str(packets[1]),
+        )
+        self.assertEqual("retryable", first["status"])
+        retryable = self.cli("next-action", str(self.ledger))
+        self.assertEqual("discover", retryable["action"])
+        self.assertEqual(1, len(retryable["discovery_progress"]["complete"]))
+        self.assertEqual(1, len(retryable["discovery_progress"]["retryable"]))
+
+        second = self.cli(
+            "discovery-capacity",
+            str(self.ledger),
+            str(packets[1]),
+        )
+        self.assertEqual("platform_blocked", second["status"])
+        blocked = self.cli("next-action", str(self.ledger))
+        self.assertEqual("platform_blocked", blocked["terminal"])
+        self.assertEqual("report_blocked", blocked["action"])
+        self.assertFalse(blocked["may_finish"])
+        self.assertTrue(blocked["may_pause"])
+        self.assertEqual(1, len(blocked["discovery_progress"]["complete"]))
+        self.assertEqual(
+            1, len(blocked["discovery_progress"]["platform_blocked"])
+        )
+
+        resumed = self.cli(
+            "discovery-resume-capacity",
+            str(self.ledger),
+        )
+        self.assertEqual("resumed", resumed["status"])
+        active = self.cli("next-action", str(self.ledger))
+        self.assertEqual("discover", active["action"])
+        self.assertEqual(1, len(active["discovery_progress"]["complete"]))
+        self.assertEqual(1, len(active["discovery_progress"]["pending"]))
+        entry = next(iter(self.ledger_value()["discovery_capacity"].values()))
+        self.assertEqual(0, entry["current_failures"])
+        self.assertEqual(2, entry["total_failures"])
 
     def test_next_action_waits_then_integrates_settled_results(self):
         self.source_pass()

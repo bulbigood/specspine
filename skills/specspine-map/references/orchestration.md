@@ -147,8 +147,27 @@ The logical scout wave may contain at most ten packets, but run at most five
 weak-tier scouts concurrently and never exceed the runtime's available
 subagent slots. If capacity includes root, reserve one slot. Dispatch initial
 packets in stable path order across strict cohorts. A capacity failure gets one
-fresh weak-tier replacement after the current cohort settles; a second capacity
-failure is a platform blocker, not an unbounded retry loop. Never synthesize
+fresh weak-tier replacement after the current cohort settles. Record every
+capacity failure immediately:
+
+```text
+python3 <skill>/scripts/campaign.py discovery-capacity \
+  <campaign> <packet>
+```
+
+The first failure returns `retryable`; the second capacity failure is a
+platform blocker and returns `platform_blocked`.
+Do not substitute a more expensive model or retry again in the same run.
+`next-action` then permits a platform-boundary pause and reports the exact
+completed, pending, retryable, and blocked packets. On a later explicit
+operator continuation after capacity may have recovered, reopen only those
+blocked packets:
+
+```text
+python3 <skill>/scripts/campaign.py discovery-resume-capacity <campaign>
+```
+
+This preserves completed results and lifetime failure counts. Never synthesize
 while an initial packet is missing or invalid. For each packet in the next
 cohort, derive:
 
@@ -351,7 +370,9 @@ python3 <skill>/scripts/campaign.py next-action <campaign>
 
 Follow its action: `discover`, `synthesize`, `dispatch`, `wait`, `integrate`,
 `repair`, `finalize`, or `report_blocked`. `may_finish: false` forbids a normal
-final answer. Pause only when `may_pause: true`.
+completion answer. Pause only when `may_pause: true`; for
+`terminal: platform_blocked`, report the temporary platform boundary without
+claiming campaign completion.
 
 Finalize only a verified terminal:
 

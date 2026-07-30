@@ -46,7 +46,7 @@ from spec_contract import (
 )
 
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 PRODUCER_CONTRACT_VERSION = 12
 DISCOVERY_CONTRACT_VERSION = 8
 MAX_UNIT_FILES = 80
@@ -905,6 +905,7 @@ def load(path: Path) -> dict[str, Any]:
         raise CampaignError("campaign updated_at timestamp is invalid")
     validate_operation_spec(ledger.get("operation"))
     ledger_producer_contract(ledger)
+    validate_discovery_capacity(ledger.get("discovery_capacity"))
     repository_value = ledger.get("repository_root")
     if isinstance(repository_value, str):
         require_map_runtime_path(
@@ -1517,19 +1518,26 @@ def validate_initial_discovery_plan(value: Any) -> dict[str, Any]:
         )
     leads: list[dict[str, Any]] = []
     for index, raw in enumerate(value["leads"], start=1):
-        if not isinstance(raw, dict) or set(raw) != {
-            "id",
-            "title",
-            "question",
-            "reason",
-        }:
+        if not isinstance(raw, dict):
             raise CampaignError(
                 f"initial discovery plan lead {index} needs exactly "
                 "id, title, question, and reason"
             )
+        raw_fields = set(raw)
+        base_fields = {"id", "title", "question", "reason"}
+        normalized_fields = base_fields | {"parent_ids", "seed_files"}
+        if raw_fields not in (base_fields, normalized_fields):
+            raise CampaignError(
+                f"initial discovery plan lead {index} needs either the planner "
+                "fields or their canonical normalized form"
+            )
         leads.append(
             normalize_discovery_lead(
-                raw | {"parent_ids": [], "seed_files": []},
+                (
+                    raw
+                    if raw_fields == normalized_fields
+                    else raw | {"parent_ids": [], "seed_files": []}
+                ),
                 field=f"initial discovery plan lead {index}",
             )
         )
@@ -1654,6 +1662,172 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         "completion_kind": operation["completion"]["kind"],
         "initial_leads": len(leads),
     }
+
+
+def validate_discovery_capacity(value: Any) -> dict[str, dict[str, Any]]:
+    if not isinstance(value, dict):
+        raise CampaignError("campaign discovery_capacity must be an object")
+    normalized: dict[str, dict[str, Any]] = {}
+    for raw_path, raw in value.items():
+        path = validate_relative_path(raw_path)
+        if not path.startswith("discovery/") or not Path(path).name.startswith(
+            "lead-"
+        ):
+            raise CampaignError(
+                f"discovery capacity entry is not a discovery packet: {path}"
+            )
+        if not isinstance(raw, dict) or set(raw) != {
+            "current_failures",
+            "total_failures",
+            "last_failure_at",
+        }:
+            raise CampaignError(
+                f"discovery capacity entry has invalid fields: {path}"
+            )
+        current_failures = raw["current_failures"]
+        total_failures = raw["total_failures"]
+        if (
+            isinstance(current_failures, bool)
+            or not isinstance(current_failures, int)
+            or current_failures < 0
+            or current_failures > 2
+            or isinstance(total_failures, bool)
+            or not isinstance(total_failures, int)
+            or total_failures < current_failures
+            or parse_timestamp(raw["last_failure_at"]) is None
+        ):
+            raise CampaignError(
+                f"discovery capacity entry has invalid counters: {path}"
+            )
+        normalized[path] = {
+            "current_failures": current_failures,
+            "total_failures": total_failures,
+            "last_failure_at": raw["last_failure_at"],
+        }
+    return normalized
+
+
+def discovery_progress(
+    ledger_path: Path,
+    ledger: dict[str, Any],
+) -> dict[str, Any]:
+    runtime = ledger_path.resolve().parent
+    discovery_root = runtime / "discovery"
+    results_root = runtime / "results"
+    seed_path = discovery_root / "discovery-seed.json"
+    capacity = validate_discovery_capacity(ledger["discovery_capacity"])
+    if not seed_path.is_file():
+        return {
+            "total": 0,
+            "complete": [],
+            "pending": [],
+            "retryable": [],
+            "platform_blocked": [],
+        }
+    seed = read_json(seed_path)
+    complete: list[str] = []
+    pending: list[str] = []
+    retryable: list[str] = []
+    blocked: list[str] = []
+    for packet_path in sorted(discovery_root.rglob("lead-*.json")):
+        relative = packet_path.relative_to(runtime).as_posix()
+        result_path = results_root / packet_path.relative_to(discovery_root)
+        try:
+            validate_discovery_packet_result(seed, packet_path, result_path)
+        except (CampaignError, OSError, UnicodeError):
+            failures = capacity.get(relative, {}).get("current_failures", 0)
+            if failures >= 2:
+                blocked.append(relative)
+            elif failures == 1:
+                retryable.append(relative)
+            else:
+                pending.append(relative)
+        else:
+            complete.append(relative)
+    return {
+        "total": len(complete) + len(pending) + len(retryable) + len(blocked),
+        "complete": complete,
+        "pending": pending,
+        "retryable": retryable,
+        "platform_blocked": blocked,
+    }
+
+
+def command_discovery_capacity(args: argparse.Namespace) -> dict[str, Any]:
+    packet = args.packet.resolve()
+    runtime = args.ledger.resolve().parent
+    discovery_root = runtime / "discovery"
+    try:
+        relative = packet.relative_to(runtime).as_posix()
+        packet.relative_to(discovery_root)
+    except ValueError as error:
+        raise CampaignError(
+            f"capacity failure packet is outside campaign discovery: {packet}"
+        ) from error
+    if not packet.is_file() or not packet.name.startswith("lead-"):
+        raise CampaignError(f"capacity failure packet does not exist: {packet}")
+    with locked_ledger(args.ledger) as ledger:
+        if ledger["source_pass"] is not None:
+            raise CampaignError("discovery capacity applies only before synthesis")
+        progress = discovery_progress(args.ledger, ledger)
+        if relative in progress["complete"]:
+            raise CampaignError(
+                f"cannot record capacity for completed discovery packet: {relative}"
+            )
+        capacity = validate_discovery_capacity(ledger["discovery_capacity"])
+        previous = capacity.get(relative)
+        current_failures = (
+            0 if previous is None else previous["current_failures"]
+        )
+        total_failures = 0 if previous is None else previous["total_failures"]
+        if current_failures >= 2:
+            raise CampaignError(
+                f"discovery packet already exhausted its capacity retry: {relative}"
+            )
+        capacity[relative] = {
+            "current_failures": current_failures + 1,
+            "total_failures": total_failures + 1,
+            "last_failure_at": utc_timestamp(),
+        }
+        ledger["discovery_capacity"] = capacity
+        save_locked(args.ledger, ledger)
+        return {
+            "status": (
+                "platform_blocked"
+                if current_failures + 1 == 2
+                else "retryable"
+            ),
+            "packet": relative,
+            "current_failures": current_failures + 1,
+            "total_failures": total_failures + 1,
+            "revision": ledger["revision"],
+        }
+
+
+def command_discovery_resume_capacity(
+    args: argparse.Namespace,
+) -> dict[str, Any]:
+    with locked_ledger(args.ledger) as ledger:
+        if ledger["source_pass"] is not None:
+            raise CampaignError("discovery capacity applies only before synthesis")
+        progress = discovery_progress(args.ledger, ledger)
+        blocked = set(progress["platform_blocked"])
+        if not blocked:
+            return {
+                "status": "already_active",
+                "resumed": [],
+                "revision": ledger["revision"],
+            }
+        capacity = validate_discovery_capacity(ledger["discovery_capacity"])
+        for relative in blocked:
+            capacity[relative]["current_failures"] = 0
+        ledger["discovery_capacity"] = capacity
+        save_locked(args.ledger, ledger)
+        return {
+            "status": "resumed",
+            "resumed": sorted(blocked),
+            "revision": ledger["revision"],
+        }
 
 
 def normalize_frontier_decision(
@@ -3042,6 +3216,7 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         "spine_snapshot": None,
         "source_pass": None,
         "integration_pass": None,
+        "discovery_capacity": {},
     }
     atomic_write(args.ledger, ledger)
     return ledger
@@ -6257,7 +6432,11 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
             receipt["stage"]
             for receipt in stage_receipts(args.ledger.resolve().parent)[0]
         }
-        if "discovery-collect" in stages:
+        progress = discovery_progress(args.ledger, ledger)
+        if progress["platform_blocked"]:
+            action = "report_blocked"
+            reason = "discovery scouts exhausted their capacity retry"
+        elif "discovery-collect" in stages:
             action = "synthesize"
             reason = "discovery corpus requires semantic synthesis"
         else:
@@ -6272,16 +6451,19 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
             "revision": ledger["revision"],
             "action": action,
             "may_finish": False,
-            "may_pause": action == "synthesize",
+            "may_pause": action in {"synthesize", "report_blocked"},
             "response_policy": (
                 "unavoidable_platform_turn_boundary_only"
-                if action == "synthesize"
+                if action in {"synthesize", "report_blocked"}
                 else "continue_in_same_turn_no_final_response"
             ),
             "reason": reason,
             "counts": {state: 0 for state in sorted(TASK_STATES)},
-            "terminal": None,
+            "terminal": (
+                "platform_blocked" if action == "report_blocked" else None
+            ),
             "terminal_gates": terminal_gates(ledger),
+            "discovery_progress": progress,
         }
     summary = campaign_summary(args.ledger)
     states = summary["states"]
@@ -6378,6 +6560,7 @@ def command_status(args: argparse.Namespace) -> dict[str, Any]:
         "states": summary["states"],
         "terminal": summary["terminal"],
         "terminal_gates": summary["terminal_gates"],
+        "discovery_progress": discovery_progress(args.ledger, ledger),
     }
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
@@ -6461,6 +6644,13 @@ def parser() -> argparse.ArgumentParser:
     discovery_defer.add_argument("packets_root", type=Path)
     discovery_defer.add_argument("results_root", type=Path)
     discovery_defer.add_argument("output_dir", type=Path)
+
+    discovery_capacity = sub.add_parser("discovery-capacity")
+    discovery_capacity.add_argument("ledger", type=Path)
+    discovery_capacity.add_argument("packet", type=Path)
+
+    discovery_resume_capacity = sub.add_parser("discovery-resume-capacity")
+    discovery_resume_capacity.add_argument("ledger", type=Path)
 
     coverage_reopen = sub.add_parser("coverage-reopen")
     coverage_reopen.add_argument("ledger", type=Path)
@@ -6575,6 +6765,8 @@ def main() -> int:
         "discovery-start": command_discovery_start,
         "discovery-packets": command_discovery_packets,
         "discovery-defer": command_discovery_defer,
+        "discovery-capacity": command_discovery_capacity,
+        "discovery-resume-capacity": command_discovery_resume_capacity,
         "coverage-reopen": command_coverage_reopen,
         "discovery-reopen": command_discovery_reopen,
         "discovery-validate": command_discovery_validate,

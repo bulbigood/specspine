@@ -244,6 +244,8 @@ class MapOperationContractTests(unittest.TestCase):
                 "discovery-start",
                 "discovery-defer",
                 "discovery-packets",
+                "discovery-capacity",
+                "discovery-resume-capacity",
                 "discovery-reopen",
                 "coverage-reopen",
                 "discovery-validate",
