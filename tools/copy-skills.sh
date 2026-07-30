@@ -25,6 +25,22 @@ mkdir -p -- "$destination_dir"
 
 # Dereference repository-relative symlinks so every installed skill remains
 # self-contained after it is copied outside this repository.
-cp -RL -- "$source_dir/." "$destination_dir/"
+staging_dir=$(mktemp -d "$project_dir/.agents/.skills-staging.XXXXXX")
+cleanup() {
+  rm -rf -- "$staging_dir"
+}
+trap cleanup EXIT
+
+cp -RL -- "$source_dir/." "$staging_dir/"
+
+for staged_skill in "$staging_dir"/*; do
+  [[ -d "$staged_skill" ]] || continue
+
+  skill_name=$(basename "$staged_skill")
+  installed_skill="$destination_dir/$skill_name"
+
+  rm -rf -- "$installed_skill"
+  mv -- "$staged_skill" "$installed_skill"
+done
 
 echo "Copied skills to $destination_dir"
