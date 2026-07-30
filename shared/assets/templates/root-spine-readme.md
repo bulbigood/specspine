@@ -17,7 +17,7 @@ This directory contains the project's long-lived architectural intent and archit
 ### Identifiers and extensions
 
 - `document ID` — Stable document identity matching `^[a-z0-9]+(?:-[a-z0-9]+)*$`.
-- `semantic ID` — Addressable statement identity matching `^(DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$`.
+- `semantic ID` — Addressable statement identity matching `^(?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$`.
 - `x-*` — Project-specific document kind or relation.
 
 ### Semantic ID prefixes

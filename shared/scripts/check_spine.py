@@ -24,6 +24,7 @@ from spec_contract import (
     DEFAULT_HEADINGS,
     DOCUMENT_ID_PATTERN,
     FACET_NAMES,
+    FACET_SUPPORT_PREFIXES,
     FACET_VALUES,
     FORMAT_MAJOR,
     INDEX_NAME,
@@ -143,10 +144,6 @@ def nested_spine_roots(root: Path) -> list[Path]:
             result.append(directory)
             directories[:] = []
     return sorted(result)
-FACET_SUPPORT_PREFIXES = {
-    "behavior": {"DEC-", "CON-", "REQ-", "GUA-", "INV-"},
-    "quality": {"QLT-"},
-}
 FACET_SUPPORT_ASSET_ROLES = {
     "behavior": {"scenario", "fixture"},
     "interfaces": {"interface-contract"},

@@ -10,7 +10,7 @@ the format and semantics references own their normative usage.
 | Name | Syntax or value | Meaning |
 |---|---|---|
 | Document ID | `^[a-z0-9]+(?:-[a-z0-9]+)*$` | Stable globally unique document identity. |
-| Semantic ID | `^(DEC&#124;CON&#124;REQ&#124;GUA&#124;INV&#124;QLT&#124;VER&#124;OBS&#124;INF&#124;OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$` | Stable globally unique addressable statement identity. |
+| Semantic ID | `^(?:DEC&#124;CON&#124;REQ&#124;GUA&#124;INV&#124;QLT&#124;VER&#124;OBS&#124;INF&#124;OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$` | Stable globally unique addressable statement identity. |
 | Extension token | `x-[a-z0-9]+(?:-[a-z0-9]+)*` | Project-specific document kind or relation. |
 | Root index | `_INDEX.md` | Deterministic physical navigation entry point. |
 | Manifest | `specspine.json` | Completeness, blockers, inspection, freedom, and asset registry. |

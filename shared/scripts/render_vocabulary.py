@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,13 @@ README_TEMPLATE_PATH = ROOT / "shared/assets/templates/root-spine-readme.md"
 
 def code_list(values: list[str]) -> str:
     return ", ".join(f"`{value}`" for value in values)
+
+
+def semantic_id_pattern(vocabulary: dict[str, Any]) -> str:
+    document = vocabulary["identifier_patterns"]["document"]
+    body = document.removeprefix("^").removesuffix("$")
+    prefixes = "|".join(map(re.escape, vocabulary["semantic_prefixes"]))
+    return f"^(?:{prefixes})-{body}$"
 
 
 def render(vocabulary: dict[str, Any]) -> str:
@@ -36,7 +44,7 @@ def render(vocabulary: dict[str, Any]) -> str:
         "| Name | Syntax or value | Meaning |",
         "|---|---|---|",
         f"| Document ID | `{patterns['document']}` | Stable globally unique document identity. |",
-        f"| Semantic ID | `{patterns['semantic'].replace('|', '&#124;')}` | Stable globally unique addressable statement identity. |",
+        f"| Semantic ID | `{semantic_id_pattern(vocabulary).replace('|', '&#124;')}` | Stable globally unique addressable statement identity. |",
         f"| Extension token | `{vocabulary['extension_pattern']}` | Project-specific document kind or relation. |",
         f"| Root index | `{reserved['index']}` | Deterministic physical navigation entry point. |",
         f"| Manifest | `{reserved['manifest']}` | Completeness, blockers, inspection, freedom, and asset registry. |",

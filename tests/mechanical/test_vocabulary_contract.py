@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 import unittest
@@ -38,10 +39,41 @@ class VocabularyContractTests(unittest.TestCase):
             tuple(self.vocabulary["facets"]),
             contract.FACET_NAMES,
         )
+        semantic = re.compile(contract.SEMANTIC_ID_PATTERN)
         self.assertEqual(
-            self.vocabulary["identifier_patterns"]["semantic"],
-            contract.SEMANTIC_ID_PATTERN,
+            tuple(self.vocabulary["semantic_prefixes"]),
+            contract.SEMANTIC_PREFIXES,
         )
+        for prefix in self.vocabulary["semantic_prefixes"]:
+            with self.subTest(prefix=prefix):
+                self.assertIsNotNone(semantic.fullmatch(f"{prefix}-example"))
+        self.assertIsNone(semantic.fullmatch("UNKNOWN-example"))
+
+    def test_semantic_prefix_metadata_drives_contract_views(self):
+        contract = load_contract()
+        known_facets = set(self.vocabulary["facets"])
+        known_sections = set(self.vocabulary["headings"])
+        for prefix, definition in self.vocabulary["semantic_prefixes"].items():
+            with self.subTest(prefix=prefix, metadata="shape"):
+                self.assertIn(definition["section"], known_sections)
+                self.assertIsInstance(definition["normative"], bool)
+                self.assertLessEqual(
+                    set(definition.get("supports_facets", ())),
+                    known_facets,
+                )
+        expected_sections = {
+            prefix: definition["section"]
+            for prefix, definition in self.vocabulary["semantic_prefixes"].items()
+        }
+        self.assertEqual(expected_sections, contract.SEMANTIC_PREFIX_SECTIONS)
+        for facet in self.vocabulary["facets"]:
+            expected = {
+                f"{prefix}-"
+                for prefix, definition in self.vocabulary["semantic_prefixes"].items()
+                if facet in definition.get("supports_facets", ())
+            }
+            with self.subTest(facet=facet):
+                self.assertEqual(expected, contract.FACET_SUPPORT_PREFIXES[facet])
 
     def test_manifest_schema_enums_match_vocabulary(self):
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))

@@ -23,6 +23,7 @@ from spec_contract import (
     DOCUMENT_ID_PATTERN,
     SEMANTIC_ID_PATTERN,
     SEMANTIC_PREFIX_PATTERN,
+    SEMANTIC_PREFIX_SECTIONS,
 )
 
 POTENTIAL_LIMIT = 12
@@ -1220,30 +1221,24 @@ def build_closure(root: Path, payload: object) -> dict[str, object]:
     questions = []
     divergences = []
     claim_owner_ids = {str(index["id"]), *selected_ids}
+    claims_by_section = {
+        "decisions": decisions,
+        "constraints": constraints,
+        "requirements": requirements,
+        "guarantees": guarantees,
+        "invariants": invariants,
+        "quality-constraints": quality_constraints,
+        "verification": verification,
+        "observed": observations,
+        "inferred": inferences,
+        "open-questions": questions,
+    }
     for selected_id in sorted(claim_owner_ids):
         document = documents[selected_id]
         for identifier, statement in document["statements"].items():
             item = {"id": identifier, "owner": selected_id, "statement": statement["statement"]}
-            if identifier.startswith("DEC-"):
-                decisions.append(item)
-            elif identifier.startswith("CON-"):
-                constraints.append(item)
-            elif identifier.startswith("REQ-"):
-                requirements.append(item)
-            elif identifier.startswith("GUA-"):
-                guarantees.append(item)
-            elif identifier.startswith("INV-"):
-                invariants.append(item)
-            elif identifier.startswith("QLT-"):
-                quality_constraints.append(item)
-            elif identifier.startswith("VER-"):
-                verification.append(item)
-            elif identifier.startswith("OBS-"):
-                observations.append(item)
-            elif identifier.startswith("INF-"):
-                inferences.append(item)
-            elif identifier.startswith("OQ-"):
-                questions.append(item)
+            prefix = identifier.split("-", 1)[0]
+            claims_by_section[SEMANTIC_PREFIX_SECTIONS[prefix]].append(item)
     for document in documents.values():
         for divergence in document["divergences"]:
             intended = statements.get(divergence["intended"])

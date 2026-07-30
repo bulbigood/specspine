@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -15,9 +16,9 @@ MANIFEST_NAME = VOCABULARY["reserved_paths"]["manifest"]
 INDEX_NAME = VOCABULARY["reserved_paths"]["index"]
 README_NAME = VOCABULARY["reserved_paths"]["readme"]
 DOCUMENT_ID_PATTERN = VOCABULARY["identifier_patterns"]["document"]
-SEMANTIC_ID_PATTERN = VOCABULARY["identifier_patterns"]["semantic"]
 SEMANTIC_PREFIXES = tuple(VOCABULARY["semantic_prefixes"])
-SEMANTIC_PREFIX_PATTERN = "(?:" + "|".join(SEMANTIC_PREFIXES) + ")"
+SEMANTIC_PREFIX_PATTERN = "(?:" + "|".join(map(re.escape, SEMANTIC_PREFIXES)) + ")"
+DOCUMENT_ID_BODY_PATTERN = DOCUMENT_ID_PATTERN.removeprefix("^").removesuffix("$")
 CORE_KINDS = frozenset(VOCABULARY["document_kinds"])
 CORE_RELATIONS = frozenset(VOCABULARY["relations"])
 FACET_NAMES = tuple(VOCABULARY["facets"])
@@ -29,11 +30,43 @@ KIND_REQUIRED_FACETS = {
     kind: set(facets)
     for kind, facets in VOCABULARY["kind_required_facets"].items()
 }
-NORMATIVE_PREFIXES = tuple(
-    f"{prefix}-"
+NORMATIVE_SEMANTIC_PREFIXES = tuple(
+    prefix
     for prefix, definition in VOCABULARY["semantic_prefixes"].items()
     if definition["normative"]
 )
+NORMATIVE_PREFIXES = tuple(f"{prefix}-" for prefix in NORMATIVE_SEMANTIC_PREFIXES)
+SEMANTIC_PREFIX_SECTIONS = {
+    prefix: definition["section"]
+    for prefix, definition in VOCABULARY["semantic_prefixes"].items()
+}
+FACET_SUPPORT_PREFIXES = {
+    facet: {
+        f"{prefix}-"
+        for prefix, definition in VOCABULARY["semantic_prefixes"].items()
+        if facet in definition.get("supports_facets", ())
+    }
+    for facet in FACET_NAMES
+}
+
+
+def semantic_id_body_pattern(prefixes: tuple[str, ...]) -> str:
+    """Return an unanchored semantic-ID regex for a canonical prefix subset."""
+    unknown = set(prefixes) - set(SEMANTIC_PREFIXES)
+    if unknown:
+        raise ValueError(f"unknown semantic prefixes: {sorted(unknown)}")
+    if not prefixes:
+        raise ValueError("semantic prefix subset must not be empty")
+    prefix_pattern = "(?:" + "|".join(map(re.escape, prefixes)) + ")"
+    return f"{prefix_pattern}-{DOCUMENT_ID_BODY_PATTERN}"
+
+
+def semantic_id_pattern(prefixes: tuple[str, ...]) -> str:
+    """Return an anchored semantic-ID regex for a canonical prefix subset."""
+    return f"^{semantic_id_body_pattern(prefixes)}$"
+
+
+SEMANTIC_ID_PATTERN = semantic_id_pattern(SEMANTIC_PREFIXES)
 
 # Stable keys are machine identity. Values are the default rendered headings.
 DEFAULT_HEADINGS = dict(VOCABULARY["headings"])
@@ -64,7 +97,7 @@ def compact_glossary() -> str:
                 ),
                 "semantic ID": (
                     f"Addressable statement identity matching "
-                    f"`{VOCABULARY['identifier_patterns']['semantic']}`."
+                    f"`{SEMANTIC_ID_PATTERN}`."
                 ),
                 "x-*": "Project-specific document kind or relation.",
             },

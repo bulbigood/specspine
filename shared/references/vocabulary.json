@@ -6,8 +6,7 @@
     "readme": "README.md"
   },
   "identifier_patterns": {
-    "document": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-    "semantic": "^(DEC|CON|REQ|GUA|INV|QLT|VER|OBS|INF|OQ)-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    "document": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
   },
   "document_kinds": {
     "index": "Deterministic physical navigation; never owns project claims.",
@@ -36,12 +35,12 @@
   },
   "extension_pattern": "x-[a-z0-9]+(?:-[a-z0-9]+)*",
   "semantic_prefixes": {
-    "DEC": {"section": "decisions", "meaning": "Accepted architectural decision.", "normative": true},
-    "CON": {"section": "constraints", "meaning": "Accepted constraint on valid implementations.", "normative": true},
-    "REQ": {"section": "requirements", "meaning": "Accepted durable required outcome.", "normative": true},
-    "GUA": {"section": "guarantees", "meaning": "Accepted externally observable promise.", "normative": true},
-    "INV": {"section": "invariants", "meaning": "Truth that holds across all valid states and transitions.", "normative": true},
-    "QLT": {"section": "quality-constraints", "meaning": "Measurable non-functional constraint.", "normative": true},
+    "DEC": {"section": "decisions", "meaning": "Accepted architectural decision.", "normative": true, "supports_facets": ["behavior"]},
+    "CON": {"section": "constraints", "meaning": "Accepted constraint on valid implementations.", "normative": true, "supports_facets": ["behavior"]},
+    "REQ": {"section": "requirements", "meaning": "Accepted durable required outcome.", "normative": true, "supports_facets": ["behavior"]},
+    "GUA": {"section": "guarantees", "meaning": "Accepted externally observable promise.", "normative": true, "supports_facets": ["behavior"]},
+    "INV": {"section": "invariants", "meaning": "Truth that holds across all valid states and transitions.", "normative": true, "supports_facets": ["behavior"]},
+    "QLT": {"section": "quality-constraints", "meaning": "Measurable non-functional constraint.", "normative": true, "supports_facets": ["quality"]},
     "VER": {"section": "verification", "meaning": "Implementation-independent conformance criterion.", "normative": true},
     "OBS": {"section": "observed", "meaning": "Confirmed architecture-significant repository evidence; not intent.", "normative": false},
     "INF": {"section": "inferred", "meaning": "Explicitly unconfirmed interpretation; not intent.", "normative": false},

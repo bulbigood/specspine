@@ -37,9 +37,12 @@ from spec_contract import (
     CORE_RELATIONS,
     DOCUMENT_ID_PATTERN,
     NORMATIVE_PREFIXES,
+    NORMATIVE_SEMANTIC_PREFIXES,
     SEMANTIC_PREFIX_PATTERN,
     canonical_heading,
     presentation,
+    semantic_id_body_pattern,
+    semantic_id_pattern,
 )
 
 
@@ -91,17 +94,17 @@ REVIEW_DISPOSITIONS = {
     "retry",
 }
 ANCHOR_DISPOSITIONS = {"resolved", "refined", "still-open", "blocking"}
-OQ_ID_RE = re.compile(r"OQ-[a-z0-9]+(?:-[a-z0-9]+)*")
+OQ_ID_RE = re.compile(semantic_id_pattern(("OQ",)))
 COVERAGE_CLAIM_ID_RE = re.compile(
-    r"(?:DEC|CON|REQ|GUA|INV|QLT|VER|OBS)-"
-    r"[a-z0-9]+(?:-[a-z0-9]+)*"
+    semantic_id_pattern(NORMATIVE_SEMANTIC_PREFIXES + ("OBS",))
 )
 EVIDENCE_BASELINE_RE = re.compile(
     r"<!--\s*specspine:evidence-baseline\s+"
     r"source=[^;\s>]+;\s*inspected=\d{4}-\d{2}-\d{2}\s*-->"
 )
 OBS_DEFINITION_RE = re.compile(
-    r"^ {0,3}[-+*]\s+\*\*OBS-[a-z0-9]+(?:-[a-z0-9]+)*\*\*\s+—\s+\S",
+    rf"^ {{0,3}}[-+*]\s+\*\*({semantic_id_body_pattern(('OBS',))})"
+    r"\*\*\s+—\s+\S",
     re.MULTILINE,
 )
 SEMANTIC_DEFINITION_RE = re.compile(
