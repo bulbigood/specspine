@@ -281,6 +281,31 @@ def validate_draft_semantics(
             "draft must publish exactly its canonical planned_document: "
             f"expected={[planned_document]}, actual={sorted(staged)}"
         )
+    if task.get("origin") != "source-pass":
+        return
+    architecture_unit = task.get("architecture_unit")
+    if (
+        not isinstance(architecture_unit, str)
+        or not architecture_unit.startswith("topics/")
+        or not architecture_unit.removeprefix("topics/")
+    ):
+        raise PreflightError(
+            "draft task needs a canonical topics/<owner-id> architecture_unit"
+        )
+    expected_owner = architecture_unit.removeprefix("topics/")
+    candidate = staged[relative_path(planned_document, "planned_document")]
+    identity = campaign.DOCUMENT_IDENTITY_RE.search(
+        candidate.read_text(encoding="utf-8")
+    )
+    if identity is None:
+        raise PreflightError(
+            f"candidate has no valid SpecSpine identity: {planned_document}"
+        )
+    if identity.group(1) != expected_owner:
+        raise PreflightError(
+            "candidate owner ID must match the synthesized canonical owner: "
+            f"expected={expected_owner}, actual={identity.group(1)}"
+        )
 
 
 def finalize(args: argparse.Namespace) -> dict[str, Any]:

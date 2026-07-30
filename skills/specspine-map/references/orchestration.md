@@ -168,12 +168,13 @@ python3 <skill>/scripts/campaign.py discovery-resume-capacity <campaign>
 ```
 
 This preserves completed results and lifetime failure counts. Never synthesize
-while an initial packet is missing or invalid. For each packet in the next
-cohort, derive:
+while an initial packet is missing or invalid. `discovery-start` and
+`discovery-packets` return canonical `assignments` containing exact `packet`
+and `result` paths. Use both paths verbatim; never prefix, rewrite, or derive
+the result path. Derive only the private draft path:
 
 ```text
 <draft> = <private-scout-work>/<lead-id>/draft.json
-<result> = <results>/<packet path relative to discovery>
 ```
 
 Create at most that many fresh weak-tier scouts. Give each scout its packet,
@@ -345,15 +346,21 @@ python3 <skill>/scripts/campaign.py assemble-integration \
   <campaign> <spine-root>
 ```
 
-It requires all waves settled, enforces canonical producer paths, materializes
+It requires all waves settled, enforces canonical producer paths and owner
+IDs, materializes
 synthesized relationships, index navigation, conservative manifest facets, task
 reviews, and the exact delta, then checks and publishes atomically. It owns the
 campaign-local workspace and report paths; the orchestrator never creates,
 reads, or edits them for a clean run. Repeat it after interruption; matching
 inputs are idempotent. Publication uses a transaction journal; `status`,
 `next-action`, or the next integration command commits a completed swap or
-restores the recorded backup after interruption. If it returns
-`needs_semantic_review`, read `integration-pass.md` and use
+restores the recorded backup after interruption. Only an explicit
+`needs_semantic_review` status authorizes semantic integration. A command error
+or mechanical rejection does not: repair the named producer artifact and rerun
+deterministic assembly. Never use `integration-pass` to repair identity, paths,
+baselines, relationship rendering, manifest areas, indexes, or changed-file
+bookkeeping. When assembly returns `needs_semantic_review`, read
+`integration-pass.md` and use
 `prepare-integration` plus `integration-pass` only for the reported ownership,
 coverage, granularity, anchor, direction, or graph conflict. A producer
 `covered` or `supporting` result contradicts the synthesized production plan
@@ -367,6 +374,16 @@ Before every response:
 python3 <skill>/scripts/campaign.py status <campaign>
 python3 <skill>/scripts/campaign.py next-action <campaign>
 ```
+
+Any invalid receipt blocks completion. When `status` reports an obsolete
+discovery receipt whose output is absent and a current receipt for the same
+result exists, run:
+
+```text
+python3 <skill>/scripts/campaign.py repair-receipts <campaign>
+```
+
+The repair is deliberately narrow and retains every ambiguous receipt.
 
 Follow its action: `discover`, `synthesize`, `dispatch`, `wait`, `integrate`,
 `repair`, `finalize`, or `report_blocked`. `may_finish: false` forbids a normal

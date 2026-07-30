@@ -239,6 +239,7 @@ class MapOperationContractTests(unittest.TestCase):
                 "init",
                 "discover",
                 "status",
+                "repair-receipts",
                 "seed-from-spine",
                 "bootstrap-spine",
                 "discovery-start",
@@ -271,13 +272,13 @@ class MapOperationContractTests(unittest.TestCase):
     def test_prompt_files_stay_small(self):
         limits = {
             "entrypoint": (self.entrypoint, 118),
-            "protocol": (self.protocol, 390),
+            "protocol": (self.protocol, 420),
             "method": (self.method, 110),
             "planner": (self.planner, 55),
             "discovery": (self.discovery, 110),
             "synthesis": (self.synthesis, 135),
             "coverage": (self.coverage, 40),
-            "producer": (self.producer, 192),
+            "producer": (self.producer, 195),
             "integration": (self.integration, 175),
         }
         for name, (value, maximum) in limits.items():

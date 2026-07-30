@@ -47,6 +47,7 @@ class ProducerFinalizeTests(unittest.TestCase):
                     "task": {
                         "id": "verify-identity",
                         "origin": "source-pass",
+                        "architecture_unit": "topics/identity",
                         "units": ["src/identity"],
                         "planned_document": "identity.md",
                         "planned_relationships": [],
@@ -87,11 +88,29 @@ class ProducerFinalizeTests(unittest.TestCase):
     def candidate(self):
         (self.work / "staging" / "identity.md").write_text(
             "# Identity\n\n"
+            "**ID:** `identity` · **Kind:** `component`\n\n"
             "<!-- specspine:evidence-baseline "
             "source=fixture; inspected=2026-07-28 -->\n"
             "- **OBS-identity-session** — `src/identity/session.py`.\n",
             encoding="utf-8",
         )
+
+    def test_rejects_owner_id_different_from_synthesized_topic(self):
+        self.candidate()
+        candidate = self.work / "staging" / "identity.md"
+        candidate.write_text(
+            candidate.read_text(encoding="utf-8").replace(
+                "`identity`", "`different-owner`", 1
+            ),
+            encoding="utf-8",
+        )
+        self.checkpoint()
+
+        error = self.execute(expected=2)
+
+        self.assertIn("must match the synthesized canonical owner", error["error"])
+        self.assertTrue(self.work.is_dir())
+        self.assertFalse(self.handoff.exists())
 
     def execute(self, *, expected=0):
         completed = subprocess.run(
@@ -323,6 +342,7 @@ class ProducerFinalizeTests(unittest.TestCase):
         self.checker = ROOT / "skills/specspine-map/scripts/check_spine.py"
         packet = json.loads(self.packet.read_text(encoding="utf-8"))
         packet["task"]["planned_document"] = "identity/session-runtime.md"
+        packet["task"]["architecture_unit"] = "topics/session-runtime"
         self.packet.write_text(json.dumps(packet), encoding="utf-8")
         candidate = self.work / "staging" / "identity" / "session-runtime.md"
         candidate.parent.mkdir(parents=True)
@@ -389,6 +409,7 @@ class ProducerFinalizeTests(unittest.TestCase):
     def test_draft_requires_semantic_observation_and_baseline(self):
         (self.work / "staging" / "identity.md").write_text(
             "# Identity\n\n"
+            "**ID:** `identity` · **Kind:** `component`\n\n"
             "<!-- specspine:evidence-baseline "
             "source=fixture; inspected=2026-07-28 -->\n"
             "Observed session implementation.\n",
@@ -404,6 +425,7 @@ class ProducerFinalizeTests(unittest.TestCase):
     def test_new_draft_cannot_add_normative_claim(self):
         (self.work / "staging" / "identity.md").write_text(
             "# Identity\n\n"
+            "**ID:** `identity` · **Kind:** `component`\n\n"
             "<!-- specspine:evidence-baseline "
             "source=fixture; inspected=2026-07-28 -->\n"
             "- **GUA-identity-available** — Identity remains available.\n"
@@ -426,6 +448,7 @@ class ProducerFinalizeTests(unittest.TestCase):
         )
         (self.work / "staging" / "identity.md").write_text(
             "# Identity\n\n"
+            "**ID:** `identity` · **Kind:** `component`\n\n"
             "<!-- specspine:evidence-baseline "
             "source=fixture; inspected=2026-07-28 -->\n"
             "- **GUA-identity-available** — Identity is always available.\n"
@@ -445,6 +468,7 @@ class ProducerFinalizeTests(unittest.TestCase):
         (tests / "test_identity.py").write_text("pass\n", encoding="utf-8")
         (self.work / "staging" / "identity.md").write_text(
             "# Identity\n\n"
+            "**ID:** `identity` · **Kind:** `component`\n\n"
             "<!-- specspine:evidence-baseline "
             "source=fixture; inspected=2026-07-28 -->\n"
             "- **OBS-identity-refresh** — Sessions refresh automatically. "
@@ -462,6 +486,7 @@ class ProducerFinalizeTests(unittest.TestCase):
     def test_open_question_bullets_require_semantic_ids(self):
         (self.work / "staging" / "identity.md").write_text(
             "# Identity\n\n"
+            "**ID:** `identity` · **Kind:** `component`\n\n"
             "<!-- specspine:evidence-baseline "
             "source=fixture; inspected=2026-07-28 -->\n"
             "- **OBS-identity-session** — Sessions exist. "
@@ -479,6 +504,7 @@ class ProducerFinalizeTests(unittest.TestCase):
     def test_open_question_bullets_accept_semantic_ids(self):
         (self.work / "staging" / "identity.md").write_text(
             "# Identity\n\n"
+            "**ID:** `identity` · **Kind:** `component`\n\n"
             "<!-- specspine:evidence-baseline "
             "source=fixture; inspected=2026-07-28 -->\n"
             "- **OBS-identity-session** — Sessions exist. "

@@ -1879,6 +1879,15 @@ class MapCampaignTests(unittest.TestCase):
             str(wave),
         )
         unresolved_packet = Path(receipt["packets"][0])
+        self.assertEqual(
+            str(
+                (
+                    results
+                    / unresolved_packet.relative_to(discovery.resolve())
+                ).resolve()
+            ),
+            receipt["assignments"][0]["result"],
+        )
         unresolved_result = results / unresolved_packet.relative_to(discovery.resolve())
         unresolved_result.parent.mkdir(parents=True)
         unresolved_result.write_text(
@@ -3586,6 +3595,35 @@ class MapCampaignTests(unittest.TestCase):
             published_manifest["implementation_freedom"],
         )
         self.assertEqual(manifest["assets"], published_manifest["assets"])
+        new_areas = {
+            area["owner"]: area
+            for area in published_manifest["areas"]
+            if area["owner"] in topics
+        }
+        self.assertEqual(set(topics), set(new_areas))
+        for area in new_areas.values():
+            self.assertEqual(
+                {
+                    "architecture": "missing",
+                    "behavior": "missing",
+                    "interfaces": "missing",
+                    "data": "missing",
+                    "failure": "missing",
+                    "quality": "missing",
+                    "verification": "missing",
+                },
+                area["facets"],
+            )
+            self.assertEqual("exhaustive", area["inspection"]["mode"])
+            self.assertEqual(
+                "checked", area["inspection"]["facets"]["architecture"]
+            )
+            self.assertEqual(
+                "checked", area["inspection"]["facets"]["behavior"]
+            )
+            self.assertEqual(
+                "not-checked", area["inspection"]["facets"]["verification"]
+            )
         for topic in topics.values():
             body = (self.spine / topic["document"]).read_text(encoding="utf-8")
             self.assertIn("## Связи", body)
@@ -4108,6 +4146,39 @@ class MapCampaignTests(unittest.TestCase):
         self.assertTrue(all(next_action["terminal_gates"].values()))
         self.assertTrue(next_action["may_finish"])
         self.assertEqual("finalize", next_action["action"])
+
+    def test_invalid_receipt_blocks_terminal_and_superseded_repair_is_narrow(self):
+        self.verify_all_source_units()
+        status = self.cli("status", str(self.ledger))
+        current_path = next(
+            Path(value["path"])
+            for value in status["receipts"]["valid"]
+            if value["stage"] == "discovery-result"
+        )
+        stale = json.loads(current_path.read_text(encoding="utf-8"))
+        stale_output = Path(stale["outputs"][0]["path"])
+        stale["outputs"][0]["path"] = str(
+            self.run / "results" / "wrong" / stale_output.name
+        )
+        stale_path = self.run / "results" / "wrong" / current_path.name
+        stale_path.parent.mkdir(parents=True)
+        stale_path.write_text(json.dumps(stale), encoding="utf-8")
+
+        blocked = self.cli("next-action", str(self.ledger))
+
+        self.assertFalse(blocked["terminal_gates"]["receipts_clean"])
+        self.assertIsNone(blocked["terminal"])
+        self.assertEqual("repair", blocked["action"])
+
+        repaired = self.cli("repair-receipts", str(self.ledger))
+
+        self.assertEqual("clean", repaired["status"])
+        self.assertEqual([str(stale_path.resolve())], repaired["removed"])
+        self.assertFalse(stale_path.exists())
+        self.assertEqual(
+            "scope_verified",
+            self.cli("next-action", str(self.ledger))["terminal"],
+        )
 
     def test_unclean_v3_integration_requires_repair_before_finalize(self):
         self.verify_all_source_units()

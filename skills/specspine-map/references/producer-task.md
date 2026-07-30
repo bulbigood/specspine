@@ -10,7 +10,9 @@ Start with targeted `rg` and narrow excerpts, target at most 10,000 output token
 `architecture_unit`, `planned_document`, and `planned_relationships` come from
 the synthesized semantic graph. Verify the responsibility against every evidence
 stratum. If `current_owner.exists` is false, create exactly `planned_document`;
-if true, refine that document in place. A draft defines the planned owner ID.
+if true, refine that document in place. A draft defines exactly the owner ID
+named by the `topics/<owner-id>` architecture unit; preflight rejects any
+different identity before the handoff becomes visible.
 Do not add, remove, or render graph edges: deterministic assembly
 owns `Relationships`. If an edge or part of the proposed boundary is weak,
 publish the coherent evidence-backed core and record the doubt as a concise

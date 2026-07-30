@@ -47,7 +47,7 @@ from spec_contract import (
 
 
 SCHEMA_VERSION = 17
-PRODUCER_CONTRACT_VERSION = 12
+PRODUCER_CONTRACT_VERSION = 13
 DISCOVERY_CONTRACT_VERSION = 8
 MAX_UNIT_FILES = 80
 MAX_SCOUT_SEED_FILES = 40
@@ -1630,6 +1630,7 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         raise CampaignError("existing discovery seed differs from current inputs")
     atomic_write(seed_path, seed)
     packets: list[str] = []
+    assignments: list[dict[str, str]] = []
     expected_packet_names: set[str] = set()
     for lead in leads:
         path = packets_dir / f"lead-{lead['id']}.json"
@@ -1639,6 +1640,14 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(f"existing discovery packet conflicts: {path}")
         atomic_write(path, expected)
         packets.append(str(path.resolve()))
+        result = (
+            args.output_dir.resolve().parent
+            / "results"
+            / path.resolve().relative_to(args.output_dir.resolve())
+        )
+        assignments.append(
+            {"packet": str(path.resolve()), "result": str(result.resolve())}
+        )
     unexpected = sorted(
         path.name
         for path in packets_dir.glob("lead-*.json")
@@ -1658,6 +1667,7 @@ def command_discovery_start(args: argparse.Namespace) -> dict[str, Any]:
         "status": "already_ready" if receipt_ready else "written",
         "seed": str((args.output_dir / "discovery-seed.json").resolve()),
         "packets": packets,
+        "assignments": assignments,
         "scope_kind": scope["kind"],
         "completion_kind": operation["completion"]["kind"],
         "initial_leads": len(leads),
@@ -1955,6 +1965,18 @@ def command_discovery_packets(args: argparse.Namespace) -> dict[str, Any]:
         raise CampaignError("existing frontier artifact conflicts")
     atomic_write(frontier_path, frontier_value)
     packets: list[str] = []
+    assignments: list[dict[str, str]] = []
+    discovery_root = args.output_dir.resolve()
+    while (
+        discovery_root.name != "discovery"
+        and discovery_root != discovery_root.parent
+    ):
+        discovery_root = discovery_root.parent
+    if discovery_root.name != "discovery":
+        raise CampaignError(
+            "discovery packet output must be nested under the campaign "
+            "discovery directory"
+        )
     output_paths = [frontier_path]
     for decision in decisions:
         if decision["disposition"] != "queue":
@@ -1966,6 +1988,14 @@ def command_discovery_packets(args: argparse.Namespace) -> dict[str, Any]:
             raise CampaignError(f"existing discovery packet conflicts: {path}")
         atomic_write(path, expected)
         packets.append(str(path.resolve()))
+        result = (
+            discovery_root.parent
+            / "results"
+            / path.resolve().relative_to(discovery_root)
+        )
+        assignments.append(
+            {"packet": str(path.resolve()), "result": str(result.resolve())}
+        )
         output_paths.append(path)
     already_ready = commit_receipt(
         receipt_path,
@@ -1977,6 +2007,7 @@ def command_discovery_packets(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "status": "already_ready" if already_ready else "written",
         "packets": packets,
+        "assignments": assignments,
         "queued": len(packets),
         "duplicate": sum(
             value["disposition"] == "duplicate" for value in decisions
@@ -5242,16 +5273,6 @@ def command_prepare_integration(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-FACET_SECTION_KEYS = {
-    "behavior": {"behavior", "lifecycle-and-invariants"},
-    "interfaces": {"interfaces"},
-    "data": {"information-model", "data-ownership"},
-    "failure": {"failure-behavior"},
-    "quality": {"quality-constraints"},
-    "verification": {"verification"},
-}
-
-
 def replace_markdown_section(body: str, heading: str, replacement: str) -> str:
     pattern = re.compile(
         rf"^## {re.escape(heading)}\s*$.*?(?=^## |\Z)",
@@ -5263,14 +5284,10 @@ def replace_markdown_section(body: str, heading: str, replacement: str) -> str:
     return body.rstrip() + "\n\n" + replacement
 
 
-def conservative_facets(body: str, manifest: dict[str, Any]) -> dict[str, str]:
-    headings = {
-        key
-        for value in re.findall(r"^##\s+(.+?)\s*$", body, re.MULTILINE)
-        if (key := canonical_heading(value, manifest)) is not None
-    }
-    facets = {
-        "architecture": "partial",
+def observation_only_facets() -> dict[str, str]:
+    """Repository observations never establish accepted specification intent."""
+    return {
+        "architecture": "missing",
         "behavior": "missing",
         "interfaces": "missing",
         "data": "missing",
@@ -5278,10 +5295,6 @@ def conservative_facets(body: str, manifest: dict[str, Any]) -> dict[str, str]:
         "quality": "missing",
         "verification": "missing",
     }
-    for facet, section_keys in FACET_SECTION_KEYS.items():
-        if headings & section_keys:
-            facets[facet] = "partial"
-    return facets
 
 
 def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
@@ -5467,16 +5480,18 @@ def command_assemble_integration(args: argparse.Namespace) -> dict[str, Any]:
                 if isinstance(area, dict) and isinstance(area.get("owner"), str)
             }
             for topic in topics.values():
-                body = (workspace / topic["document"]).read_text(encoding="utf-8")
                 previous = areas.get(topic["id"], {})
                 blockers = previous.get("blockers", [])
-                derived = conservative_facets(body, manifest)
+                derived = observation_only_facets()
                 previous_facets = previous.get("facets", {})
                 facets = {
                     name: (
                         previous_facets[name]
                         if previous_facets.get(name) in {
-                            "partial", "complete", "blocked", "not-applicable"
+                            "missing",
+                            "partial",
+                            "complete",
+                            "not-applicable",
                         }
                         else derived[name]
                     )
@@ -6347,7 +6362,10 @@ def current_integration(ledger: dict[str, Any]) -> bool:
     return current_documents == integration.get("documents")
 
 
-def terminal_gates(ledger: dict[str, Any]) -> dict[str, bool]:
+def terminal_gates(
+    ledger: dict[str, Any],
+    runtime: Path | None = None,
+) -> dict[str, bool]:
     tasks = list(ledger["tasks"].values())
     source_pass = ledger.get("source_pass")
     source_tasks = (
@@ -6358,6 +6376,7 @@ def terminal_gates(ledger: dict[str, Any]) -> dict[str, bool]:
         and ledger["tasks"][task_id]["state"] == "complete"
         for task_id in source_tasks
     )
+    invalid_receipts = stage_receipts(runtime)[1] if runtime is not None else []
     return {
         "todo_empty": not any(task["state"] == "todo" for task in tasks),
         "producers_finished": not any(
@@ -6378,12 +6397,13 @@ def terminal_gates(ledger: dict[str, Any]) -> dict[str, bool]:
             isinstance(ledger.get("integration_pass"), dict)
             and ledger["integration_pass"].get("checker_clean") is True
         ),
+        "receipts_clean": not invalid_receipts,
     }
 
 
 def campaign_summary(ledger_path: Path) -> dict[str, Any]:
     ledger = load(ledger_path)
-    gates = terminal_gates(ledger)
+    gates = terminal_gates(ledger, ledger_path.resolve().parent)
     states = {
         state: sorted(
             task["id"]
@@ -6462,7 +6482,9 @@ def command_next_action(args: argparse.Namespace) -> dict[str, Any]:
             "terminal": (
                 "platform_blocked" if action == "report_blocked" else None
             ),
-            "terminal_gates": terminal_gates(ledger),
+            "terminal_gates": terminal_gates(
+                ledger, args.ledger.resolve().parent
+            ),
             "discovery_progress": progress,
         }
     summary = campaign_summary(args.ledger)
@@ -6562,6 +6584,64 @@ def command_status(args: argparse.Namespace) -> dict[str, Any]:
         "terminal_gates": summary["terminal_gates"],
         "discovery_progress": discovery_progress(args.ledger, ledger),
     }
+
+
+def command_repair_receipts(args: argparse.Namespace) -> dict[str, Any]:
+    """Prune only stale discovery receipts superseded by a current receipt."""
+    load(args.ledger)
+    runtime = args.ledger.resolve().parent
+    valid, invalid = stage_receipts(runtime)
+    current_outputs: set[tuple[str, str, str]] = set()
+    for entry in valid:
+        value = read_json(Path(entry["path"]))
+        for output in value["outputs"]:
+            current_outputs.add(
+                (
+                    entry["stage"],
+                    Path(output["path"]).name,
+                    value["input_digest"],
+                )
+            )
+
+    removed: list[str] = []
+    retained: list[dict[str, str]] = []
+    for entry in invalid:
+        path = Path(entry["path"])
+        try:
+            value = read_json(path)
+            stage = value["stage"]
+            outputs = value["outputs"]
+            if (
+                stage != "discovery-result"
+                or not isinstance(outputs, list)
+                or len(outputs) != 1
+                or not isinstance(outputs[0], dict)
+                or set(outputs[0]) != {"path", "digest"}
+            ):
+                raise CampaignError("not a superseded discovery result receipt")
+            output = Path(outputs[0]["path"])
+            output.resolve().relative_to(runtime)
+            path.resolve().relative_to(runtime)
+            if output.exists():
+                raise CampaignError("stale receipt output still exists")
+            if (
+                stage,
+                output.name,
+                value.get("input_digest"),
+            ) not in current_outputs:
+                raise CampaignError("no current superseding receipt")
+        except (CampaignError, KeyError, TypeError, ValueError) as error:
+            retained.append({"path": str(path), "error": str(error)})
+            continue
+        path.unlink()
+        removed.append(str(path))
+    return {
+        "status": "clean" if not retained else "retained_invalid",
+        "removed": sorted(removed),
+        "retained": retained,
+    }
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     sub = result.add_subparsers(dest="command", required=True)
@@ -6592,6 +6672,9 @@ def parser() -> argparse.ArgumentParser:
 
     status = sub.add_parser("status")
     status.add_argument("ledger", type=Path)
+
+    repair_receipts = sub.add_parser("repair-receipts")
+    repair_receipts.add_argument("ledger", type=Path)
 
     seed = sub.add_parser("seed-from-spine")
     seed.add_argument("ledger", type=Path)
@@ -6760,6 +6843,7 @@ def main() -> int:
         "init": command_init,
         "discover": command_discover,
         "status": command_status,
+        "repair-receipts": command_repair_receipts,
         "seed-from-spine": command_seed_from_spine,
         "bootstrap-spine": command_bootstrap_spine,
         "discovery-start": command_discovery_start,

@@ -119,6 +119,9 @@ implementation conformance. `source` identifies the inspected repository
 state, `inspected` is an ISO date, `mode` is `survey`, `deepen`, `refresh`,
 `drift`, or `exhaustive`, and every facet is `checked` or `not-checked`. Absence of `inspection`,
 or a `not-checked` facet, means no current comparison claim.
+Repository-derived `OBS`, `INF`, evidence, and inspection coverage MUST NOT
+raise a completeness facet. A new observation-only owner starts with every
+facet `missing`; Map preserves the accepted facets of an existing owner.
 
 ### Presentation profile
 
