@@ -33,6 +33,7 @@ class NpxStandaloneInstallTests(unittest.TestCase):
                 installed_root = root / ".agents" / "skills"
                 installed = installed_root / name
                 self.assertTrue((installed / "SKILL.md").is_file())
+                self.assertTrue((installed / ".gitignore").is_file())
                 self.assertTrue((installed / "references/spec-glossary.md").is_file())
                 self.assertTrue((installed / "references/vocabulary.json").is_file())
                 self.assertEqual({name}, {path.name for path in installed_root.iterdir() if path.is_dir()})
