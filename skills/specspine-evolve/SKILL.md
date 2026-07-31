@@ -1,6 +1,6 @@
 ---
 name: specspine-evolve
-description: Create or evolve accepted architecture and durable boundary contracts in a linked SpecSpine from explicit user intent and existing specifications. Use for greenfield initialization, “evolve deepen” or one-layer decomposition, accepted requirements and contracts, architectural changes, SDD promotion, impact analysis, and specification restructuring. A deepen operation publishes the complete immediate child layer of every selected frontier owner using the request, accepted intent, and sound architectural judgment—not repository code. Do not use for repository discovery, implementation, or code/spec conformance.
+description: Create or evolve accepted architecture and durable system specifications in a linked SpecSpine from explicit user intent and existing specifications. Use for greenfield initialization, focused refinement, expansion into one accepted adjacent responsibility, accepted requirements and contracts, architectural changes, SDD promotion, impact analysis, and explicit specification restructuring. Do not use for repository discovery, implementation, or code/spec conformance.
 ---
 
 # SpecSpine Evolve
@@ -16,8 +16,7 @@ references own document structure and claim meaning.
 
 - Read [references/spec-format.md](references/spec-format.md) before creating,
   editing, or restructuring specifications. It is the canonical owner of
-  document content, organization, identity, relationships, decomposition, and
-  terminal detail.
+  document content, organization, identity, relationships, and terminal detail.
 - Read [references/owner-operations.md](references/owner-operations.md) before
   selecting `refine` or `expand`, creating an owner, or applying a structural
   primitive. It is the shared owner-operation protocol used by Map and Evolve.
@@ -104,18 +103,13 @@ starting a second navigation pass.
    `initialize`, `promote`, or an explicitly approved structural operation.
    Identify the canonical owner, specifications whose normative or
    architectural meaning changes, and context needed only for understanding.
-   `refine` changes one existing owner. `expand` creates one explicitly named
-   adjacent owner. `decompose-layer` publishes the complete immediate child
-   layer of every selected frontier owner through
-   `references/owner-operations.md`.
+   `refine` changes one existing owner. `expand` creates exactly one explicitly
+   accepted adjacent owner through `references/owner-operations.md`.
    Choose deterministically:
    - honor an explicit `refine` or named facet, question, or claim;
    - honor an explicit `expand` or explicitly accepted missing responsibility;
-   - for a generic request to deepen, decompose, continue the next level, or
-     equivalent wording, use `decompose-layer`;
-   - for `decompose-layer`, treat the request as approval to choose a sensible
-     immediate ownership split, but not to invent product behavior, policy,
-     guarantees, or deeper architecture;
+   - for a generic request to deepen or continue an existing specification,
+     use `refine` unless the request itself accepts a new independent owner;
    - never select `expand` from `mapping.frontier` alone.
    For refinement, perform the terminal-depth check immediately after reading
    the index and relevant specification. Compare the requested material with
@@ -123,14 +117,9 @@ starting a second navigation pass.
    adds no durable normative or architectural meaning within Evolve's scope and
    only asks for private implementation mechanics, stop without editing or seeking
    implementation evidence.
-3. Choose owners and decomposition through `references/owner-operations.md`
+3. Choose owners and structural changes through `references/owner-operations.md`
    and apply the canonical constraints in `references/spec-format.md`.
-   For `decompose-layer`, resolve all responsible scope owners, select every
-   applicable frontier owner, derive its complete immediate child set, and
-   compare siblings globally. Use accepted specifications, the request, and
-   sound architectural judgment only; do not inspect code or treat
-   `mapping.frontier` as authority. Stop at one layer. Before
-   choosing final paths, project each affected directory's deterministic index
+   Before choosing final paths, project each affected directory's deterministic index
    entries and apply the shared soft density threshold. Prefer stable semantic
    child directories when an index would grow beyond about 20 entries; never
    create arbitrary buckets.
@@ -141,8 +130,7 @@ starting a second navigation pass.
    a conflict or blocking question, choosing among plausible owners, or making
    an ambiguous agent-initiated restructure. State the affected files, reason,
    and unresolved choice without prescribing a rigid response format.
-5. Apply the smallest coherent change, or the complete coherent layer for
-   `decompose-layer`. Follow `references/spec-format.md` for
+5. Apply the smallest coherent change. Follow `references/spec-format.md` for
    canonical ownership, identity, relationships, navigation, and reachability.
    Preserve unrelated content. Never edit an index manually; after changing
    paths or files, run `scripts/rebuild_indexes.py <spine-root>`.
@@ -186,32 +174,6 @@ does not authorize expansion. Consume it only when the current request
 explicitly accepts that responsibility or interaction. Promote any accepted
 OBS-backed edge according to the authority rules above.
 
-### Decompose one layer
-
-Apply shared `decompose-layer` when the user asks to deepen or decompose a
-scope:
-
-1. Find the canonical owners responsible for that scope.
-2. Select all owners whose immediate decomposition is `frontier` or unreviewed.
-3. Derive the complete immediate child set from the request, accepted intent,
-   and architectural judgment. Never inspect repository code unless separately
-   authorized, and never use code to manufacture acceptance.
-4. Review all siblings together. Separate independently changing boundary
-   contracts; do not split one owner into facets, private stages, or presumed
-   implementation layers.
-5. Reuse existing owners, fully specify every missing child, add accepted
-   `decomposes-into` and other necessary directed relationships, and leave
-   cross-child coordination in a useful overview parent.
-6. Mark parents `expanded`; mark children `frontier` or `terminal` with concise
-   reasons. Do not decompose children again in this invocation.
-7. Publish the entire layer atomically. Disposable drafts may establish IDs
-   and links during work, but empty drafts never enter the canonical Spine.
-
-If a complete immediate split would require inventing product, security,
-compatibility, or operational policy, ask for that decision before publishing
-the layer. Ordinary architectural judgment about owner boundaries does not
-require confirmation once the user requested decomposition.
-
 ### Promote
 
 Promote only durable accepted meaning from an SDD or explicit user decision.
@@ -244,13 +206,11 @@ automatic authority to move documents or split owners.
 - Modify only files inside `<spine-root>`.
 - Apply claim kinds, authority, and conflicts exclusively as defined by
   `references/spec-semantics.md`.
-- Apply document identity, statement addressability, relationships,
-  decomposition, and terminal detail exclusively as defined by
+- Apply document identity, statement addressability, relationships, and
+  terminal detail exclusively as defined by
   `references/spec-format.md`.
 - Never imply that documented intent is implemented or conformant.
 - Never silently resolve uncertainty, conflicts, or ownership ambiguity.
-- A deepen request advances every selected frontier owner by exactly one
-  complete layer; it never publishes a partial sibling set or grandchildren.
 - Keep specifications linked, source-independent, boundary-oriented, and
   concise. Reject content that fails the replacement test.
 - Never omit the final mechanical gate after a write, including initialization,

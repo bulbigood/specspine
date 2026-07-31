@@ -28,7 +28,6 @@ from spec_contract import (
     FACET_VALUES,
     FORMAT_MAJOR,
     INDEX_NAME,
-    DECOMPOSITION_STATUSES,
     INSPECTION_FACET_VALUES,
     INSPECTION_MODES,
     KIND_REQUIRED_FACETS,
@@ -83,10 +82,10 @@ MANIFEST_KEYS = {
 }
 REQUIRED_MANIFEST_KEYS = MANIFEST_KEYS - {"presentation", "mapping"}
 AREA_REQUIRED_KEYS = {"owner", "facets", "blockers"}
-AREA_KEYS = AREA_REQUIRED_KEYS | {"inspection", "decomposition"}
+AREA_KEYS = AREA_REQUIRED_KEYS | {"inspection"}
 MAPPING_KEYS = {"frontier", "observed_edges"}
 FRONTIER_KEYS = {
-    "id", "from_owner", "title", "question", "reason", "seed_paths",
+    "id", "anchor_owner", "title", "question", "reason", "seed_paths",
 }
 OBSERVED_EDGE_KEYS = {"source_owner", "target_owner", "observation"}
 FACET_NAME_SET = set(FACET_NAMES)
@@ -901,11 +900,6 @@ def check(
     if manifest is not None and "mapping" in manifest:
         manifest_path = root / MANIFEST_NAME
         mapping = manifest["mapping"]
-        decomposition_by_owner = {
-            area.get("owner"): area.get("decomposition")
-            for area in manifest.get("areas", [])
-            if isinstance(area, dict) and isinstance(area.get("owner"), str)
-        }
         if not isinstance(mapping, dict):
             add(
                 findings, "error", "MANIFEST_MAPPING", manifest_path, root,
@@ -975,26 +969,16 @@ def check(
                         )
                     else:
                         frontier_ids.add(candidate)
-                    from_owner = entry.get("from_owner")
+                    anchor_owner = entry.get("anchor_owner")
                     if (
-                        not isinstance(from_owner, str)
-                        or from_owner not in by_id
-                        or by_id[from_owner].kind == "index"
+                        not isinstance(anchor_owner, str)
+                        or anchor_owner not in by_id
+                        or by_id[anchor_owner].kind == "index"
                     ):
                         add(
                             findings, "error", "MANIFEST_FRONTIER_OWNER",
                             manifest_path, root,
-                            f"{label} has unknown non-index from_owner",
-                        )
-                    elif (
-                        not isinstance(decomposition_by_owner.get(from_owner), dict)
-                        or decomposition_by_owner[from_owner].get("status")
-                        != "frontier"
-                    ):
-                        add(
-                            findings, "error", "MANIFEST_FRONTIER_OWNER",
-                            manifest_path, root,
-                            f"{label} from_owner must have frontier decomposition status",
+                            f"{label} has unknown non-index anchor_owner",
                         )
                     for key in ("title", "question", "reason"):
                         if (
@@ -1042,7 +1026,7 @@ def check(
                                 and not (repository_root / path).exists()
                             ):
                                 add(
-                                    findings, "error",
+                                    findings, "warning",
                                     "MANIFEST_FRONTIER_PATH", manifest_path,
                                     root,
                                     f"{label} seed path does not exist: {value}",
@@ -1251,34 +1235,6 @@ def check(
                         statement = global_statements.get(blocker)
                         if statement is None or not blocker.startswith("OQ-"):
                             add(findings, "error", "MANIFEST_BLOCKER", root / MANIFEST_NAME, root, f"{label} references unknown blocking question: {blocker}")
-                decomposition = area.get("decomposition")
-                if decomposition is not None:
-                    if (
-                        not isinstance(decomposition, dict)
-                        or set(decomposition) != {"status", "reason"}
-                    ):
-                        add(
-                            findings, "error", "MANIFEST_DECOMPOSITION",
-                            root / MANIFEST_NAME, root,
-                            f"{label}.decomposition must contain exactly status and reason",
-                        )
-                    else:
-                        status = decomposition.get("status")
-                        reason = decomposition.get("reason")
-                        if status not in DECOMPOSITION_STATUSES:
-                            add(
-                                findings, "error",
-                                "MANIFEST_DECOMPOSITION_STATUS",
-                                root / MANIFEST_NAME, root,
-                                f"{label}.decomposition.status is invalid",
-                            )
-                        if not isinstance(reason, str) or not reason.strip():
-                            add(
-                                findings, "error",
-                                "MANIFEST_DECOMPOSITION_REASON",
-                                root / MANIFEST_NAME, root,
-                                f"{label}.decomposition.reason must be nonempty",
-                            )
                 inspection = area.get("inspection")
                 if inspection is not None:
                     expected = {"source", "inspected", "mode", "facets"}

@@ -25,8 +25,8 @@ Expected behavior:
 
 - create a reachable `specspine/_INDEX.md` and one bounded
   `payment-processing.md` observation owner;
-- persist provider-webhook ingestion as the first mapping frontier lead and
-  checkout as a later candidate instead of creating sibling documents;
+- persist webhook ingestion, checkout authorization, and payment-event ledger
+  as an ordered frontier instead of creating sibling documents;
 - distinguish repository-backed observations from unconfirmed interpretation;
 - attach an evidence baseline to repository-backed observations;
 - leave mapping coverage qualitative and explicitly incomplete;
@@ -50,12 +50,26 @@ Expected behavior:
   survey;
 - leave source, tests, configuration, schema, and root documentation unchanged.
 
+## Stages 3 and 4: continue one owner at a time
+
+Two more generic continuation requests consume checkout authorization and the
+payment-event ledger in manifest order.
+
+Expected behavior:
+
+- create exactly one owner per request;
+- preserve every previously mapped owner byte-for-byte;
+- consume exactly one frontier lead per request;
+- add an OBS-backed edge for each new owner;
+- never publish the remaining frontier in the same invocation.
+
 ## Failure indicators
 
 - source-tree folders or individual handlers are mirrored as specifications;
 - repository evidence is recorded as a decision or constraint;
 - the expansion stage reads reporting internals or unrelated checkout internals;
 - the second stage merely adds another OBS to `payment-processing.md`;
+- any continuation creates more than one owner or rewrites an earlier owner;
 - the initial survey is repeated during deepening;
 - source, tests, configuration, schema, or root documentation changes;
 - the result claims complete mapping or code/spec conformance.

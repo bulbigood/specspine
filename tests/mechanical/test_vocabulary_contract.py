@@ -91,10 +91,6 @@ class VocabularyContractTests(unittest.TestCase):
             set(definitions["inspectionFacet"]["enum"]),
         )
         self.assertEqual(
-            set(self.vocabulary["decomposition_statuses"]),
-            set(definitions["decomposition"]["properties"]["status"]["enum"]),
-        )
-        self.assertEqual(
             set(self.vocabulary["asset_roles"]),
             set(definitions["asset"]["properties"]["role"]["enum"]),
         )
@@ -173,7 +169,6 @@ class VocabularyContractTests(unittest.TestCase):
             "facet_values",
             "inspection_modes",
             "inspection_facet_values",
-            "decomposition_statuses",
             "implementation_freedom",
             "computed_statuses",
             "asset_roles",

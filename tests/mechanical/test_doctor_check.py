@@ -137,17 +137,10 @@ class DoctorCheckerV4Tests(unittest.TestCase):
         )
         root = self.spine(extra={"graph.md": GRAPH_RENDERING}, index=index)
         manifest = json.loads((root / "specspine.json").read_text())
-        next(
-            area for area in manifest["areas"]
-            if area["owner"] == "graph-rendering"
-        )["decomposition"] = {
-            "status": "frontier",
-            "reason": "An immediate tooltip child remains to be mapped.",
-        }
         manifest["mapping"] = {
             "frontier": [{
                 "id": "graph-tooltip",
-                "from_owner": "graph-rendering",
+                "anchor_owner": "graph-rendering",
                 "title": "Graph tooltip",
                 "question": "Which contextual interaction boundary does it own?",
                 "reason": "Graph rendering delegates a distinct interaction.",
@@ -171,7 +164,7 @@ class DoctorCheckerV4Tests(unittest.TestCase):
         manifest["mapping"] = {
             "frontier": [{
                 "id": "payments",
-                "from_owner": "missing-owner",
+                "anchor_owner": "missing-owner",
                 "title": "Duplicate owner",
                 "question": "Should this exist?",
                 "reason": "Invalid fixture.",
@@ -191,24 +184,27 @@ class DoctorCheckerV4Tests(unittest.TestCase):
         self.assertIn("MANIFEST_OBSERVED_EDGE_OWNER", codes)
         self.assertIn("MANIFEST_OBSERVED_EDGE_OBSERVATION", codes)
 
-    def test_validates_decomposition_status_and_reason(self):
+    def test_missing_frontier_seed_path_is_warning_not_error(self):
         root = self.spine()
         manifest = json.loads((root / "specspine.json").read_text())
-        manifest["areas"][0]["decomposition"] = {
-            "status": "terminal",
-            "reason": "Further division exposes only private mechanics.",
+        manifest["mapping"] = {
+            "frontier": [{
+                "id": "payment-audit",
+                "anchor_owner": "payments",
+                "title": "Payment audit",
+                "question": "Which audit responsibility exists?",
+                "reason": "A repository boundary may exist.",
+                "seed_paths": ["src/removed-payment-audit.ts"],
+            }],
+            "observed_edges": [],
         }
         (root / "specspine.json").write_text(json.dumps(manifest))
-        self.assertNotIn("MANIFEST_DECOMPOSITION", self.codes(root))
-
-        manifest["areas"][0]["decomposition"] = {
-            "status": "too-deep",
-            "reason": "",
-        }
-        (root / "specspine.json").write_text(json.dumps(manifest))
-        codes = self.codes(root)
-        self.assertIn("MANIFEST_DECOMPOSITION_STATUS", codes)
-        self.assertIn("MANIFEST_DECOMPOSITION_REASON", codes)
+        findings = CHECKER.check(root, repository_root=root)
+        matching = [
+            item for item in findings
+            if item.code == "MANIFEST_FRONTIER_PATH"
+        ]
+        self.assertEqual(["warning"], [item.severity for item in matching])
 
     def test_default_order_prioritizes_divergence_before_evidence(self):
         order = list(CHECKER.DEFAULT_HEADINGS)

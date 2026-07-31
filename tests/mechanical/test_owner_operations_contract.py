@@ -29,25 +29,15 @@ class OwnerOperationsContractTests(unittest.TestCase):
                 (skill / "SKILL.md").read_text(encoding="utf-8"),
             )
 
-    def test_refine_expand_and_layer_decomposition_have_shared_meaning(self):
+    def test_refine_and_expand_have_shared_meaning(self):
         self.assertIn("`refine` changes durable meaning or evidence", self.protocol)
-        self.assertIn("`expand` creates one", self.protocol)
-        self.assertIn("`decompose-layer` expands every selected frontier owner", self.protocol)
+        self.assertIn("`expand` creates exactly one", self.protocol)
         self.assertIn("Select exactly one write owner", self.protocol)
         self.assertIn("Create exactly one content document", self.protocol)
         for skill_text in (self.map_text, self.evolve_text):
             self.assertIn("`refine`", skill_text)
             self.assertIn("`expand`", skill_text)
-            self.assertIn("`decompose-layer`", skill_text)
-
-    def test_layer_depth_is_one_and_width_is_complete(self):
-        self.assertIn("bounds depth, not width", self.protocol)
-        self.assertIn("complete immediate child set", self.protocol)
-        self.assertIn("Compare all proposed siblings globally", self.protocol)
-        self.assertIn("Empty drafts MUST NOT enter", self.protocol)
-        self.assertIn("all immediate siblings or none", self.protocol)
-        self.assertIn("request, accepted intent, and architectural judgment", self.evolve_text)
-        self.assertIn("repository evidence", self.map_text)
+            self.assertNotIn("`decompose-layer`", skill_text)
 
     def test_authority_overlays_keep_observation_and_intent_distinct(self):
         self.assertIn("observation-only owner", self.map_text)
@@ -71,7 +61,7 @@ class OwnerOperationsContractTests(unittest.TestCase):
         ):
             self.assertIn(primitive, self.protocol)
         self.assertIn(
-            "does not authorize any other structural primitive",
+            "authorizes no other structural primitive",
             self.map_text,
         )
         self.assertIn(

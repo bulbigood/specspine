@@ -14,7 +14,7 @@ includes repository-backed observations.
 
 ### Map coverage
 
-Executable `specspine-map` coverage currently consists of three agent calls
+Executable `specspine-map` coverage currently consists of five agent calls
 across two cases:
 
 - `lifecycle-survey-deepen`: a shallow initial survey that persists a frontier,
@@ -38,7 +38,7 @@ The executable set is divided by resource cost and necessity:
 | Category | Manifests | Top-level agent calls | Purpose |
 |---|---:|---:|---|
 | `core` | 10 | 10 | Minimum behavioral regression set |
-| `extended` | 13 | 20 | Lifecycle, root-first connection, language detection, terminal-depth refusal, idempotency, merge, removal, bounded growth, and multilingual Extract behavior |
+| `extended` | 13 | 22 | Lifecycle, root-first connection, language detection, terminal-depth refusal, idempotency, merge, removal, bounded growth, and multilingual Extract behavior |
 | `planned` | 7 | 0 | Documentation and future redesign only |
 
 Core and extended cases currently cover:

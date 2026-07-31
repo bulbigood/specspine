@@ -130,12 +130,6 @@ This directory contains the project's long-lived architectural intent and archit
 - `checked` — The facet was inspected at the recorded baseline.
 - `not-checked` — No current comparison claim is made for the facet.
 
-### Decomposition statuses
-
-- `frontier` — The owner's immediate child layer remains to be decomposed.
-- `expanded` — The owner's complete immediate child layer has been published.
-- `terminal` — Further division would expose only private mechanics or source shape.
-
 ### Implementation freedom
 
 - `contract-equivalent` — Any internals satisfying normative contracts are permitted.
@@ -164,9 +158,9 @@ This directory contains the project's long-lived architectural intent and archit
 - `assets` — Complete registry of non-Markdown files inside the Spine.
 - `presentation` — Optional language, heading, order, and index rendering profile.
 - `mapping` — Optional non-normative repository mapping frontier and observed owner graph.
-- `frontier` — Candidate immediate child owners for the next one-layer Map decomposition.
+- `frontier` — Ordered candidate owners for future one-step Map expansion.
 - `observed_edges` — Repository-observed owner edges backed by canonical OBS statements.
-- `from_owner` — Existing mapped owner that exposed a frontier candidate.
+- `anchor_owner` — Existing mapped owner near which a frontier candidate was discovered.
 - `title` — Human-readable candidate-owner title.
 - `question` — Concrete boundary question for a future mapping step.
 - `reason` — Why the candidate appears independently useful.
@@ -175,8 +169,6 @@ This directory contains the project's long-lived architectural intent and archit
 - `target_owner` — Observed interaction target owner.
 - `observation` — OBS identifier owning an observed edge's meaning and evidence.
 - `owner` — Canonical non-index document ID.
-- `decomposition` — Reviewed immediate owner-layer expansion status.
-- `status` — Frontier, expanded, or terminal decomposition state.
 - `facets` — Completeness or inspection values by architectural facet.
 - `blockers` — Globally unique blocking OQ identifiers.
 - `inspection` — Repository comparison coverage at one evidence baseline.

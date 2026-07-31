@@ -22,13 +22,13 @@
     {
       "id": "initial-survey",
       "skill": "skills/specspine-map",
-      "prompt": "Create the smallest useful initial SpecSpine for this brownfield storefront. Use specspine/payment-processing.md as the single bounded, intentionally brief entry point for the payment responsibility. Capture direct repository observations and useful unconfirmed interpretation with an evidence baseline; do not manufacture decisions or constraints from code. Keep provider-webhook ingestion as the first adjacent responsibility for the next documentation step, before checkout. Do not create its specification yet. Do not modify repository files outside specspine/.",
+      "prompt": "Create the smallest useful initial SpecSpine for this brownfield storefront. Use specspine/payment-processing.md as the single bounded, intentionally brief entry point for the payment responsibility. Capture direct repository observations and useful unconfirmed interpretation with an evidence baseline; do not manufacture decisions or constraints from code. Persist these adjacent candidates in order without creating them: payment-webhook-ingestion, checkout-payment-authorization, then payment-event-ledger. Do not modify repository files outside specspine/.",
       "assertions": [
         {"type": "path_exists", "path": "specspine/_INDEX.md"},
         {"type": "path_exists", "path": "specspine/payment-processing.md"},
         {"type": "glob_count", "glob": "specspine/*.md", "min": 3, "max": 6},
         {"type": "file_contains", "path": "specspine/payment-processing.md", "values": ["## Observed", "<!-- specspine:evidence-baseline"]},
-        {"type": "file_contains", "path": "specspine/specspine.json", "values": ["\"mapping\"", "\"frontier\"", "\"id\": \"payment-webhook-ingestion\"", "\"from_owner\": \"payment-processing\""]},
+        {"type": "file_contains", "path": "specspine/specspine.json", "values": ["\"mapping\"", "\"frontier\"", "\"id\": \"payment-webhook-ingestion\"", "\"id\": \"checkout-payment-authorization\"", "\"id\": \"payment-event-ledger\"", "\"anchor_owner\": \"payment-processing\""]},
         {"type": "changed_only", "paths": ["specspine/**"]},
         {"type": "max_changed_files", "max": 6},
         {"type": "markdown_links_valid", "glob": "specspine/*.md"},
@@ -53,13 +53,46 @@
         {"type": "markdown_links_valid", "glob": "specspine/*.md"},
         {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
       ]
+    },
+    {
+      "id": "continue-checkout-authorization",
+      "skill": "skills/specspine-map",
+      "prompt": "Continue deepening the payment documentation by one step. Use only the next applicable persisted frontier lead and the relevant boundary in src/api/server.js, src/checkout/order-service.js, src/checkout/payment-port.js, src/payments/provider-adapter.js, and tests/payment-flow.test.js. Do not revisit webhook internals or reporting.",
+      "assertions": [
+        {"type": "path_exists", "path": "specspine/checkout-payment-authorization.md"},
+        {"type": "file_contains", "path": "specspine/checkout-payment-authorization.md", "values": ["## Responsibility", "## Observed", "<!-- specspine:evidence-baseline", "src/checkout/payment-port.js", "src/payments/provider-adapter.js"]},
+        {"type": "file_not_contains", "path": "specspine/specspine.json", "value": "\"id\": \"checkout-payment-authorization\""},
+        {"type": "file_contains", "path": "specspine/specspine.json", "value": "\"id\": \"payment-event-ledger\""},
+        {"type": "unchanged", "paths": ["specspine/payment-processing.md", "specspine/payment-webhook-ingestion.md"]},
+        {"type": "changed_only", "paths": ["specspine/_INDEX.md", "specspine/checkout-payment-authorization.md", "specspine/specspine.json"]},
+        {"type": "max_changed_files", "max": 3},
+        {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+        {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+      ]
+    },
+    {
+      "id": "continue-payment-event-ledger",
+      "skill": "skills/specspine-map",
+      "prompt": "Continue deepening the payment documentation by one step. Use only the next applicable persisted frontier lead and the relevant boundary in db/payment-schema.sql, src/payments/webhook-handler.js, and tests/payment-flow.test.js. Do not revisit checkout internals or reporting.",
+      "assertions": [
+        {"type": "path_exists", "path": "specspine/payment-event-ledger.md"},
+        {"type": "file_contains", "path": "specspine/payment-event-ledger.md", "values": ["## Responsibility", "## Observed", "<!-- specspine:evidence-baseline", "db/payment-schema.sql"]},
+        {"type": "file_not_contains", "path": "specspine/specspine.json", "value": "\"id\": \"payment-event-ledger\""},
+        {"type": "unchanged", "paths": ["specspine/payment-processing.md", "specspine/payment-webhook-ingestion.md", "specspine/checkout-payment-authorization.md"]},
+        {"type": "changed_only", "paths": ["specspine/_INDEX.md", "specspine/payment-event-ledger.md", "specspine/specspine.json"]},
+        {"type": "max_changed_files", "max": 3},
+        {"type": "markdown_links_valid", "glob": "specspine/*.md"},
+        {"type": "semantic_ids_valid", "glob": "specspine/*.md"}
+      ]
     }
   ],
   "final_assertions": [
     {"type": "path_exists", "path": "specspine/_INDEX.md"},
     {"type": "path_exists", "path": "specspine/payment-processing.md"},
     {"type": "path_exists", "path": "specspine/payment-webhook-ingestion.md"},
-    {"type": "glob_count", "glob": "specspine/*.md", "min": 4, "max": 4},
+    {"type": "path_exists", "path": "specspine/checkout-payment-authorization.md"},
+    {"type": "path_exists", "path": "specspine/payment-event-ledger.md"},
+    {"type": "glob_count", "glob": "specspine/*.md", "min": 6, "max": 6},
     {"type": "path_absent", "path": "specspine/controllers.md"},
     {"type": "path_absent", "path": "specspine/workers.md"},
     {"type": "path_absent", "path": "specspine/services.md"}

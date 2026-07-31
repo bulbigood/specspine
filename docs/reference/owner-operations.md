@@ -6,12 +6,10 @@ semantics; this protocol supplies owner mechanics.
 
 ## Action model
 
-Every ordinary documentation-growth operation selects one action:
+Every ordinary documentation-growth operation selects exactly one action:
 
 - `refine` changes durable meaning or evidence owned by one existing document;
-- `expand` creates one independently useful adjacent owner;
-- `decompose-layer` expands every selected frontier owner by exactly one
-  immediate layer and publishes the complete sibling set atomically.
+- `expand` creates exactly one independently useful adjacent owner.
 
 Initialization and explicitly approved structural operations are separate
 actions. They may affect more than one owner when their semantics require an
@@ -20,10 +18,8 @@ atomic graph rewrite.
 Choose `refine` when the request names an existing owner facet, question, claim,
 refresh boundary, or disagreement. Choose `expand` when the request explicitly
 names a missing responsibility or the active skill is authorized to consume an
-applicable persisted frontier lead. Choose `decompose-layer` for “deepen”,
-“decompose”, “cover the next level”, or an equivalent request. A skill must not
-interpret a discovery lead as accepted architecture unless its authority
-permits that promotion.
+applicable persisted frontier lead. A skill must not interpret a discovery lead
+as accepted architecture unless its authority permits that promotion.
 
 ## Owner test
 
@@ -65,46 +61,6 @@ If evidence or accepted intent does not establish an independently useful
 boundary, do not create the owner. Disposition any selected frontier according
 to the active skill's authority.
 
-## Decompose one layer
-
-`decompose-layer` bounds depth, not width. It may create many sibling owners,
-but MUST NOT recursively decompose any owner created by the operation.
-
-1. Resolve the owners responsible for the requested scope.
-2. Select every resolved owner whose immediate decomposition remains
-   `frontier`. Exclude an `expanded` overview and a reviewed `terminal` owner.
-3. Discover the complete immediate child set for every selected parent.
-   Children collectively explain how the parent responsibility is divided;
-   dependencies and consumers are neighbors unless they own part of that
-   responsibility.
-4. Compare all proposed siblings globally before writing. Keep peers separate
-   when inputs, outputs, consumers, state, controls, lifecycle, failures, or
-   reasons to change differ. Merge only when one boundary contract genuinely
-   owns them. Never create children for private stages, facets, classes,
-   functions, directories, or shared framework machinery.
-5. Reuse existing owners before creating files. Create and fill every missing
-   immediate child, then connect the complete layer using the edge authority of
-   the active skill.
-6. Mark each parent `expanded`. Mark each new or reviewed child `frontier` when
-   it has a plausible next owner layer, otherwise `terminal`. Record a concise
-   reason for every decomposition status.
-7. Rebuild indexes and validate the whole Spine once after the coherent batch.
-
-An overview owner is `expanded` when it owns cross-child coordination or
-explains the combined boundary and delegates local contracts to children.
-Pure physical navigation belongs in `_INDEX.md`, not an empty overview.
-
-A `terminal` owner has no independently useful child boundary: further detail
-would be private algorithms, helpers, framework hooks, internal state, or
-source layout. Terminal is a reviewed stopping judgment, not a claim that the
-owner can never evolve.
-
-Draft documents MAY be created in disposable staging to establish identities
-and links before parallel filling. Empty drafts MUST NOT enter the canonical
-Spine. Publish the whole layer only after every draft is filled and the global
-sibling review is clean. If the layer cannot be completed, leave the canonical
-Spine unchanged and report the blocker.
-
 ## Structural primitives
 
 Structural operations use only these primitives:
@@ -143,8 +99,6 @@ Review the complete diff and confirm:
 - each semantic claim and asset still has one canonical owner;
 - new IDs and paths are stable, unique, and reachable;
 - edge representation matches the active skill's authority;
-- every touched area has a justified decomposition status;
-- a layer operation published all immediate siblings or none;
 - manifest areas match non-index documents;
 - deterministic indexes were rebuilt;
 - the whole-Spine checker passes.

@@ -37,9 +37,8 @@ invariants`, `Failure behavior`, `Edge cases`, `Decisions`, `Constraints`,
 `Observed`, `Inferred`, `Known divergences`, or `Open questions` only when
 useful. Retain `Observed` only for boundary-significant intent gaps,
 divergences, unresolved questions, or surprising navigation; do not mirror
-matching intent or private implementation detail. During one-layer
-decomposition, report every independently owned immediate child in the sibling
-set, fill every sibling, and link it through evidence-backed
-`mapping.observed_edges`. Put only deeper child candidates in
-`specspine.json.mapping.frontier`. Do not copy a feature-SDD outline, publish
-empty drafts, or recurse into grandchildren.
+matching intent or private implementation detail. During expansion, create
+only the selected owner and link it through evidence-backed
+`mapping.observed_edges`. Put every further independently useful adjacent
+candidate in `specspine.json.mapping.frontier`; do not pursue it in the same
+invocation.

@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Evolve"
-  short_description: "Evolve one complete accepted owner layer"
-  default_prompt: "Use $specspine-evolve to deepen the selected scope by one complete accepted owner layer."
+  short_description: "Refine or expand accepted architecture"
+  default_prompt: "Use $specspine-evolve to refine one existing owner, expand one accepted adjacent responsibility, or apply an explicitly requested structural operation."

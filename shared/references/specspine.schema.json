@@ -51,14 +51,14 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "id", "from_owner", "title", "question", "reason", "seed_paths"
+        "id", "anchor_owner", "title", "question", "reason", "seed_paths"
       ],
       "properties": {
         "id": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
         },
-        "from_owner": {
+        "anchor_owner": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
         },
@@ -205,7 +205,6 @@
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
         },
         "facets": {"$ref": "#/$defs/facets"},
-        "decomposition": {"$ref": "#/$defs/decomposition"},
         "inspection": {
           "type": "object",
           "additionalProperties": false,
@@ -246,17 +245,6 @@
             "pattern": "^OQ-[a-z0-9]+(?:-[a-z0-9]+)*$"
           }
         }
-      }
-    },
-    "decomposition": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["status", "reason"],
-      "properties": {
-        "status": {
-          "enum": ["frontier", "expanded", "terminal"]
-        },
-        "reason": {"type": "string", "minLength": 1}
       }
     },
     "asset": {

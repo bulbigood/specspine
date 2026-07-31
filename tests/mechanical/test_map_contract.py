@@ -19,22 +19,22 @@ class MapOperationContractTests(unittest.TestCase):
     def compact(value):
         return " ".join(value.split())
 
-    def test_map_is_one_atomic_layer_pipeline(self):
+    def test_map_is_one_bounded_pipeline(self):
         text = self.compact(self.entrypoint)
         self.assertIn(
-            "scope → select frontier → inspect one layer → synthesize siblings",
+            "scope → select → inspect → classify → write → verify",
             text,
         )
-        self.assertIn("publish atomically", text)
-        self.assertIn("depth advances by exactly one", text)
+        self.assertIn("at most one non-index content owner", text)
 
     def test_map_separates_action_from_inspection_mode(self):
         text = self.compact(self.entrypoint)
         for intent in ("`survey`", "`deepen`", "`refresh`", "`drift`"):
             self.assertIn(intent, text)
         self.assertIn("`refine`", text)
-        self.assertIn("`decompose-layer`", text)
-        self.assertIn("“deepen”", text)
+        self.assertIn("`expand`", text)
+        self.assertIn("generic `deepen` or `continue`", text)
+        self.assertIn("first such lead in manifest order", text)
         self.assertNotIn("exhaustive", text.casefold())
         self.assertNotIn("increment_verified", text)
         self.assertNotIn("scope_verified", text)
@@ -44,19 +44,22 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("exception layer, not a code mirror", text)
         self.assertIn("`covered-by-intent`", text)
         self.assertIn("replacement test", text)
-        self.assertIn("preserve title, ID, kind, summary, accepted prose", text)
+        self.assertIn(
+            "preserve title, ID, kind, summary, responsibility, accepted prose",
+            text,
+        )
         self.assertIn("publish repository-derived canonical `Relationships`", text)
         self.assertIn("register every completeness facet as `missing`", text)
         self.assertIn("no wording implies acceptance, conformance", text)
 
-    def test_frontier_drives_a_complete_immediate_layer(self):
+    def test_frontier_drives_one_owner_expansion(self):
         text = self.compact(self.entrypoint + "\n" + self.method)
         self.assertIn("`mapping.frontier`", text)
-        self.assertIn("proposed immediate child owners", text)
-        self.assertIn("every selected parent", text)
-        self.assertIn("complete immediate sibling set", text)
-        self.assertIn("do not group peers because they share", text)
-        self.assertIn("no grandchild was created", text)
+        self.assertIn("ordered queue", text)
+        self.assertIn("`anchor_owner`", text)
+        self.assertIn("does not assert containment", text)
+        self.assertIn("consume exactly the selected frontier lead", text)
+        self.assertIn("never map them in the same invocation", text)
 
     def test_observed_graph_is_obs_backed_and_non_normative(self):
         text = self.compact(self.entrypoint + "\n" + self.method)
@@ -124,12 +127,7 @@ class MapOperationContractTests(unittest.TestCase):
             {"frontier", "observed_edges"},
             set(mapping["required"]),
         )
-        self.assertEqual(
-            {"frontier", "expanded", "terminal"},
-            set(
-                schema_value["$defs"]["decomposition"]["properties"]["status"]["enum"]
-            ),
-        )
+        self.assertNotIn("decomposition", schema_value["$defs"])
 
     def test_result_contract_is_small_and_explicit(self):
         text = self.compact(self.entrypoint)

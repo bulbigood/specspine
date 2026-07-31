@@ -1,82 +1,91 @@
-# SpecSpine one-layer repository mapping
+# SpecSpine incremental graph mapping
 
-Map the complete immediate owner layer without reproducing the source tree.
+Map one semantic frontier without reproducing the source tree.
 
-## Find the layer
+## Select refinement or expansion
 
-Start from the canonical owners responsible for the requested scope. A parent
-is frontier when its immediate responsibility decomposition is unreviewed or
-known but unpublished. Existing `mapping.frontier` entries seed discovery; they
-do not limit it.
+`refine` adds material repository evidence about one existing owner. `expand`
+turns one adjacent candidate into one observation-only owner.
 
-Search boundary-first:
+Prefer `expand` for a generic continuation when the current owner has a durable
+frontier lead. Prefer `refine` when the user names a facet, question, suspected
+drift, or refresh boundary. An existing owner must not cause every continuation
+to refine it.
 
-1. Existing intent, observations, decomposition status, and mapping graph.
-2. Target architecture documentation, manifests, and composition roots.
-3. Boundary interfaces, inputs, outputs, consumers, controls, and owned data.
-4. Observable lifecycle, failures, compatibility, and representative tests.
-5. Local implementation needed to resolve one boundary question.
+During expansion, the candidate is the write target. Its `anchor_owner` is
+context, not the target.
 
-Discover all immediate children before deeply documenting any one child. Stop
-at grandchildren except for the shallow terminal/frontier judgment.
+## Search boundary-first
 
-## Distinguish children from neighbors
+Inspect only the strongest signals needed:
 
-A child owns a stable part of the parent's responsibility. A dependency,
-consumer, external integration, or shared mechanism is a neighbor unless the
-parent explicitly delegates part of its outcome to it.
+1. Existing intent, mapping frontier, and observed edges.
+2. Architecture documentation specific to the target.
+3. Target manifests, runtime entry points, and composition roots.
+4. Boundary interfaces, consumers, commands, events, and schedulers.
+5. Owned schemas, migrations, and external contracts.
+6. Configuration affecting the boundary.
+7. Representative integration and failure tests.
+8. Local implementation required by one remaining boundary question.
 
-A useful child has a distinct responsibility, boundary contract, navigation
-value, and reason to change. Reject source directories, layers, individual
-classes/functions, generic adapters, private stages, and facets.
+Stop when the selected boundary is classifiable. When evidence exposes another
+independently useful responsibility, persist a frontier lead and do not pursue
+it.
 
-Compare every sibling pair. Keep peers separate when input model,
-configuration, state, lifecycle, failures, consumers, or change drivers differ.
-A shared registry, builder, renderer, host, framework, package, or helper is
-not shared ownership. Conversely, keep configuration, failure, interfaces,
-tests, and private stages with one owner when they describe facets of the same
-contract.
+## Recognize an independent owner
 
-The siblings should collectively explain the parent's delegated
-responsibility without duplicating neighboring ownership.
+A useful owner represents an independently evolving responsibility: a runtime
+component, capability, persistence or contract authority, external integration,
+project-specific mechanism, or cross-cutting behavior.
 
-## Apply the replacement test
+Reject generic layers, utilities, individual classes/endpoints, framework
+wiring, generated code, and one-off scripts. Ask whether it has a distinct
+responsibility, meaningful boundary, navigation value, independent lifecycle,
+and greater stability than the file layout.
 
-Retain a fact only when a replacement behind the same owner boundary would
-still be constrained by it or when it supplies evidence for an observed edge,
-uncertainty, or divergence. Otherwise classify it as implementation detail.
+An adjacent candidate need not be a child. Dependencies, consumers, peers,
+integrations, and shared authorities are valid graph growth when independently
+useful.
 
-Repository evidence cannot establish accepted intent. Lack of accepted intent
-does not make private mechanics a contract.
+## Classify evidence
 
-## Classify decomposition depth
+- `covered-by-intent`: accepted intent already represents it.
+- `implementation-freedom`: compatible private implementation choice.
+- `retain-observation`: material gap, interaction, question, or surprising
+  boundary.
+- `retain-divergence`: conflict with an addressable normative claim.
+- `retain-inference`: useful but unconfirmed boundary interpretation.
+- `retain-open-question`: evidence cannot answer required intent or ownership.
+- `implementation-detail`: private source detail.
+- `frontier-candidate`: independently useful adjacent responsibility.
 
-- `frontier`: a plausible independently useful child layer remains.
-- `expanded`: the complete immediate child layer is published; overview
-  coordination may remain in the parent.
-- `terminal`: further division yields only private mechanics or source shape.
+Apply the replacement test:
 
-An overview is useful only when it owns cross-child coordination or explains
-their combined boundary. Pure navigation belongs in `_INDEX.md`.
+> If a replacement behind the same boundary could change the fact without
+> affecting a consumer, neighbor, operator, verifier, or explicit architecture
+> constraint, discard it as implementation detail.
 
-## Publish atomically
+## Build the observed graph
 
-Draft identities and links in disposable staging if useful. Fill every
-immediate child before publication. Empty placeholders never enter canonical
-Markdown. If context, evidence, or ownership uncertainty prevents completion
-of the whole sibling set, publish none of the layer.
+Keep canonical `Relationships` reserved for accepted architecture. Each
+`mapping.observed_edges` entry:
 
-Preserve every existing owner path. Apply the canonical path and
-directory-density rules only to new child owners; Map never reorganizes
-accepted topology.
+- connects two existing non-index owner IDs;
+- follows the direction stated by its interaction;
+- references one `OBS` defined by either endpoint;
+- derives meaning and evidence from that `OBS`;
+- is removed when stale or promoted by Evolve.
 
-Persist only:
+An expansion must add at least one supported observed edge connecting the new
+owner to the mapped graph.
 
-- material `OBS`, `INF`, `OQ`, or divergence;
-- OBS-backed observed edges;
-- next-layer frontier candidates;
-- accurate inspection and decomposition state;
-- bounded implementation navigation anchors.
+## Bound the operation
 
-One invocation advances selected scope depth by exactly one owner layer,
-regardless of sibling count.
+Change at most one content owner. Preserve every existing owner path and
+accepted relationship. Apply canonical path and directory-density rules only
+to a new owner.
+
+Frontier leads are hypotheses and deterministic starting points, not coverage,
+accepted topology, or delivery work. A missing seed path makes a lead stale; it
+does not invalidate unrelated Spine content. Refresh or disposition that lead
+when selected.
