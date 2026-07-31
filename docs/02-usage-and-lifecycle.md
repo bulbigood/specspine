@@ -67,10 +67,10 @@ Implementation-only changes do not require artificial specification growth.
 
 ## Compare a repository
 
-Use Map for one bounded owner-relative repository comparison. Each invocation
-either refines one existing owner or expands one persisted frontier candidate
-into a new observation-only owner. It stops after that immediate semantic
-frontier and never claims whole-repository coverage.
+Use Map for one bounded owner-relative repository comparison. A deepen request
+selects all applicable frontier owners in scope and publishes each owner's
+complete immediate child layer. It may create many siblings but never their
+children, so depth advances by exactly one.
 
 Map discovers owner-relative boundaries rather than documenting code structure.
 It compares evidence with accepted intent and retains an `OBS` only when it:
@@ -85,13 +85,18 @@ freedom. It records bounded inspection coverage separately instead of creating
 a duplicate observation. Neither inspection coverage nor absence of `OBS`
 proves conformance.
 
-Repository-wide documentation grows through repeated bounded Map operations.
-Concrete adjacent responsibilities persist in `specspine.json.mapping.frontier`;
-a generic continuation expands the next applicable lead instead of repeatedly
-refining the same owner. Mapped owners connect through OBS-backed
+Repository-wide documentation grows through repeated one-layer Map operations.
+Candidate immediate children persist in `specspine.json.mapping.frontier`.
+Before publication Map compares the whole sibling set, fills every child, and
+publishes the layer atomically. Mapped owners connect through OBS-backed
 `mapping.observed_edges`, which remain distinct from accepted typed
-`Relationships`. Each operation changes at most one content owner, then
-rebuilds navigation when needed and checks the whole Spine.
+`Relationships`.
+
+Evolve uses the same one-layer semantics for a deepen request, but derives the
+split from the user's accepted intent and sound architectural judgment rather
+than repository code. It publishes canonical children and accepted
+`decomposes-into` relationships. Overview owners retain cross-child
+coordination; terminal owners stop before private implementation detail.
 
 For AI agents, the Spine answers what must remain true and who owns it. Source
 inspection answers how the current implementation achieves it. An agent must

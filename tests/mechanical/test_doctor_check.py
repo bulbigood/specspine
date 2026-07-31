@@ -137,6 +137,13 @@ class DoctorCheckerV4Tests(unittest.TestCase):
         )
         root = self.spine(extra={"graph.md": GRAPH_RENDERING}, index=index)
         manifest = json.loads((root / "specspine.json").read_text())
+        next(
+            area for area in manifest["areas"]
+            if area["owner"] == "graph-rendering"
+        )["decomposition"] = {
+            "status": "frontier",
+            "reason": "An immediate tooltip child remains to be mapped.",
+        }
         manifest["mapping"] = {
             "frontier": [{
                 "id": "graph-tooltip",
@@ -183,6 +190,25 @@ class DoctorCheckerV4Tests(unittest.TestCase):
         self.assertIn("MANIFEST_FRONTIER_PATH", codes)
         self.assertIn("MANIFEST_OBSERVED_EDGE_OWNER", codes)
         self.assertIn("MANIFEST_OBSERVED_EDGE_OBSERVATION", codes)
+
+    def test_validates_decomposition_status_and_reason(self):
+        root = self.spine()
+        manifest = json.loads((root / "specspine.json").read_text())
+        manifest["areas"][0]["decomposition"] = {
+            "status": "terminal",
+            "reason": "Further division exposes only private mechanics.",
+        }
+        (root / "specspine.json").write_text(json.dumps(manifest))
+        self.assertNotIn("MANIFEST_DECOMPOSITION", self.codes(root))
+
+        manifest["areas"][0]["decomposition"] = {
+            "status": "too-deep",
+            "reason": "",
+        }
+        (root / "specspine.json").write_text(json.dumps(manifest))
+        codes = self.codes(root)
+        self.assertIn("MANIFEST_DECOMPOSITION_STATUS", codes)
+        self.assertIn("MANIFEST_DECOMPOSITION_REASON", codes)
 
     def test_default_order_prioritizes_divergence_before_evidence(self):
         order = list(CHECKER.DEFAULT_HEADINGS)

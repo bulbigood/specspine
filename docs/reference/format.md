@@ -74,6 +74,10 @@ expose the same schema beside this reference as `specspine.schema.json`:
   "areas": [
     {
       "owner": "session-management",
+      "decomposition": {
+        "status": "frontier",
+        "reason": "A complete immediate session audit layer remains to be mapped."
+      },
       "facets": {
         "architecture": "complete",
         "behavior": "complete",
@@ -126,7 +130,20 @@ It may also contain `presentation`, the constrained rendering profile described
 below, and `mapping`, the non-normative repository mapping state described
 below. No other root fields are allowed.
 
-Each area may contain an optional `inspection` record. It states which
+Each area may contain optional `decomposition` and `inspection` records.
+`decomposition` contains exactly `status` and a nonempty `reason`:
+
+- `frontier`: the immediate child layer remains to be decomposed;
+- `expanded`: the complete immediate child layer is published;
+- `terminal`: further division would expose only private mechanics or source
+  shape.
+
+Absence means decomposition depth has not been reviewed. This status governs
+documentation growth, not accepted topology, completeness, or conformance.
+Map may establish it from repository evidence; Evolve may establish it from
+accepted intent and architectural judgment.
+
+`inspection` states which
 repository-facing facets were actually inspected by Map at one evidence
 baseline. It is distinct from specification completeness and never claims
 implementation conformance. `source` identifies the inspected repository
@@ -143,19 +160,24 @@ The optional `mapping` object contains exactly `frontier` and
 `observed_edges`. It records repository discovery, not accepted architecture,
 completeness, conformance, or delivery work.
 
-`frontier` is an ordered array of candidate owners available to a future
-one-step Map expansion. Each entry contains:
+`frontier` is an ordered array of candidate immediate children available to a
+future one-layer Map decomposition. Entries are grouped by `from_owner`; one
+deepen operation consumes the complete starting group for every selected
+frontier parent. Each entry contains:
 
 - `id`: the proposed stable owner ID; it MUST NOT already belong to a document;
-- `from_owner`: the existing non-index owner that exposed the candidate;
+- `from_owner`: the existing non-index parent whose responsibility the
+  candidate helps decompose;
 - `title`: a concise human-readable candidate title;
 - `question`: the concrete boundary question for the next inspection;
 - `reason`: why the candidate appears independently useful;
 - `seed_paths`: one or more unique, safe repository-relative starting paths.
 
-Candidate IDs are unique within the frontier. A successful expansion consumes
-exactly one entry. A disproved candidate is removed; an unresolved candidate is
-preserved.
+Candidate IDs are unique within the frontier. A successful layer operation
+consumes every original entry belonging to its selected parents. Newly exposed
+grandchild candidates may be added for the next invocation but MUST NOT be
+created as documents in the current operation. A disproved candidate is
+removed; an unresolved sibling set blocks atomic layer publication.
 
 `observed_edges` is the machine-traversable repository-observed owner graph.
 Each entry contains exactly:

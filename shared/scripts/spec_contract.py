@@ -25,6 +25,7 @@ FACET_NAMES = tuple(VOCABULARY["facets"])
 FACET_VALUES = frozenset(VOCABULARY["facet_values"])
 INSPECTION_MODES = frozenset(VOCABULARY["inspection_modes"])
 INSPECTION_FACET_VALUES = frozenset(VOCABULARY["inspection_facet_values"])
+DECOMPOSITION_STATUSES = frozenset(VOCABULARY["decomposition_statuses"])
 ASSET_ROLES = frozenset(VOCABULARY["asset_roles"])
 KIND_REQUIRED_FACETS = {
     kind: set(facets)
@@ -110,6 +111,7 @@ def compact_glossary() -> str:
         ("Facet values", VOCABULARY["facet_values"]),
         ("Inspection modes", VOCABULARY["inspection_modes"]),
         ("Inspection facet values", VOCABULARY["inspection_facet_values"]),
+        ("Decomposition statuses", VOCABULARY["decomposition_statuses"]),
         ("Implementation freedom", VOCABULARY["implementation_freedom"]),
         ("Computed statuses", VOCABULARY["computed_statuses"]),
         ("Asset roles", VOCABULARY["asset_roles"]),

@@ -19,24 +19,22 @@ class MapOperationContractTests(unittest.TestCase):
     def compact(value):
         return " ".join(value.split())
 
-    def test_map_is_one_direct_bounded_pipeline(self):
+    def test_map_is_one_atomic_layer_pipeline(self):
         text = self.compact(self.entrypoint)
         self.assertIn(
-            "scope → select → inspect → classify → write → verify",
+            "scope → select frontier → inspect one layer → synthesize siblings",
             text,
         )
-        self.assertIn("current agent", text)
-        self.assertIn("at most one non-index content owner", text)
-        self.assertIn("Do not create campaign state", text)
+        self.assertIn("publish atomically", text)
+        self.assertIn("depth advances by exactly one", text)
 
     def test_map_separates_action_from_inspection_mode(self):
         text = self.compact(self.entrypoint)
         for intent in ("`survey`", "`deepen`", "`refresh`", "`drift`"):
             self.assertIn(intent, text)
         self.assertIn("`refine`", text)
-        self.assertIn("`expand`", text)
-        self.assertIn("generic request to deepen or continue", text)
-        self.assertIn("first such lead in manifest order", text)
+        self.assertIn("`decompose-layer`", text)
+        self.assertIn("“deepen”", text)
         self.assertNotIn("exhaustive", text.casefold())
         self.assertNotIn("increment_verified", text)
         self.assertNotIn("scope_verified", text)
@@ -51,14 +49,14 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("register every completeness facet as `missing`", text)
         self.assertIn("no wording implies acceptance, conformance", text)
 
-    def test_frontier_is_persistent_and_expands_one_owner(self):
+    def test_frontier_drives_a_complete_immediate_layer(self):
         text = self.compact(self.entrypoint + "\n" + self.method)
         self.assertIn("`mapping.frontier`", text)
-        self.assertIn("ordered queue", text)
-        self.assertIn("Its `id` becomes the new owner ID", text)
-        self.assertIn("consume the first such lead", text)
-        self.assertIn("do not map them in the same invocation", text)
-        self.assertIn("not persistent delivery work", text)
+        self.assertIn("proposed immediate child owners", text)
+        self.assertIn("every selected parent", text)
+        self.assertIn("complete immediate sibling set", text)
+        self.assertIn("do not group peers because they share", text)
+        self.assertIn("no grandchild was created", text)
 
     def test_observed_graph_is_obs_backed_and_non_normative(self):
         text = self.compact(self.entrypoint + "\n" + self.method)
@@ -66,7 +64,7 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("machine-traversable repository graph", text)
         self.assertIn("references one canonical `OBS`", text)
         self.assertIn("owned by one endpoint", text)
-        self.assertIn("at least one observed edge", text)
+        self.assertIn("OBS-backed observed edges", text)
         self.assertIn("later promote an observed edge", text)
 
     def test_only_shared_deterministic_scripts_remain(self):
@@ -125,6 +123,12 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertEqual(
             {"frontier", "observed_edges"},
             set(mapping["required"]),
+        )
+        self.assertEqual(
+            {"frontier", "expanded", "terminal"},
+            set(
+                schema_value["$defs"]["decomposition"]["properties"]["status"]["enum"]
+            ),
         )
 
     def test_result_contract_is_small_and_explicit(self):

@@ -11,6 +11,7 @@ They are behavioral examples, not rigid output requirements.
 - [Add a cross-cutting feature](#example-3-add-a-cross-cutting-feature)
 - [Avoid duplication](#example-4-avoid-duplication)
 - [Preserve uncertainty](#example-5-preserve-uncertainty)
+- [Deepen one complete layer](#example-6-deepen-one-complete-layer)
 
 ## Example 1: Initialize from an abstract idea
 
@@ -99,6 +100,29 @@ apply it and report the impact.
 `authentication.md` remains concise and links to the extracted concepts.
 
 The detailed account-linking policy exists only in `account-linking.md`.
+
+This is one complete layer: all four immediate authentication responsibilities
+are created together. Evolve does not further decompose passwords, external
+identity, sessions, or linking in the same invocation.
+
+## Example 6: Deepen one complete layer
+
+### User request
+
+```text
+Evolve: deepen the application architecture.
+```
+
+### Expected behavior
+
+Select every applicable frontier owner in the requested application scope.
+For each, derive all immediate independently owned children from accepted
+intent and architectural judgment. Compare siblings globally, create and fill
+the complete layer, connect parents with accepted `decomposes-into`
+relationships, and mark children frontier or terminal.
+
+Do not inspect repository code, publish only the first convenient child, or
+decompose any newly created child during this invocation.
 
 ## Example 3: Add a cross-cutting feature
 

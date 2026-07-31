@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Map"
-  short_description: "Grow an observed architecture graph one step"
-  default_prompt: "Use $specspine-map to refine one mapped owner or expand one persisted frontier responsibility."
+  short_description: "Map one complete owner layer from code"
+  default_prompt: "Use $specspine-map to deepen the selected scope by one complete repository-observed owner layer."

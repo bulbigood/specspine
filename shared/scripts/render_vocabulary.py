@@ -84,6 +84,7 @@ def render(vocabulary: dict[str, Any]) -> str:
         ("Facet values", "facet_values"),
         ("Inspection modes", "inspection_modes"),
         ("Inspection facet values", "inspection_facet_values"),
+        ("Decomposition statuses", "decomposition_statuses"),
         ("Implementation freedom", "implementation_freedom"),
         ("Computed statuses", "computed_statuses"),
         ("Asset roles", "asset_roles"),
