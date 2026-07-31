@@ -22,23 +22,21 @@ class MapOperationContractTests(unittest.TestCase):
     def test_map_is_one_direct_bounded_pipeline(self):
         text = self.compact(self.entrypoint)
         self.assertIn(
-            "scope → context → inspect → classify → write → verify",
+            "scope → select → inspect → classify → write → verify",
             text,
         )
         self.assertIn("current agent", text)
         self.assertIn("at most one non-index content owner", text)
-        self.assertIn("one owner-relative semantic frontier", text)
         self.assertIn("Do not create campaign state", text)
-        self.assertIn("Do not promise whole-repository coverage", text)
 
-    def test_map_has_one_workflow_and_four_inspection_intents(self):
+    def test_map_separates_action_from_inspection_mode(self):
         text = self.compact(self.entrypoint)
         for intent in ("`survey`", "`deepen`", "`refresh`", "`drift`"):
             self.assertIn(intent, text)
-        self.assertIn(
-            "do not create different workflows or completion claims",
-            text,
-        )
+        self.assertIn("`refine`", text)
+        self.assertIn("`expand`", text)
+        self.assertIn("generic request to deepen or continue", text)
+        self.assertIn("first such lead in manifest order", text)
         self.assertNotIn("exhaustive", text.casefold())
         self.assertNotIn("increment_verified", text)
         self.assertNotIn("scope_verified", text)
@@ -49,16 +47,27 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertIn("`covered-by-intent`", text)
         self.assertIn("replacement test", text)
         self.assertIn("preserve title, ID, kind, summary, accepted prose", text)
-        self.assertIn("publish repository-derived `Relationships`", text)
-        self.assertIn("Inspection never raises completeness", text)
-        self.assertIn("no wording implies conformance", text)
+        self.assertIn("publish repository-derived canonical `Relationships`", text)
+        self.assertIn("register every completeness facet as `missing`", text)
+        self.assertIn("no wording implies acceptance, conformance", text)
 
-    def test_adjacent_responsibilities_are_reported_not_pursued(self):
+    def test_frontier_is_persistent_and_expands_one_owner(self):
         text = self.compact(self.entrypoint + "\n" + self.method)
-        self.assertIn("deferred lead", text)
-        self.assertIn("Do not begin mapping that neighbor", text)
-        self.assertIn("must not be pursued in the same invocation", text)
+        self.assertIn("`mapping.frontier`", text)
+        self.assertIn("ordered queue", text)
+        self.assertIn("Its `id` becomes the new owner ID", text)
+        self.assertIn("consume the first such lead", text)
+        self.assertIn("do not map them in the same invocation", text)
         self.assertIn("not persistent delivery work", text)
+
+    def test_observed_graph_is_obs_backed_and_non_normative(self):
+        text = self.compact(self.entrypoint + "\n" + self.method)
+        self.assertIn("`mapping.observed_edges`", text)
+        self.assertIn("machine-traversable repository graph", text)
+        self.assertIn("references one canonical `OBS`", text)
+        self.assertIn("owned by one endpoint", text)
+        self.assertIn("at least one observed edge", text)
+        self.assertIn("later promote an observed edge", text)
 
     def test_only_shared_deterministic_scripts_remain(self):
         scripts = {
@@ -83,6 +92,7 @@ class MapOperationContractTests(unittest.TestCase):
         self.assertEqual(
             {
                 "mapping-method.md",
+                "owner-operations.md",
                 "spec-format.md",
                 "spec-glossary.md",
                 "spec-semantics.md",
@@ -104,8 +114,18 @@ class MapOperationContractTests(unittest.TestCase):
         )
         schema = (
             ROOT / "shared/references/specspine.schema.json"
-        ).read_text(encoding="utf-8")
-        self.assertNotIn('"exhaustive"', schema)
+        )
+        schema_value = json.loads(schema.read_text(encoding="utf-8"))
+        self.assertNotIn(
+            "exhaustive",
+            schema.read_text(encoding="utf-8"),
+        )
+        self.assertIn("mapping", schema_value["properties"])
+        mapping = schema_value["$defs"]["mapping"]
+        self.assertEqual(
+            {"frontier", "observed_edges"},
+            set(mapping["required"]),
+        )
 
     def test_result_contract_is_small_and_explicit(self):
         text = self.compact(self.entrypoint)

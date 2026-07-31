@@ -18,6 +18,9 @@ references own document structure and claim meaning.
   editing, or restructuring specifications. It is the canonical owner of
   document content, organization, identity, relationships, decomposition, and
   terminal detail.
+- Read [references/owner-operations.md](references/owner-operations.md) before
+  selecting `refine` or `expand`, creating an owner, or applying a structural
+  primitive. It is the shared owner-operation protocol used by Map and Evolve.
 - Use [references/spec-glossary.md](references/spec-glossary.md) as the index
   of reserved identifiers, tokens, kinds, relations, and manifest values.
 - Read `specspine.json.presentation` before writing Markdown; use its rendered
@@ -54,6 +57,12 @@ file outside `<spine-root>`, including a repository README, even to seek context
 Derive only the smallest useful starting structure from the request.
 
 Evolve owns organization and intentional evolution of the specification network.
+Preserve non-normative `specspine.json.mapping` state unless the approved
+operation resolves it. When the user explicitly accepts an observed owner
+interaction, promote its durable meaning into the applicable canonical
+`Relationships`, remove the promoted `mapping.observed_edges` entry, and remove
+any frontier entry consumed by the accepted owner. Never treat the existence of
+mapping state as approval.
 It does not:
 
 - discover repository architecture or verify code/spec conformance;
@@ -91,21 +100,30 @@ starting a second navigation pass.
    already supplied it as described above. If absent, immediately initialize
    `README.md`, `_INDEX.md`, and `specspine.json` together from the request; do not run any
    other project discovery or read any other project path.
-2. Classify the operation: initialize, refine, promote, split, merge, rename,
-   or link. Identify the canonical owner, specifications whose normative or
+2. Select the ordinary action `refine` or `expand`, or classify the request as
+   `initialize`, `promote`, or an explicitly approved structural operation.
+   Identify the canonical owner, specifications whose normative or
    architectural meaning changes, and context needed only for understanding.
+   `refine` changes one existing owner. `expand` creates exactly one adjacent
+   canonical owner through `references/owner-operations.md`.
+   Choose deterministically:
+   - honor an explicit `refine` or named facet, question, or claim;
+   - honor an explicit `expand` or explicitly accepted missing responsibility;
+   - for a generic request to deepen or continue an existing specification,
+     use `refine` unless the request itself accepts a new independent owner;
+   - never select `expand` from `mapping.frontier` alone.
    For refinement, perform the terminal-depth check immediately after reading
    the index and relevant specification. Compare the requested material with
    the terminal-detail boundary in `references/spec-format.md`. If the request
    adds no durable normative or architectural meaning within Evolve's scope and
    only asks for private implementation mechanics, stop without editing or seeking
    implementation evidence.
-3. Choose owners and decomposition using `references/spec-format.md`. Reuse an
-   existing owner when possible; do not create a specification merely because a
-   file is long or a feature is new. Before choosing final paths, project each
-   affected directory's deterministic index entries and apply the shared soft
-   density threshold. Prefer stable semantic child directories when an index
-   would grow beyond about 20 entries; never create arbitrary buckets.
+3. Choose owners and decomposition through `references/owner-operations.md`
+   and apply the canonical constraints in `references/spec-format.md`. Before
+   choosing final paths, project each affected directory's deterministic index
+   entries and apply the shared soft density threshold. Prefer stable semantic
+   child directories when an index would grow beyond about 20 entries; never
+   create arbitrary buckets.
 4. Treat an explicit in-scope operation or architectural decision as approval.
    Approval does not override Evolve's scope or terminal-detail boundary. Apply
    navigation, evidence-only, and clearly meaning-preserving edits directly.
@@ -140,13 +158,22 @@ canonical format and semantics references.
 
 ### Refine
 
-Preserve an existing responsibility unless the user changes it. Record the
-smallest accepted architectural meaning and modify only owners whose behavior
-or boundaries change. Treat related specifications needed only for context as
-read-only. A dependency's participation, session use, or configuration need
-does not by itself change its specification. Modify a related owner only when
-the request supplies new durable architectural intent belonging there; report
-implementation prerequisites and speculative questions instead.
+Apply shared `refine`: preserve the existing responsibility unless the user
+changes it, select one write owner, and record the smallest accepted
+architectural meaning. A dependency's participation, session use, or
+configuration need does not by itself change its specification. Use an
+explicit structural operation when accepted meaning must move between owners.
+
+### Expand
+
+Apply shared `expand` when explicit accepted intent establishes one
+independently useful adjacent responsibility. Create exactly one canonical
+owner and connect it through accepted typed `Relationships`.
+
+An observed `mapping.frontier` entry may seed owner ID, title, and context, but
+does not authorize expansion. Consume it only when the current request
+explicitly accepts that responsibility or interaction. Promote any accepted
+OBS-backed edge according to the authority rules above.
 
 ### Promote
 
@@ -156,10 +183,12 @@ verification into their canonical owners. Leave temporary scope, tasks,
 delivery acceptance, status, and implementation-specific tests downstream.
 Update manifest facets and blockers only when every change is supported.
 
-### Split, merge, rename, or link
+### Structural operations
 
-Apply the canonical ownership, identity-preservation, replacement, and
-relationship rules from `references/spec-format.md`. Use
+Apply only the `split`, `merge`, `move`, `rename`, `link`, and `remove`
+primitives defined by `references/owner-operations.md`, plus the canonical
+ownership, identity-preservation, replacement, and relationship rules from
+`references/spec-format.md`. Use
 `references/spec-semantics.md` only when the operation changes claim meaning,
 authority, uncertainty, or conflict state. For a link operation, first classify
 the link as navigation, a statement reference, or a typed relationship; do not

@@ -38,6 +38,7 @@ invariants`, `Failure behavior`, `Edge cases`, `Decisions`, `Constraints`,
 useful. Retain `Observed` only for boundary-significant intent gaps,
 divergences, unresolved questions, or surprising navigation; do not mirror
 matching intent or private implementation detail. Report independently owned
-behavior or cross-cutting policy as a deferred lead; do not create a sibling
-owner in the same Map invocation. Do not copy a feature-SDD outline or create
-empty sections.
+behavior or cross-cutting policy in `specspine.json.mapping.frontier`. During
+an expansion, link the new owner into `mapping.observed_edges` through an
+evidence-backed `OBS`; do not create another sibling in the same invocation.
+Do not copy a feature-SDD outline or create empty sections.

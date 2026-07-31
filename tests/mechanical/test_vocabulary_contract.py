@@ -145,7 +145,7 @@ class VocabularyContractTests(unittest.TestCase):
         )
         self.assertIn("never a walkthrough", format_reference)
         self.assertIn(
-            "MUST NOT publish those proposals as canonical",
+            "MUST NOT publish those observations",
             format_reference,
         )
 

@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Map"
-  short_description: "Map one bounded repository evidence increment"
-  default_prompt: "Use $specspine-map to inspect and document one bounded owner-relative repository increment."
+  short_description: "Grow an observed architecture graph one step"
+  default_prompt: "Use $specspine-map to refine one mapped owner or expand one persisted frontier responsibility."

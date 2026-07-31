@@ -78,11 +78,16 @@ RELATION_HEADER = ("Relation", "Target", "Meaning")
 DIVERGENCE_HEADER = ("Intended", "Observed", "Consequence")
 MANIFEST_KEYS = {
     "specspine", "project", "implementation_freedom", "areas", "assets",
-    "presentation",
+    "presentation", "mapping",
 }
-REQUIRED_MANIFEST_KEYS = MANIFEST_KEYS - {"presentation"}
+REQUIRED_MANIFEST_KEYS = MANIFEST_KEYS - {"presentation", "mapping"}
 AREA_REQUIRED_KEYS = {"owner", "facets", "blockers"}
 AREA_KEYS = AREA_REQUIRED_KEYS | {"inspection"}
+MAPPING_KEYS = {"frontier", "observed_edges"}
+FRONTIER_KEYS = {
+    "id", "from_owner", "title", "question", "reason", "seed_paths",
+}
+OBSERVED_EDGE_KEYS = {"source_owner", "target_owner", "observation"}
 FACET_NAME_SET = set(FACET_NAMES)
 ASSET_KEYS = {"path", "owner", "role", "format", "normative", "verifies"}
 FACET_SUPPORT_SECTIONS = {
@@ -891,6 +896,234 @@ def check(
                 add(findings, "error", "DUPLICATE_GLOBAL_ID", node.path, root, f"semantic ID already defined in {global_statements[identifier][0].path.relative_to(root)}", number)
             else:
                 global_statements[identifier] = (node, section, number)
+
+    if manifest is not None and "mapping" in manifest:
+        manifest_path = root / MANIFEST_NAME
+        mapping = manifest["mapping"]
+        if not isinstance(mapping, dict):
+            add(
+                findings, "error", "MANIFEST_MAPPING", manifest_path, root,
+                "mapping must be an object",
+            )
+        else:
+            unknown = set(mapping) - MAPPING_KEYS
+            missing = MAPPING_KEYS - set(mapping)
+            if unknown or missing:
+                detail = (
+                    f"unknown key {sorted(unknown)[0]}"
+                    if unknown else f"missing key {sorted(missing)[0]}"
+                )
+                add(
+                    findings, "error", "MANIFEST_MAPPING", manifest_path, root,
+                    f"mapping: {detail}",
+                )
+
+            frontier = mapping.get("frontier")
+            frontier_ids: set[str] = set()
+            if not isinstance(frontier, list):
+                add(
+                    findings, "error", "MANIFEST_MAPPING", manifest_path, root,
+                    "mapping.frontier must be an array",
+                )
+            else:
+                for position, entry in enumerate(frontier):
+                    label = f"mapping.frontier[{position}]"
+                    if not isinstance(entry, dict):
+                        add(
+                            findings, "error", "MANIFEST_FRONTIER",
+                            manifest_path, root, f"{label} must be an object",
+                        )
+                        continue
+                    unknown = set(entry) - FRONTIER_KEYS
+                    missing = FRONTIER_KEYS - set(entry)
+                    if unknown or missing:
+                        detail = (
+                            f"unknown key {sorted(unknown)[0]}"
+                            if unknown else f"missing key {sorted(missing)[0]}"
+                        )
+                        add(
+                            findings, "error", "MANIFEST_FRONTIER",
+                            manifest_path, root, f"{label}: {detail}",
+                        )
+                    candidate = entry.get("id")
+                    if (
+                        not isinstance(candidate, str)
+                        or not DOCUMENT_ID_RE.fullmatch(candidate)
+                    ):
+                        add(
+                            findings, "error", "MANIFEST_FRONTIER_ID",
+                            manifest_path, root,
+                            f"{label} has invalid candidate ID",
+                        )
+                    elif candidate in frontier_ids:
+                        add(
+                            findings, "error", "MANIFEST_FRONTIER_ID",
+                            manifest_path, root,
+                            f"{label} duplicates candidate ID {candidate}",
+                        )
+                    elif candidate in by_id:
+                        add(
+                            findings, "error", "MANIFEST_FRONTIER_ID",
+                            manifest_path, root,
+                            f"{label} candidate already exists as an owner: {candidate}",
+                        )
+                    else:
+                        frontier_ids.add(candidate)
+                    from_owner = entry.get("from_owner")
+                    if (
+                        not isinstance(from_owner, str)
+                        or from_owner not in by_id
+                        or by_id[from_owner].kind == "index"
+                    ):
+                        add(
+                            findings, "error", "MANIFEST_FRONTIER_OWNER",
+                            manifest_path, root,
+                            f"{label} has unknown non-index from_owner",
+                        )
+                    for key in ("title", "question", "reason"):
+                        if (
+                            not isinstance(entry.get(key), str)
+                            or not entry[key].strip()
+                        ):
+                            add(
+                                findings, "error", "MANIFEST_FRONTIER",
+                                manifest_path, root,
+                                f"{label}.{key} must be a nonempty string",
+                            )
+                    seed_paths = entry.get("seed_paths")
+                    if not isinstance(seed_paths, list) or not seed_paths:
+                        add(
+                            findings, "error", "MANIFEST_FRONTIER_PATH",
+                            manifest_path, root,
+                            f"{label}.seed_paths must be a nonempty array",
+                        )
+                    else:
+                        seen_paths: set[str] = set()
+                        for value in seed_paths:
+                            if not isinstance(value, str) or not value:
+                                add(
+                                    findings, "error",
+                                    "MANIFEST_FRONTIER_PATH", manifest_path,
+                                    root,
+                                    f"{label} has an invalid seed path",
+                                )
+                                continue
+                            path = Path(value.rstrip("/"))
+                            if (
+                                value in seen_paths
+                                or path.is_absolute()
+                                or ".." in path.parts
+                                or not path.parts
+                            ):
+                                add(
+                                    findings, "error",
+                                    "MANIFEST_FRONTIER_PATH", manifest_path,
+                                    root,
+                                    f"{label} has unsafe or duplicate seed path: {value}",
+                                )
+                            elif (
+                                repository_root is not None
+                                and not (repository_root / path).exists()
+                            ):
+                                add(
+                                    findings, "error",
+                                    "MANIFEST_FRONTIER_PATH", manifest_path,
+                                    root,
+                                    f"{label} seed path does not exist: {value}",
+                                )
+                            seen_paths.add(value)
+
+            observed_edges = mapping.get("observed_edges")
+            observed_edge_keys: set[tuple[str, str, str]] = set()
+            if not isinstance(observed_edges, list):
+                add(
+                    findings, "error", "MANIFEST_MAPPING", manifest_path, root,
+                    "mapping.observed_edges must be an array",
+                )
+            else:
+                for position, edge in enumerate(observed_edges):
+                    label = f"mapping.observed_edges[{position}]"
+                    if not isinstance(edge, dict):
+                        add(
+                            findings, "error", "MANIFEST_OBSERVED_EDGE",
+                            manifest_path, root, f"{label} must be an object",
+                        )
+                        continue
+                    unknown = set(edge) - OBSERVED_EDGE_KEYS
+                    missing = OBSERVED_EDGE_KEYS - set(edge)
+                    if unknown or missing:
+                        detail = (
+                            f"unknown key {sorted(unknown)[0]}"
+                            if unknown else f"missing key {sorted(missing)[0]}"
+                        )
+                        add(
+                            findings, "error", "MANIFEST_OBSERVED_EDGE",
+                            manifest_path, root, f"{label}: {detail}",
+                        )
+                    source = edge.get("source_owner")
+                    target = edge.get("target_owner")
+                    endpoints_valid = True
+                    for key, owner in (
+                        ("source_owner", source),
+                        ("target_owner", target),
+                    ):
+                        if (
+                            not isinstance(owner, str)
+                            or owner not in by_id
+                            or by_id[owner].kind == "index"
+                        ):
+                            endpoints_valid = False
+                            add(
+                                findings, "error",
+                                "MANIFEST_OBSERVED_EDGE_OWNER", manifest_path,
+                                root,
+                                f"{label} has unknown non-index {key}",
+                            )
+                    if endpoints_valid and source == target:
+                        add(
+                            findings, "error",
+                            "MANIFEST_OBSERVED_EDGE_OWNER", manifest_path,
+                            root, f"{label} endpoints must be distinct",
+                        )
+                    observation = edge.get("observation")
+                    statement = (
+                        global_statements.get(observation)
+                        if isinstance(observation, str)
+                        else None
+                    )
+                    if (
+                        not isinstance(observation, str)
+                        or not observation.startswith("OBS-")
+                        or statement is None
+                    ):
+                        add(
+                            findings, "error",
+                            "MANIFEST_OBSERVED_EDGE_OBSERVATION",
+                            manifest_path, root,
+                            f"{label} must reference an existing OBS",
+                        )
+                    elif endpoints_valid and statement[0].document_id not in {
+                        source, target,
+                    }:
+                        add(
+                            findings, "error",
+                            "MANIFEST_OBSERVED_EDGE_OBSERVATION",
+                            manifest_path, root,
+                            f"{label} observation must be owned by one endpoint",
+                        )
+                    if (
+                        isinstance(source, str)
+                        and isinstance(target, str)
+                        and isinstance(observation, str)
+                    ):
+                        key = (source, target, observation)
+                        if key in observed_edge_keys:
+                            add(
+                                findings, "error",
+                                "MANIFEST_OBSERVED_EDGE", manifest_path, root,
+                                f"{label} duplicates observed edge {key}",
+                            )
+                        observed_edge_keys.add(key)
 
     edges: list[tuple[_Node, str, _Node, str, int]] = []
     edge_keys: set[tuple[str, str, str, str]] = set()

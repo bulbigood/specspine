@@ -142,6 +142,12 @@ When accepted intent already represents the evidence, record bounded inspection
 coverage without creating a duplicate observation. Inspection coverage never
 proves conformance.
 
+An observation may also support one directed entry in
+`specspine.json.mapping.observed_edges`. That entry makes repository-discovered
+owner interaction traversable without turning it into accepted architecture.
+The referenced `OBS` remains the sole owner of meaning and evidence. Removing
+or superseding the observation requires removing its observed edge.
+
 ### Inferred
 
 An unconfirmed interpretation of repository evidence. Never present an

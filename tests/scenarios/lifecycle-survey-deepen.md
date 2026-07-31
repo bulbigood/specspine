@@ -25,30 +25,27 @@ Expected behavior:
 
 - create a reachable `specspine/_INDEX.md` and one bounded
   `payment-processing.md` observation owner;
-- report checkout and runtime responsibilities as deferred leads instead of
-  creating sibling documents;
+- persist provider-webhook ingestion as the first mapping frontier lead and
+  checkout as a later candidate instead of creating sibling documents;
 - distinguish repository-backed observations from unconfirmed interpretation;
 - attach an evidence baseline to repository-backed observations;
 - leave mapping coverage qualitative and explicitly incomplete;
 - modify only files under `specspine/`.
 
-## Stage 2: selected payment deepen
+## Stage 2: expand the persisted frontier
 
-The user asks Map to deepen only `specspine/payment-processing.md`. The known
-evidence boundary consists of the payment adapter, the checkout-to-payment
-port, the webhook consumer, payment configuration and schema, and one
-representative payment integration test.
+The user generically asks Map to continue deepening payment documentation. The
+known evidence boundary consists of the webhook handler and consumer, payment
+configuration and schema, and one representative payment integration test.
 
 Expected behavior:
 
-- begin from the selected specification and inspect representative files only
-  inside the stated boundary;
-- describe payment authorization, webhook ingestion, persistence ownership,
-  and the checkout boundary at architectural rather than function-by-function
-  depth;
-- preserve `Observed` versus `Inferred` classification and refresh the
-  evidence baseline for observations actually checked;
-- update only the selected content owner and its manifest inspection record;
+- select the first persisted frontier lead instead of refining
+  `payment-processing.md` again;
+- create exactly one `payment-webhook-ingestion.md` observation owner;
+- preserve `payment-processing.md` unchanged;
+- connect the owners through an OBS-backed manifest observed edge;
+- consume the selected frontier lead and retain any newly exposed candidates;
 - avoid reopening the unrelated reporting branch or repeating a repository-wide
   survey;
 - leave source, tests, configuration, schema, and root documentation unchanged.
@@ -57,7 +54,8 @@ Expected behavior:
 
 - source-tree folders or individual handlers are mirrored as specifications;
 - repository evidence is recorded as a decision or constraint;
-- the deepen stage reads reporting internals or unrelated checkout internals;
+- the expansion stage reads reporting internals or unrelated checkout internals;
+- the second stage merely adds another OBS to `payment-processing.md`;
 - the initial survey is repeated during deepening;
 - source, tests, configuration, schema, or root documentation changes;
 - the result claims complete mapping or code/spec conformance.

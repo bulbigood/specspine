@@ -56,6 +56,25 @@ PAYMENTS = """# Payments
 | [CON-payment-idempotency](payments.md) | [OBS-provider-duplicates](payments.md) | A transition may apply twice |
 """
 
+GRAPH_RENDERING = """# Graph rendering
+
+**ID:** `graph-rendering` · **Kind:** `component`
+
+**Summary:** Renders prepared series through a reusable graph lifecycle.
+
+## Responsibility
+
+Records the observed graph-rendering boundary.
+
+<!-- specspine:evidence-baseline source=commit-abc123; inspected=2026-07-25 -->
+<!-- specspine:semantic-ids:begin -->
+## Observed
+
+- **OBS-payment-graph-flow** — Payments provide result series to graph rendering.
+  Evidence: `src/payments/provider.ts`.
+<!-- specspine:semantic-ids:end -->
+"""
+
 
 class DoctorCheckerV4Tests(unittest.TestCase):
     def spine(self, payment=PAYMENTS, index=INDEX, extra=None, manifest=None):
@@ -109,6 +128,61 @@ class DoctorCheckerV4Tests(unittest.TestCase):
 
     def test_accepts_strict_v4_spine(self):
         self.assertEqual([], [item for item in CHECKER.check(self.spine()) if item.severity == "error"])
+
+    def test_accepts_mapping_frontier_and_obs_backed_edge(self):
+        index = INDEX.replace(
+            "- [Payments](payments.md) — owns payments.",
+            "- [Graph rendering](graph.md) — renders result series.\n"
+            "- [Payments](payments.md) — owns payments.",
+        )
+        root = self.spine(extra={"graph.md": GRAPH_RENDERING}, index=index)
+        manifest = json.loads((root / "specspine.json").read_text())
+        manifest["mapping"] = {
+            "frontier": [{
+                "id": "graph-tooltip",
+                "from_owner": "graph-rendering",
+                "title": "Graph tooltip",
+                "question": "Which contextual interaction boundary does it own?",
+                "reason": "Graph rendering delegates a distinct interaction.",
+                "seed_paths": ["src/graph/tooltip.ts"],
+            }],
+            "observed_edges": [{
+                "source_owner": "payments",
+                "target_owner": "graph-rendering",
+                "observation": "OBS-payment-graph-flow",
+            }],
+        }
+        (root / "specspine.json").write_text(json.dumps(manifest))
+        self.assertEqual(
+            [],
+            [item for item in CHECKER.check(root) if item.severity == "error"],
+        )
+
+    def test_rejects_stale_frontier_and_invalid_observed_edge(self):
+        root = self.spine()
+        manifest = json.loads((root / "specspine.json").read_text())
+        manifest["mapping"] = {
+            "frontier": [{
+                "id": "payments",
+                "from_owner": "missing-owner",
+                "title": "Duplicate owner",
+                "question": "Should this exist?",
+                "reason": "Invalid fixture.",
+                "seed_paths": ["../outside.ts"],
+            }],
+            "observed_edges": [{
+                "source_owner": "payments",
+                "target_owner": "payments",
+                "observation": "CON-payment-idempotency",
+            }],
+        }
+        (root / "specspine.json").write_text(json.dumps(manifest))
+        codes = self.codes(root)
+        self.assertIn("MANIFEST_FRONTIER_ID", codes)
+        self.assertIn("MANIFEST_FRONTIER_OWNER", codes)
+        self.assertIn("MANIFEST_FRONTIER_PATH", codes)
+        self.assertIn("MANIFEST_OBSERVED_EDGE_OWNER", codes)
+        self.assertIn("MANIFEST_OBSERVED_EDGE_OBSERVATION", codes)
 
     def test_default_order_prioritizes_divergence_before_evidence(self):
         order = list(CHECKER.DEFAULT_HEADINGS)
@@ -243,6 +317,10 @@ class DoctorCheckerV4Tests(unittest.TestCase):
             ).read_text(encoding="utf-8")
         )
         definitions = schema["$defs"]
+        self.assertEqual(
+            CHECKER.MANIFEST_KEYS,
+            set(schema["properties"]),
+        )
         self.assertEqual(CHECKER.FACET_VALUES, set(definitions["facet"]["enum"]))
         self.assertEqual(
             CHECKER.FACET_NAME_SET,

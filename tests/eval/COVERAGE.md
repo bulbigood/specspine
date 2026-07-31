@@ -17,8 +17,8 @@ includes repository-backed observations.
 Executable `specspine-map` coverage currently consists of three agent calls
 across two cases:
 
-- `lifecycle-survey-deepen`: a shallow initial survey followed by bounded
-  deepening without reopening unrelated source;
+- `lifecycle-survey-deepen`: a shallow initial survey that persists a frontier,
+  followed by one bounded graph expansion without reopening unrelated source;
 - `lifecycle-drift-refresh`: a narrow refresh that preserves accepted intent,
   records changed implementation as observation, and leaves disagreement open.
 
@@ -27,8 +27,6 @@ Remaining distinct behavioral gaps are:
 - atomic Map returning no new document when the live Spine already answers the
   bounded question;
 - custom `<spine-root>` handling;
-- bounded inspection that reports an adjacent responsibility without pursuing
-  it;
 - focused scope that ignores unrelated repository areas.
 
 Keep broader parallel scenarios planned until they protect one of these
@@ -80,8 +78,7 @@ test or an existing behavioral case.
 Potential gaps:
 
 - agent navigation efficiency on larger-than-small documentation graphs;
-- large-Map report-discovered backlog growth beyond the controlled
-  rolling-publication case;
+- larger Map frontier growth beyond the controlled one-step expansion case;
 - custom `<spine-root>` handling in `evolve` and `map`;
 - broken links, unreachable specifications, duplicate IDs, and duplicate
   canonical ownership introduced by an agent.

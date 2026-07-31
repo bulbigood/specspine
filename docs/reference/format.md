@@ -58,6 +58,19 @@ expose the same schema beside this reference as `specspine.schema.json`:
   "specspine": 4,
   "project": "example",
   "implementation_freedom": "contract-equivalent",
+  "mapping": {
+    "frontier": [
+      {
+        "id": "session-audit",
+        "from_owner": "session-management",
+        "title": "Session audit",
+        "question": "Which session transitions and retention boundary does audit own?",
+        "reason": "Session evidence exposes a distinct retained event lifecycle.",
+        "seed_paths": ["src/audit/session-events.ts"]
+      }
+    ],
+    "observed_edges": []
+  },
   "areas": [
     {
       "owner": "session-management",
@@ -110,6 +123,7 @@ The root object has these required fields:
 - `assets`: the complete registry of non-Markdown files in the Spine.
 
 It may also contain `presentation`, the constrained rendering profile described
+below, and `mapping`, the non-normative repository mapping state described
 below. No other root fields are allowed.
 
 Each area may contain an optional `inspection` record. It states which
@@ -122,6 +136,39 @@ or a `not-checked` facet, means no current comparison claim.
 Repository-derived `OBS`, `INF`, evidence, and inspection coverage MUST NOT
 raise a completeness facet. A new observation-only owner starts with every
 facet `missing`; Map preserves the accepted facets of an existing owner.
+
+### Repository mapping state
+
+The optional `mapping` object contains exactly `frontier` and
+`observed_edges`. It records repository discovery, not accepted architecture,
+completeness, conformance, or delivery work.
+
+`frontier` is an ordered array of candidate owners available to a future
+one-step Map expansion. Each entry contains:
+
+- `id`: the proposed stable owner ID; it MUST NOT already belong to a document;
+- `from_owner`: the existing non-index owner that exposed the candidate;
+- `title`: a concise human-readable candidate title;
+- `question`: the concrete boundary question for the next inspection;
+- `reason`: why the candidate appears independently useful;
+- `seed_paths`: one or more unique, safe repository-relative starting paths.
+
+Candidate IDs are unique within the frontier. A successful expansion consumes
+exactly one entry. A disproved candidate is removed; an unresolved candidate is
+preserved.
+
+`observed_edges` is the machine-traversable repository-observed owner graph.
+Each entry contains exactly:
+
+- `source_owner`: an existing non-index owner at the interaction source;
+- `target_owner`: a distinct existing non-index owner at the interaction target;
+- `observation`: an `OBS-*` statement defined by either endpoint.
+
+The referenced observation is the SSOT for edge meaning and evidence. An
+observed edge is non-normative and MUST NOT be rendered as a canonical
+`Relationships` row. Evolve may promote its accepted meaning into a canonical
+typed relationship and then remove the observed edge. Remove an edge when its
+observation becomes stale or is removed.
 
 ### Presentation profile
 
@@ -459,10 +506,10 @@ divergence, affects an unresolved architectural question, or provides necessary
 navigation to a surprising owner or boundary. Evidence already represented by
 accepted intent belongs only in inspection coverage.
 
-Repository comparison may identify owner relationships for inspection
-context, but it MUST NOT publish those proposals as canonical
-`Relationships`. Preserve existing accepted edges exactly; promote a proposed
-edge only through an intent-authorized workflow such as Evolve.
+Repository comparison may publish OBS-backed interactions under
+`mapping.observed_edges`, but it MUST NOT publish those observations as
+canonical `Relationships`. Preserve existing accepted edges exactly; promote
+an observed edge only through an intent-authorized workflow such as Evolve.
 
 A document containing repository observations records one evidence baseline
 near its first `Observed` section:

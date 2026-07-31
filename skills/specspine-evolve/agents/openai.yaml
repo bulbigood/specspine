@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Evolve"
-  short_description: "Create and evolve architectural specifications"
-  default_prompt: "Use $specspine-evolve to create or evolve this project's intended architecture in its SpecSpine."
+  short_description: "Refine or expand accepted architecture"
+  default_prompt: "Use $specspine-evolve to refine one existing owner, expand one accepted adjacent responsibility, or apply an explicitly requested structural operation."

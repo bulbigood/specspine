@@ -21,6 +21,7 @@
       ]
     },
     "presentation": {"$ref": "#/$defs/presentation"},
+    "mapping": {"$ref": "#/$defs/mapping"},
     "areas": {
       "type": "array",
       "items": {"$ref": "#/$defs/area"}
@@ -31,6 +32,66 @@
     }
   },
   "$defs": {
+    "mapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["frontier", "observed_edges"],
+      "properties": {
+        "frontier": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/frontierEntry"}
+        },
+        "observed_edges": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/observedEdge"}
+        }
+      }
+    },
+    "frontierEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "from_owner", "title", "question", "reason", "seed_paths"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "from_owner": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "title": {"type": "string", "minLength": 1},
+        "question": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1},
+        "seed_paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "observedEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_owner", "target_owner", "observation"],
+      "properties": {
+        "source_owner": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "target_owner": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "observation": {
+          "type": "string",
+          "pattern": "^OBS-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        }
+      }
+    },
     "presentation": {
       "type": "object",
       "additionalProperties": false,
