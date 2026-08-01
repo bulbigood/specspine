@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE = ROOT / "examples/node-express-boilerplate"
-PRESET = ROOT / "skills/specspine-doctor/assets/iwe"
+PRESET = ROOT / "presets/iwe"
 
 
 def iwe(workspace: Path, *arguments: str) -> subprocess.CompletedProcess[str]:

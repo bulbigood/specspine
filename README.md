@@ -15,7 +15,16 @@ normative statements, observations, open questions, and verification criteria.
 - `.iwe/schemas/specification.yaml`
 - specifications below the configured IWE library path (normally `specspine/`)
 
-Copy the preset from `skills/specspine-doctor/assets/iwe`, then validate it:
+For a new project, copy the preset from `presets/iwe`:
+
+```bash
+mkdir -p .iwe
+cp -R /path/to/specspine/presets/iwe/. .iwe/
+```
+
+If the project already has `.iwe/config.toml`, merge the `[library]`,
+`[templates.specification]`, and `[schemas.specification]` settings instead of
+overwriting its configuration. Then validate it:
 
 ```bash
 iwe schema validate

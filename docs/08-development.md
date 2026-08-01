@@ -1,7 +1,6 @@
 # Development
 
-The executable contract is the IWE preset in
-`skills/specspine-doctor/assets/iwe`. It is packaged with Doctor.
+The executable contract is the standalone IWE preset in `presets/iwe`.
 
 Run:
 

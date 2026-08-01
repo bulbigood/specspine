@@ -1,4 +1,0 @@
-interface:
-  display_name: "SpecSpine Doctor"
-  short_description: "Configure and validate Specspine on IWE"
-  default_prompt: "Use $specspine-doctor to configure or diagnose this project's IWE-managed Specspine."
