@@ -1,4 +1,0 @@
-interface:
-  display_name: "SpecSpine Extract"
-  short_description: "Retrieve specification context through IWE"
-  default_prompt: "Use $specspine-extract to retrieve a bounded specification closure with IWE."
