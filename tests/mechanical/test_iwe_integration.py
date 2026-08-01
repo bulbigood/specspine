@@ -28,7 +28,11 @@ class IweIntegrationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.workspace = Path(self.temporary.name) / "project"
-        shutil.copytree(EXAMPLE, self.workspace)
+        shutil.copytree(
+            EXAMPLE,
+            self.workspace,
+            ignore=shutil.ignore_patterns("node_modules"),
+        )
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
