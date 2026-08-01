@@ -28,6 +28,8 @@ facets:
   failure: complete
   quality: partial
   verification: complete
+coverage:
+  external-boundary: open
 blockers: []
 implementation_freedom: contract-equivalent
 ---
@@ -35,6 +37,10 @@ implementation_freedom: contract-equivalent
 
 The IWE schema is normative for allowed fields, values, sections, ordering, and
 statement syntax.
+
+`coverage.external-boundary` is `open` unless the owner describes every allowed
+external interaction. Set it to `exhaustive` only when an unmentioned external
+interaction must be treated as outside the accepted boundary.
 
 ## Statements
 

@@ -11,6 +11,8 @@ facets:
   failure: partial
   quality: partial
   verification: partial
+coverage:
+  external-boundary: open
 blockers: []
 implementation_freedom: contract-equivalent
 ---

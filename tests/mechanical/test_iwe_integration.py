@@ -80,6 +80,31 @@ class IweIntegrationTests(unittest.TestCase):
         reports = json.loads(validation.stdout)
         self.assertEqual(reports[0]["key"], "authentication")
 
+    def test_schema_requires_explicit_external_boundary_coverage(self) -> None:
+        path = self.workspace / "specspine/authentication.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "coverage:\n  external-boundary: open\n", ""
+            ),
+            encoding="utf-8",
+        )
+        validation = iwe(self.workspace, "schema", "validate", "-f", "json")
+        self.assertNotEqual(validation.returncode, 0)
+        reports = json.loads(validation.stdout)
+        self.assertEqual(reports[0]["key"], "authentication")
+
+    def test_schema_accepts_exhaustive_external_boundary_coverage(self) -> None:
+        path = self.workspace / "specspine/authentication.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "external-boundary: open", "external-boundary: exhaustive"
+            ),
+            encoding="utf-8",
+        )
+        validation = iwe(self.workspace, "schema", "validate", "-f", "json")
+        self.assertEqual(validation.returncode, 0, validation.stderr + validation.stdout)
+        self.assertEqual(json.loads(validation.stdout or "[]"), [])
+
     def test_template_creates_a_strictly_valid_specification(self) -> None:
         created = iwe(
             self.workspace,

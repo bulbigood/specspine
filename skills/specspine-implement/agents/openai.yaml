@@ -1,0 +1,4 @@
+interface:
+  display_name: "SpecSpine Implement"
+  short_description: "Bring code into conformance with specifications"
+  default_prompt: "Use $specspine-implement to bring this implementation into conformance with the relevant SpecSpine specifications."

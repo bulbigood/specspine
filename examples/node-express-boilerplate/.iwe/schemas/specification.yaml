@@ -3,7 +3,7 @@ description: Specspine v5 specification document
 frontmatter:
   type: object
   additionalProperties: false
-  required: [specspine, title, kind, summary, facets, blockers, implementation_freedom]
+  required: [specspine, title, kind, summary, facets, coverage, blockers, implementation_freedom]
   properties:
     specspine: { const: 5 }
     title: { type: string, minLength: 1 }
@@ -25,6 +25,12 @@ frontmatter:
         failure: { enum: [complete, partial, missing, not-applicable] }
         quality: { enum: [complete, partial, missing, not-applicable] }
         verification: { enum: [complete, partial, missing, not-applicable] }
+    coverage:
+      type: object
+      additionalProperties: false
+      required: [external-boundary]
+      properties:
+        external-boundary: { enum: [open, exhaustive] }
     blockers:
       type: array
       uniqueItems: true

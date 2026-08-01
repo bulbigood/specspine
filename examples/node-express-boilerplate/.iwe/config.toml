@@ -20,7 +20,7 @@ link_format = "markdown"
 
 [templates.specification]
 key_template = "{{slug}}"
-document_template = "---\nspecspine: 5\ntitle: {{title}}\nkind: component\nsummary: Describe the durable boundary contract.\nfacets:\n  architecture: missing\n  behavior: missing\n  interfaces: missing\n  data: missing\n  failure: missing\n  quality: missing\n  verification: missing\nblockers: []\nimplementation_freedom: contract-equivalent\n---\n\n# {{title}}\n\n## Responsibility\n\n{{body}}\n"
+document_template = "---\nspecspine: 5\ntitle: {{title}}\nkind: component\nsummary: Describe the durable boundary contract.\nfacets:\n  architecture: missing\n  behavior: missing\n  interfaces: missing\n  data: missing\n  failure: missing\n  quality: missing\n  verification: missing\ncoverage:\n  external-boundary: open\nblockers: []\nimplementation_freedom: contract-equivalent\n---\n\n# {{title}}\n\n## Responsibility\n\n{{body}}\n"
 
 [schemas.specification]
 match = "**"

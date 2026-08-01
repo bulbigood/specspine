@@ -11,6 +11,8 @@ facets:
   failure: missing
   quality: missing
   verification: missing
+coverage:
+  external-boundary: open
 blockers: []
 implementation_freedom: contract-equivalent
 ---
