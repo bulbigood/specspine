@@ -1,9 +1,9 @@
 ---
-name: specspine-evolve
-description: Create or evolve accepted durable software specifications in a Specspine v5 IWE library. Use for greenfield intent, refinement, impact analysis, and restructuring accepted specifications.
+name: specspine-specify
+description: Create or refine accepted durable software specifications in a Specspine v5 IWE library. Use for greenfield intent, requirements and architecture changes, impact analysis, and restructuring accepted specifications.
 ---
 
-# Specspine Evolve
+# Specspine Specify
 
 Work only with accepted intent. Use IWE for all document operations.
 

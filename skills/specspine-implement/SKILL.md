@@ -67,7 +67,7 @@ preserve it.
 - Stop rather than guess when a relevant blocking `OQ-*` leaves the intended
   behavior materially ambiguous.
 - Do not rewrite normative claims, weaken verification criteria, or relabel
-  implementation evidence as accepted intent. Use `specspine-evolve` only when
+  implementation evidence as accepted intent. Use `specspine-specify` only when
   the operator explicitly asks to change the specification.
 - A passing schema validates documents, not implementation conformance.
 - A passing test suite is supporting evidence, not permission to ignore an
