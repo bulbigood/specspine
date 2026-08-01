@@ -1,4 +1,0 @@
-interface:
-  display_name: "SpecSpine Map"
-  short_description: "Map repository evidence into IWE specs"
-  default_prompt: "Use $specspine-map to map boundary-significant repository evidence into the project's IWE-managed Specspine."

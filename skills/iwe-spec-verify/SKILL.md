@@ -1,9 +1,9 @@
 ---
-name: specspine-verify
+name: iwe-spec-verify
 description: Verify implementation conformance against Specspine v5 contracts retrieved through IWE. Use for implementation-independent checks and code/spec comparison.
 ---
 
-# Specspine Verify
+# IWE Spec Verify
 
 1. Run `iwe schema validate`; stop on schema errors.
 2. Retrieve the owner and relevant IWE graph closure with `iwe retrieve`.

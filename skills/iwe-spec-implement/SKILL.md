@@ -1,9 +1,9 @@
 ---
-name: specspine-implement
+name: iwe-spec-implement
 description: Bring an implementation into conformance with accepted Specspine v5 specifications retrieved through IWE using additive, conform, or closed-boundary reconciliation. Use when an operator asks to implement specified behavior, fix code/spec divergence, satisfy verification criteria, remove conflicting behavior, or prune unspecified external integrations from an explicitly exhaustive boundary.
 ---
 
-# Specspine Implement
+# IWE Spec Implement
 
 Change implementation, tests, and implementation-owned configuration. Do not
 change accepted specifications to make the implementation pass. Use `conform`
@@ -25,7 +25,7 @@ unless the operator selects another mode.
 2. Run `iwe schema validate`; stop on schema errors.
 3. Retrieve a task-bounded closure with `iwe retrieve`, expanding inclusion,
    references, children, and backlinks only as far as the task requires.
-4. Build or reuse a current Specspine Verify report. Classify findings as
+4. Build or reuse a current IWE Verify report. Classify findings as
    `missing`, `conflicting`, `uncovered-boundary`, or `unverified`. Treat `REQ`,
    `GUA`, `INV`, `QLT`, `DEC`, `CON`, and `VER` as normative; treat `OBS` and
    `INF` only as evidence.
@@ -36,7 +36,7 @@ unless the operator selects another mode.
    behavior and follow repository conventions.
 7. Add or update focused tests that demonstrate the normative behavior. Run
    those tests, then the broader relevant suite.
-8. Run `iwe schema validate` and the Specspine Verify procedure again. Report
+8. Run `iwe schema validate` and the IWE Verify procedure again. Report
    changed files, satisfied claims, remaining divergence, and unverified
    claims.
 
@@ -67,7 +67,7 @@ preserve it.
 - Stop rather than guess when a relevant blocking `OQ-*` leaves the intended
   behavior materially ambiguous.
 - Do not rewrite normative claims, weaken verification criteria, or relabel
-  implementation evidence as accepted intent. Use `specspine-specify` only when
+  implementation evidence as accepted intent. Use `iwe-spec-specify` only when
   the operator explicitly asks to change the specification.
 - A passing schema validates documents, not implementation conformance.
 - A passing test suite is supporting evidence, not permission to ignore an

@@ -1,9 +1,9 @@
 ---
-name: specspine-specify
+name: iwe-spec-specify
 description: Create or refine accepted durable software specifications in a Specspine v5 IWE library. Use for greenfield intent, requirements and architecture changes, impact analysis, and restructuring accepted specifications.
 ---
 
-# Specspine Specify
+# IWE Spec Specify
 
 Work only with accepted intent. Use IWE for all document operations.
 

@@ -1,9 +1,9 @@
 ---
-name: specspine-map
+name: iwe-spec-map
 description: Map boundary-significant repository evidence into Specspine v5 documents managed by IWE. Use for brownfield surveys, focused deepening, refresh, and drift inspection.
 ---
 
-# Specspine Map
+# IWE Spec Map
 
 Map repository evidence without turning implementation details into accepted
 intent.

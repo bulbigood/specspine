@@ -1,0 +1,4 @@
+interface:
+  display_name: "IWE Spec Specify"
+  short_description: "Create or refine accepted specifications"
+  default_prompt: "Use $iwe-spec-specify to create or refine the accepted specifications for this change."

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Specspine Specify"
-  short_description: "Create or refine accepted specifications"
-  default_prompt: "Use $specspine-specify to create or refine the accepted specifications for this change."

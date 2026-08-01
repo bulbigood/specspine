@@ -1,0 +1,4 @@
+interface:
+  display_name: "IWE Spec Implement"
+  short_description: "Bring code into conformance with specifications"
+  default_prompt: "Use $iwe-spec-implement to bring this implementation into conformance with the relevant Specspine specifications."
