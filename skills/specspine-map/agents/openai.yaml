@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Map"
-  short_description: "Refine or expand one observed owner"
-  default_prompt: "Use $specspine-map to refine one mapped owner or expand one persisted frontier responsibility."
+  short_description: "Map repository evidence into IWE specs"
+  default_prompt: "Use $specspine-map to map boundary-significant repository evidence into the project's IWE-managed Specspine."

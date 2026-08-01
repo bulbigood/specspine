@@ -1,4 +1,4 @@
 interface:
   display_name: "SpecSpine Extract"
-  short_description: "Extract minimal architecture context handoffs"
-  default_prompt: "Use $specspine-extract to prepare a minimal architecture context handoff for downstream work."
+  short_description: "Retrieve specification context through IWE"
+  default_prompt: "Use $specspine-extract to retrieve a bounded specification closure with IWE."
