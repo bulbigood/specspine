@@ -69,6 +69,7 @@ class Scenario:
     request: str
     rubric: str
     skill_setup: str = "preinstalled"
+    reply: str | None = None
 
     @property
     def slug(self) -> str:
@@ -176,9 +177,14 @@ def parse_feature(path: Path) -> list[Scenario]:
         if missing:
             raise ValueError(f"{path}: incomplete scenario {current.get('name')}: {sorted(missing)}")
         values = dict(current)
+        values.pop("_capture_next", None)
         values["skills"] = tuple(item.strip() for item in values["skills"].split(","))
         values.setdefault("skill_setup", "preinstalled")
-        if values["skill_setup"] not in {"preinstalled", "install-iwe-memory-system"}:
+        if values["skill_setup"] not in {
+            "preinstalled",
+            "install-iwe-memory-system",
+            "missing-iwe-cli",
+        }:
             raise ValueError(f"{path}: unknown skill setup {values['skill_setup']!r}")
         scenarios.append(Scenario(feature=feature, **values))
 
@@ -189,7 +195,10 @@ def parse_feature(path: Path) -> list[Scenario]:
             if capture:
                 finish_capture()
             elif current is not None:
-                capture = "request" if "request" not in current else "rubric"
+                capture = current.pop(
+                    "_capture_next",
+                    "request" if "request" not in current else "rubric",
+                )
             continue
         if capture:
             captured.append(raw.strip())
@@ -204,6 +213,12 @@ def parse_feature(path: Path) -> list[Scenario]:
             current["skills"] = line.split('"', 2)[1]
         elif line.startswith('And skill setup "') and current is not None:
             current["skill_setup"] = line.split('"', 2)[1]
+        elif line.startswith("When the operator asks:") and current is not None:
+            current["_capture_next"] = "request"
+        elif line.startswith("And the operator replies:") and current is not None:
+            current["_capture_next"] = "reply"
+        elif line.startswith("Then the AI judge verifies:") and current is not None:
+            current["_capture_next"] = "rubric"
     finish_capture()
     finish_scenario()
     return scenarios
@@ -265,6 +280,62 @@ def prepare(workspace: Path, name: str) -> None:
         )
         return
     if name == "cross-owner-registration":
+        return
+    if name == "bootstrap-existing-docs":
+        shutil.rmtree(workspace / ".iwe")
+        (workspace / "docs/specs/existing-owner-marker.txt").write_text(
+            "preserve me\n", encoding="utf-8"
+        )
+        return
+    if name == "bootstrap-custom-library":
+        library = workspace / "knowledge"
+        library.mkdir()
+        for document in (workspace / "docs/specs").glob("*.md"):
+            shutil.move(str(document), library / document.name)
+        shutil.rmtree(workspace / "docs/specs")
+        config = workspace / ".iwe/config.toml"
+        config.write_text(
+            config.read_text(encoding="utf-8").replace(
+                'path = "docs/specs"', 'path = "knowledge"'
+            ),
+            encoding="utf-8",
+        )
+        return
+    if name == "bootstrap-partial-iwe":
+        (workspace / ".iwe/config.toml").unlink()
+        (workspace / ".iwe/owner-marker.txt").write_text("preserve me\n", encoding="utf-8")
+        return
+    if name == "bootstrap-mixed-library":
+        shutil.rmtree(workspace / "docs/specs")
+        library = workspace / "knowledge"
+        library.mkdir()
+        (library / "ordinary.md").write_text("# Ordinary note\n", encoding="utf-8")
+        (workspace / ".iwe/config.toml").write_text(
+            'version = 3\nformat = "markdown"\n\n[library]\npath = "knowledge"\n',
+            encoding="utf-8",
+        )
+        (workspace / ".iwe/schemas/specification.yaml").unlink()
+        return
+    if name == "bootstrap-config-collision":
+        config = workspace / ".iwe/config.toml"
+        config.write_text(
+            config.read_text(encoding="utf-8").replace(
+                'key_template = "{{slug}}"', 'key_template = "owner/{{slug}}"'
+            ),
+            encoding="utf-8",
+        )
+        return
+    if name == "bootstrap-ambiguous-roots":
+        shutil.rmtree(workspace / ".iwe")
+        shutil.rmtree(workspace / "docs/specs")
+        for package in ("package-a", "package-b"):
+            root = workspace / "packages" / package
+            (root / ".iwe").mkdir(parents=True)
+            shutil.copy2(ROOT / "shared/assets/iwe/config.toml", root / ".iwe/config.toml")
+            (root / "docs/specs").mkdir(parents=True)
+        return
+    if name == "bootstrap-missing-iwe":
+        shutil.rmtree(workspace / ".iwe")
         return
     if name == "unsafe-user-export":
         route = workspace / "src/routes/v1/user.route.js"
@@ -518,8 +589,31 @@ The agent must discover the official `iwe-org/skills` source on the internet, in
 `iwe-memory-system` into its isolated `CODEX_HOME`, read it, and use it. Do not penalize the necessary
 web search or one focused skill-install command; do penalize unrelated installations or continuing
 without using the installed skill."""
+    if scenario.skill_setup == "missing-iwe-cli":
+        return """The official `iwe-memory-system` skill is available, but the `iwe` executable is
+intentionally absent from PATH. Require the agent to offer installation, ask where specifications
+should live with `docs/specs` as the default, and avoid installing software or changing workspace
+configuration without a reply granting approval."""
     return """The official `iwe-memory-system` skill was preinstalled in the isolated workspace.
 Require the agent to read and substantively use it, and keep ordinary package-install penalties."""
+
+
+def efficiency_judge_instruction(scenario: Scenario) -> str:
+    if not scenario.preparation.startswith("bootstrap-"):
+        return ""
+    return (
+        """This is a bootstrap scenario, so calibrate tool and resource efficiency to setup work,
+not to a routine edit in an already-ready workspace. Necessary root discovery, one readiness check,
+reading the bootstrap protocol, inspecting bundled config/schema assets, validating setup, and the
+extra turn in a multi-turn scenario are proportionate work and must not be penalized merely because
+they consume more commands or tokens than a normal document edit. Do not apply unusually strict
+token or tool-count expectations. Still penalize clearly redundant broad searches, repeated full-file
+reads, repeated invalid commands, unrelated references, or continuing after a blocking decision."""
+        + """ Interpret the bootstrap trigger exactly: an existing custom `library.path` is authoritative
+and its difference from the bundled `docs/specs` fallback is not a collision, does not require
+loading the bootstrap protocol, and must not reduce skill-compliance or efficiency scores when the
+template, schema binding, and schema file are otherwise compatible."""
+    )
 
 
 def install_project_skills(
@@ -552,12 +646,174 @@ def install_project_skills(
     return tuple(installed)
 
 
+def environment_for_scenario(
+    environment: dict[str, str], scenario: Scenario
+) -> dict[str, str]:
+    if scenario.skill_setup != "missing-iwe-cli":
+        return environment
+    result = environment.copy()
+    iwe_path = shutil.which("iwe", path=result.get("PATH"))
+    if iwe_path:
+        iwe_directories = {
+            str(Path(iwe_path).parent.resolve()),
+            str(Path(iwe_path).resolve().parent),
+        }
+        result["PATH"] = os.pathsep.join(
+            entry
+            for entry in result.get("PATH", "").split(os.pathsep)
+            if str(Path(entry).resolve()) not in iwe_directories
+        )
+    return result
+
+
+def absolute_command_executable(command: str) -> str:
+    arguments = shlex.split(command)
+    if arguments and not Path(arguments[0]).is_absolute():
+        executable = shutil.which(arguments[0])
+        if executable:
+            arguments[0] = executable
+    return shlex.join(arguments)
+
+
+def persistent_agent_command(command: str) -> str:
+    arguments = shlex.split(command)
+    arguments = [argument for argument in arguments if argument != "--ephemeral"]
+    return shlex.join(arguments)
+
+
+def resume_agent_command(command: str, thread_id: str) -> str:
+    """Build a Codex resume command while retaining compatible model options."""
+    arguments = shlex.split(command)
+    if len(arguments) < 2 or Path(arguments[0]).name != "codex" or arguments[1] != "exec":
+        raise ValueError("multi-turn scenarios require a codex exec agent command")
+    resumed = [arguments[0], "exec", "resume"]
+    index = 2
+    valueless = {"--json", "--ignore-user-config", "--skip-git-repo-check"}
+    valued = {"-m", "--model", "-c", "--config", "--enable", "--disable"}
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument in valueless:
+            resumed.append(argument)
+            index += 1
+        elif argument in valued and index + 1 < len(arguments):
+            resumed.extend((argument, arguments[index + 1]))
+            index += 2
+        elif argument in {"-s", "--sandbox"} and index + 1 < len(arguments):
+            resumed.extend(("-c", f'sandbox_mode="{arguments[index + 1]}"'))
+            index += 2
+        else:
+            index += 1
+    resumed.extend((thread_id, "-"))
+    return shlex.join(resumed)
+
+
+def combine_command_results(results: list[CommandResult]) -> CommandResult:
+    if len(results) == 1:
+        return results[0]
+    metrics: dict[str, float | int | None] = {}
+    for key in results[0].metrics:
+        values = [result.metrics.get(key) for result in results]
+        numeric = [float(value) for value in values if isinstance(value, (int, float))]
+        metrics[key] = sum(numeric) if numeric else None
+    peaks = [
+        result.metrics.get("peak_rss_bytes")
+        for result in results
+        if isinstance(result.metrics.get("peak_rss_bytes"), (int, float))
+    ]
+    metrics["peak_rss_bytes"] = max(peaks) if peaks else None
+    wall = float(metrics.get("wall_seconds") or 0)
+    cpu = float(metrics.get("total_cpu_seconds") or 0)
+    metrics["cpu_to_wall_ratio"] = cpu / wall if wall else None
+    return CommandResult(
+        max(result.returncode for result in results),
+        "\n\n".join(result.stdout for result in results),
+        "\n\n".join(result.stderr for result in results),
+        metrics,
+        "\n".join(result.event_log for result in results),
+        results[-1].thread_id,
+        "\n".join(result.raw_stdout for result in results),
+        tuple(part for result in results for part in (*result.command, "<next-turn>")),
+        results[-1].cwd,
+        results[-1].codex_home,
+        results[-1].session_storage,
+        results[-1].ephemeral,
+        any(result.timed_out for result in results),
+    )
+
+
+def bootstrap_postcondition_errors(
+    scenario: Scenario,
+    workspace: Path,
+    before: dict[str, str],
+    after: dict[str, str],
+) -> list[str]:
+    """Deterministic safety assertions supplement the semantic AI judge."""
+    errors: list[str] = []
+    config = workspace / ".iwe/config.toml"
+    config_text = config.read_text(encoding="utf-8") if config.is_file() else ""
+    if scenario.preparation == "bootstrap-existing-docs":
+        if 'path = "docs/specs"' not in config_text:
+            errors.append("bootstrap did not configure docs/specs")
+        if "[templates.specification]" not in config_text:
+            errors.append("bootstrap did not install the specification template")
+        if "[schemas.specification]" not in config_text:
+            errors.append("bootstrap did not bind the specification schema")
+        if not (workspace / ".iwe/schemas/specification.yaml").is_file():
+            errors.append("bootstrap did not install the specification schema file")
+        if not (workspace / "docs/specs/existing-owner-marker.txt").is_file():
+            errors.append("bootstrap removed existing docs/specs content")
+    elif scenario.preparation == "bootstrap-custom-library":
+        if 'path = "knowledge"' not in config_text:
+            errors.append("existing custom library.path changed")
+        if (workspace / "docs/specs").exists():
+            errors.append("bootstrap created docs/specs despite an existing custom library")
+    elif scenario.preparation == "bootstrap-partial-iwe":
+        if not config.is_file():
+            errors.append("partial .iwe was not repaired")
+        if not (workspace / ".iwe/owner-marker.txt").is_file():
+            errors.append("partial .iwe content was not preserved")
+    elif scenario.preparation == "bootstrap-mixed-library":
+        if 'path = "knowledge"' not in config_text:
+            errors.append("mixed library.path changed")
+        if 'key_template = "specspine/{{slug}}"' not in config_text:
+            errors.append("mixed library template is not scoped")
+        if 'match = "specspine/**"' not in config_text:
+            errors.append("mixed library schema is not scoped")
+        if not (workspace / "knowledge/ordinary.md").is_file():
+            errors.append("unrelated IWE note was removed")
+    elif scenario.preparation == "bootstrap-ambiguous-roots":
+        changed = {
+            path
+            for path in before.keys() | after.keys()
+            if before.get(path) != after.get(path)
+        }
+        if not changed:
+            errors.append("selected package was not updated after the operator reply")
+        if any(not path.startswith("packages/package-a/") for path in changed):
+            errors.append("multi-root bootstrap changed files outside package-a")
+        if not (workspace / "packages/package-a/.iwe/schemas/specification.yaml").is_file():
+            errors.append("selected package did not receive the Specspine schema")
+        if not list((workspace / "packages/package-a/docs/specs").glob("*.md")):
+            errors.append("selected package did not receive a specification")
+    elif scenario.preparation in {
+        "bootstrap-config-collision",
+        "bootstrap-missing-iwe",
+    }:
+        if before != after:
+            errors.append("workspace changed before the operator resolved the bootstrap question")
+    return errors
+
+
 def agent_prompt(scenario: Scenario) -> str:
     return (
         "You are working in an isolated copy of the project. This copy intentionally "
         "has no .git directory and is not a Git repository.\n\n"
         f"Operator request:\n{scenario.request}\n"
     )
+
+
+def agent_reply_prompt(scenario: Scenario) -> str:
+    return f"Operator reply:\n{scenario.reply}\n"
 
 
 def judge_prompt(
@@ -603,6 +859,8 @@ expected skill selection or its required decisions.
 Every scenario requires substantive use of the official `iwe-memory-system` skill for IWE work.
 {skill_setup_judge_instruction(scenario)}
 
+{efficiency_judge_instruction(scenario)}
+
 Score every required dimension independently from 0 to 100 and provide dimension-specific
 rationale and evidence:
 - task_correctness: whether the resulting behavior and artifacts correctly solve the request;
@@ -629,6 +887,9 @@ Expected skill selection (hidden from the agent):
 {', '.join(expected_skill_names(scenario))}
 Operator request:
 {scenario.request}
+{f'''Operator follow-up reply:
+{scenario.reply}
+''' if scenario.reply else ''}
 
 Rubric:
 {scenario.rubric}
@@ -762,7 +1023,7 @@ def main(argv: list[str] | None = None) -> int:
     report_dir.mkdir()
     official_iwe_skill: Path | None = None
     official_iwe_skill_sha256: str | None = None
-    if any(item.skill_setup == "preinstalled" for item in scenarios):
+    if any(item.skill_setup != "install-iwe-memory-system" for item in scenarios):
         try:
             official_iwe_skill = fetch_official_iwe_skill(
                 report_dir / ".support" / "iwe-memory-system"
@@ -788,6 +1049,7 @@ def main(argv: list[str] | None = None) -> int:
         process_environment["HOME"] = str(isolated_home)
         process_environment["CODEX_HOME"] = str(isolated_codex_home)
         process_environment["NPM_CONFIG_CACHE"] = str(temporary / "npm-cache")
+        process_environment = environment_for_scenario(process_environment, scenario)
         artifact_name = f"{scenario.slug}--sample-{sample:03}.telemetry"
         artifact_dir = report_dir / artifact_name
         try:
@@ -800,23 +1062,56 @@ def main(argv: list[str] | None = None) -> int:
             )
             before = files(workspace)
             agent_input = agent_prompt(scenario)
-            agent = run_command(
+            configured_agent_command = absolute_command_executable(
                 agent_command_for_scenario(
                     args.agent_command, scenario, isolated_codex_home
-                ),
+                )
+            )
+            if scenario.reply:
+                configured_agent_command = persistent_agent_command(
+                    configured_agent_command
+                )
+            first_agent = run_command(
+                configured_agent_command,
                 agent_input,
                 workspace,
                 args.timeout,
                 process_environment,
             )
+            agent_turns = [first_agent]
+            changed_before_reply = False
+            if scenario.reply:
+                changed_before_reply = files(workspace) != before
+                if not first_agent.thread_id:
+                    raise RuntimeError("multi-turn agent did not return a thread id")
+                agent_turns.append(
+                    run_command(
+                        resume_agent_command(
+                            configured_agent_command, first_agent.thread_id
+                        ),
+                        agent_reply_prompt(scenario),
+                        workspace,
+                        args.timeout,
+                        process_environment,
+                    )
+                )
+            agent = combine_command_results(agent_turns)
             installed_iwe_evidence = installed_skill_evidence(
                 isolated_codex_home / "skills" / "iwe-memory-system"
             )
             after = files(workspace)
             changes = diff(before, after)
+            postcondition_errors = bootstrap_postcondition_errors(
+                scenario, workspace, before, after
+            )
+            if changed_before_reply:
+                postcondition_errors.append(
+                    "workspace changed before the operator supplied the follow-up answer"
+                )
             transcript = (
                 f"exit={agent.returncode}\n"
                 f"installed_iwe_skill={json.dumps(installed_iwe_evidence)}\n"
+                f"mechanical_postconditions={json.dumps(postcondition_errors)}\n"
                 f"events/stdout:\n{agent.event_log}\nstderr:\n{agent.stderr}"
             )
             judge_input = judge_prompt(scenario, transcript, changes, agent.metrics)
@@ -827,7 +1122,12 @@ def main(argv: list[str] | None = None) -> int:
                 args.timeout,
                 process_environment,
             )
-            agent_telemetry = write_command_telemetry(artifact_dir, "agent", agent, agent_input)
+            recorded_agent_input = agent_input
+            if scenario.reply:
+                recorded_agent_input += "\n--- next turn ---\n" + agent_reply_prompt(scenario)
+            agent_telemetry = write_command_telemetry(
+                artifact_dir, "agent", agent, recorded_agent_input
+            )
             judge_telemetry = write_command_telemetry(artifact_dir, "judge", judge, judge_input)
             for telemetry in (agent_telemetry, judge_telemetry):
                 telemetry["artifacts"] = {
@@ -848,6 +1148,14 @@ def main(argv: list[str] | None = None) -> int:
             if agent.returncode != 0 or judge.returncode != 0:
                 verdict["pass"] = False
                 verdict["rationale"] = f"Execution failure. {verdict.get('rationale', '')}".strip()
+            if postcondition_errors:
+                verdict["pass"] = False
+                verdict["rationale"] = (
+                    "Mechanical postcondition failure: "
+                    + "; ".join(postcondition_errors)
+                    + ". "
+                    + str(verdict.get("rationale", ""))
+                ).strip()
             result: dict[str, object] = {
                 "feature": scenario.feature,
                 "scenario": scenario.name,
@@ -856,6 +1164,7 @@ def main(argv: list[str] | None = None) -> int:
                 "skill_setup": scenario.skill_setup,
                 "initial_skills": installed_skills,
                 "installed_iwe_skill": installed_iwe_evidence,
+                "mechanical_postcondition_errors": postcondition_errors,
                 "agent_exit": agent.returncode,
                 "judge_exit": judge.returncode,
                 "agent_metrics": agent.metrics,

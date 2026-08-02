@@ -8,16 +8,29 @@ description: Map boundary-significant repository evidence into Specspine v5 docu
 Map repository evidence without turning implementation details into accepted
 intent.
 
-Use the official `iwe-memory-system` skill for all IWE operations. If it is not
-available, obtain it from the official `iwe-org/skills` distribution through
-the environment's supported skill-installation mechanism. Read it before
-continuing. Do not substitute generic CLI help or guess syntax that the skill
-or targeted command help can establish.
+Before reading IWE references or help, run the bundled
+[`iwe-readiness.sh`](scripts/iwe-readiness.sh) beside this skill (add
+`--descendants` only for a task spanning packages), then
+compare any existing `templates.specification`, `schemas.specification`, and
+schema file with the bundled assets or the protocol's allowed scoped binding.
+Use the exact absolute asset paths printed by the script; do not rediscover
+them with `find`. Complete this comparison before any IWE query or mutation.
+Read the
+[IWE bootstrap protocol](references/iwe-bootstrap.md) if anything is missing,
+different, ambiguous, or conflicts with the requested path. Do not change
+documents until that protocol resolves the condition. An existing
+`library.path` different from the bundled fallback is authoritative, not a
+collision. At the first real mismatch, read the bootstrap protocol immediately;
+do not read other IWE references or query the library first.
 
-Inspect `.iwe/config.toml` before starting. Read the
-[IWE bootstrap protocol](references/iwe-bootstrap.md) only when IWE is not
-initialized, its Specspine template or schema is missing, or the requested
-library path conflicts with the configured path.
+When the workspace is ready, use the official `iwe-memory-system` skill for
+all IWE operations. If it is unavailable, obtain it from the official
+`iwe-org/skills` distribution through the environment's supported
+skill-installation mechanism. Read only the skill and task-relevant references
+before the first IWE operation. Use targeted command help only after syntax is
+rejected or remains unknown; do not preload full help screens. The main
+`iwe-memory-system` skill is sufficient for routine `find`, `retrieve`, and
+`update` operations whose syntax is already established.
 
 1. Discover existing owners with `iwe find` and `iwe tree`.
 2. Retrieve the bounded neighborhood with `iwe retrieve`.

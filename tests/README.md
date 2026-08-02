@@ -9,11 +9,24 @@ It uses an isolated copy of `examples/node-express-boilerplate` and verifies:
 - schema rejection of invalid frontmatter and statement syntax;
 - IWE rename with reference updates;
 - equality of the example schema and the canonical shared preset.
+- autonomous copy-installation of every skill and its bundled bootstrap assets;
+- SSOT symlink integrity, absence of broken links, and absence of physical
+  duplicates of shared resources;
+- fallback, custom-path, and mixed-library IWE scopes;
+- independence of `iwe-spec-implement` from `iwe-spec-verify`.
 
 Run:
 
 ```bash
 python3 tests/run_mechanical.py
+```
+
+The normal suite does not require network access. To additionally exercise the
+real `npx skills` installer in a temporary consumer workspace:
+
+```bash
+SPECSPINE_TEST_NPX=1 python3 tests/run_mechanical.py \
+  -p test_installation_and_bootstrap.py
 ```
 
 ## AI-judged skill evaluations
@@ -30,8 +43,28 @@ Executable Gherkin scenarios in `eval/features/` exercise every `iwe-spec-*`
 skill and two end-to-end workflows against isolated copies of
 `examples/node-express-boilerplate`. The runner invokes one coding agent and a
 separate read-only AI judge. The judge evaluates the request, semantic rubric,
-workspace diff, final workspace, and agent transcript; no golden patch or
-mechanical assertion decides whether a scenario passes.
+workspace diff, final workspace, and agent transcript. Workflow scenarios use
+no golden patch. Bootstrap scenarios additionally enforce the safety
+postconditions described below.
+
+Bootstrap scenarios are hybrid evaluations. An AI judge evaluates discovery,
+questions, and protocol use, while deterministic postconditions reject unsafe
+filesystem outcomes such as changing a custom library path, widening `docs`
+scope, overwriting a collision, losing partial `.iwe/` content, or modifying a
+workspace before operator approval. The missing-IWE scenario removes the CLI
+from the agent's `PATH`; it must offer installation and ask for the library
+path without acting before approval.
+
+The ambiguous-root scenario is multi-turn. Its first Codex turn must ask for
+the owning root without writing; the runner resumes the same thread with the
+operator's answer and mechanically permits changes only below the selected
+package. Multi-turn scenarios therefore require a `codex exec` agent command.
+
+Bootstrap judges use the same scores and hard floors as every other scenario,
+but their prompt calibrates efficiency to necessary setup work: one readiness
+check, root discovery, bootstrap protocol/assets, validation, and an authorized
+follow-up turn are not waste by themselves. Redundant searches, repeated reads,
+invalid commands, and unrelated references remain penalized.
 
 Every judge must also evaluate what the coding agent actually did and how long
 it worked. The runner supplies exact Codex turn token usage (`input_tokens`,

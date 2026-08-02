@@ -5,25 +5,43 @@ The bundled setup assets are in [`../assets/iwe`](../assets/iwe).
 
 ## Discover the target
 
-1. Starting at the task's working directory, look for `.iwe/config.toml` in
-   that directory and its ancestors. Use the nearest one whose scope contains
-   the task.
+1. Run the bundled [`iwe-readiness.sh`](../scripts/iwe-readiness.sh) from the
+   task's working directory. Resolve the linked script path relative to this
+   protocol, not relative to the workspace. It checks `iwe` and hidden
+   `.iwe/config.toml` files without
+   relying on `rg --files`. Use its nearest ancestor config when present. If
+   the task explicitly spans a monorepo, run it once with `--descendants` to
+   list package-local candidates.
 2. If the task spans several packages or more than one IWE root is plausible,
    ask the operator which directory is the project root before changing
    configuration. Ask once: the selected `.iwe/config.toml` persists the
    decision for later runs.
 3. If a single root is clear, do not ask about it.
 
+After the operator selects a root, run every IWE command with that root as the
+working directory. Do not run IWE from the ambiguous ancestor. Continue the
+requested operation without asking for the root again in that task. Before
+changing directory, resolve the bundled config and schema links to absolute
+paths so they remain accessible from the selected package.
+
 ## Ensure IWE is available
 
-Check whether `iwe` is on `PATH`. If it is absent, explain that Specspine needs
-the latest IWE CLI and offer to install it using the environment's supported
-package mechanism. In the same interaction, ask where specifications should
-live and present `docs/specs` as the default. Do not install software or create
-configuration until the operator approves.
+Check whether `iwe` is on `PATH` before reading other IWE references or help.
+If it is absent, stop discovery and ask one combined question that explicitly:
 
-After installation, use `iwe --help` and targeted `iwe <command> --help` output
-whenever a command or option is rejected. Do not guess version-specific syntax.
+1. states that Specspine requires the latest IWE CLI;
+2. offers to install it with the environment's supported package mechanism;
+3. asks where specifications should live and presents `docs/specs` as the
+   default, even when that directory already exists.
+
+Do not infer approval from an existing directory. Do not install software,
+create configuration, or edit documents until the operator answers both the
+installation and directory questions.
+
+After installation, use targeted `iwe <command> --help` only when a command or
+option is rejected or its exact syntax remains unknown. Use `iwe --help` only
+when the relevant command itself is unknown. Do not preload help screens or
+guess version-specific syntax.
 
 ## Resolve the library path
 
@@ -37,13 +55,22 @@ An existing path other than `docs/specs` is valid. Use it unless the operator
 explicitly requests a different path. If those two paths conflict, ask whether
 to keep the existing scope, migrate it, or create a separate nested IWE
 project. Never change or move an existing library without explicit approval.
+Do not compare an existing `library.path` with the bundled fallback as part of
+the template/schema collision check; a path difference alone never triggers
+bootstrap.
 
 ## Initialize or repair configuration
 
 When `.iwe/config.toml` and `.iwe/` are both absent, preview initialization and
-then initialize with the resolved library path. Prefer `iwe init --dry-run`
-before `iwe init --auto`; confirm exact options through `iwe init --help` if
-needed.
+then initialize with the resolved library path:
+
+```sh
+iwe init --dry-run --json --library <resolved-path>
+iwe init --auto --library <resolved-path>
+```
+
+If either invocation is rejected, consult `iwe init --help` once and adapt to
+the installed latest version.
 
 When `.iwe/` exists without `config.toml`, preserve everything already inside
 it. Do not call `iwe init`, delete the directory, or overwrite other files.
@@ -51,15 +78,35 @@ Create `config.toml` from the bundled
 [`config.toml`](../assets/iwe/config.toml), changing only `library.path` to the
 resolved path.
 
-For an existing config, merge only missing Specspine settings from the bundled
-config. Never replace the file wholesale or overwrite same-named templates,
-schemas, actions, or user formatting settings. If a same-named setting has
-different content, report the collision and ask before changing it.
+For an existing config, compare its complete `[templates.specification]` and
+`[schemas.specification]` tables with the bundled config before editing any
+document. Also compare an existing `.iwe/schemas/specification.yaml` with the
+bundled schema. The scoped binding documented below is also compatible when the
+library contains unrelated notes. Any other same-named table or schema with
+different content is a collision, including a different `key_template`,
+`document_template`, `match`, or schema body. Report the exact difference and
+ask whether to keep or replace it. While waiting, leave the entire workspace
+unchanged.
+
+If there is no collision, merge only missing Specspine settings from the
+bundled config. Never replace the file wholesale or overwrite same-named
+templates, schemas, actions, or user formatting settings.
+
+Bundled asset directories may themselves be symbolic links. Inspect the exact
+linked `config.toml` and `schemas/specification.yaml` paths with `test -f`,
+`cmp`, or a direct read; `find <symlink-directory> -type f` can return nothing
+and is not evidence that the assets are absent.
 
 Copy the bundled
 [`schemas/specification.yaml`](../assets/iwe/schemas/specification.yaml) to
-`.iwe/schemas/specification.yaml` when it is absent. Never overwrite a
-different existing schema without approval.
+`.iwe/schemas/specification.yaml` when it is absent, creating `.iwe/schemas/`
+first when necessary. Never overwrite a different existing schema without
+approval.
+
+Before editing a specification, verify all three bootstrap postconditions:
+`.iwe/config.toml` contains `[templates.specification]` and
+`[schemas.specification]`, and `.iwe/schemas/specification.yaml` exists. A
+successful `iwe schema validate` is not sufficient when no schema is bound.
 
 ## Bind the schema safely
 
@@ -67,7 +114,11 @@ The default preset treats the resolved library as a dedicated Specspine
 library: `key_template = "{{slug}}"` and schema `match = "**"`.
 
 Before adding that binding to a non-empty existing IWE library, inspect its
-documents. If every document already declares `specspine: 5`, the dedicated
+documents. Treat the library as non-empty when `iwe find -f keys` returns any
+key, even if no Specspine document exists yet. A document whose frontmatter
+contains `specspine: 5` is already a Specspine document even when the template
+or schema has not been installed yet. If every document declares that field,
+the dedicated
 binding is safe. If any existing document does not, preserve it and scope new
 Specspine documents below a `specspine/` key prefix:
 

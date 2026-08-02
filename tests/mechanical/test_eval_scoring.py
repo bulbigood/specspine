@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import shlex
 import shutil
 import tempfile
 import sys
@@ -30,6 +32,132 @@ def critique(**scores: int) -> dict[str, object]:
 
 
 class EvalScoringTests(unittest.TestCase):
+    def test_bootstrap_matrix_is_executable(self) -> None:
+        bootstrap = [
+            scenario
+            for scenario in EVAL_RUN.load_scenarios()
+            if scenario.feature == "Bootstrap Specspine skills in existing workspaces"
+        ]
+
+        self.assertEqual(len(bootstrap), 7)
+        self.assertEqual(
+            {scenario.preparation for scenario in bootstrap},
+            {
+                "bootstrap-existing-docs",
+                "bootstrap-custom-library",
+                "bootstrap-partial-iwe",
+                "bootstrap-mixed-library",
+                "bootstrap-config-collision",
+                "bootstrap-ambiguous-roots",
+                "bootstrap-missing-iwe",
+            },
+        )
+        ambiguous = next(
+            scenario
+            for scenario in bootstrap
+            if scenario.preparation == "bootstrap-ambiguous-roots"
+        )
+        self.assertIn("Use package-a", ambiguous.reply or "")
+
+    def test_multi_turn_codex_command_is_persistent_and_resumable(self) -> None:
+        initial = EVAL_RUN.persistent_agent_command(EVAL_RUN.DEFAULT_AGENT)
+        self.assertNotIn("--ephemeral", shlex.split(initial))
+
+        resumed = shlex.split(
+            EVAL_RUN.resume_agent_command(initial, "thread-123")
+        )
+        self.assertEqual(resumed[:3], ["codex", "exec", "resume"])
+        self.assertIn("thread-123", resumed)
+        self.assertNotIn("workspace-write", resumed)
+        self.assertIn('sandbox_mode="workspace-write"', resumed)
+
+    @unittest.skipUnless(shutil.which("iwe"), "IWE is required")
+    def test_missing_iwe_environment_removes_only_its_binary_directory(self) -> None:
+        scenario = EVAL_RUN.Scenario(
+            "feature",
+            "scenario",
+            "bootstrap-missing-iwe",
+            ("iwe-spec-specify",),
+            "request",
+            "rubric",
+            "missing-iwe-cli",
+        )
+        iwe_path = shutil.which("iwe")
+        self.assertIsNotNone(iwe_path)
+        environment = EVAL_RUN.environment_for_scenario(os.environ.copy(), scenario)
+
+        self.assertIsNone(shutil.which("iwe", path=environment["PATH"]))
+
+    def test_missing_iwe_cli_still_preinstalls_the_official_iwe_skill(self) -> None:
+        scenario = EVAL_RUN.Scenario(
+            "feature",
+            "scenario",
+            "bootstrap-missing-iwe",
+            ("iwe-spec-specify",),
+            "request",
+            "rubric",
+            "missing-iwe-cli",
+        )
+
+        self.assertEqual(
+            EVAL_RUN.required_skill_names(scenario),
+            ("iwe-spec-specify", "iwe-memory-system"),
+        )
+
+    def test_bootstrap_no_change_postcondition_is_deterministic(self) -> None:
+        scenario = EVAL_RUN.Scenario(
+            "feature",
+            "scenario",
+            "bootstrap-config-collision",
+            ("iwe-spec-specify",),
+            "request",
+            "rubric",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            (workspace / ".iwe").mkdir()
+            (workspace / ".iwe/config.toml").write_text("owner config\n")
+            before = EVAL_RUN.files(workspace)
+            self.assertEqual(
+                EVAL_RUN.bootstrap_postcondition_errors(
+                    scenario, workspace, before, dict(before)
+                ),
+                [],
+            )
+            after = dict(before)
+            after["created.md"] = "unexpected"
+            self.assertTrue(
+                EVAL_RUN.bootstrap_postcondition_errors(
+                    scenario, workspace, before, after
+                )
+            )
+
+    def test_fallback_postcondition_requires_real_schema_binding(self) -> None:
+        scenario = EVAL_RUN.Scenario(
+            "feature",
+            "scenario",
+            "bootstrap-existing-docs",
+            ("iwe-spec-specify",),
+            "request",
+            "rubric",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            (workspace / ".iwe").mkdir()
+            (workspace / "docs/specs").mkdir(parents=True)
+            (workspace / ".iwe/config.toml").write_text(
+                'version = 3\n[library]\npath = "docs/specs"\n'
+            )
+            (workspace / "docs/specs/existing-owner-marker.txt").write_text("preserve me\n")
+
+            errors = EVAL_RUN.bootstrap_postcondition_errors(
+                scenario, workspace, {}, EVAL_RUN.files(workspace)
+            )
+
+            self.assertIn("bootstrap did not install the specification template", errors)
+            self.assertIn("bootstrap did not bind the specification schema", errors)
+            self.assertIn("bootstrap did not install the specification schema file", errors)
+
     def test_codex_telemetry_extracts_thread_id(self) -> None:
         raw = "\n".join(
             (
@@ -147,6 +275,25 @@ class EvalScoringTests(unittest.TestCase):
         self.assertIn("Expected skill selection", prompt)
         self.assertIn("iwe-spec-verify", prompt)
         self.assertIn("iwe-memory-system", prompt)
+        self.assertNotIn("calibrate tool and resource efficiency to setup work", prompt)
+
+    def test_bootstrap_judge_uses_setup_aware_efficiency_calibration(self) -> None:
+        scenario = EVAL_RUN.Scenario(
+            "Bootstrap Specspine skills in existing workspaces",
+            "scenario",
+            "bootstrap-existing-docs",
+            ("iwe-spec-specify",),
+            "request",
+            "rubric",
+        )
+
+        prompt = EVAL_RUN.judge_prompt(scenario, "transcript", "", {})
+
+        self.assertIn("calibrate tool and resource efficiency to setup work", prompt)
+        self.assertIn("Do not apply unusually strict", prompt)
+        self.assertIn("Still penalize clearly redundant", prompt)
+        self.assertIn("custom `library.path` is authoritative", prompt)
+        self.assertIn("does not require\nloading the bootstrap protocol", prompt)
 
     def test_workspace_exposes_only_task_bounded_skills(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -173,10 +320,13 @@ class EvalScoringTests(unittest.TestCase):
     def test_iwe_skills_require_the_shared_bootstrap_protocol(self) -> None:
         expected = "[IWE bootstrap protocol](references/iwe-bootstrap.md)"
         canonical = (EVAL_RUN.ROOT / "shared/references/iwe-bootstrap.md").read_text()
+        canonical_words = " ".join(canonical.split())
         self.assertIn("`docs/specs` as the fallback", canonical)
         self.assertIn("An existing path other than `docs/specs` is valid", canonical)
         self.assertIn("If it is absent", canonical)
-        self.assertIn("ask where specifications should", canonical)
+        self.assertIn("asks where specifications should", canonical)
+        self.assertIn("complete `[templates.specification]`", canonical)
+        self.assertIn("leave the entire workspace unchanged", canonical_words)
         self.assertIn("When `.iwe/` exists without `config.toml`", canonical)
         self.assertIn('match = "specspine/**"', canonical)
         self.assertIn("ask the operator which directory is the project root", canonical)
@@ -185,7 +335,9 @@ class EvalScoringTests(unittest.TestCase):
             skill_dir = EVAL_RUN.ROOT / f"skills/iwe-spec-{name}"
             skill = (skill_dir / "SKILL.md").read_text()
             self.assertIn(expected, skill)
-            self.assertIn("only when IWE is not", skill)
+            self.assertIn("scripts/iwe-readiness.sh", skill)
+            self.assertIn("if anything is missing", skill)
+            self.assertIn("compare any existing `templates.specification`", skill)
             self.assertNotIn("Before any IWE operation", skill)
             self.assertEqual(
                 canonical,
@@ -212,17 +364,20 @@ class EvalScoringTests(unittest.TestCase):
                 self.assertTrue(link.is_symlink(), f"expected symlink: {link}")
                 self.assertTrue(link.exists(), f"broken symlink: {link}")
 
-        for name in ("map", "specify"):
-            self.assertFalse((EVAL_RUN.ROOT / f"skills/iwe-spec-{name}/scripts").exists())
+        for name in ("map", "specify", "verify", "implement"):
+            script = EVAL_RUN.ROOT / f"skills/iwe-spec-{name}/scripts/iwe-readiness.sh"
+            self.assertTrue(script.is_symlink())
+            self.assertTrue(script.is_file())
 
     def test_iwe_skills_require_the_official_iwe_skill(self) -> None:
         for name in ("map", "specify", "verify", "implement"):
             skill = (EVAL_RUN.ROOT / f"skills/iwe-spec-{name}/SKILL.md").read_text()
+            skill_words = " ".join(skill.split())
             self.assertIn("`iwe-memory-system`", skill)
-            self.assertIn("official `iwe-org/skills` distribution", skill)
-            self.assertIn("supported skill-installation mechanism", skill)
-            self.assertIn("Read it before\ncontinuing", skill)
-            self.assertIn("Do not substitute generic CLI help", skill)
+            self.assertIn("official `iwe-org/skills` distribution", skill_words)
+            self.assertIn("supported skill-installation mechanism", skill_words)
+            self.assertIn("task-relevant references", skill_words)
+            self.assertIn("do not preload full help screens", skill_words)
 
     def test_iwe_skills_are_agent_runtime_agnostic(self) -> None:
         forbidden = (
