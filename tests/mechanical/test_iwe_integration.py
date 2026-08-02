@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE = ROOT / "examples/node-express-boilerplate"
-PRESET = ROOT / "presets/iwe"
+CANONICAL = ROOT / "shared/assets/iwe"
 
 
 def iwe(workspace: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -37,16 +37,19 @@ class IweIntegrationTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def test_example_uses_canonical_preset(self) -> None:
+    def test_example_uses_canonical_assets(self) -> None:
         self.assertEqual(
-            (PRESET / "config.toml").read_text(encoding="utf-8"),
+            (CANONICAL / "config.toml").read_text(encoding="utf-8"),
             (EXAMPLE / ".iwe/config.toml").read_text(encoding="utf-8"),
         )
         self.assertEqual(
-            (PRESET / "schemas/specification.yaml").read_text(encoding="utf-8"),
+            (CANONICAL / "schemas/specification.yaml").read_text(encoding="utf-8"),
             (EXAMPLE / ".iwe/schemas/specification.yaml").read_text(encoding="utf-8"),
         )
-        self.assertIn('path = "docs/specs"', (PRESET / "config.toml").read_text())
+        config = (CANONICAL / "config.toml").read_text()
+        self.assertIn('path = "docs"', config)
+        self.assertIn('key_template = "specs/{{slug}}"', config)
+        self.assertIn('match = "specs/**"', config)
 
     def test_schema_and_iwe_relationships(self) -> None:
         validation = iwe(self.workspace, "schema", "validate", "-f", "json")
@@ -56,21 +59,24 @@ class IweIntegrationTests(unittest.TestCase):
         tree = iwe(self.workspace, "tree", "-f", "json")
         self.assertEqual(tree.returncode, 0, tree.stderr)
         roots = json.loads(tree.stdout)
-        architecture = next(item for item in roots if item["key"] == "architecture")
+        architecture = next(item for item in roots if item["key"] == "specs/architecture")
         self.assertEqual(
             {child["key"] for child in architecture["children"]},
-            {"authentication", "user-management"},
+            {"specs/authentication", "specs/user-management"},
         )
 
         included = iwe(
-            self.workspace, "find", "--included-by", "architecture", "-f", "keys"
+            self.workspace, "find", "--included-by", "specs/architecture", "-f", "keys"
         )
-        self.assertEqual(set(included.stdout.splitlines()), {"authentication", "user-management"})
+        self.assertEqual(
+            set(included.stdout.splitlines()),
+            {"specs/authentication", "specs/user-management"},
+        )
 
         references = iwe(
-            self.workspace, "find", "--references", "user-management", "-f", "keys"
+            self.workspace, "find", "--references", "specs/user-management", "-f", "keys"
         )
-        self.assertEqual(references.stdout.splitlines(), ["authentication"])
+        self.assertEqual(references.stdout.splitlines(), ["specs/authentication"])
 
     def test_schema_rejects_wrong_statement_prefix(self) -> None:
         path = self.workspace / "docs/specs/authentication.md"
@@ -83,7 +89,7 @@ class IweIntegrationTests(unittest.TestCase):
         validation = iwe(self.workspace, "schema", "validate", "-f", "json")
         self.assertNotEqual(validation.returncode, 0)
         reports = json.loads(validation.stdout)
-        self.assertEqual(reports[0]["key"], "authentication")
+        self.assertEqual(reports[0]["key"], "specs/authentication")
 
     def test_schema_requires_explicit_external_boundary_coverage(self) -> None:
         path = self.workspace / "docs/specs/authentication.md"
@@ -96,7 +102,7 @@ class IweIntegrationTests(unittest.TestCase):
         validation = iwe(self.workspace, "schema", "validate", "-f", "json")
         self.assertNotEqual(validation.returncode, 0)
         reports = json.loads(validation.stdout)
-        self.assertEqual(reports[0]["key"], "authentication")
+        self.assertEqual(reports[0]["key"], "specs/authentication")
 
     def test_schema_accepts_exhaustive_external_boundary_coverage(self) -> None:
         path = self.workspace / "docs/specs/authentication.md"
@@ -132,8 +138,8 @@ class IweIntegrationTests(unittest.TestCase):
         renamed = iwe(
             self.workspace,
             "rename",
-            "user-management",
-            "identity-management",
+            "specs/user-management",
+            "specs/identity-management",
             "-f",
             "keys",
         )

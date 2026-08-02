@@ -1,6 +1,6 @@
 ---
 name: iwe-spec-map
-description: Map boundary-significant repository evidence into Specspine v5 documents managed by IWE. Use for brownfield surveys, focused deepening, refresh, and drift inspection.
+description: Map boundary-significant repository evidence into Specspine v5 documents managed by IWE. Use for brownfield surveys, focused deepening, evidence refresh, and implementation drift inspection.
 ---
 
 # IWE Spec Map
@@ -8,54 +8,50 @@ description: Map boundary-significant repository evidence into Specspine v5 docu
 Map repository evidence without turning implementation details into accepted
 intent.
 
-Before reading IWE references or help, run the bundled
-[`iwe-readiness.sh`](scripts/iwe-readiness.sh) beside this skill (add
-`--descendants` only for a task spanning packages), then
-compare any existing `templates.specification`, `schemas.specification`, and
-schema file with the bundled assets or the protocol's allowed scoped binding.
-Use the exact absolute asset paths printed by the script; do not rediscover
-them with `find`. Complete this comparison before any IWE query or mutation.
-Read the
-[IWE bootstrap protocol](references/iwe-bootstrap.md) if anything is missing,
-different, ambiguous, or conflicts with the requested path. Do not change
-documents until that protocol resolves the condition. An existing
-`library.path` different from the bundled fallback is authoritative, not a
-collision. At the first real mismatch, read the bootstrap protocol immediately;
-do not read other IWE references or query the library first.
+Use the official `iwe-memory-system` skill for every IWE operation. If it is
+unavailable, obtain it from the official `iwe-org/skills` distribution through
+the environment's supported skill installer and read it before continuing.
 
-When the workspace is ready, use the official `iwe-memory-system` skill for
-all IWE operations. If it is unavailable, obtain it from the official
-`iwe-org/skills` distribution through the environment's supported
-skill-installation mechanism. Read only the skill and task-relevant references
-before the first IWE operation. Use targeted command help only after syntax is
-rejected or remains unknown; do not preload full help screens. The main
-`iwe-memory-system` skill is sufficient for routine `find`, `retrieve`, and
-`update` operations whose syntax is already established.
+Before interpreting or writing Specspine documents, read
+[Specspine format](references/specspine-format.md) and
+[Specspine semantics](references/specspine-semantics.md) completely. The
+bundled schema is the executable contract for exact fields, values, sections,
+ordering, and statement syntax; the references define the semantic rules that
+the schema cannot express.
+
+Inspect `.iwe/config.toml` and the bundled `assets/iwe` directly. Read
+[IWE project setup](references/iwe-bootstrap.md) only when the Specspine
+template, binding, or schema is missing or conflicting. Do not use or create a
+Specspine bootstrap script.
 
 1. Discover existing owners with `iwe find` and `iwe tree`.
-2. Retrieve the bounded neighborhood with `iwe retrieve`.
-3. Record confirmed boundary evidence as owner-local `OBS-*` statements and
-   interpretations as `INF-*`, under the schema sections `## Observed` and
-   `## Inferred` respectively.
-4. Store inspection metadata in that owner's frontmatter as
-   `inspection: { source: <focused evidence paths>, inspected: <YYYY-MM-DD>, mode: deepen }`.
-   Use the supported `deepen` mode; do not guess alternate modes.
-5. Create a document through the IWE `specification` template only for an
-   independently useful owner.
-6. Express structural decomposition with standalone inclusion links and other
+2. Retrieve only the task-bounded neighborhood with `iwe retrieve`.
+3. Select the inspection mode that matches the work:
+   - `survey` for the first broad boundary pass;
+   - `deepen` for focused evidence inside a known owner;
+   - `refresh` for replacing stale evidence with a current inspection;
+   - `drift` for comparing current implementation evidence with the last
+     recorded inspection.
+4. Record confirmed facts as owner-local `OBS-*` statements under
+   `## Observed`; record interpretations as `INF-*` under `## Inferred`.
+5. Store focused inspection metadata in the owner as
+   `inspection: { source: <paths>, inspected: <YYYY-MM-DD>, mode: <mode> }`.
+6. Create a document through the IWE `specification` template only for an
+   independently useful responsibility, lifecycle, or external boundary.
+7. Express structural decomposition with link-only paragraphs and other
    connections with inline references.
-7. Run `iwe schema validate`.
+8. Run `iwe schema validate`, then audit owner-local ID uniqueness and blocker
+   targets as semantic checks.
 
-Add new implementation knowledge only as `OBS-*` or `INF-*`; do not restate it
-as accepted Behavior, Interfaces, Failure behavior, Data ownership, Lifecycle,
-Requirements, or Verification content. Preserve existing normative prose.
+Never promote implementation evidence to accepted Behavior, Interfaces,
+Failure behavior, Data ownership, Lifecycle, Requirements, or Verification.
+Observations do not make a normative facet complete and do not make an owner
+ready. Preserve existing accepted content.
+
 Assign each fact to one canonical owner. For a cross-owner flow, record each
-owner's part once and connect owners with an inline reference instead of
-repeating the fact or failure behavior. Before finishing, audit touched owners
-for semantically duplicated claims and observation promoted to intent.
+owner's part once and connect the owners instead of repeating claims. For a
+combined Map → Specify task, validate the observed-only state before adding new
+accepted intent.
 
-For a combined Map → Specify task, write and validate the observed-only Map
-state before adding any new normative claim.
-
-Do not create a repository inventory, generated index, manifest mapping
-frontier, or separate observed-edge registry.
+Do not create a repository inventory, generated index, manifest, mapping
+frontier, observed-edge registry, relationship type, or graph beside IWE.

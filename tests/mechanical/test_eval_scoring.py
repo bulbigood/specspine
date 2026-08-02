@@ -146,7 +146,7 @@ class EvalScoringTests(unittest.TestCase):
             (workspace / ".iwe").mkdir()
             (workspace / "docs/specs").mkdir(parents=True)
             (workspace / ".iwe/config.toml").write_text(
-                'version = 3\n[library]\npath = "docs/specs"\n'
+                'version = 3\n[library]\npath = "docs"\n'
             )
             (workspace / "docs/specs/existing-owner-marker.txt").write_text("preserve me\n")
 
@@ -288,12 +288,13 @@ class EvalScoringTests(unittest.TestCase):
         self.assertIn("--- README.md ---", prompt)
         self.assertIn("--- docs/reference/format.md ---", prompt)
         self.assertIn("--- docs/reference/semantics.md ---", prompt)
-        self.assertIn("IWE owns documents, document keys, inclusion hierarchy", prompt)
+        self.assertIn("--- docs/reference/conformance.md ---", prompt)
+        self.assertIn("IWE owns documents, stable keys, links", prompt)
         self.assertIn("task-relevant references linked by their `SKILL.md`", prompt)
         self.assertIn("`CODEX_HOME`", prompt)
         self.assertIn(
-            "higher authority than repository skill instructions, skill references, and the\n"
-            "scenario rubric",
+            "higher authority than repository skill instructions, skill\n"
+            "references, and the scenario rubric",
             prompt,
         )
         self.assertIn("do not reward literal skill or rubric compliance", prompt)
@@ -315,7 +316,7 @@ class EvalScoringTests(unittest.TestCase):
         self.assertIn("Do not apply unusually strict", prompt)
         self.assertIn("Still penalize clearly redundant", prompt)
         self.assertIn("custom `library.path` is authoritative", prompt)
-        self.assertIn("does not require\nloading the bootstrap protocol", prompt)
+        self.assertIn("does not require\nloading the setup reference", prompt)
 
     def test_workspace_exposes_only_task_bounded_skills(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -338,29 +339,38 @@ class EvalScoringTests(unittest.TestCase):
             bootstrap = installed / "iwe-spec-map/references/iwe-bootstrap.md"
             self.assertTrue(bootstrap.is_file())
             self.assertIn("library.path", bootstrap.read_text())
+            self.assertTrue(
+                (installed / "iwe-spec-map/references/specspine-format.md").is_file()
+            )
+            self.assertTrue(
+                (installed / "iwe-spec-map/references/specspine-semantics.md").is_file()
+            )
 
-    def test_iwe_skills_require_the_shared_bootstrap_protocol(self) -> None:
-        expected = "[IWE bootstrap protocol](references/iwe-bootstrap.md)"
+    def test_iwe_skills_require_the_shared_setup_reference(self) -> None:
+        expected = "[IWE project setup](references/iwe-bootstrap.md)"
         canonical = (EVAL_RUN.ROOT / "shared/references/iwe-bootstrap.md").read_text()
         canonical_words = " ".join(canonical.split())
-        self.assertIn("`docs/specs` as the fallback", canonical)
-        self.assertIn("An existing path other than `docs/specs` is valid", canonical)
-        self.assertIn("If it is absent", canonical)
-        self.assertIn("asks where specifications should", canonical)
-        self.assertIn("complete `[templates.specification]`", canonical)
-        self.assertIn("leave the entire workspace unchanged", canonical_words)
-        self.assertIn("When `.iwe/` exists without `config.toml`", canonical)
-        self.assertIn('match = "specspine/**"', canonical)
-        self.assertIn("ask the operator which directory is the project root", canonical)
-        self.assertNotIn("Continue only when `library.path` resolves to", canonical)
+        self.assertIn("iwe init --auto --library docs", canonical)
+        self.assertIn("existing `library.path` as authoritative", canonical)
+        self.assertIn("official installation guide", canonical)
+        self.assertIn("Leave the workspace unchanged while waiting", canonical_words)
+        self.assertIn('key_template = "specs/{{slug}}"', canonical)
+        self.assertIn('match = "specs/**"', canonical)
+        self.assertIn("ask which root to use", canonical)
+        self.assertIn("Do not add bootstrap scripts", canonical)
         for name in ("map", "specify", "verify", "implement"):
             skill_dir = EVAL_RUN.ROOT / f"skills/iwe-spec-{name}"
             skill = (skill_dir / "SKILL.md").read_text()
             self.assertIn(expected, skill)
-            self.assertIn("scripts/iwe-readiness.sh", skill)
-            self.assertIn("if anything is missing", skill)
-            self.assertIn("compare any existing `templates.specification`", skill)
-            self.assertNotIn("Before any IWE operation", skill)
+            self.assertIn(
+                "[Specspine format](references/specspine-format.md)", skill
+            )
+            self.assertIn(
+                "[Specspine semantics](references/specspine-semantics.md)", skill
+            )
+            self.assertNotIn("iwe-readiness.sh", skill)
+            self.assertIn("template, binding, or schema is missing", skill)
+            self.assertIn("bundled `assets/iwe`", skill)
             self.assertEqual(
                 canonical,
                 (skill_dir / "references/iwe-bootstrap.md").read_text(),
@@ -369,10 +379,34 @@ class EvalScoringTests(unittest.TestCase):
             self.assertTrue(
                 (skill_dir / "assets/iwe/schemas/specification.yaml").is_file()
             )
+            for reference in ("format", "semantics"):
+                self.assertEqual(
+                    (EVAL_RUN.ROOT / f"docs/reference/{reference}.md").read_text(),
+                    (skill_dir / f"references/specspine-{reference}.md").read_text(),
+                )
+
+        for name in ("verify", "implement"):
+            skill_dir = EVAL_RUN.ROOT / f"skills/iwe-spec-{name}"
+            skill = (skill_dir / "SKILL.md").read_text()
+            self.assertIn(
+                "[Specspine conformance](references/specspine-conformance.md)",
+                skill,
+            )
+            self.assertEqual(
+                (EVAL_RUN.ROOT / "docs/reference/conformance.md").read_text(),
+                (skill_dir / "references/specspine-conformance.md").read_text(),
+            )
 
     def test_shared_skill_resources_are_live_symlinks(self) -> None:
         shared = EVAL_RUN.ROOT / "shared"
         self.assertTrue((shared / "references/iwe-bootstrap.md").is_file())
+        for reference in ("format", "semantics", "conformance"):
+            self.assertTrue(
+                (shared / f"references/specspine-{reference}.md").is_file()
+            )
+            documentation = EVAL_RUN.ROOT / f"docs/reference/{reference}.md"
+            self.assertTrue(documentation.is_symlink())
+            self.assertTrue(documentation.exists())
         self.assertTrue((shared / "assets/iwe/config.toml").is_file())
         self.assertTrue((shared / "assets/iwe/schemas/specification.yaml").is_file())
 
@@ -380,16 +414,23 @@ class EvalScoringTests(unittest.TestCase):
             skill_dir = EVAL_RUN.ROOT / f"skills/iwe-spec-{name}"
             for relative in (
                 "references/iwe-bootstrap.md",
+                "references/specspine-format.md",
+                "references/specspine-semantics.md",
                 "assets/iwe",
             ):
                 link = skill_dir / relative
                 self.assertTrue(link.is_symlink(), f"expected symlink: {link}")
                 self.assertTrue(link.exists(), f"broken symlink: {link}")
+            if name in {"verify", "implement"}:
+                conformance = skill_dir / "references/specspine-conformance.md"
+                self.assertTrue(conformance.is_symlink())
+                self.assertTrue(conformance.exists())
 
+        self.assertFalse((shared / "scripts").exists())
         for name in ("map", "specify", "verify", "implement"):
-            script = EVAL_RUN.ROOT / f"skills/iwe-spec-{name}/scripts/iwe-readiness.sh"
-            self.assertTrue(script.is_symlink())
-            self.assertTrue(script.is_file())
+            self.assertFalse(
+                (EVAL_RUN.ROOT / f"skills/iwe-spec-{name}/scripts").exists()
+            )
 
     def test_iwe_skills_require_the_official_iwe_skill(self) -> None:
         for name in ("map", "specify", "verify", "implement"):
@@ -397,9 +438,8 @@ class EvalScoringTests(unittest.TestCase):
             skill_words = " ".join(skill.split())
             self.assertIn("`iwe-memory-system`", skill)
             self.assertIn("official `iwe-org/skills` distribution", skill_words)
-            self.assertIn("supported skill-installation mechanism", skill_words)
-            self.assertIn("task-relevant references", skill_words)
-            self.assertIn("do not preload full help screens", skill_words)
+            self.assertIn("supported skill installer", skill_words)
+            self.assertIn("read it before continuing", skill_words)
 
     def test_iwe_skills_are_agent_runtime_agnostic(self) -> None:
         forbidden = (
@@ -440,9 +480,9 @@ class EvalScoringTests(unittest.TestCase):
 
         for section in ("Scope", "Claims checked", "Findings", "Test evidence", "Verdict"):
             self.assertIn(section, verify)
-        self.assertIn("pre-change conformance assessment", implement)
+        self.assertIn("pre-change assessment", implement)
         self.assertIn("post-change", implement)
-        self.assertIn("before/after finding transitions", implement)
+        self.assertIn("Finding transitions", implement)
         self.assertNotIn("iwe-spec-verify", implement)
         self.assertIn("Pre-change assessment", implement)
         self.assertIn("Post-change assessment", implement)
@@ -461,8 +501,10 @@ class EvalScoringTests(unittest.TestCase):
 
         self.assertIn("`## Observed`", skill)
         self.assertIn("`## Inferred`", skill)
-        self.assertIn("mode: deepen", skill)
-        self.assertIn("observed-only Map", skill)
+        for mode in ("survey", "deepen", "refresh", "drift"):
+            self.assertIn(f"`{mode}`", skill)
+        self.assertIn("observed-only state", skill)
+        self.assertIn("Observations do not make a normative facet complete", skill)
 
     def test_operator_requests_do_not_expose_internal_workflow(self) -> None:
         forbidden = ("$iwe-", "iwe ", ".agents/", "REQ-", "VER-", "OBS-", "INF-")

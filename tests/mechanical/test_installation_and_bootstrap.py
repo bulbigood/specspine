@@ -12,7 +12,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SKILL_NAMES = tuple(f"iwe-spec-{name}" for name in ("map", "specify", "verify", "implement"))
 SHARED = ROOT / "shared"
-PRESET = ROOT / "presets/iwe"
 EXAMPLE = ROOT / "examples/node-express-boilerplate"
 
 
@@ -33,25 +32,44 @@ class InstallationIntegrityTests(unittest.TestCase):
                 installed = destination / name
                 self.assertTrue((installed / "SKILL.md").is_file())
                 self.assertFalse((installed / "assets/iwe").is_symlink())
-                self.assertFalse((installed / "references/iwe-bootstrap.md").is_symlink())
-                self.assertEqual(
-                    (SHARED / "references/iwe-bootstrap.md").read_bytes(),
-                    (installed / "references/iwe-bootstrap.md").read_bytes(),
-                )
+                for reference in (
+                    "iwe-bootstrap.md",
+                    "specspine-format.md",
+                    "specspine-semantics.md",
+                ):
+                    installed_reference = installed / "references" / reference
+                    self.assertFalse(installed_reference.is_symlink())
+                    self.assertEqual(
+                        (SHARED / "references" / reference).read_bytes(),
+                        installed_reference.read_bytes(),
+                    )
+                if name in {"iwe-spec-verify", "iwe-spec-implement"}:
+                    conformance = installed / "references/specspine-conformance.md"
+                    self.assertFalse(conformance.is_symlink())
+                    self.assertEqual(
+                        (SHARED / "references/specspine-conformance.md").read_bytes(),
+                        conformance.read_bytes(),
+                    )
                 self.assertEqual(
                     (SHARED / "assets/iwe/config.toml").read_bytes(),
                     (installed / "assets/iwe/config.toml").read_bytes(),
                 )
-                self.assertTrue((installed / "scripts/iwe-readiness.sh").is_file())
+                self.assertFalse((installed / "scripts").exists())
 
     def test_shared_resources_have_one_physical_source(self) -> None:
         expected_links = [
             *(ROOT / "skills" / name / "references/iwe-bootstrap.md" for name in SKILL_NAMES),
+            *(
+                ROOT / "skills" / name / f"references/specspine-{reference}.md"
+                for name in SKILL_NAMES
+                for reference in ("format", "semantics")
+            ),
+            *(
+                ROOT / "skills" / name / "references/specspine-conformance.md"
+                for name in ("iwe-spec-verify", "iwe-spec-implement")
+            ),
             *(ROOT / "skills" / name / "assets/iwe" for name in SKILL_NAMES),
-            *(ROOT / "skills" / name / "scripts/iwe-readiness.sh" for name in SKILL_NAMES),
-            PRESET / "config.toml",
-            PRESET / "specification.md",
-            PRESET / "schemas/specification.yaml",
+            *(ROOT / "docs/reference" / f"{reference}.md" for reference in ("format", "semantics", "conformance")),
         ]
         for link in expected_links:
             self.assertTrue(link.is_symlink(), f"expected symlink: {link}")
@@ -88,39 +106,10 @@ class InstallationIntegrityTests(unittest.TestCase):
             text = (installed / "SKILL.md").read_text(encoding="utf-8")
             self.assertNotIn("iwe-spec-verify", text)
 
-    def test_readiness_script_finds_hidden_ancestor_and_descendant_configs(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            workspace = Path(temporary) / "workspace"
-            package = workspace / "packages/service"
-            nested = package / "src"
-            (package / ".iwe").mkdir(parents=True)
-            nested.mkdir(parents=True)
-            (package / ".iwe/config.toml").write_text("version = 3\n")
-            other = workspace / "packages/other/.iwe"
-            other.mkdir(parents=True)
-            (other / "config.toml").write_text("version = 3\n")
-
-            script = SHARED / "scripts/iwe-readiness.sh"
-            ancestor = subprocess.run(
-                [str(script)], cwd=nested, text=True, capture_output=True, check=False
-            )
-            descendants = subprocess.run(
-                [str(script), "--descendants"],
-                cwd=workspace,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-
-            self.assertEqual(ancestor.returncode, 0, ancestor.stderr)
-            self.assertIn(str(package / ".iwe/config.toml"), ancestor.stdout)
-            self.assertIn(f"bundled_config={SHARED / 'assets/iwe/config.toml'}", ancestor.stdout)
-            self.assertIn(
-                f"bundled_schema={SHARED / 'assets/iwe/schemas/specification.yaml'}",
-                ancestor.stdout,
-            )
-            self.assertIn("packages/other/.iwe/config.toml", descendants.stdout)
-            self.assertIn("packages/service/.iwe/config.toml", descendants.stdout)
+    def test_skills_have_no_specspine_runtime_scripts(self) -> None:
+        self.assertFalse((SHARED / "scripts").exists())
+        for name in SKILL_NAMES:
+            self.assertFalse((ROOT / "skills" / name / "scripts").exists())
 
 
 @unittest.skipUnless(
@@ -159,6 +148,8 @@ class NpxInstallationSmokeTests(unittest.TestCase):
             installed = workspace / ".agents/skills/iwe-spec-map"
             self.assertTrue((installed / "SKILL.md").is_file())
             self.assertTrue((installed / "references/iwe-bootstrap.md").is_file())
+            self.assertTrue((installed / "references/specspine-format.md").is_file())
+            self.assertTrue((installed / "references/specspine-semantics.md").is_file())
             self.assertTrue((installed / "assets/iwe/config.toml").is_file())
 
 
@@ -171,7 +162,7 @@ class BootstrapConfigurationTests(unittest.TestCase):
         shutil.copytree(EXAMPLE, workspace, ignore=shutil.ignore_patterns("node_modules"))
         return workspace
 
-    def test_fallback_scopes_iwe_to_docs_specs(self) -> None:
+    def test_docs_library_keeps_ordinary_notes_outside_the_schema(self) -> None:
         workspace = self.copy_example()
         unrelated = workspace / "docs/ordinary-note.md"
         unrelated.write_text("# Not a specification\n", encoding="utf-8")
@@ -179,17 +170,17 @@ class BootstrapConfigurationTests(unittest.TestCase):
         validation = iwe(workspace, "schema", "validate")
 
         self.assertEqual(validation.returncode, 0, validation.stderr + validation.stdout)
-        self.assertNotIn("ordinary-note", iwe(workspace, "find", "-f", "keys").stdout)
+        keys = set(iwe(workspace, "find", "-f", "keys").stdout.splitlines())
+        self.assertIn("ordinary-note", keys)
+        self.assertIn("specs/authentication", keys)
 
     def test_existing_custom_library_path_is_valid(self) -> None:
         workspace = self.copy_example()
         (workspace / "knowledge").mkdir()
-        for document in (workspace / "docs/specs").glob("*.md"):
-            shutil.move(str(document), workspace / "knowledge" / document.name)
-        (workspace / "docs/specs").rmdir()
+        shutil.move(str(workspace / "docs/specs"), workspace / "knowledge/specs")
         config = workspace / ".iwe/config.toml"
         config.write_text(
-            config.read_text(encoding="utf-8").replace('path = "docs/specs"', 'path = "knowledge"'),
+            config.read_text(encoding="utf-8").replace('path = "docs"', 'path = "knowledge"'),
             encoding="utf-8",
         )
 
@@ -197,22 +188,20 @@ class BootstrapConfigurationTests(unittest.TestCase):
 
         self.assertEqual(validation.returncode, 0, validation.stderr + validation.stdout)
         self.assertFalse((workspace / "docs/specs").exists())
-        self.assertIn("authentication", iwe(workspace, "find", "-f", "keys").stdout)
+        self.assertIn("specs/authentication", iwe(workspace, "find", "-f", "keys").stdout)
 
     def test_scoped_binding_preserves_unrelated_iwe_notes(self) -> None:
         workspace = self.copy_example()
         library = workspace / "knowledge"
-        (library / "specspine").mkdir(parents=True)
+        (library / "specs").mkdir(parents=True)
         (library / "ordinary.md").write_text("# Ordinary note\n", encoding="utf-8")
         for document in (workspace / "docs/specs").glob("*.md"):
-            shutil.move(str(document), library / "specspine" / document.name)
+            shutil.move(str(document), library / "specs" / document.name)
         shutil.rmtree(workspace / "docs/specs")
         config = workspace / ".iwe/config.toml"
         config.write_text(
             config.read_text(encoding="utf-8")
-            .replace('path = "docs/specs"', 'path = "knowledge"')
-            .replace('key_template = "{{slug}}"', 'key_template = "specspine/{{slug}}"')
-            .replace('match = "**"', 'match = "specspine/**"'),
+            .replace('path = "docs"', 'path = "knowledge"'),
             encoding="utf-8",
         )
 
@@ -222,7 +211,7 @@ class BootstrapConfigurationTests(unittest.TestCase):
         self.assertTrue((library / "ordinary.md").is_file())
         keys = set(iwe(workspace, "find", "-f", "keys").stdout.splitlines())
         self.assertIn("ordinary", keys)
-        self.assertIn("specspine/authentication", keys)
+        self.assertIn("specs/authentication", keys)
 
 
 if __name__ == "__main__":

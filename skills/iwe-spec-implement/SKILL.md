@@ -1,112 +1,66 @@
 ---
 name: iwe-spec-implement
-description: Bring an implementation into conformance with accepted Specspine v5 specifications retrieved through IWE using additive, conform, or closed-boundary reconciliation. Use when an operator asks to implement specified behavior, fix code/spec divergence, satisfy verification criteria, remove conflicting behavior, or prune unspecified external integrations from an explicitly exhaustive boundary.
+description: Bring an implementation into conformance with accepted Specspine v5 specifications retrieved through IWE. Use to implement missing behavior, fix code/spec divergence, satisfy verification criteria, remove explicitly conflicting behavior, or close an explicitly exhaustive external boundary.
 ---
 
 # IWE Spec Implement
 
-Change implementation, tests, and implementation-owned configuration. Do not
-change accepted specifications to make the implementation pass. Use `conform`
-unless the operator selects another mode.
+Change implementation, tests, and implementation-owned configuration. Never
+change accepted specifications merely to make the implementation pass. Use
+`conform` unless the operator selects another mode.
 
-Before reading IWE references or help, run the bundled
-[`iwe-readiness.sh`](scripts/iwe-readiness.sh) beside this skill (add
-`--descendants` only for a task spanning packages), then
-compare any existing `templates.specification`, `schemas.specification`, and
-schema file with the bundled assets or the protocol's allowed scoped binding.
-Use the exact absolute asset paths printed by the script; do not rediscover
-them with `find`. Complete this comparison before any IWE query or mutation.
-Read the
-[IWE bootstrap protocol](references/iwe-bootstrap.md) if anything is missing,
-different, ambiguous, or conflicts with the requested path. Do not change
-documents until that protocol resolves the condition. An existing
-`library.path` different from the bundled fallback is authoritative, not a
-collision. At the first real mismatch, read the bootstrap protocol immediately;
-do not read other IWE references or query the library first.
+Use the official `iwe-memory-system` skill for every IWE operation. If it is
+unavailable, obtain it from the official `iwe-org/skills` distribution through
+the environment's supported skill installer and read it before continuing.
 
-When the workspace is ready, use the official `iwe-memory-system` skill for
-all IWE operations. If it is unavailable, obtain it from the official
-`iwe-org/skills` distribution through the environment's supported
-skill-installation mechanism. Read only the skill and task-relevant references
-before the first IWE operation. Use targeted command help only after syntax is
-rejected or remains unknown; do not preload full help screens. The main
-`iwe-memory-system` skill is sufficient for routine `find`, `retrieve`, and
-`update` operations whose syntax is already established.
+Before interpreting specifications or changing implementation, read
+[Specspine format](references/specspine-format.md),
+[Specspine semantics](references/specspine-semantics.md), and
+[Specspine conformance](references/specspine-conformance.md) completely. The
+bundled schema is the executable contract for exact document structure; the
+references define authority, boundaries, finding classification, and removal
+authority.
+
+Inspect `.iwe/config.toml` and the bundled `assets/iwe` directly. Read
+[IWE project setup](references/iwe-bootstrap.md) only when the Specspine
+template, binding, or schema is missing or conflicting. Do not use or create a
+Specspine bootstrap script.
 
 ## Modes
 
-- `additive`: implement `missing` claims. Report all other findings without
+- `additive`: implement `missing` claims; report other findings without
   removing behavior.
 - `conform` (default): implement `missing` claims and resolve `conflicting`
-  behavior that has a concrete normative basis.
-- `closed-boundary`: do everything in `conform`, then remove
-  `uncovered-boundary` behavior only when every owner governing that behavior
-  declares `coverage.external-boundary: exhaustive`.
+  behavior with a concrete normative basis.
+- `closed-boundary`: apply `conform`, then remove `uncovered-boundary` behavior
+  only when every governing owner declares
+  `coverage.external-boundary: exhaustive`.
 
-1. Resolve the operator's terms to specification owners with `iwe find`. If
-   several owners plausibly match, inspect their titles and neighborhoods
-   before choosing.
-2. Run `iwe schema validate`; stop on schema errors.
-3. Retrieve a task-bounded closure with `iwe retrieve`, expanding inclusion,
-   references, children, and backlinks only as far as the task requires.
-4. Produce a complete pre-change conformance assessment.
-   Classify findings as `conforming`, `missing`, `conflicting`,
-   `uncovered-boundary`, `ambiguous`, or `runtime-unverified`. Treat `REQ`,
-   `GUA`, `INV`, `QLT`, `DEC`, `CON`, and `VER` as normative; treat `OBS` and
-   `INF` only as evidence.
-   Capture every required report field before editing and reproduce the
-   assessment under `Pre-change assessment` in the final response.
+## Workflow
+
+1. Resolve the operator's terms to owners with `iwe find`. Inspect neighboring
+   titles only when several owners plausibly match.
+2. Run `iwe schema validate`; stop on errors. Check owner-local ID uniqueness
+   and blocker targets, and stop on a materially ambiguous relevant blocker.
+3. Retrieve only the task-bounded closure with `iwe retrieve`.
+4. Produce a complete pre-change assessment. Classify findings and distinguish
+   accepted intent from evidence using the conformance and semantics references.
 5. Trace each relevant normative claim to code, tests, and registered assets.
-   Record every applicable Verify finding class, using explicit `none` for
-   classes without findings, before editing.
-6. Apply only the finding classes authorized by the selected mode. Implement
-   the smallest coherent change that resolves them. Preserve unrelated
-   behavior and follow repository conventions.
-7. Add or update focused tests that demonstrate the normative behavior. Run
-   the smallest relevant test. Run a broader suite only after the focused test
-   passes and only when the change's risk justifies it. Follow the shared
-   environment-blocked stop rule.
-8. Run `iwe schema validate` once after the implementation and produce a
-   complete post-change conformance assessment over the same scope. Report
-   changed files, before/after finding transitions, satisfied claims, remaining
-   divergence, and runtime-unverified claims.
-   The exact final headings are `Pre-change assessment`;
-   `Post-change assessment`; `Finding transitions`. Under each assessment,
-   include `Scope`, `Claims checked`, `Findings`, `Test evidence`, and `Verdict`,
-   using explicit `none` values where applicable.
+6. Apply only the finding classes authorized by the selected mode. Preserve
+   unrelated behavior and use the smallest coherent change.
+7. Add or update focused tests. Run the smallest relevant check, followed by a
+   broader suite only when risk justifies it.
+8. Run `iwe schema validate` after implementation and produce a post-change
+   assessment over the same scope.
 
-## Removal policy
+The final response must contain `Pre-change assessment`,
+`Post-change assessment`, and `Finding transitions`. Each assessment contains
+`Scope`, `Claims checked`, `Findings`, `Test evidence`, and `Verdict`, using
+explicit `none` where applicable. Also report changed files and remaining
+runtime-unverified claims.
 
-Remove behavior only when evidence establishes that it conflicts with accepted
-intent. A feature is removable when at least one of these holds:
-
-- a normative claim explicitly forbids it;
-- it violates an invariant, constraint, guarantee, or decision;
-- the specification defines an exhaustive behavior boundary that excludes it;
-- keeping it makes a verification criterion fail.
-
-Do not infer prohibition from silence. If behavior is merely undocumented,
-report it as unverified instead of deleting it. Before deletion, inspect callers,
-public interfaces, data migrations, configuration, and tests. Remove the full
-now-dead path only when doing so is safe and within the operator's scope.
-After a deletion or block removal, inspect the immediate splice boundaries for
-duplicated comments, annotations, declarations, or malformed structure before
-running checks.
-
-Treat network calls, public APIs, queues, events, files, databases, external
-storage, email, messaging, child processes, and telemetry as external-boundary
-behavior. Classify an unmentioned external interaction as
-`uncovered-boundary`, not `conflicting`. In `closed-boundary` mode, absence is
-actionable only under explicit exhaustive coverage; otherwise report it and
-preserve it.
-
-## Guardrails
-
-- Stop rather than guess when a relevant blocking `OQ-*` leaves the intended
-  behavior materially ambiguous.
-- Do not rewrite normative claims, weaken verification criteria, or relabel
-  implementation evidence as accepted intent. Use `iwe-spec-specify` only when
-  the operator explicitly asks to change the specification.
-- A passing schema validates documents, not implementation conformance.
-- A passing test suite is supporting evidence, not permission to ignore an
-  uncovered normative claim.
+Before any deletion authorized by the conformance reference and selected mode,
+inspect callers, public interfaces, migrations, configuration, and tests.
+Remove a full dead path only when safe and in scope. Do not weaken claims,
+promote observations to intent, create relationship metadata, or add a graph or
+lifecycle mechanism beside IWE.

@@ -2,7 +2,7 @@ version = 3
 format = "markdown"
 
 [library]
-path = "docs/specs"
+path = "docs"
 default_template = "specification"
 frontmatter_document_title = "title"
 
@@ -19,8 +19,8 @@ preserve_line_breaks = true
 link_format = "markdown"
 
 [templates.specification]
-key_template = "{{slug}}"
+key_template = "specs/{{slug}}"
 document_template = "---\nspecspine: 5\ntitle: {{title}}\nkind: component\nsummary: Describe the durable boundary contract.\nfacets:\n  architecture: missing\n  behavior: missing\n  interfaces: missing\n  data: missing\n  failure: missing\n  quality: missing\n  verification: missing\ncoverage:\n  external-boundary: open\nblockers: []\nimplementation_freedom: contract-equivalent\n---\n\n# {{title}}\n\n## Responsibility\n\n{{body}}\n"
 
 [schemas.specification]
-match = "**"
+match = "specs/**"

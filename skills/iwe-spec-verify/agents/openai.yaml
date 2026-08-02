@@ -1,4 +1,4 @@
 interface:
   display_name: "IWE Spec Verify"
-  short_description: "Check implementation conformance and reconstruction"
-  default_prompt: "Use $iwe-spec-verify to verify this implementation against its Specspine specifications."
+  short_description: "Audit code/spec conformance without edits"
+  default_prompt: "Use $iwe-spec-verify to verify this implementation against its Specspine specifications without changing project files."

@@ -8,11 +8,13 @@ It uses an isolated copy of `examples/node-express-boilerplate` and verifies:
 - graph queries and retrieval;
 - schema rejection of invalid frontmatter and statement syntax;
 - IWE rename with reference updates;
-- equality of the example schema and the canonical shared preset.
-- autonomous copy-installation of every skill and its bundled bootstrap assets;
+- equality of the example setup and the canonical shared assets;
+- autonomous copy-installation of every skill and its bundled setup, format,
+  semantics, and workflow-specific conformance references;
 - SSOT symlink integrity, absence of broken links, and absence of physical
   duplicates of shared resources;
-- fallback, custom-path, and mixed-library IWE scopes;
+- `docs`, custom-path, and mixed-library IWE scopes with `specs/**` binding;
+- absence of Specspine runtime and bootstrap scripts;
 - independence of `iwe-spec-implement` from `iwe-spec-verify`.
 
 Run:
@@ -48,12 +50,12 @@ no golden patch. Bootstrap scenarios additionally enforce the safety
 postconditions described below.
 
 Bootstrap scenarios are hybrid evaluations. An AI judge evaluates discovery,
-questions, and protocol use, while deterministic postconditions reject unsafe
-filesystem outcomes such as changing a custom library path, widening `docs`
-scope, overwriting a collision, losing partial `.iwe/` content, or modifying a
-workspace before operator approval. The missing-IWE scenario removes the CLI
-from the agent's `PATH`; it must offer installation and ask for the library
-path without acting before approval.
+questions, and setup-reference use, while deterministic postconditions reject
+unsafe filesystem outcomes such as changing a custom library path, widening
+the schema beyond `specs/**`, overwriting a collision, losing partial setup
+content, or modifying a workspace before operator approval. The missing-IWE
+scenario removes the CLI from the agent's `PATH`; it must point to the official
+installation guide and stop without changing the workspace.
 
 The ambiguous-root scenario is multi-turn. Its first Codex turn must ask for
 the owning root without writing; the runner resumes the same thread with the
@@ -61,8 +63,8 @@ operator's answer and mechanically permits changes only below the selected
 package. Multi-turn scenarios therefore require a `codex exec` agent command.
 
 Bootstrap judges use the same scores and hard floors as every other scenario,
-but their prompt calibrates efficiency to necessary setup work: one readiness
-check, root discovery, bootstrap protocol/assets, validation, and an authorized
+but their prompt calibrates efficiency to necessary setup work: project
+discovery, direct configuration inspection, setup assets, validation, and an authorized
 follow-up turn are not waste by themselves. Redundant searches, repeated reads,
 invalid commands, and unrelated references remain penalized.
 

@@ -6,4 +6,5 @@
 - [Development](08-development.md)
 - [Format v5](reference/format.md)
 - [Semantics](reference/semantics.md)
+- [Conformance](reference/conformance.md)
 - [Glossary](reference/glossary.md)

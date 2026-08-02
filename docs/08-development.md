@@ -1,6 +1,8 @@
 # Development
 
-The executable contract is the standalone IWE preset in `presets/iwe`.
+The executable format contract is the IWE configuration and document schema in
+`shared/assets/iwe`. The example and installable skills expose those canonical
+assets without maintaining physical copies.
 
 Run:
 
@@ -8,10 +10,11 @@ Run:
 python3 tests/run_mechanical.py
 ```
 
-The tests install the preset into an isolated copy of
-`examples/node-express-boilerplate`, then exercise IWE schema validation,
-inclusion hierarchy, references, creation, and rename behavior.
+The tests exercise the `docs` IWE library, the scoped `specs/**` schema,
+inclusion and reference semantics, document creation and refactoring, skill
+packaging, and conservative setup behavior.
 
-Do not add a second Markdown parser or graph implementation. Extend the IWE
-document schema first. Add custom code only for a requirement that IWE cannot
-express and that remains important after simplifying the format.
+IWE is the only runtime, parser, graph, and document-lifecycle implementation.
+Do not add Specspine scripts, a second Markdown parser, generated indexes, or a
+parallel relationship model. Extend the IWE document schema first and adopt new
+native IWE relationship semantics as they become available.

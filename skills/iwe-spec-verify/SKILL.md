@@ -1,73 +1,60 @@
 ---
 name: iwe-spec-verify
-description: Verify implementation conformance against Specspine v5 contracts retrieved through IWE. Use for implementation-independent checks and code/spec comparison.
+description: Verify implementation conformance against Specspine v5 contracts retrieved through IWE. Use for implementation-independent criteria checks, code/spec comparison, external-boundary audits, and evidence-backed conformance reports.
 ---
 
 # IWE Spec Verify
 
-Before reading IWE references or help, run the bundled
-[`iwe-readiness.sh`](scripts/iwe-readiness.sh) beside this skill (add
-`--descendants` only for a task spanning packages), then
-compare any existing `templates.specification`, `schemas.specification`, and
-schema file with the bundled assets or the protocol's allowed scoped binding.
-Use the exact absolute asset paths printed by the script; do not rediscover
-them with `find`. Complete this comparison before any IWE query or mutation.
-Read the
-[IWE bootstrap protocol](references/iwe-bootstrap.md) if anything is missing,
-different, ambiguous, or conflicts with the requested path. Do not change
-documents until that protocol resolves the condition. An existing
-`library.path` different from the bundled fallback is authoritative, not a
-collision. At the first real mismatch, read the bootstrap protocol immediately;
-do not read other IWE references or query the library first.
+Use the official `iwe-memory-system` skill for every IWE operation. If it is
+unavailable, obtain it from the official `iwe-org/skills` distribution through
+the environment's supported skill installer and read it before continuing.
 
-When the workspace is ready, use the official `iwe-memory-system` skill for
-all IWE operations. If it is unavailable, obtain it from the official
-`iwe-org/skills` distribution through the environment's supported
-skill-installation mechanism. Read only the skill and task-relevant references
-before the first IWE operation. Use targeted command help only after syntax is
-rejected or remains unknown; do not preload full help screens. The main
-`iwe-memory-system` skill is sufficient for routine `find` and `retrieve`
-operations whose syntax is already established. Verify is a reasoning and
-report workflow; do not look for or invoke an `iwe verify` command.
+Before interpreting or verifying Specspine documents, read
+[Specspine format](references/specspine-format.md),
+[Specspine semantics](references/specspine-semantics.md), and
+[Specspine conformance](references/specspine-conformance.md) completely. The
+bundled schema is the executable contract for exact document structure; the
+references define authority, boundaries, and finding classification.
+
+Inspect `.iwe/config.toml` and the bundled `assets/iwe` directly. Read
+[IWE project setup](references/iwe-bootstrap.md) only when the Specspine
+template, binding, or schema is missing or conflicting. Do not use or create a
+Specspine bootstrap script. Verify is a reasoning workflow; there is no
+`iwe verify` command. If first-use setup changes IWE configuration, report that
+setup separately; the verification phase itself remains read-only.
 
 1. Run `iwe schema validate`; stop on schema errors.
-2. Retrieve the owner and relevant IWE graph closure with `iwe retrieve`.
-3. Treat `REQ`, `GUA`, `INV`, `QLT`, `DEC`, `CON`, and `VER` as normative.
-4. Treat `OBS` and `INF` as evidence, never authority.
-5. Evaluate implementation-independent verification criteria and registered
-   assets listed in document frontmatter.
-6. Emit findings as `conforming`, `missing`, `conflicting`,
-   `uncovered-boundary`, `ambiguous`, or `runtime-unverified`. Include owner
-   key, claim ID when applicable, expected behavior, implementation evidence,
-   runtime status, and confidence for every finding.
-7. Classify an external interaction not governed by the retrieved specification
-   closure as `uncovered-boundary`. Its absence from a specification is not a
-   conflict. Record whether every governing owner declares
-   `coverage.external-boundary: exhaustive`.
-8. Do not modify or delete anything.
+2. Check owner-local ID uniqueness and blocker targets. Stop when a relevant
+   blocker makes the intended behavior materially ambiguous.
+3. Retrieve the owner and task-relevant graph closure with `iwe retrieve`.
+4. Treat `REQ`, `GUA`, `INV`, `QLT`, `DEC`, `CON`, `VER`, and assets marked
+   `normative: true` as authority.
+5. Treat `OBS`, `INF`, and non-normative assets only as evidence.
+6. Compare implementation-independent criteria and other accepted claims with
+   code, tests, runtime behavior, and registered assets.
+7. Classify and report findings using the conformance reference. Record whether
+   every governing owner declares `coverage.external-boundary: exhaustive`.
+8. After setup is complete, do not modify specifications, implementation,
+   tests, or configuration.
 
-Run a test only when it directly establishes a retrieved claim or verification
-criterion. A concrete static call-path trace is sufficient to establish the
-presence of an external interaction; do not run an unrelated runtime test or
-lint merely to strengthen that classification.
+Run a focused test only when it directly establishes a retrieved claim and is
+not expected to rewrite project files. A concrete static call-path trace is
+sufficient to establish an external interaction. Do not run unrelated tests or
+lint merely to strengthen a classification.
 
 ## Report contract
 
-Return these sections even when a section contains `none`:
+Return these sections even when one contains `none`:
 
 1. Scope — retrieved owners and governing boundary coverage.
-2. Claims checked — normative IDs and implementation-independent criteria.
-3. Findings — classified entries with owner, claim, expectation, evidence,
-   runtime status, and confidence.
-4. Test evidence — exact focused checks and `passed`, `failed`,
+2. Claims checked — normative IDs, normative assets, and criteria.
+3. Findings — classified entries with expectation and evidence.
+4. Test evidence — exact checks and `passed`, `failed`,
    `environment-blocked`, or `not-run` status.
-5. Verdict — conformance conclusion, remaining divergence, and confirmation
-   that Verify changed no files.
+5. Verdict — conformance, remaining divergence, and confirmation that the
+   verification phase intentionally changed no project files. Report any
+   first-use IWE setup separately.
 
-When Verify surrounds an implementation, the final response must contain two
-separate instances of this contract headed `Pre-change Verify` and
-`Post-change Verify`, followed by an explicit list of finding transitions.
-Reconstructing the pre-change state only as an informal retrospective summary
-does not satisfy the contract.
-
+When Verify surrounds an implementation, return separate `Pre-change Verify`
+and `Post-change Verify` contracts followed by explicit finding transitions.
 Schema validity does not prove implementation conformance.

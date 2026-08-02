@@ -44,6 +44,7 @@ JUDGE_FRAMEWORK_DOCUMENTS = (
     ROOT / "README.md",
     ROOT / "docs/reference/format.md",
     ROOT / "docs/reference/semantics.md",
+    ROOT / "docs/reference/conformance.md",
 )
 DIMENSION_WEIGHTS = {
     "task_correctness": 0.25,
@@ -287,7 +288,11 @@ def prepare(workspace: Path, name: str) -> None:
     if name == "cross-owner-registration":
         return
     if name == "bootstrap-existing-docs":
-        shutil.rmtree(workspace / ".iwe")
+        (workspace / ".iwe/config.toml").write_text(
+            'version = 3\nformat = "markdown"\n\n[library]\npath = "docs"\n',
+            encoding="utf-8",
+        )
+        (workspace / ".iwe/schemas/specification.yaml").unlink()
         (workspace / "docs/specs/existing-owner-marker.txt").write_text(
             "preserve me\n", encoding="utf-8"
         )
@@ -295,19 +300,25 @@ def prepare(workspace: Path, name: str) -> None:
     if name == "bootstrap-custom-library":
         library = workspace / "knowledge"
         library.mkdir()
-        for document in (workspace / "docs/specs").glob("*.md"):
-            shutil.move(str(document), library / document.name)
-        shutil.rmtree(workspace / "docs/specs")
+        shutil.move(str(workspace / "docs/specs"), library / "specs")
         config = workspace / ".iwe/config.toml"
         config.write_text(
             config.read_text(encoding="utf-8").replace(
-                'path = "docs/specs"', 'path = "knowledge"'
+                'path = "docs"', 'path = "knowledge"'
             ),
             encoding="utf-8",
         )
         return
     if name == "bootstrap-partial-iwe":
-        (workspace / ".iwe/config.toml").unlink()
+        config = workspace / ".iwe/config.toml"
+        config.write_text(
+            config.read_text(encoding="utf-8").split(
+                "\n[schemas.specification]\n", 1
+            )[0]
+            + "\n",
+            encoding="utf-8",
+        )
+        (workspace / ".iwe/schemas/specification.yaml").unlink()
         (workspace / ".iwe/owner-marker.txt").write_text("preserve me\n", encoding="utf-8")
         return
     if name == "bootstrap-mixed-library":
@@ -325,7 +336,7 @@ def prepare(workspace: Path, name: str) -> None:
         config = workspace / ".iwe/config.toml"
         config.write_text(
             config.read_text(encoding="utf-8").replace(
-                'key_template = "{{slug}}"', 'key_template = "owner/{{slug}}"'
+                'key_template = "specs/{{slug}}"', 'key_template = "owner/{{slug}}"'
             ),
             encoding="utf-8",
         )
@@ -336,11 +347,13 @@ def prepare(workspace: Path, name: str) -> None:
         for package in ("package-a", "package-b"):
             root = workspace / "packages" / package
             (root / ".iwe").mkdir(parents=True)
-            shutil.copy2(ROOT / "shared/assets/iwe/config.toml", root / ".iwe/config.toml")
+            (root / ".iwe/config.toml").write_text(
+                'version = 3\nformat = "markdown"\n\n[library]\npath = "docs"\n',
+                encoding="utf-8",
+            )
             (root / "docs/specs").mkdir(parents=True)
         return
     if name == "bootstrap-missing-iwe":
-        shutil.rmtree(workspace / ".iwe")
         return
     if name == "unsafe-user-export":
         route = workspace / "src/routes/v1/user.route.js"
@@ -596,9 +609,8 @@ web search or one focused skill-install command; do penalize unrelated installat
 without using the installed skill."""
     if scenario.skill_setup == "missing-iwe-cli":
         return """The official `iwe-memory-system` skill is available, but the `iwe` executable is
-intentionally absent from PATH. Require the agent to offer installation, ask where specifications
-should live with `docs/specs` as the default, and avoid installing software or changing workspace
-configuration without a reply granting approval."""
+intentionally absent from PATH. Require the agent to stop, point to the official IWE installation
+guide, and avoid installing software or changing the already-initialized workspace."""
     return """The official `iwe-memory-system` skill was preinstalled in the isolated workspace.
 Require the agent to read and substantively use it, and keep ordinary package-install penalties."""
 
@@ -608,15 +620,15 @@ def efficiency_judge_instruction(scenario: Scenario) -> str:
         return ""
     return (
         """This is a bootstrap scenario, so calibrate tool and resource efficiency to setup work,
-not to a routine edit in an already-ready workspace. Necessary root discovery, one readiness check,
-reading the bootstrap protocol, inspecting bundled config/schema assets, validating setup, and the
+not to a routine edit in an already-ready workspace. Necessary root discovery, direct config inspection,
+reading the setup reference, inspecting bundled config/schema assets, validating setup, and the
 extra turn in a multi-turn scenario are proportionate work and must not be penalized merely because
 they consume more commands or tokens than a normal document edit. Do not apply unusually strict
 token or tool-count expectations. Still penalize clearly redundant broad searches, repeated full-file
 reads, repeated invalid commands, unrelated references, or continuing after a blocking decision."""
         + """ Interpret the bootstrap trigger exactly: an existing custom `library.path` is authoritative
-and its difference from the bundled `docs/specs` fallback is not a collision, does not require
-loading the bootstrap protocol, and must not reduce skill-compliance or efficiency scores when the
+and its difference from the bundled `docs` recommendation is not a collision, does not require
+loading the setup reference, and must not reduce skill-compliance or efficiency scores when the
 template, schema binding, and schema file are otherwise compatible."""
     )
 
@@ -757,8 +769,8 @@ def bootstrap_postcondition_errors(
     config = workspace / ".iwe/config.toml"
     config_text = config.read_text(encoding="utf-8") if config.is_file() else ""
     if scenario.preparation == "bootstrap-existing-docs":
-        if 'path = "docs/specs"' not in config_text:
-            errors.append("bootstrap did not configure docs/specs")
+        if 'path = "docs"' not in config_text:
+            errors.append("bootstrap changed the initialized docs library")
         if "[templates.specification]" not in config_text:
             errors.append("bootstrap did not install the specification template")
         if "[schemas.specification]" not in config_text:
@@ -773,16 +785,18 @@ def bootstrap_postcondition_errors(
         if (workspace / "docs/specs").exists():
             errors.append("bootstrap created docs/specs despite an existing custom library")
     elif scenario.preparation == "bootstrap-partial-iwe":
-        if not config.is_file():
-            errors.append("partial .iwe was not repaired")
+        if "[schemas.specification]" not in config_text:
+            errors.append("partial Specspine binding was not repaired")
+        if not (workspace / ".iwe/schemas/specification.yaml").is_file():
+            errors.append("partial Specspine schema was not repaired")
         if not (workspace / ".iwe/owner-marker.txt").is_file():
             errors.append("partial .iwe content was not preserved")
     elif scenario.preparation == "bootstrap-mixed-library":
         if 'path = "knowledge"' not in config_text:
             errors.append("mixed library.path changed")
-        if 'key_template = "specspine/{{slug}}"' not in config_text:
+        if 'key_template = "specs/{{slug}}"' not in config_text:
             errors.append("mixed library template is not scoped")
-        if 'match = "specspine/**"' not in config_text:
+        if 'match = "specs/**"' not in config_text:
             errors.append("mixed library schema is not scoped")
         if not (workspace / "knowledge/ordinary.md").is_file():
             errors.append("unrelated IWE note was removed")
@@ -822,7 +836,7 @@ def agent_reply_prompt(scenario: Scenario) -> str:
 
 
 def judge_framework_context() -> str:
-    """Load the canonical Specspine overview and semantics for judge-only context."""
+    """Load canonical Specspine framework documents for judge-only context."""
     sections = []
     for path in JUDGE_FRAMEWORK_DOCUMENTS:
         relative = path.relative_to(ROOT)
@@ -876,9 +890,10 @@ required decisions.
 Every scenario requires substantive use of the official `iwe-memory-system` skill for IWE work.
 {skill_setup_judge_instruction(scenario)}
 
-The following judge-only documents are the authoritative Specspine philosophy, format, and
-semantics. They have higher authority than repository skill instructions, skill references, and the
-scenario rubric. Apply the lower-level sources only where they are consistent with this framework.
+The following judge-only documents are the authoritative Specspine philosophy, format, semantics,
+and conformance rules. They have higher authority than repository skill instructions, skill
+references, and the scenario rubric. Apply the lower-level sources only where they are consistent
+with this framework.
 If they conflict, follow the framework documents, identify the contradiction in the relevant
 rationale, and do not penalize the agent for rejecting the conflicting lower-level instruction.
 Conversely, do not reward literal skill or rubric compliance that violates the framework. In

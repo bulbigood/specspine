@@ -1,1 +1,0 @@
-../../../shared/scripts/iwe-readiness.sh

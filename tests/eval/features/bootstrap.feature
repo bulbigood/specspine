@@ -2,21 +2,21 @@ Feature: Bootstrap Specspine skills in existing workspaces
   Bootstrap decisions are judged semantically and protected by deterministic
   filesystem postconditions.
 
-  Scenario: Initialize the fallback without widening docs scope
+  Scenario: Install Specspine into an initialized docs library
     Given preparation "bootstrap-existing-docs"
     And skills "iwe-spec-specify"
     When the operator asks:
       """
       Record an accepted requirement that password-reset links expire after one
-      use. Keep the existing specification files and do not index unrelated
-      project documentation.
+      use. Keep the existing specification files and ordinary project
+      documentation in the same IWE library.
       """
     Then the AI judge verifies:
       """
-      The agent recognizes that IWE is not initialized, loads the bootstrap
-      protocol, configures the library at docs/specs, preserves existing files,
-      installs the bundled schema and template without widening scope to docs,
-      and records a valid focused requirement in the canonical owner.
+      The agent preserves the initialized IWE library at docs, loads the setup
+      reference, installs the bundled template and specs/** schema binding,
+      preserves ordinary documentation and existing specification files, and
+      records a valid focused requirement in the canonical owner.
       """
 
   Scenario: Honor an existing custom IWE library path
@@ -31,23 +31,23 @@ Feature: Bootstrap Specspine skills in existing workspaces
     Then the AI judge verifies:
       """
       The existing knowledge library remains authoritative. The agent does not
-      create docs/specs or migrate documents, and adds a valid focused claim to
+      change library.path or migrate documents, and adds a valid focused claim to
       the canonical authentication owner through IWE.
       """
 
-  Scenario: Repair a partial IWE directory conservatively
+  Scenario: Repair a partial Specspine binding conservatively
     Given preparation "bootstrap-partial-iwe"
     And skills "iwe-spec-specify"
     When the operator asks:
       """
       Record an accepted requirement that password-reset links expire after one
-      use. Preserve everything already present in the project's IWE setup.
+      use. Preserve everything already present in the initialized IWE setup.
       """
     Then the AI judge verifies:
       """
-      The agent loads the bootstrap protocol, preserves the partial .iwe
-      directory, creates only the missing config from bundled assets, retains
-      docs/specs as the library, validates it, and records the requirement.
+      The agent loads the setup reference, preserves the IWE config and owner
+      marker, adds only the missing schema binding and schema file, retains docs
+      as the library, validates it, and records the requirement.
       """
 
   Scenario: Scope Specspine inside a mixed IWE library
@@ -63,7 +63,7 @@ Feature: Bootstrap Specspine skills in existing workspaces
       """
       The agent preserves the ordinary note and existing library.path, installs
       the bundled Specspine assets, scopes both new keys and schema matching to
-      specspine/**, creates a valid owner through IWE, and does not validate the
+      specs/**, creates a valid owner through IWE, and does not validate the
       unrelated note as Specspine.
       """
 
@@ -105,7 +105,7 @@ Feature: Bootstrap Specspine skills in existing workspaces
       and leaves package-b unchanged.
       """
 
-  Scenario: Offer IWE installation without acting before approval
+  Scenario: Point to IWE installation without changing the workspace
     Given preparation "bootstrap-missing-iwe"
     And skills "iwe-spec-specify"
     And skill setup "missing-iwe-cli"
@@ -117,7 +117,6 @@ Feature: Bootstrap Specspine skills in existing workspaces
     Then the AI judge verifies:
       """
       The agent detects that the iwe executable is unavailable, explains that
-      the latest IWE CLI is required, offers to install it, and asks where
-      specifications should live with docs/specs as the default. It neither
-      installs software nor changes the workspace before approval.
+      IWE is required, points to the official installation guide, and stops. It
+      neither installs software nor changes the already-initialized workspace.
       """

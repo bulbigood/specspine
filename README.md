@@ -1,100 +1,108 @@
 # Specspine
 
-Specspine is a strict format for durable software specifications stored in an
-[IWE](https://iwe.md/) Markdown library.
+Specspine is a strict vocabulary for durable software specifications stored in
+an [IWE](https://iwe.md/) Markdown library.
 
-IWE owns documents, document keys, inclusion hierarchy, references, backlinks,
-search, retrieval, rename/delete operations, and structural validation.
-Specspine adds only the specification vocabulary: kinds, completeness facets,
-normative statements, observations, open questions, and verification criteria.
+IWE owns documents, stable keys, links, graph traversal, refactoring, and
+schema validation. Specspine adds the software-specification semantics: owners,
+completeness facets, accepted constraints, implementation evidence, open
+questions, and verification criteria. It does not add a second graph, index, or
+document lifecycle beside IWE.
 
-## Install
+## Principles
 
-Install all skills and select the ones needed by your agent:
+- One IWE document is the canonical owner of one durable software boundary.
+- Accepted intent and observed implementation evidence remain distinct.
+- A link-only paragraph is structural inclusion; an inline link is a
+  non-structural reference.
+- Directories organize files but carry no architectural meaning.
+- Specspine follows IWE's native relationship model as it evolves instead of
+  maintaining parallel relationship metadata.
+
+## Workflows
+
+| Skill | Purpose |
+| --- | --- |
+| `iwe-spec-map` | Record boundary-significant implementation evidence without inventing intent. |
+| `iwe-spec-specify` | Create or refine accepted requirements and architecture. |
+| `iwe-spec-verify` | Compare implementation evidence with accepted specifications without editing specifications or code. |
+| `iwe-spec-implement` | Bring implementation into conformance without weakening the specification. |
+
+The workflows are independently installable and self-contained. They can also
+be combined for Map → Specify → Verify → Implement → Verify work.
+
+## Setup
+
+Install IWE by following the
+[official installation guide](https://iwe.md/docs/getting-started/installation/).
+Specspine has no other runtime dependency.
+
+Initialize IWE from the workspace root and use `docs` as its library:
+
+```bash
+iwe init --auto --library docs
+```
+
+See the official [`iwe init` reference](https://iwe.md/docs/cli/init/) for
+initialization modes and configuration behavior.
+
+This creates `.iwe/config.toml` with:
+
+```toml
+[library]
+path = "docs"
+```
+
+Then choose the Specspine workflows to install:
 
 ```bash
 npx skills add bulbigood/specspine
 ```
 
-Or install one workflow explicitly:
+To install one workflow explicitly:
 
 ```bash
-npx skills add bulbigood/specspine -s iwe-spec-map
+npx skills add bulbigood/specspine --skill iwe-spec-map
 ```
 
-The workflows are independent. In particular, `iwe-spec-implement` does not
-require `iwe-spec-verify`. Every workflow uses the official
-`iwe-memory-system` skill for IWE operations; when it is unavailable, the agent
-is instructed to obtain it through the environment's skill installer.
+Skill installation only installs the workflow and its bundled Specspine schema
+assets; it cannot execute a workspace setup hook. On first use, a workflow adds
+the missing Specspine template and schema binding to the existing IWE project.
+The binding is scoped to `specs/**`, so ordinary files elsewhere under `docs`
+remain normal IWE documents.
 
-Specspine requires the latest `iwe` CLI. Installing a skill does not install
-the CLI. When `iwe` is absent, the agent must offer to install it and ask where
-specifications should live; `docs/specs` is the default. Installation and
-workspace changes require operator approval. If installed CLI syntax differs,
-the agent consults `iwe --help` rather than assuming a version-specific flag.
+Each workflow uses the official `iwe-memory-system` skill as its agent-facing
+guide to IWE. This is a skill dependency, not an additional runtime or storage
+layer; IWE remains the only executable dependency and graph implementation.
 
-## Workspace bootstrap
-
-Each installed skill includes the Specspine config template and document
-schema. The agent loads its bootstrap protocol only when IWE or the Specspine
-configuration is missing, incomplete, or conflicting.
-
-| Workspace state | Behavior |
-| --- | --- |
-| No `iwe` executable | Offer to install it and ask for the specification directory, defaulting to `docs/specs` |
-| No `.iwe/` project | Preview and initialize IWE with the selected path, then merge the bundled template and schema |
-| Existing IWE with another `library.path` | Keep and use that configured path unless the operator explicitly requests another |
-| Existing `docs/` without IWE | Scope IWE to `docs/specs`, not all of `docs` |
-| Existing `docs/specs` | Preserve its name and contents; never rename it for installation or a trial |
-| `.iwe/` exists without `config.toml` | Preserve the directory and create only the missing config from bundled assets |
-| Existing library contains unrelated notes | Keep those notes and bind new Specspine documents below `specspine/` within the configured library |
-| Several IWE roots are plausible | Ask once which project root owns the task; the resulting config preserves that choice for later runs |
-
-The normal new-project layout is:
+The resulting layout is:
 
 ```text
 workspace/
 ├── .iwe/
 │   ├── config.toml
 │   └── schemas/specification.yaml
-└── docs/specs/
+└── docs/
+    └── specs/
 ```
 
-For manual setup, copy the canonical preset:
+Create and inspect specifications through IWE:
 
 ```bash
-mkdir -p .iwe
-cp -R /path/to/specspine/presets/iwe/. .iwe/
-```
-
-If the project already has `.iwe/config.toml`, merge the `[library]`,
-`[templates.specification]`, and `[schemas.specification]` settings instead of
-overwriting its configuration. In a mixed existing library, use
-`key_template = "specspine/{{slug}}"` and `match = "specspine/**"` so unrelated
-notes are not validated as Specspine. Then validate it:
-
-```bash
-iwe schema validate
+iwe create --template specification --var title="Authentication" --strict
 iwe tree
+iwe schema validate
 ```
 
-Create documents through IWE:
+## Documentation
 
-```bash
-iwe create --template specification --var title="Authentication"
-```
-
-## Link semantics
-
-A Markdown link in its own paragraph is an IWE inclusion link. It makes the
-current document a parent of the target and is the only Specspine hierarchy.
-A link inside prose is an IWE reference and does not affect hierarchy.
-
-Specspine has no generated indexes, manifest, directory hierarchy, link parser,
-or document lifecycle scripts.
-
-See [the v5 format](docs/reference/format.md) and
-[semantics](docs/reference/semantics.md).
+- [Core model](docs/01-core-model.md)
+- [Usage and lifecycle](docs/02-usage-and-lifecycle.md)
+- [Acceptance and reconstruction](docs/03-acceptance-and-reconstruction.md)
+- [Format v5](docs/reference/format.md)
+- [Semantics](docs/reference/semantics.md)
+- [Conformance](docs/reference/conformance.md)
+- [Glossary](docs/reference/glossary.md)
 
 ## License
 
