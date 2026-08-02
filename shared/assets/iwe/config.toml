@@ -1,26 +1,36 @@
 version = 3
-format = "markdown"
 
 [library]
 path = "docs"
-default_template = "specification"
-frontmatter_document_title = "title"
-
-[markdown]
-refs_extension = ".md"
-refs_path = "relative"
-refs_text = "preserve"
-
-[markdown.formatting]
-preserve_newlines = true
-preserve_line_breaks = true
-
-[completion]
-link_format = "markdown"
 
 [templates.specification]
 key_template = "specs/{{slug}}"
-document_template = "---\nspecspine: 5\ntitle: {{title}}\nkind: component\nsummary: Describe the durable boundary contract.\nfacets:\n  architecture: missing\n  behavior: missing\n  interfaces: missing\n  data: missing\n  failure: missing\n  quality: missing\n  verification: missing\ncoverage:\n  external-boundary: open\nblockers: []\nimplementation_freedom: contract-equivalent\n---\n\n# {{title}}\n\n## Responsibility\n\n{{body}}\n"
+document_template = """
+---
+specspine: 5
+title: {{title}}
+kind: component
+summary: Describe the durable boundary contract.
+facets:
+  architecture: missing
+  behavior: missing
+  interfaces: missing
+  data: missing
+  failure: missing
+  quality: missing
+  verification: missing
+coverage:
+  external-boundary: open
+blockers: []
+implementation_freedom: contract-equivalent
+---
+
+# {{title}}
+
+## Responsibility
+
+{{body}}
+"""
 
 [schemas.specification]
 match = "specs/**"

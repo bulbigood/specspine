@@ -5,27 +5,24 @@ description: Verify implementation conformance against Specspine v5 contracts re
 
 # IWE Spec Verify
 
-Use the official `iwe-memory-system` skill for every IWE operation. If it is
-unavailable, obtain it from the official `iwe-org/skills` distribution through
-the environment's supported skill installer and read it before continuing.
+Use the installed official `iwe-memory-system` skill for every IWE operation
+and read it before continuing. If it is unavailable, stop and direct the
+operator to the Specspine README setup.
 
 Before interpreting or verifying Specspine documents, read
 [Specspine format](references/specspine-format.md),
 [Specspine semantics](references/specspine-semantics.md), and
 [Specspine conformance](references/specspine-conformance.md) completely. The
-bundled schema is the executable contract for exact document structure; the
-references define authority, boundaries, and finding classification.
+workspace `.iwe/schemas/specification.yaml` is the executable contract for exact
+document structure; the references define authority, boundaries, and finding
+classification.
 
 Resolve the applicable IWE project root as defined by the format reference
-before inspecting configuration or running any IWE command. Use that root as
-the working directory.
-
-Inspect `.iwe/config.toml` and the bundled `assets/iwe` directly. Read
-[IWE project setup](references/iwe-bootstrap.md) only when the Specspine
-template, binding, or schema is missing or conflicting. Do not use or create a
-Specspine bootstrap script. Verify is a reasoning workflow; there is no
-`iwe verify` command. If first-use setup changes IWE configuration, report that
-setup separately; the verification phase itself remains read-only.
+before running any IWE command. Use that root as the working directory and read
+its `.iwe/config.toml` once to determine `library.path`. Treat unavailable IWE
+or missing required Specspine configuration as an incomplete setup: stop and
+point to the README instead of installing or repairing it. Verify is a
+read-only reasoning workflow; there is no `iwe verify` command.
 
 1. Run `iwe schema validate`; stop on schema errors.
 2. Check owner-local ID uniqueness and blocker targets. Stop when a relevant
@@ -38,8 +35,7 @@ setup separately; the verification phase itself remains read-only.
    code, tests, runtime behavior, and registered assets.
 7. Classify and report findings using the conformance reference. Record whether
    every governing owner declares `coverage.external-boundary: exhaustive`.
-8. After setup is complete, do not modify specifications, implementation,
-   tests, or configuration.
+8. Do not modify specifications, implementation, tests, or configuration.
 
 Run a focused test only when it directly establishes a retrieved claim and is
 not expected to rewrite project files. A concrete static call-path trace is
@@ -56,8 +52,7 @@ Return these sections even when one contains `none`:
 4. Test evidence — exact checks and `passed`, `failed`,
    `environment-blocked`, or `not-run` status.
 5. Verdict — conformance, remaining divergence, and confirmation that the
-   verification phase intentionally changed no project files. Report any
-   first-use IWE setup separately.
+   verification phase intentionally changed no project files.
 
 When Verify surrounds an implementation, return separate `Pre-change Verify`
 and `Post-change Verify` contracts followed by explicit finding transitions.

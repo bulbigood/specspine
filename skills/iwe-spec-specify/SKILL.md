@@ -5,26 +5,22 @@ description: Create or refine accepted durable software specifications in a Spec
 
 # IWE Spec Specify
 
-Work only with accepted intent. Use the official `iwe-memory-system` skill for
-every IWE operation. If it is unavailable, obtain it from the official
-`iwe-org/skills` distribution through the environment's supported skill
-installer and read it before continuing.
+Work only with accepted intent. Use the installed official `iwe-memory-system`
+skill for every IWE operation and read it before continuing. If it is
+unavailable, stop and direct the operator to the Specspine README setup.
 
 Before interpreting or writing Specspine documents, read
 [Specspine format](references/specspine-format.md) and
 [Specspine semantics](references/specspine-semantics.md) completely. The
-bundled schema is the executable contract for exact fields, values, sections,
-ordering, and statement syntax; the references define the semantic rules that
-the schema cannot express.
+workspace `.iwe/schemas/specification.yaml` is the executable contract for exact
+fields, values, sections, ordering, and statement syntax; the references define
+the semantic rules that the schema cannot express.
 
 Resolve the applicable IWE project root as defined by the format reference
-before inspecting configuration or running any IWE command. Use that root as
-the working directory.
-
-Inspect `.iwe/config.toml` and the bundled `assets/iwe` directly. Read
-[IWE project setup](references/iwe-bootstrap.md) only when the Specspine
-template, binding, or schema is missing or conflicting. Do not use or create a
-Specspine bootstrap script.
+before running any IWE command. Use that root as the working directory and read
+its `.iwe/config.toml` once to determine `library.path`. Treat unavailable IWE
+or missing required Specspine configuration as an incomplete setup: stop and
+point to the README instead of installing or repairing it.
 
 1. Locate candidates with `iwe find` and read the relevant closure with
    `iwe retrieve`. Once one owner is unambiguous, do not retrieve neighbors

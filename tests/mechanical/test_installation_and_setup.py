@@ -31,9 +31,7 @@ class InstallationIntegrityTests(unittest.TestCase):
             for name in SKILL_NAMES:
                 installed = destination / name
                 self.assertTrue((installed / "SKILL.md").is_file())
-                self.assertFalse((installed / "assets/iwe").is_symlink())
                 for reference in (
-                    "iwe-bootstrap.md",
                     "specspine-format.md",
                     "specspine-semantics.md",
                 ):
@@ -43,6 +41,7 @@ class InstallationIntegrityTests(unittest.TestCase):
                         (SHARED / "references" / reference).read_bytes(),
                         installed_reference.read_bytes(),
                     )
+                self.assertFalse((installed / "assets").exists())
                 if name in {"iwe-spec-verify", "iwe-spec-implement"}:
                     conformance = installed / "references/specspine-conformance.md"
                     self.assertFalse(conformance.is_symlink())
@@ -50,15 +49,20 @@ class InstallationIntegrityTests(unittest.TestCase):
                         (SHARED / "references/specspine-conformance.md").read_bytes(),
                         conformance.read_bytes(),
                     )
+                expected_references = {
+                    "specspine-format.md",
+                    "specspine-semantics.md",
+                }
+                if name in {"iwe-spec-verify", "iwe-spec-implement"}:
+                    expected_references.add("specspine-conformance.md")
                 self.assertEqual(
-                    (SHARED / "assets/iwe/config.toml").read_bytes(),
-                    (installed / "assets/iwe/config.toml").read_bytes(),
+                    {path.name for path in (installed / "references").iterdir()},
+                    expected_references,
                 )
                 self.assertFalse((installed / "scripts").exists())
 
     def test_shared_resources_have_one_physical_source(self) -> None:
         expected_links = [
-            *(ROOT / "skills" / name / "references/iwe-bootstrap.md" for name in SKILL_NAMES),
             *(
                 ROOT / "skills" / name / f"references/specspine-{reference}.md"
                 for name in SKILL_NAMES
@@ -68,7 +72,6 @@ class InstallationIntegrityTests(unittest.TestCase):
                 ROOT / "skills" / name / "references/specspine-conformance.md"
                 for name in ("iwe-spec-verify", "iwe-spec-implement")
             ),
-            *(ROOT / "skills" / name / "assets/iwe" for name in SKILL_NAMES),
             *(ROOT / "docs/reference" / f"{reference}.md" for reference in ("format", "semantics", "conformance")),
         ]
         for link in expected_links:
@@ -110,6 +113,7 @@ class InstallationIntegrityTests(unittest.TestCase):
         self.assertFalse((SHARED / "scripts").exists())
         for name in SKILL_NAMES:
             self.assertFalse((ROOT / "skills" / name / "scripts").exists())
+            self.assertFalse((ROOT / "skills" / name / "assets").exists())
 
 
 @unittest.skipUnless(
@@ -147,14 +151,17 @@ class NpxInstallationSmokeTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             installed = workspace / ".agents/skills/iwe-spec-map"
             self.assertTrue((installed / "SKILL.md").is_file())
-            self.assertTrue((installed / "references/iwe-bootstrap.md").is_file())
             self.assertTrue((installed / "references/specspine-format.md").is_file())
             self.assertTrue((installed / "references/specspine-semantics.md").is_file())
-            self.assertTrue((installed / "assets/iwe/config.toml").is_file())
+            self.assertEqual(
+                {path.name for path in (installed / "references").iterdir()},
+                {"specspine-format.md", "specspine-semantics.md"},
+            )
+            self.assertFalse((installed / "assets").exists())
 
 
 @unittest.skipUnless(shutil.which("iwe"), "IWE is required")
-class BootstrapConfigurationTests(unittest.TestCase):
+class SetupConfigurationTests(unittest.TestCase):
     def copy_example(self) -> Path:
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

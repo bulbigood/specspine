@@ -148,8 +148,10 @@ class IweIntegrationTests(unittest.TestCase):
         self.assertFalse((self.workspace / "docs/specs/user-management.md").exists())
         architecture = (self.workspace / "docs/specs/architecture.md").read_text()
         authentication = (self.workspace / "docs/specs/authentication.md").read_text()
-        self.assertIn("identity-management.md", architecture)
-        self.assertIn("identity-management.md", authentication)
+        self.assertIn("(identity-management)", architecture)
+        self.assertIn("(identity-management)", authentication)
+        self.assertNotIn("user-management", architecture)
+        self.assertNotIn("user-management", authentication)
 
 
 if __name__ == "__main__":

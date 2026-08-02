@@ -1,10 +1,10 @@
 # Specspine documentation
 
-- [Core model](01-core-model.md)
-- [Usage](02-usage-and-lifecycle.md)
-- [Acceptance and reconstruction](03-acceptance-and-reconstruction.md)
-- [Development](08-development.md)
-- [Format v5](reference/format.md)
-- [Semantics](reference/semantics.md)
-- [Conformance](reference/conformance.md)
-- [Glossary](reference/glossary.md)
+- [Core model](01-core-model)
+- [Usage](02-usage-and-lifecycle)
+- [Acceptance and reconstruction](03-acceptance-and-reconstruction)
+- [Development](08-development)
+- [Format v5](reference/format)
+- [Semantics](reference/semantics)
+- [Conformance](reference/conformance)
+- [Glossary](reference/glossary)

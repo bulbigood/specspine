@@ -9,26 +9,23 @@ Change implementation, tests, and implementation-owned configuration. Never
 change accepted specifications merely to make the implementation pass. Use
 `conform` unless the operator selects another mode.
 
-Use the official `iwe-memory-system` skill for every IWE operation. If it is
-unavailable, obtain it from the official `iwe-org/skills` distribution through
-the environment's supported skill installer and read it before continuing.
+Use the installed official `iwe-memory-system` skill for every IWE operation
+and read it before continuing. If it is unavailable, stop and direct the
+operator to the Specspine README setup.
 
 Before interpreting specifications or changing implementation, read
 [Specspine format](references/specspine-format.md),
 [Specspine semantics](references/specspine-semantics.md), and
 [Specspine conformance](references/specspine-conformance.md) completely. The
-bundled schema is the executable contract for exact document structure; the
-references define authority, boundaries, finding classification, and removal
-authority.
+workspace `.iwe/schemas/specification.yaml` is the executable contract for exact
+document structure; the references define authority, boundaries, finding
+classification, and removal authority.
 
 Resolve the applicable IWE project root as defined by the format reference
-before inspecting configuration or running any IWE command. Use that root as
-the working directory.
-
-Inspect `.iwe/config.toml` and the bundled `assets/iwe` directly. Read
-[IWE project setup](references/iwe-bootstrap.md) only when the Specspine
-template, binding, or schema is missing or conflicting. Do not use or create a
-Specspine bootstrap script.
+before running any IWE command. Use that root as the working directory and read
+its `.iwe/config.toml` once to determine `library.path`. Treat unavailable IWE
+or missing required Specspine configuration as an incomplete setup: stop and
+point to the README instead of installing or repairing it.
 
 ## Modes
 
@@ -54,8 +51,7 @@ Specspine bootstrap script.
    unrelated behavior and use the smallest coherent change.
 7. Add or update focused tests. Run the smallest relevant check, followed by a
    broader suite only when risk justifies it.
-8. Run `iwe schema validate` after implementation and produce a post-change
-   assessment over the same scope.
+8. Produce a post-change assessment over the same scope.
 
 The final response must contain `Pre-change assessment`,
 `Post-change assessment`, and `Finding transitions`. Each assessment contains

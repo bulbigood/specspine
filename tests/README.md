@@ -9,13 +9,13 @@ It uses an isolated copy of `examples/node-express-boilerplate` and verifies:
 - schema rejection of invalid frontmatter and statement syntax;
 - IWE rename with reference updates;
 - equality of the example setup and the canonical shared assets;
-- autonomous copy-installation of every skill and its bundled setup, format,
-  semantics, and workflow-specific conformance references;
+- autonomous copy-installation of every skill with its format, semantics, and
+  workflow-specific conformance references;
 - SSOT symlink integrity, absence of broken links, and absence of physical
   duplicates of shared resources;
 - `docs`, custom-path, and mixed-library IWE scopes with `specs/**` binding;
 - explicit project-root resolution before IWE commands from nested directories;
-- absence of Specspine runtime and bootstrap scripts;
+- absence of Specspine runtime scripts and workflow-skill setup assets;
 - independence of `iwe-spec-implement` from `iwe-spec-verify`.
 
 Run:
@@ -29,7 +29,7 @@ real `npx skills` installer in a temporary consumer workspace:
 
 ```bash
 SPECSPINE_TEST_NPX=1 python3 tests/run_mechanical.py \
-  -p test_installation_and_bootstrap.py
+  -p test_installation_and_setup.py
 ```
 
 ## AI-judged skill evaluations
@@ -47,27 +47,8 @@ skill and two end-to-end workflows against isolated copies of
 `examples/node-express-boilerplate`. The runner invokes one coding agent and a
 separate read-only AI judge. The judge evaluates the request, semantic rubric,
 workspace diff, final workspace, and agent transcript. Workflow scenarios use
-no golden patch. Bootstrap scenarios additionally enforce the safety
-postconditions described below.
-
-Bootstrap scenarios are hybrid evaluations. An AI judge evaluates discovery,
-questions, and setup-reference use, while deterministic postconditions reject
-unsafe filesystem outcomes such as changing a custom library path, widening
-the schema beyond `specs/**`, overwriting a collision, losing partial setup
-content, or modifying a workspace before operator approval. The missing-IWE
-scenario removes the CLI from the agent's `PATH`; it must point to the official
-installation guide and stop without changing the workspace.
-
-The ambiguous-root scenario is multi-turn. Its first Codex turn must ask for
-the owning root without writing; the runner resumes the same thread with the
-operator's answer and mechanically permits changes only below the selected
-package. Multi-turn scenarios therefore require a `codex exec` agent command.
-
-Bootstrap judges use the same scores and hard floors as every other scenario,
-but their prompt calibrates efficiency to necessary setup work: project
-discovery, direct configuration inspection, setup assets, validation, and an authorized
-follow-up turn are not waste by themselves. Redundant searches, repeated reads,
-invalid commands, and unrelated references remain penalized.
+no golden patch. All scenarios start from a workspace already initialized for
+IWE and Specspine, matching the prerequisite documented in the root README.
 
 Every judge must also evaluate what the coding agent actually did and how long
 it worked. The runner supplies exact Codex turn token usage (`input_tokens`,
@@ -91,15 +72,6 @@ repository skills needed by that scenario and the official
 operator request does not name them. Gherkin metadata supplies a hidden
 expected-skill oracle only to the judge. Judges require both the expected
 repository workflow and substantive use of `iwe-memory-system`.
-
-One dedicated scenario intentionally omits `iwe-memory-system` at startup. It
-enables Codex web search and workspace network access, then verifies that the
-agent independently discovers `iwe-org/skills`, installs the official skill,
-reads it, and uses it. Because Codex protects project `.agents/skills` from
-in-session mutation, the scenario grants write access only to its ephemeral
-`CODEX_HOME` and installs there; the runner records presence and a SHA-256 of
-the resulting `SKILL.md`. Necessary discovery and one focused skill installation
-are exempt from ordinary package-install penalties only in that scenario.
 
 List scenarios:
 
