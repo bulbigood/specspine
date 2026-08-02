@@ -5,15 +5,19 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import datetime
 import difflib
 import hashlib
 import json
 import os
 import shlex
 import shutil
+import signal
+import statistics
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,7 +26,11 @@ ROOT = Path(__file__).resolve().parents[2]
 FEATURES = Path(__file__).with_name("features")
 FIXTURE = ROOT / "examples/node-express-boilerplate"
 SCHEMA = Path(__file__).with_name("judge.schema.json")
-DEFAULT_AGENT = "codex exec --ephemeral --skip-git-repo-check -s workspace-write -"
+MEASURE_PROCESS = Path(__file__).with_name("measure_process.py")
+DEFAULT_AGENT = (
+    'codex exec --ephemeral --skip-git-repo-check -s workspace-write '
+    '-m gpt-5.6-terra -c model_reasoning_effort="medium" -'
+)
 DEFAULT_JUDGE = (
     f"codex exec --ephemeral --skip-git-repo-check -s read-only "
     f"-m gpt-5.6-sol -c model_reasoning_effort=\"low\" "
@@ -42,6 +50,14 @@ class Scenario:
     def slug(self) -> str:
         value = "-".join(self.name.lower().split())
         return "".join(ch for ch in value if ch.isalnum() or ch == "-")
+
+
+@dataclass(frozen=True)
+class CommandResult:
+    returncode: int
+    stdout: str
+    stderr: str
+    metrics: dict[str, float | int | None]
 
 
 def parse_feature(path: Path) -> list[Scenario]:
@@ -184,11 +200,45 @@ def diff(before: dict[str, str], after: dict[str, str]) -> str:
     return "\n".join(chunks)
 
 
-def run_command(command: str, prompt: str, cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        shlex.split(command), input=prompt, text=True, capture_output=True,
-        cwd=cwd, timeout=timeout, check=False,
-    )
+def run_command(command: str, prompt: str, cwd: Path, timeout: int) -> CommandResult:
+    arguments = shlex.split(command)
+    started = time.monotonic()
+    metrics: dict[str, float | int | None] = {
+        "wall_seconds": None,
+        "user_cpu_seconds": None,
+        "system_cpu_seconds": None,
+        "total_cpu_seconds": None,
+        "cpu_to_wall_ratio": None,
+        "peak_rss_bytes": None,
+    }
+    with tempfile.TemporaryDirectory(prefix="iwe-command-metrics-") as temporary:
+        metrics_path = Path(temporary) / "time.txt"
+        arguments = [sys.executable, str(MEASURE_PROCESS), str(metrics_path), *arguments]
+        process = subprocess.Popen(
+            arguments,
+            text=True,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=cwd,
+            start_new_session=True,
+        )
+        try:
+            stdout, stderr = process.communicate(prompt, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            stdout, stderr = process.communicate()
+            raise
+        metrics["wall_seconds"] = time.monotonic() - started
+        if metrics_path.is_file():
+            measured = json.loads(metrics_path.read_text(encoding="utf-8"))
+            metrics.update(measured)
+        if metrics["user_cpu_seconds"] is not None and metrics["system_cpu_seconds"] is not None:
+            total_cpu = float(metrics["user_cpu_seconds"]) + float(metrics["system_cpu_seconds"])
+            metrics["total_cpu_seconds"] = total_cpu
+            wall = float(metrics["wall_seconds"] or 0)
+            metrics["cpu_to_wall_ratio"] = total_cpu / wall if wall else None
+    return CommandResult(process.returncode, stdout, stderr, metrics)
 
 
 def install_project_skills(workspace: Path) -> None:
@@ -219,12 +269,32 @@ def agent_prompt(scenario: Scenario) -> str:
     )
 
 
-def judge_prompt(scenario: Scenario, transcript: str, changes: str) -> str:
+def judge_prompt(
+    scenario: Scenario,
+    transcript: str,
+    changes: str,
+    agent_metrics: dict[str, float | int | None],
+) -> str:
     return f"""You are the independent AI judge for a skill integration test.
 Inspect the current workspace directly. Evaluate semantics, not exact strings or a mechanical
 golden patch. Do not modify files. Be strict: pass only if the operator request and rubric are
 substantively satisfied. Agent claims are not evidence unless supported by workspace artifacts
 or credible command output. A score below 80 must set pass=false.
+
+Also evaluate what work the AI agent actually performed and how efficiently it performed it.
+Treat wall time, CPU time, CPU-to-wall ratio, and peak resident memory as additional evaluation
+dimensions. Do not penalize long wall time in isolation: distinguish active CPU work, waiting,
+and memory pressure using the supplied measurements and the task's complexity. Penalize clearly
+excessive work, repeated unnecessary operations, or disproportionate resource consumption, but
+keep correctness and safety primary. Explain this judgment in the required efficiency object.
+
+Assume the tested AI agent is capable of solving the task at a high quality bar. Evaluate whether
+it used the available tools as efficiently as reasonably possible and made the decisions required
+by both the scenario instructions and every repository-local skill explicitly required by the
+scenario. Read those required skill instructions from `.agents/skills/` and judge substantive
+compliance, including their guardrails and decision rules. Do not evaluate compliance with skills,
+policies, or instructions that are not contained in this test repository. Do not reward accidental
+success that bypasses a required decision or required skill procedure.
 
 Feature: {scenario.feature}
 Scenario: {scenario.name}
@@ -239,6 +309,9 @@ Workspace diff produced by the agent:
 
 Agent final output and command log:
 {transcript}
+
+Measured agent process resources:
+{json.dumps(agent_metrics, indent=2)}
 
 Return only the JSON object required by the configured schema.
 """
@@ -255,6 +328,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--list", action="store_true", help="list scenarios without running")
     parser.add_argument("--keep-workspaces", action="store_true")
     parser.add_argument("--jobs", type=int, default=10, help="parallel scenarios (default: 10)")
+    parser.add_argument("--samples", type=int, default=1, help="independent runs per scenario (default: 1)")
+    parser.add_argument(
+        "--min-pass-rate",
+        type=float,
+        default=1.0,
+        help="required pass ratio per scenario (default: 1.0)",
+    )
     parser.add_argument("--timeout", type=int, default=1800)
     parser.add_argument("--agent-command", default=os.environ.get("SPECSPINE_AGENT_COMMAND", DEFAULT_AGENT))
     parser.add_argument("--judge-command", default=os.environ.get("SPECSPINE_JUDGE_COMMAND", DEFAULT_JUDGE))
@@ -272,6 +352,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("no scenarios selected")
     if args.jobs < 1:
         parser.error("--jobs must be at least 1")
+    if args.samples < 1:
+        parser.error("--samples must be at least 1")
+    if not 0 <= args.min_pass_rate <= 1:
+        parser.error("--min-pass-rate must be between 0 and 1")
 
     dependency_root = FIXTURE / "node_modules"
     if not (dependency_root / ".bin/jest").is_file():
@@ -298,11 +382,15 @@ def main(argv: list[str] | None = None) -> int:
     if runtime_probe.returncode != 0:
         parser.error("could not start the fixture's in-memory MongoDB test runtime")
 
-    report_dir = Path(__file__).with_name("reports")
-    report_dir.mkdir(exist_ok=True)
+    report_root = Path(__file__).with_name("reports")
+    report_root.mkdir(exist_ok=True)
+    run_id = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S.%fZ")
+    report_dir = report_root / run_id
+    report_dir.mkdir()
 
-    def run_scenario(scenario: Scenario) -> bool:
-        temporary = Path(tempfile.mkdtemp(prefix=f"iwe-eval-{scenario.slug[:32]}-"))
+    def run_sample(task: tuple[Scenario, int]) -> dict[str, object]:
+        scenario, sample = task
+        temporary = Path(tempfile.mkdtemp(prefix=f"iwe-eval-{scenario.slug[:24]}-{sample}-"))
         workspace = temporary / "workspace"
         try:
             shutil.copytree(FIXTURE, workspace, ignore=shutil.ignore_patterns("node_modules"))
@@ -315,30 +403,173 @@ def main(argv: list[str] | None = None) -> int:
             after = files(workspace)
             changes = diff(before, after)
             transcript = f"exit={agent.returncode}\nstdout:\n{agent.stdout}\nstderr:\n{agent.stderr}"
-            judge = run_command(args.judge_command, judge_prompt(scenario, transcript, changes), workspace, args.timeout)
+            judge = run_command(
+                args.judge_command,
+                judge_prompt(scenario, transcript, changes, agent.metrics),
+                workspace,
+                args.timeout,
+            )
             try:
                 verdict = json.loads(judge.stdout)
             except json.JSONDecodeError:
-                verdict = {"pass": False, "score": 0, "rationale": "Judge returned invalid JSON", "evidence": [judge.stdout, judge.stderr]}
+                verdict = {
+                    "pass": False,
+                    "score": 0,
+                    "rationale": "Judge returned invalid JSON",
+                    "evidence": [judge.stdout, judge.stderr],
+                    "efficiency": {
+                        "rating": "inefficient",
+                        "rationale": "Efficiency could not be judged because the judge output was invalid.",
+                    },
+                }
+            if not isinstance(verdict.get("efficiency"), dict):
+                verdict["pass"] = False
+                verdict["efficiency"] = {
+                    "rating": "inefficient",
+                    "rationale": "Judge omitted the required efficiency evaluation.",
+                }
             if agent.returncode != 0 or judge.returncode != 0:
                 verdict["pass"] = False
                 verdict["rationale"] = f"Execution failure. {verdict.get('rationale', '')}".strip()
-            result = {"feature": scenario.feature, "scenario": scenario.name, "preparation": scenario.preparation, "agent_exit": agent.returncode, "judge_exit": judge.returncode, "verdict": verdict, "workspace": str(workspace) if args.keep_workspaces else None}
-            (report_dir / f"{scenario.slug}.json").write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            result: dict[str, object] = {
+                "feature": scenario.feature,
+                "scenario": scenario.name,
+                "sample": sample,
+                "preparation": scenario.preparation,
+                "agent_exit": agent.returncode,
+                "judge_exit": judge.returncode,
+                "agent_metrics": agent.metrics,
+                "judge_metrics": judge.metrics,
+                "verdict": verdict,
+                "workspace": str(workspace) if args.keep_workspaces else None,
+            }
+            (report_dir / f"{scenario.slug}--sample-{sample:03}.json").write_text(
+                json.dumps(result, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
             status = "PASS" if verdict.get("pass") else "FAIL"
             print(
-                f"{status} {scenario.name}: {verdict.get('score', 0)} — "
+                f"{status} {scenario.name} [sample {sample}/{args.samples}]: "
+                f"{verdict.get('score', 0)} — "
                 f"{verdict.get('rationale', '')}",
                 flush=True,
             )
-            return bool(verdict.get("pass"))
+            return result
         finally:
             if not args.keep_workspaces:
                 shutil.rmtree(temporary)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=min(args.jobs, len(scenarios))) as executor:
-        results = list(executor.map(run_scenario, scenarios))
-    return 0 if all(results) else 1
+    tasks = [(scenario, sample) for scenario in scenarios for sample in range(1, args.samples + 1)]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(args.jobs, len(tasks))) as executor:
+        results = list(executor.map(run_sample, tasks))
+
+    def measurement_summary(items: list[dict[str, object]], key: str) -> dict[str, float] | None:
+        values = [
+            float(item["agent_metrics"][key])
+            for item in items
+            if item["agent_metrics"].get(key) is not None
+        ]
+        if not values:
+            return None
+        return {
+            "mean": statistics.fmean(values),
+            "median": statistics.median(values),
+            "min": min(values),
+            "max": max(values),
+            "stddev": statistics.pstdev(values),
+        }
+
+    def resource_summary(items: list[dict[str, object]]) -> dict[str, object]:
+        return {
+            key: measurement_summary(items, key)
+            for key in (
+                "wall_seconds",
+                "total_cpu_seconds",
+                "cpu_to_wall_ratio",
+                "peak_rss_bytes",
+            )
+        }
+
+    scenario_summaries: list[dict[str, object]] = []
+    for scenario in scenarios:
+        samples = [result for result in results if result["scenario"] == scenario.name]
+        verdicts = [result["verdict"] for result in samples]
+        scores = [int(verdict["score"]) for verdict in verdicts]
+        passes = sum(bool(verdict["pass"]) for verdict in verdicts)
+        pass_rate = passes / len(verdicts)
+        scenario_summaries.append(
+            {
+                "feature": scenario.feature,
+                "scenario": scenario.name,
+                "samples": len(verdicts),
+                "passes": passes,
+                "pass_rate": pass_rate,
+                "score": {
+                    "mean": statistics.fmean(scores),
+                    "median": statistics.median(scores),
+                    "min": min(scores),
+                    "max": max(scores),
+                    "stddev": statistics.pstdev(scores),
+                },
+                "agent_resources": resource_summary(samples),
+                "efficiency_ratings": {
+                    rating: sum(
+                        verdict["efficiency"]["rating"] == rating
+                        for verdict in verdicts
+                    )
+                    for rating in ("efficient", "acceptable", "inefficient")
+                },
+                "accepted": pass_rate >= args.min_pass_rate,
+            }
+        )
+
+    all_scores = [int(result["verdict"]["score"]) for result in results]
+    all_passes = sum(bool(result["verdict"]["pass"]) for result in results)
+    summary = {
+        "run_id": run_id,
+        "configuration": {
+            "scenarios": len(scenarios),
+            "samples_per_scenario": args.samples,
+            "total_samples": len(results),
+            "jobs": min(args.jobs, len(tasks)),
+            "min_pass_rate": args.min_pass_rate,
+        },
+        "overall": {
+            "passes": all_passes,
+            "pass_rate": all_passes / len(results),
+            "score": {
+                "mean": statistics.fmean(all_scores),
+                "median": statistics.median(all_scores),
+                "min": min(all_scores),
+                "max": max(all_scores),
+                "stddev": statistics.pstdev(all_scores),
+            },
+            "agent_resources": resource_summary(results),
+            "efficiency_ratings": {
+                rating: sum(
+                    result["verdict"]["efficiency"]["rating"] == rating
+                    for result in results
+                )
+                for rating in ("efficient", "acceptable", "inefficient")
+            },
+        },
+        "scenarios": scenario_summaries,
+    }
+    (report_dir / "summary.json").write_text(
+        json.dumps(summary, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    print(f"\nSummary: {report_dir}")
+    for item in scenario_summaries:
+        score = item["score"]
+        print(
+            f"{'PASS' if item['accepted'] else 'FAIL'} {item['scenario']}: "
+            f"pass_rate={item['pass_rate']:.1%}, mean={score['mean']:.2f}, "
+            f"median={score['median']:.2f}, min={score['min']}, max={score['max']}, "
+            f"stddev={score['stddev']:.2f}, "
+            f"wall_mean={item['agent_resources']['wall_seconds']['mean']:.2f}s"
+        )
+    return 0 if all(item["accepted"] for item in scenario_summaries) else 1
 
 
 if __name__ == "__main__":
