@@ -10,7 +10,11 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SKILL_NAMES = tuple(f"iwe-spec-{name}" for name in ("map", "specify", "verify", "implement"))
+WORKFLOW_SKILL_NAMES = tuple(
+    f"iwe-spec-{name}" for name in ("map", "specify", "verify", "implement")
+)
+SETUP_SKILL_NAME = "iwe-spec-setup"
+ALL_SKILL_NAMES = (SETUP_SKILL_NAME, *WORKFLOW_SKILL_NAMES)
 SHARED = ROOT / "shared"
 EXAMPLE = ROOT / "examples/node-express-boilerplate"
 
@@ -25,10 +29,22 @@ class InstallationIntegrityTests(unittest.TestCase):
     def test_every_skill_has_an_autonomous_copy_install(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "installed"
-            for name in SKILL_NAMES:
+            for name in ALL_SKILL_NAMES:
                 shutil.copytree(ROOT / "skills" / name, destination / name, symlinks=False)
 
-            for name in SKILL_NAMES:
+            setup = destination / SETUP_SKILL_NAME
+            self.assertTrue((setup / "SKILL.md").is_file())
+            self.assertFalse((setup / "references").exists())
+            self.assertFalse((setup / "scripts").exists())
+            for relative in ("config.toml", "schemas/specification.yaml"):
+                installed_asset = setup / "assets/iwe" / relative
+                self.assertFalse(installed_asset.is_symlink())
+                self.assertEqual(
+                    (SHARED / "assets/iwe" / relative).read_bytes(),
+                    installed_asset.read_bytes(),
+                )
+
+            for name in WORKFLOW_SKILL_NAMES:
                 installed = destination / name
                 self.assertTrue((installed / "SKILL.md").is_file())
                 for reference in (
@@ -65,14 +81,19 @@ class InstallationIntegrityTests(unittest.TestCase):
         expected_links = [
             *(
                 ROOT / "skills" / name / f"references/specspine-{reference}.md"
-                for name in SKILL_NAMES
+                for name in WORKFLOW_SKILL_NAMES
                 for reference in ("format", "semantics")
             ),
             *(
                 ROOT / "skills" / name / "references/specspine-conformance.md"
                 for name in ("iwe-spec-verify", "iwe-spec-implement")
             ),
-            *(ROOT / "docs/reference" / f"{reference}.md" for reference in ("format", "semantics", "conformance")),
+            *(
+                ROOT / "docs/reference" / f"{reference}.md"
+                for reference in ("format", "semantics", "conformance")
+            ),
+            ROOT / "skills/iwe-spec-setup/assets/iwe/config.toml",
+            ROOT / "skills/iwe-spec-setup/assets/iwe/schemas/specification.yaml",
         ]
         for link in expected_links:
             self.assertTrue(link.is_symlink(), f"expected symlink: {link}")
@@ -111,9 +132,61 @@ class InstallationIntegrityTests(unittest.TestCase):
 
     def test_skills_have_no_specspine_runtime_scripts(self) -> None:
         self.assertFalse((SHARED / "scripts").exists())
-        for name in SKILL_NAMES:
+        for name in ALL_SKILL_NAMES:
             self.assertFalse((ROOT / "skills" / name / "scripts").exists())
+        for name in WORKFLOW_SKILL_NAMES:
             self.assertFalse((ROOT / "skills" / name / "assets").exists())
+
+    def test_setup_skill_is_declarative_and_idempotent_by_contract(self) -> None:
+        skill = (ROOT / "skills/iwe-spec-setup/SKILL.md").read_text(encoding="utf-8")
+        compact = " ".join(skill.split())
+        self.assertIn("iwe init --auto --library <chosen-relative-path>", skill)
+        self.assertIn("iwe schema validate", skill)
+        self.assertIn("official IWE GitHub README", compact)
+        self.assertIn("ask the user which one to use", compact)
+        self.assertIn("obtain approval before running it", compact)
+        self.assertIn("strict descendant of the resolved IWE library root", compact)
+        self.assertIn("This skill contains no scripts", skill)
+        self.assertIn("Make the operation idempotent", compact)
+        self.assertIn("Never replace the generated configuration", compact)
+        self.assertTrue(
+            (ROOT / "skills/iwe-spec-setup/assets/iwe/config.toml").is_symlink()
+        )
+        self.assertTrue(
+            (
+                ROOT
+                / "skills/iwe-spec-setup/assets/iwe/schemas/specification.yaml"
+            ).is_symlink()
+        )
+
+    def test_readme_documents_guided_setup_and_manual_fallback(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("iwe-org/skills --skill iwe-memory-system", readme)
+        self.assertIn("$iwe-spec-setup", readme)
+        self.assertIn("Which directory inside the workspace", readme)
+        self.assertIn("rejects paths outside the IWE library", readme)
+        self.assertIn("<details>", readme)
+        self.assertIn("Manual workspace setup", readme)
+        self.assertIn("iwe init --auto --library docs", readme)
+        self.assertIn("[templates.specification]", readme)
+        self.assertIn("[schemas.specification]", readme)
+        self.assertIn('match = "specs/**"', readme)
+        self.assertIn(".iwe/schemas/specification.yaml", readme)
+
+    def test_workflow_skills_delegate_incomplete_setup(self) -> None:
+        for name in WORKFLOW_SKILL_NAMES:
+            skill_dir = ROOT / "skills" / name
+            skill = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+            compact = " ".join(skill.split())
+            self.assertIn("installed official `iwe-memory-system` skill", compact)
+            self.assertIn("read it before continuing", compact)
+            self.assertIn("ask the operator to run `iwe-spec-setup`", compact)
+            self.assertIn("README manual fallback", compact)
+            self.assertIn("Do not install or repair setup from this workflow", compact)
+            self.assertIn("workspace `.iwe/schemas/specification.yaml`", skill)
+            self.assertIn("`iwe schema validate`", skill)
+            self.assertNotIn("iwe-readiness.sh", skill)
+            self.assertFalse((skill_dir / "assets").exists())
 
 
 @unittest.skipUnless(
@@ -230,6 +303,30 @@ class SetupConfigurationTests(unittest.TestCase):
         keys = set(iwe(workspace, "find", "-f", "keys").stdout.splitlines())
         self.assertIn("ordinary", keys)
         self.assertIn("specs/authentication", keys)
+
+    def test_nested_specspine_directory_uses_library_relative_keys(self) -> None:
+        workspace = self.copy_example()
+        nested = workspace / "docs/architecture/specs"
+        nested.mkdir(parents=True)
+        for document in (workspace / "docs/specs").glob("*.md"):
+            shutil.move(str(document), nested / document.name)
+        shutil.rmtree(workspace / "docs/specs")
+        config = workspace / ".iwe/config.toml"
+        config.write_text(
+            config.read_text(encoding="utf-8")
+            .replace(
+                'key_template = "specs/{{slug}}"',
+                'key_template = "architecture/specs/{{slug}}"',
+            )
+            .replace('match = "specs/**"', 'match = "architecture/specs/**"'),
+            encoding="utf-8",
+        )
+
+        validation = iwe(workspace, "schema", "validate")
+
+        self.assertEqual(validation.returncode, 0, validation.stderr + validation.stdout)
+        keys = set(iwe(workspace, "find", "-f", "keys").stdout.splitlines())
+        self.assertIn("architecture/specs/authentication", keys)
 
 
 if __name__ == "__main__":

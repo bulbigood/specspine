@@ -10,9 +10,9 @@ iwe init --auto --library docs
 
 Before any IWE command, resolve the applicable project root by checking the task working directory and its ancestors for `.iwe/config.toml`. For a task that explicitly spans packages, also inspect only the task-relevant descendants. Run IWE from the directory containing the selected `.iwe/`. If several roots plausibly own the task, ask the operator which one to use before changing anything. Do not assume that IWE invoked below a project root will discover its ancestor configuration.
 
-Specspine documents live below `docs/specs/`. The `specification` template uses `key_template = "specs/{{slug}}"`, and the schema binding matches `specs/**`. Other Markdown files in the IWE library remain ordinary IWE documents.
+Specspine documents live in a configured directory strictly below `library.path`. The default library-relative prefix is `specs`, so `library.path = "docs"` produces `docs/specs/`; a project may choose another contained prefix such as `architecture/specs`. The `specification` template key and schema match must use the same library-relative prefix. Other Markdown files in the IWE library remain ordinary IWE documents.
 
-An existing configured `library.path` is authoritative. Apply the same `specs/**` scope relative to that library unless the project already has an explicit compatible convention.
+An existing configured `library.path` and compatible Specspine template/schema prefix are authoritative. Resolve physical paths from the library and derive IWE document keys relative to it; do not assume the default `docs/specs/` layout.
 
 There is no `specspine.json`, `_INDEX.md`, required README, nested Spine root, or generated navigation artifact.
 

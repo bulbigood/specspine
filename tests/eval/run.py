@@ -74,6 +74,7 @@ class Scenario:
     skills: tuple[str, ...]
     request: str
     rubric: str
+    replies: tuple[str, ...] = ()
 
     @property
     def slug(self) -> str:
@@ -162,7 +163,7 @@ def parse_codex_jsonl(stdout: str) -> tuple[str, dict[str, int | None], str, str
 
 def parse_feature(path: Path) -> list[Scenario]:
     feature = ""
-    current: dict[str, str] | None = None
+    current: dict[str, object] | None = None
     scenarios: list[Scenario] = []
     capture: str | None = None
     captured: list[str] = []
@@ -170,7 +171,14 @@ def parse_feature(path: Path) -> list[Scenario]:
     def finish_capture() -> None:
         nonlocal capture, captured
         if current is not None and capture:
-            current[capture] = "\n".join(captured).strip()
+            value = "\n".join(captured).strip()
+            if capture == "reply":
+                replies = current.setdefault("_replies", [])
+                if not isinstance(replies, list):
+                    raise ValueError(f"{path}: invalid reply accumulator")
+                replies.append(value)
+            else:
+                current[capture] = value
         capture, captured = None, []
 
     def finish_scenario() -> None:
@@ -182,7 +190,11 @@ def parse_feature(path: Path) -> list[Scenario]:
             raise ValueError(f"{path}: incomplete scenario {current.get('name')}: {sorted(missing)}")
         values = dict(current)
         values.pop("_capture_next", None)
-        values["skills"] = tuple(item.strip() for item in values["skills"].split(","))
+        raw_skills = values["skills"]
+        if not isinstance(raw_skills, str):
+            raise ValueError(f"{path}: invalid skills value")
+        values["skills"] = tuple(item.strip() for item in raw_skills.split(","))
+        values["replies"] = tuple(values.pop("_replies", []))
         scenarios.append(Scenario(feature=feature, **values))
 
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -210,6 +222,8 @@ def parse_feature(path: Path) -> list[Scenario]:
             current["skills"] = line.split('"', 2)[1]
         elif line.startswith("When the operator asks:") and current is not None:
             current["_capture_next"] = "request"
+        elif line.startswith("And the operator replies:") and current is not None:
+            current["_capture_next"] = "reply"
         elif line.startswith("Then the AI judge verifies:") and current is not None:
             current["_capture_next"] = "rubric"
     finish_capture()
@@ -226,6 +240,19 @@ def replace(path: Path, old: str, new: str) -> None:
 
 def prepare(workspace: Path, name: str) -> None:
     if name == "baseline":
+        return
+    if name in {"setup-new-custom-scope", "setup-new-contained-scope"}:
+        shutil.rmtree(workspace / ".iwe")
+        shutil.rmtree(workspace / "docs/specs")
+        return
+    if name == "setup-existing-workspace":
+        return
+    if name == "setup-config-collision":
+        replace(
+            workspace / ".iwe/config.toml",
+            'key_template = "specs/{{slug}}"',
+            'key_template = "owner-specific/{{slug}}"',
+        )
         return
     authentication = workspace / "docs/specs/authentication.md"
     if name == "missing-inactive-login":
@@ -522,12 +549,153 @@ def absolute_command_executable(command: str) -> str:
     return shlex.join(arguments)
 
 
+def persistent_agent_command(command: str) -> str:
+    arguments = shlex.split(command)
+    arguments = [argument for argument in arguments if argument != "--ephemeral"]
+    return shlex.join(arguments)
+
+
+def resume_agent_command(command: str, thread_id: str) -> str:
+    """Build a Codex resume command while retaining compatible model options."""
+    arguments = shlex.split(command)
+    if len(arguments) < 2 or Path(arguments[0]).name != "codex" or arguments[1] != "exec":
+        raise ValueError("multi-turn scenarios require a codex exec agent command")
+    resumed = [arguments[0], "exec", "resume"]
+    index = 2
+    valueless = {"--json", "--ignore-user-config", "--skip-git-repo-check"}
+    valued = {"-m", "--model", "-c", "--config", "--enable", "--disable"}
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument in valueless:
+            resumed.append(argument)
+            index += 1
+        elif argument in valued and index + 1 < len(arguments):
+            resumed.extend((argument, arguments[index + 1]))
+            index += 2
+        elif argument in {"-s", "--sandbox"} and index + 1 < len(arguments):
+            resumed.extend(("-c", f'sandbox_mode="{arguments[index + 1]}"'))
+            index += 2
+        else:
+            index += 1
+    resumed.extend((thread_id, "-"))
+    return shlex.join(resumed)
+
+
+def combine_command_results(results: list[CommandResult]) -> CommandResult:
+    if len(results) == 1:
+        return results[0]
+    metrics: dict[str, float | int | None] = {}
+    for key in results[0].metrics:
+        values = [result.metrics.get(key) for result in results]
+        numeric = [float(value) for value in values if isinstance(value, (int, float))]
+        metrics[key] = sum(numeric) if numeric else None
+    peaks = [
+        result.metrics.get("peak_rss_bytes")
+        for result in results
+        if isinstance(result.metrics.get("peak_rss_bytes"), (int, float))
+    ]
+    metrics["peak_rss_bytes"] = max(peaks) if peaks else None
+    wall = float(metrics.get("wall_seconds") or 0)
+    cpu = float(metrics.get("total_cpu_seconds") or 0)
+    metrics["cpu_to_wall_ratio"] = cpu / wall if wall else None
+    thread_id = next(
+        (result.thread_id for result in reversed(results) if result.thread_id),
+        None,
+    )
+    return CommandResult(
+        max(result.returncode for result in results),
+        "\n\n".join(result.stdout for result in results),
+        "\n\n".join(result.stderr for result in results),
+        metrics,
+        "\n".join(result.event_log for result in results),
+        thread_id,
+        "\n".join(result.raw_stdout for result in results),
+        tuple(part for result in results for part in (*result.command, "<next-turn>")),
+        results[-1].cwd,
+        results[-1].codex_home,
+        results[-1].session_storage,
+        results[-1].ephemeral,
+        any(result.timed_out for result in results),
+    )
+
+
+def setup_postcondition_errors(
+    scenario: Scenario,
+    workspace: Path,
+    before: dict[str, str],
+    turn_states: list[dict[str, str]],
+) -> list[str]:
+    """Supplement setup judging with deterministic filesystem assertions."""
+    if not scenario.preparation.startswith("setup-"):
+        return []
+    errors: list[str] = []
+    after = turn_states[-1]
+    config = after.get(".iwe/config.toml", "")
+    schema_path = workspace / ".iwe/schemas/specification.yaml"
+
+    if scenario.preparation in {"setup-new-custom-scope", "setup-new-contained-scope"}:
+        if scenario.preparation == "setup-new-custom-scope":
+            expected = (
+                'path = "knowledge"',
+                'key_template = "architecture/specs/{{slug}}"',
+                'match = "architecture/specs/**"',
+            )
+            expected_directory = workspace / "knowledge/architecture/specs"
+        else:
+            expected = (
+                'path = "docs"',
+                'key_template = "specs/{{slug}}"',
+                'match = "specs/**"',
+            )
+            expected_directory = workspace / "docs/specs"
+            if (workspace / "specs").exists():
+                errors.append("setup created a Specspine directory outside the IWE library")
+        for value in expected:
+            if value not in config:
+                errors.append(f"final IWE config is missing {value}")
+        if not expected_directory.is_dir():
+            errors.append("setup did not create the confirmed Specspine directory")
+        if not schema_path.is_file():
+            errors.append("setup did not install the canonical schema")
+        elif schema_path.read_bytes() != (ROOT / "shared/assets/iwe/schemas/specification.yaml").read_bytes():
+            errors.append("installed Specspine schema differs from the canonical asset")
+        for state in turn_states[:-1]:
+            intermediate_config = state.get(".iwe/config.toml", "")
+            if "[templates.specification]" in intermediate_config:
+                errors.append("setup installed the template before final path confirmation")
+                break
+            if ".iwe/schemas/specification.yaml" in state:
+                errors.append("setup installed the schema before final path confirmation")
+                break
+        if schema_path.is_file():
+            validation = subprocess.run(
+                ["iwe", "schema", "validate"],
+                cwd=workspace,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            if validation.returncode != 0:
+                errors.append(
+                    "final IWE schema validation failed: "
+                    + (validation.stderr or validation.stdout).strip()
+                )
+    elif scenario.preparation in {"setup-existing-workspace", "setup-config-collision"}:
+        if before != after:
+            errors.append("setup changed an existing workspace that should remain unchanged")
+    return errors
+
+
 def agent_prompt(scenario: Scenario) -> str:
     return (
         "You are working in an isolated copy of the project. This copy intentionally "
         "has no .git directory and is not a Git repository.\n\n"
         f"Operator request:\n{scenario.request}\n"
     )
+
+
+def agent_reply_prompt(reply: str) -> str:
+    return f"Operator reply:\n{reply}\n"
 
 
 def judge_framework_context() -> str:
@@ -537,6 +705,17 @@ def judge_framework_context() -> str:
         relative = path.relative_to(ROOT)
         sections.append(f"--- {relative} ---\n{path.read_text(encoding='utf-8').rstrip()}")
     return "\n\n".join(sections)
+
+
+def scenario_judge_instruction(scenario: Scenario) -> str:
+    if not scenario.preparation.startswith("setup-"):
+        return ""
+    return """This is an interactive setup scenario. IWE was already installed, so the agent
+must verify it but must not reinstall it. Each operator reply is a separate turn supplied only
+after the preceding agent response. Judge whether the agent asked and resolved one setup decision
+at a time, preserved unrelated state, delayed Specspine configuration until final path confirmation,
+and followed the dedicated `iwe-spec-setup` skill rather than an operational workflow.
+"""
 
 
 def judge_prompt(
@@ -584,6 +763,8 @@ Every scenario requires substantive use of the official `iwe-memory-system` skil
 It was preinstalled in the isolated workspace. Require the agent to read and substantively use it,
 and keep ordinary package-install penalties.
 
+{scenario_judge_instruction(scenario)}
+
 The following judge-only documents are the authoritative Specspine philosophy, format, semantics,
 and conformance rules. They have higher authority than repository skill instructions, skill
 references, and the scenario rubric. Apply the lower-level sources only where they are consistent
@@ -625,6 +806,9 @@ Expected skill selection (hidden from the agent):
 {', '.join(expected_skill_names(scenario))}
 Operator request:
 {scenario.request}
+
+Operator follow-up replies:
+{chr(10).join(f'{index}. {reply}' for index, reply in enumerate(scenario.replies, 1)) or '<none>'}
 
 Rubric:
 {scenario.rubric}
@@ -794,18 +978,42 @@ def main(argv: list[str] | None = None) -> int:
             before = files(workspace)
             agent_input = agent_prompt(scenario)
             configured_agent_command = absolute_command_executable(args.agent_command)
-            agent = run_command(
+            if scenario.replies:
+                configured_agent_command = persistent_agent_command(configured_agent_command)
+            agent_turns = [run_command(
                 configured_agent_command,
                 agent_input,
                 workspace,
                 args.timeout,
                 process_environment,
-            )
-            after = files(workspace)
+            )]
+            turn_states = [files(workspace)]
+            thread_id = agent_turns[0].thread_id
+            for reply in scenario.replies:
+                if agent_turns[-1].returncode != 0:
+                    break
+                if not thread_id:
+                    raise RuntimeError("multi-turn agent did not return a thread id")
+                next_turn = run_command(
+                    resume_agent_command(configured_agent_command, thread_id),
+                    agent_reply_prompt(reply),
+                    workspace,
+                    args.timeout,
+                    process_environment,
+                )
+                agent_turns.append(next_turn)
+                turn_states.append(files(workspace))
+                thread_id = next_turn.thread_id or thread_id
+            agent = combine_command_results(agent_turns)
+            after = turn_states[-1]
             changes = diff(before, after)
-            transcript = (
-                f"exit={agent.returncode}\n"
-                f"events/stdout:\n{agent.event_log}\nstderr:\n{agent.stderr}"
+            postcondition_errors = setup_postcondition_errors(
+                scenario, workspace, before, turn_states
+            )
+            transcript = "\n\n".join(
+                f"turn={index} exit={turn.returncode}\n"
+                f"events/stdout:\n{turn.event_log}\nstderr:\n{turn.stderr}"
+                for index, turn in enumerate(agent_turns, 1)
             )
             judge_input = judge_prompt(scenario, transcript, changes, agent.metrics)
             judge = run_command(
@@ -815,8 +1023,13 @@ def main(argv: list[str] | None = None) -> int:
                 args.timeout,
                 process_environment,
             )
+            delivered_replies = scenario.replies[: max(0, len(agent_turns) - 1)]
+            recorded_agent_input = agent_input + "".join(
+                f"\n--- next turn ---\n{agent_reply_prompt(reply)}"
+                for reply in delivered_replies
+            )
             agent_telemetry = write_command_telemetry(
-                artifact_dir, "agent", agent, agent_input
+                artifact_dir, "agent", agent, recorded_agent_input
             )
             judge_telemetry = write_command_telemetry(artifact_dir, "judge", judge, judge_input)
             for telemetry in (agent_telemetry, judge_telemetry):
@@ -838,12 +1051,23 @@ def main(argv: list[str] | None = None) -> int:
             if agent.returncode != 0 or judge.returncode != 0:
                 verdict["pass"] = False
                 verdict["rationale"] = f"Execution failure. {verdict.get('rationale', '')}".strip()
+            if postcondition_errors:
+                verdict["pass"] = False
+                verdict["rationale"] = (
+                    "Mechanical postcondition failure: "
+                    + "; ".join(postcondition_errors)
+                    + ". "
+                    + str(verdict.get("rationale", ""))
+                ).strip()
             result: dict[str, object] = {
                 "feature": scenario.feature,
                 "scenario": scenario.name,
                 "sample": sample,
                 "preparation": scenario.preparation,
                 "initial_skills": installed_skills,
+                "operator_replies": list(scenario.replies),
+                "agent_turns": len(agent_turns),
+                "mechanical_postcondition_errors": postcondition_errors,
                 "agent_exit": agent.returncode,
                 "judge_exit": judge.returncode,
                 "agent_metrics": agent.metrics,

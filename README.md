@@ -23,24 +23,81 @@ document lifecycle beside IWE.
 
 | Skill | Purpose |
 | --- | --- |
+| `iwe-spec-setup` | Initialize or repair the one-time Specspine workspace configuration. |
 | `iwe-spec-map` | Record boundary-significant implementation evidence without inventing intent. |
 | `iwe-spec-specify` | Create or refine accepted requirements and architecture. |
 | `iwe-spec-verify` | Compare implementation evidence with accepted specifications without editing specifications or code. |
 | `iwe-spec-implement` | Bring implementation into conformance without weakening the specification. |
 
-The workflows are independently installable and share the setup prerequisites
-below. They can also be combined for Map → Specify → Verify → Implement →
+The setup skill and four operational workflows are independently installable.
+The workflows can also be combined for Map → Specify → Verify → Implement →
 Verify work.
 
 ## Setup
 
 Complete this setup before using any Specspine workflow.
 
-### 1. Install and initialize IWE
+### 1. Install the agent skills
 
-Install IWE by following the
+Install the official IWE skill used by every Specspine workflow:
+
+```bash
+npx skills add iwe-org/skills --skill iwe-memory-system
+```
+
+Then install Specspine, including its setup and workflow skills:
+
+```bash
+npx skills add bulbigood/specspine
+```
+
+To install one workflow explicitly, use `--skill`, for example:
+
+```bash
+npx skills add bulbigood/specspine --skill iwe-spec-map
+```
+
+`iwe-memory-system` is an agent instruction dependency, not an additional
+runtime or storage layer. IWE remains the only Specspine runtime dependency.
+
+### 2. Run the guided setup
+
+From the workspace root, ask your agent:
+
+> Use `$iwe-spec-setup` to guide me through installing IWE and configuring
+> Specspine in this workspace.
+
+The setup skill is an interactive, script-free guide. It first checks whether
+IWE is available. If not, it reads the current official IWE installation
+instructions, presents compatible options, and runs only the method selected
+and approved by the user. You may also install IWE beforehand from the
 [official installation guide](https://iwe.md/docs/getting-started/installation/).
-IWE is the only Specspine runtime dependency.
+
+The skill then asks:
+
+1. Which directory inside the workspace should be the IWE Markdown library
+   (`library.path`). It offers `docs` for a new workspace.
+2. Which directory inside that library should contain Specspine documents. It
+   offers `<library.path>/specs` and rejects paths outside the IWE library.
+
+After confirmation it initializes IWE if needed, derives the template key and
+schema match from the selected Specspine directory, merges only the Specspine
+configuration, installs the canonical document schema, and runs
+`iwe schema validate`. Existing settings or conflicting Specspine configuration
+are not overwritten without approval.
+
+The workflow skills assume that setup is complete; they do not install or
+repair IWE or Specspine configuration.
+
+<details>
+<summary>Manual workspace setup if the setup skill is unavailable or fails</summary>
+
+#### Install IWE manually
+
+Follow the [official IWE installation guide](https://iwe.md/docs/getting-started/installation/)
+and verify that `iwe --version` succeeds.
+
+#### Initialize IWE manually
 
 From the workspace root, initialize an IWE project with `docs` as its Markdown
 library:
@@ -64,7 +121,7 @@ relative to that library. See the official
 For all available `.iwe/config.toml` options, see the official
 [IWE configuration reference](https://iwe.md/docs/configuration/).
 
-### 2. Add the Specspine template and schema binding
+#### Add the Specspine template and schema binding
 
 Append the following tables to `.iwe/config.toml`. Do not replace the generated
 configuration or unrelated IWE settings.
@@ -103,17 +160,31 @@ implementation_freedom: contract-equivalent
 match = "specs/**"
 ```
 
+This example places specifications in `<library.path>/specs/`. For another
+directory strictly inside the IWE library, replace both `specs` prefixes with
+that directory's path relative to `library.path`. For example,
+`docs/architecture/specs/` with `library.path = "docs"` requires:
+
+```toml
+[templates.specification]
+key_template = "architecture/specs/{{slug}}"
+
+[schemas.specification]
+match = "architecture/specs/**"
+```
+
 Create `.iwe/schemas/` and save the canonical
 [Specspine document schema](shared/assets/iwe/schemas/specification.yaml) as
 `.iwe/schemas/specification.yaml`. The complete recommended configuration is
 available as [a reference](shared/assets/iwe/config.toml); merge it rather than
 copying it over an existing config.
 
-The template creates documents below `<library.path>/specs/`. The schema match
-uses IWE document keys relative to `library.path`, so Markdown elsewhere in the
-library remains ordinary IWE content.
+With the example values, the template creates documents below
+`<library.path>/specs/`. Both template keys and schema matches are relative to
+`library.path`, so Markdown elsewhere in the library remains ordinary IWE
+content.
 
-### 3. Validate the workspace
+#### Validate the workspace
 
 ```bash
 iwe schema validate
@@ -130,29 +201,7 @@ workspace/
     └── specs/
 ```
 
-### 4. Install the agent skills
-
-Install the official IWE skill used by every Specspine workflow:
-
-```bash
-npx skills add iwe-org/skills --skill iwe-memory-system
-```
-
-Then install the Specspine workflows:
-
-```bash
-npx skills add bulbigood/specspine
-```
-
-To install one workflow explicitly:
-
-```bash
-npx skills add bulbigood/specspine --skill iwe-spec-map
-```
-
-`iwe-memory-system` is an agent instruction dependency, not an additional
-runtime or storage layer. The workflow skills assume that this setup is already
-complete; they do not install or repair IWE or Specspine configuration.
+</details>
 
 Create and inspect specifications through IWE:
 

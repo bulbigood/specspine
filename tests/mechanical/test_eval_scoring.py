@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import shutil
+import subprocess
 import tempfile
 import sys
 import unittest
@@ -30,6 +31,46 @@ def critique(**scores: int) -> dict[str, object]:
 
 
 class EvalScoringTests(unittest.TestCase):
+    def test_feature_parser_preserves_ordered_operator_replies(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            feature = Path(temporary) / "setup.feature"
+            feature.write_text(
+                'Feature: Setup\n'
+                '  Scenario: Guided setup\n'
+                '    Given preparation "setup-new-custom-scope"\n'
+                '    And skills "iwe-spec-setup"\n'
+                '    When the operator asks:\n'
+                '      """\nrequest\n      """\n'
+                '    And the operator replies:\n'
+                '      """\nfirst\n      """\n'
+                '    And the operator replies:\n'
+                '      """\nsecond\n      """\n'
+                '    Then the AI judge verifies:\n'
+                '      """\nrubric\n      """\n',
+                encoding="utf-8",
+            )
+
+            scenarios = EVAL_RUN.parse_feature(feature)
+
+            self.assertEqual(len(scenarios), 1)
+            self.assertEqual(scenarios[0].replies, ("first", "second"))
+
+    def test_multi_turn_codex_commands_preserve_required_options(self) -> None:
+        command = (
+            'codex exec --json --ephemeral --ignore-user-config '
+            '--skip-git-repo-check -s workspace-write -m model -c key=value -'
+        )
+
+        persistent = EVAL_RUN.persistent_agent_command(command)
+        resumed = EVAL_RUN.resume_agent_command(persistent, "thread-123")
+
+        self.assertNotIn("--ephemeral", persistent)
+        self.assertIn("codex exec resume", resumed)
+        self.assertIn("--json", resumed)
+        self.assertIn("--ignore-user-config", resumed)
+        self.assertIn('sandbox_mode="workspace-write"', resumed)
+        self.assertIn("thread-123 -", resumed)
+
     def test_codex_telemetry_extracts_thread_id(self) -> None:
         raw = "\n".join(
             (
@@ -149,6 +190,100 @@ class EvalScoringTests(unittest.TestCase):
         self.assertIn("iwe-memory-system", prompt)
         self.assertNotIn("calibrate tool and resource efficiency to setup work", prompt)
 
+    def test_setup_judge_prompt_includes_ordered_interaction_context(self) -> None:
+        scenario = EVAL_RUN.Scenario(
+            "feature",
+            "scenario",
+            "setup-new-custom-scope",
+            ("iwe-spec-setup",),
+            "request",
+            "rubric",
+            ("first choice", "second choice"),
+        )
+
+        prompt = EVAL_RUN.judge_prompt(scenario, "transcript", "", {})
+
+        self.assertIn("interactive setup scenario", prompt)
+        self.assertIn("IWE was already installed", prompt)
+        self.assertIn("1. first choice", prompt)
+        self.assertIn("2. second choice", prompt)
+        self.assertIn("iwe-spec-setup", prompt)
+
+    def test_setup_scenarios_target_only_the_setup_skill(self) -> None:
+        setup_scenarios = [
+            scenario
+            for scenario in EVAL_RUN.load_scenarios()
+            if scenario.preparation.startswith("setup-")
+        ]
+
+        self.assertEqual(len(setup_scenarios), 4)
+        for scenario in setup_scenarios:
+            self.assertEqual(scenario.skills, ("iwe-spec-setup",))
+            self.assertTrue(scenario.replies)
+            self.assertNotIn("iwe-spec-specify", scenario.rubric)
+
+    @unittest.skipUnless(shutil.which("iwe"), "IWE is required")
+    def test_setup_postconditions_accept_confirmed_nested_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary) / "workspace"
+            shutil.copytree(
+                EVAL_RUN.FIXTURE,
+                workspace,
+                ignore=shutil.ignore_patterns("node_modules"),
+            )
+            EVAL_RUN.prepare(workspace, "setup-new-custom-scope")
+            before = EVAL_RUN.files(workspace)
+            initialized = subprocess.run(
+                ["iwe", "init", "--auto", "--library", "knowledge"],
+                cwd=workspace,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(
+                initialized.returncode,
+                0,
+                initialized.stderr + initialized.stdout,
+            )
+            intermediate = EVAL_RUN.files(workspace)
+            canonical_config = (
+                EVAL_RUN.ROOT / "shared/assets/iwe/config.toml"
+            ).read_text(encoding="utf-8")
+            fragment = canonical_config[
+                canonical_config.index("[templates.specification]") :
+            ].replace(
+                'key_template = "specs/{{slug}}"',
+                'key_template = "architecture/specs/{{slug}}"',
+            ).replace('match = "specs/**"', 'match = "architecture/specs/**"')
+            config = workspace / ".iwe/config.toml"
+            config.write_text(
+                config.read_text(encoding="utf-8").rstrip() + "\n\n" + fragment,
+                encoding="utf-8",
+            )
+            schema = workspace / ".iwe/schemas/specification.yaml"
+            schema.parent.mkdir(parents=True)
+            shutil.copy2(
+                EVAL_RUN.ROOT / "shared/assets/iwe/schemas/specification.yaml",
+                schema,
+            )
+            (workspace / "knowledge/architecture/specs").mkdir(parents=True)
+            final = EVAL_RUN.files(workspace)
+            scenario = EVAL_RUN.Scenario(
+                "feature",
+                "Configure a new workspace with a nested custom scope",
+                "setup-new-custom-scope",
+                ("iwe-spec-setup",),
+                "request",
+                "rubric",
+                ("reply",),
+            )
+
+            errors = EVAL_RUN.setup_postcondition_errors(
+                scenario, workspace, before, [intermediate, final]
+            )
+
+            self.assertEqual(errors, [])
+
     def test_judge_prompt_loads_authoritative_specspine_and_skill_context(self) -> None:
         scenario = EVAL_RUN.Scenario(
             "feature", "scenario", "baseline", ("iwe-spec-map",), "request", "rubric"
@@ -205,111 +340,42 @@ class EvalScoringTests(unittest.TestCase):
                 {"specspine-format.md", "specspine-semantics.md"},
             )
 
-    def test_iwe_skills_assume_readme_setup_and_keep_runtime_checks(self) -> None:
-        readme = (EVAL_RUN.ROOT / "README.md").read_text()
-        format_reference = (
-            EVAL_RUN.ROOT / "shared/references/specspine-format.md"
-        ).read_text()
-        format_words = " ".join(format_reference.split())
-        self.assertIn("iwe init --auto --library docs", readme)
-        self.assertIn("[templates.specification]", readme)
-        self.assertIn("[schemas.specification]", readme)
-        self.assertIn('match = "specs/**"', readme)
-        self.assertIn(".iwe/schemas/specification.yaml", readme)
-        self.assertIn("iwe-org/skills --skill iwe-memory-system", readme)
-        self.assertIn("assume that this setup is already", readme)
-        self.assertIn("task working directory and its ancestors", format_words)
-        self.assertIn("task-relevant descendants", format_words)
-        for name in ("map", "specify", "verify", "implement"):
-            skill_dir = EVAL_RUN.ROOT / f"skills/iwe-spec-{name}"
-            skill = (skill_dir / "SKILL.md").read_text()
-            self.assertIn(
-                "[Specspine format](references/specspine-format.md)", skill
+    def test_eval_workspace_installs_resolved_setup_assets(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            official = workspace / "official/iwe-memory-system"
+            official.mkdir(parents=True)
+            (official / "SKILL.md").write_text("---\nname: iwe-memory-system\n---\n")
+            scenario = EVAL_RUN.Scenario(
+                "feature",
+                "scenario",
+                "setup-new-custom-scope",
+                ("iwe-spec-setup",),
+                "request",
+                "rubric",
             )
-            self.assertIn(
-                "[Specspine semantics](references/specspine-semantics.md)", skill
-            )
-            self.assertNotIn("iwe-readiness.sh", skill)
-            self.assertNotIn("bundled `assets/iwe`", skill)
-            self.assertIn("README setup", skill)
-            self.assertIn("workspace `.iwe/schemas/specification.yaml`", skill)
-            self.assertIn("`iwe schema validate`", skill)
-            self.assertIn(
-                "Resolve the applicable IWE project root as defined by the format reference",
-                " ".join(skill.split()),
-            )
-            self.assertFalse((skill_dir / "assets").exists())
-            for reference in ("format", "semantics"):
-                self.assertEqual(
-                    (EVAL_RUN.ROOT / f"docs/reference/{reference}.md").read_text(),
-                    (skill_dir / f"references/specspine-{reference}.md").read_text(),
-                )
 
-        for name in ("verify", "implement"):
-            skill_dir = EVAL_RUN.ROOT / f"skills/iwe-spec-{name}"
-            skill = (skill_dir / "SKILL.md").read_text()
-            self.assertIn(
-                "[Specspine conformance](references/specspine-conformance.md)",
-                skill,
+            installed_names = EVAL_RUN.install_project_skills(
+                workspace, scenario, official
+            )
+
+            installed = workspace / ".agents/skills/iwe-spec-setup"
+            self.assertEqual(
+                installed_names,
+                ("iwe-spec-setup", "iwe-memory-system"),
             )
             self.assertEqual(
-                (EVAL_RUN.ROOT / "docs/reference/conformance.md").read_text(),
-                (skill_dir / "references/specspine-conformance.md").read_text(),
+                (installed / "assets/iwe/config.toml").read_bytes(),
+                (EVAL_RUN.ROOT / "shared/assets/iwe/config.toml").read_bytes(),
             )
-
-    def test_shared_skill_resources_are_live_symlinks(self) -> None:
-        shared = EVAL_RUN.ROOT / "shared"
-        for reference in ("format", "semantics", "conformance"):
-            self.assertTrue(
-                (shared / f"references/specspine-{reference}.md").is_file()
-            )
-            documentation = EVAL_RUN.ROOT / f"docs/reference/{reference}.md"
-            self.assertTrue(documentation.is_symlink())
-            self.assertTrue(documentation.exists())
-        self.assertTrue((shared / "assets/iwe/config.toml").is_file())
-        self.assertTrue((shared / "assets/iwe/schemas/specification.yaml").is_file())
-
-        for name in ("map", "specify", "verify", "implement"):
-            skill_dir = EVAL_RUN.ROOT / f"skills/iwe-spec-{name}"
-            for relative in (
-                "references/specspine-format.md",
-                "references/specspine-semantics.md",
-            ):
-                link = skill_dir / relative
-                self.assertTrue(link.is_symlink(), f"expected symlink: {link}")
-                self.assertTrue(link.exists(), f"broken symlink: {link}")
-            if name in {"verify", "implement"}:
-                conformance = skill_dir / "references/specspine-conformance.md"
-                self.assertTrue(conformance.is_symlink())
-                self.assertTrue(conformance.exists())
-            expected_references = {
-                "specspine-format.md",
-                "specspine-semantics.md",
-            }
-            if name in {"verify", "implement"}:
-                expected_references.add("specspine-conformance.md")
             self.assertEqual(
-                {path.name for path in (skill_dir / "references").iterdir()},
-                expected_references,
-            )
-            self.assertFalse((skill_dir / "assets").exists())
-
-        self.assertFalse((shared / "scripts").exists())
-        for name in ("map", "specify", "verify", "implement"):
-            self.assertFalse(
-                (EVAL_RUN.ROOT / f"skills/iwe-spec-{name}/scripts").exists()
-            )
-
-    def test_iwe_skills_require_the_official_iwe_skill(self) -> None:
-        for name in ("map", "specify", "verify", "implement"):
-            skill = (EVAL_RUN.ROOT / f"skills/iwe-spec-{name}/SKILL.md").read_text()
-            skill_words = " ".join(skill.split())
-            self.assertIn("`iwe-memory-system`", skill)
-            self.assertIn("installed official `iwe-memory-system` skill", skill_words)
-            self.assertIn("read it before continuing", skill_words)
-            self.assertIn(
-                "stop and direct the operator to the Specspine README setup",
-                skill_words,
+                (
+                    installed / "assets/iwe/schemas/specification.yaml"
+                ).read_bytes(),
+                (
+                    EVAL_RUN.ROOT
+                    / "shared/assets/iwe/schemas/specification.yaml"
+                ).read_bytes(),
             )
 
     def test_iwe_skills_are_agent_runtime_agnostic(self) -> None:

@@ -20,7 +20,9 @@ Resolve the applicable IWE project root as defined by the format reference
 before running any IWE command. Use that root as the working directory and read
 its `.iwe/config.toml` once to determine `library.path`. Treat unavailable IWE
 or missing required Specspine configuration as an incomplete setup: stop and
-point to the README instead of installing or repairing it.
+ask the operator to run `iwe-spec-setup`. If that skill is unavailable, point
+to the README manual fallback. Do not install or repair setup from this
+workflow.
 
 1. Locate candidates with `iwe find` and read the relevant closure with
    `iwe retrieve`. Once one owner is unambiguous, do not retrieve neighbors

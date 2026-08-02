@@ -21,8 +21,10 @@ Resolve the applicable IWE project root as defined by the format reference
 before running any IWE command. Use that root as the working directory and read
 its `.iwe/config.toml` once to determine `library.path`. Treat unavailable IWE
 or missing required Specspine configuration as an incomplete setup: stop and
-point to the README instead of installing or repairing it. Verify is a
-read-only reasoning workflow; there is no `iwe verify` command.
+ask the operator to run `iwe-spec-setup`. If that skill is unavailable, point
+to the README manual fallback. Do not install or repair setup from this
+workflow. Verify is a read-only reasoning workflow; there is no `iwe verify`
+command.
 
 1. Run `iwe schema validate`; stop on schema errors.
 2. Check owner-local ID uniqueness and blocker targets. Stop when a relevant

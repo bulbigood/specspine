@@ -13,10 +13,11 @@ It uses an isolated copy of `examples/node-express-boilerplate` and verifies:
   workflow-specific conformance references;
 - SSOT symlink integrity, absence of broken links, and absence of physical
   duplicates of shared resources;
-- `docs`, custom-path, and mixed-library IWE scopes with `specs/**` binding;
+- default, custom-library, mixed-library, and nested Specspine schema scopes;
 - explicit project-root resolution before IWE commands from nested directories;
 - absence of Specspine runtime scripts and workflow-skill setup assets;
-- independence of `iwe-spec-implement` from `iwe-spec-verify`.
+- independence of `iwe-spec-implement` from `iwe-spec-verify`;
+- declarative, script-free `iwe-spec-setup` packaging and its canonical assets.
 
 Run:
 
@@ -47,8 +48,18 @@ skill and two end-to-end workflows against isolated copies of
 `examples/node-express-boilerplate`. The runner invokes one coding agent and a
 separate read-only AI judge. The judge evaluates the request, semantic rubric,
 workspace diff, final workspace, and agent transcript. Workflow scenarios use
-no golden patch. All scenarios start from a workspace already initialized for
-IWE and Specspine, matching the prerequisite documented in the root README.
+no golden patch. Operational workflow scenarios start from a workspace already
+initialized for IWE and Specspine, matching the prerequisite documented in the
+root README. Dedicated multi-turn setup scenarios start from new, valid, or
+conflicting workspace states and expose only `iwe-spec-setup` plus the official
+`iwe-memory-system` dependency.
+
+Setup evals keep the IWE executable preinstalled. They test interactive
+decisions, path containment, idempotence, collision handling, generated config,
+and deterministic filesystem postconditions. They do not install system
+software: presenting current official installation choices and waiting for
+approval is covered mechanically because executing package managers would make
+the eval platform-dependent and mutate its host environment.
 
 Every judge must also evaluate what the coding agent actually did and how long
 it worked. The runner supplies exact Codex turn token usage (`input_tokens`,
@@ -134,13 +145,17 @@ test attempts after a shared setup failure, unnecessarily broad suites, package
 installation attempts, and invalid domain-tool commands such as incorrect IWE
 syntax.
 
-By default both roles use separate ephemeral `codex exec` sessions. The coding
-agent is pinned to medium (`gpt-5.6-terra`, reasoning effort `medium`) with
-workspace write access. The independent judge is pinned to strong
+By default one-turn operational scenarios and all judges use separate ephemeral
+`codex exec` sessions. Setup scenarios retain and resume the coding-agent thread
+for their ordered operator replies, then discard the isolated session with the
+temporary workspace. The coding agent is pinned to medium (`gpt-5.6-terra`,
+reasoning effort `medium`) with workspace write access. The independent judge is pinned to strong
 (`gpt-5.6-sol`, reasoning effort `low`) and runs read-only. Override either
 command with `--agent-command`, `--judge-command`, or the environment variables
 `SPECSPINE_AGENT_COMMAND` and `SPECSPINE_JUDGE_COMMAND`. JSON verdicts are
-written to `tests/eval/reports/`, which is intentionally ignored.
+written to `tests/eval/reports/`, which is intentionally ignored. A custom
+agent command used for multi-turn setup scenarios must expose compatible
+`codex exec` and `codex exec resume` semantics.
 
 Every sample also writes an adjacent `.telemetry` directory. It contains the
 complete JSONL stream, stderr, final response, and input prompt for both the
