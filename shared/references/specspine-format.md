@@ -9,6 +9,14 @@ with:
 iwe init --auto --library docs
 ```
 
+Before any IWE command, resolve the applicable project root by checking the
+task working directory and its ancestors for `.iwe/config.toml`. For a task
+that explicitly spans packages, also inspect only the task-relevant
+descendants. Run IWE from the directory containing the selected `.iwe/`. If
+several roots plausibly own the task, ask the operator which one to use before
+changing anything. Do not assume that IWE invoked below a project root will
+discover its ancestor configuration.
+
 Specspine documents live below `docs/specs/`. The `specification` template uses
 `key_template = "specs/{{slug}}"`, and the schema binding matches `specs/**`.
 Other Markdown files in the IWE library remain ordinary IWE documents.

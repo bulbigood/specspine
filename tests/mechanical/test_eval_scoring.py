@@ -349,6 +349,10 @@ class EvalScoringTests(unittest.TestCase):
     def test_iwe_skills_require_the_shared_setup_reference(self) -> None:
         expected = "[IWE project setup](references/iwe-bootstrap.md)"
         canonical = (EVAL_RUN.ROOT / "shared/references/iwe-bootstrap.md").read_text()
+        format_reference = (
+            EVAL_RUN.ROOT / "shared/references/specspine-format.md"
+        ).read_text()
+        format_words = " ".join(format_reference.split())
         canonical_words = " ".join(canonical.split())
         self.assertIn("iwe init --auto --library docs", canonical)
         self.assertIn("existing `library.path` as authoritative", canonical)
@@ -358,6 +362,8 @@ class EvalScoringTests(unittest.TestCase):
         self.assertIn('match = "specs/**"', canonical)
         self.assertIn("ask which root to use", canonical)
         self.assertIn("Do not add bootstrap scripts", canonical)
+        self.assertIn("task working directory and its ancestors", format_words)
+        self.assertIn("task-relevant descendants", format_words)
         for name in ("map", "specify", "verify", "implement"):
             skill_dir = EVAL_RUN.ROOT / f"skills/iwe-spec-{name}"
             skill = (skill_dir / "SKILL.md").read_text()
@@ -371,6 +377,10 @@ class EvalScoringTests(unittest.TestCase):
             self.assertNotIn("iwe-readiness.sh", skill)
             self.assertIn("template, binding, or schema is missing", skill)
             self.assertIn("bundled `assets/iwe`", skill)
+            self.assertIn(
+                "Resolve the applicable IWE project root as defined by the format reference",
+                " ".join(skill.split()),
+            )
             self.assertEqual(
                 canonical,
                 (skill_dir / "references/iwe-bootstrap.md").read_text(),

@@ -17,6 +17,10 @@ bundled schema is the executable contract for exact fields, values, sections,
 ordering, and statement syntax; the references define the semantic rules that
 the schema cannot express.
 
+Resolve the applicable IWE project root as defined by the format reference
+before inspecting configuration or running any IWE command. Use that root as
+the working directory.
+
 Inspect `.iwe/config.toml` and the bundled `assets/iwe` directly. Read
 [IWE project setup](references/iwe-bootstrap.md) only when the Specspine
 template, binding, or schema is missing or conflicting. Do not use or create a

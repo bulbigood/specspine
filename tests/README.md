@@ -14,6 +14,7 @@ It uses an isolated copy of `examples/node-express-boilerplate` and verifies:
 - SSOT symlink integrity, absence of broken links, and absence of physical
   duplicates of shared resources;
 - `docs`, custom-path, and mixed-library IWE scopes with `specs/**` binding;
+- explicit project-root resolution before IWE commands from nested directories;
 - absence of Specspine runtime and bootstrap scripts;
 - independence of `iwe-spec-implement` from `iwe-spec-verify`.
 

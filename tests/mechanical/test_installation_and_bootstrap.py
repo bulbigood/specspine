@@ -174,6 +174,17 @@ class BootstrapConfigurationTests(unittest.TestCase):
         self.assertIn("ordinary-note", keys)
         self.assertIn("specs/authentication", keys)
 
+    def test_iwe_commands_must_run_from_the_resolved_project_root(self) -> None:
+        workspace = self.copy_example()
+        nested = workspace / "src/nested"
+        nested.mkdir(parents=True)
+
+        root_keys = set(iwe(workspace, "find", "-f", "keys").stdout.splitlines())
+        nested_keys = set(iwe(nested, "find", "-f", "keys").stdout.splitlines())
+
+        self.assertIn("specs/authentication", root_keys)
+        self.assertEqual(nested_keys, set())
+
     def test_existing_custom_library_path_is_valid(self) -> None:
         workspace = self.copy_example()
         (workspace / "knowledge").mkdir()
