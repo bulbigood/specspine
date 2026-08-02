@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import tempfile
 import sys
 import unittest
@@ -143,24 +144,90 @@ class EvalScoringTests(unittest.TestCase):
         self.assertIn("Do not ignore destructive", prompt)
         self.assertIn("or remote Git attempts", prompt)
         self.assertIn("All other invalid commands, including incorrect IWE syntax", prompt)
-        self.assertIn("Expected repository-local skill selection", prompt)
+        self.assertIn("Expected skill selection", prompt)
         self.assertIn("iwe-spec-verify", prompt)
+        self.assertIn("iwe-memory-system", prompt)
 
-    def test_workspace_exposes_repository_and_global_skills(self) -> None:
+    def test_workspace_exposes_only_task_bounded_skills(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
+            official = workspace / "official/iwe-memory-system"
+            official.mkdir(parents=True)
+            (official / "SKILL.md").write_text("---\nname: iwe-memory-system\n---\n")
+            scenario = EVAL_RUN.Scenario(
+                "feature", "scenario", "baseline", ("iwe-spec-map",), "request", "rubric"
+            )
 
-            EVAL_RUN.install_project_skills(workspace)
+            installed_names = EVAL_RUN.install_project_skills(workspace, scenario, official)
 
             installed = workspace / ".agents/skills"
-            expected = {
-                path.parent.name
-                for root in (EVAL_RUN.ROOT / "skills", EVAL_RUN.GLOBAL_SKILLS)
-                if root.is_dir()
-                for path in root.glob("*/SKILL.md")
-            }
-            self.assertTrue(expected)
-            self.assertTrue(expected <= {path.name for path in installed.iterdir()})
+            self.assertEqual(installed_names, ("iwe-spec-map", "iwe-memory-system"))
+            self.assertEqual(
+                {path.name for path in installed.iterdir()},
+                {"iwe-spec-map", "iwe-memory-system"},
+            )
+
+    def test_iwe_skills_require_the_official_iwe_skill(self) -> None:
+        for name in ("map", "specify", "verify", "implement"):
+            skill = (EVAL_RUN.ROOT / f"skills/iwe-spec-{name}/SKILL.md").read_text()
+            self.assertIn("`iwe-memory-system`", skill)
+            self.assertIn("official `iwe-org/skills` distribution", skill)
+            self.assertIn("supported skill-installation mechanism", skill)
+            self.assertIn("Read it before\ncontinuing", skill)
+            self.assertIn("Do not substitute generic CLI help", skill)
+
+    def test_iwe_skills_are_agent_runtime_agnostic(self) -> None:
+        forbidden = (
+            "$CODEX_HOME",
+            "CODEX_HOME",
+            ".codex/",
+            ".agents/",
+            "Codex",
+            "Claude",
+            "Gemini",
+            "isolated",
+            "../iwe-spec-",
+        )
+        for skill_file in (EVAL_RUN.ROOT / "skills").glob("*/SKILL.md"):
+            skill = skill_file.read_text()
+            for value in forbidden:
+                self.assertNotIn(value, skill, f"{skill_file}: {value}")
+
+    def test_installation_scenario_starts_without_iwe_memory_skill(self) -> None:
+        scenario = next(
+            item
+            for item in EVAL_RUN.load_scenarios()
+            if item.skill_setup == "install-iwe-memory-system"
+        )
+
+        self.assertNotIn("iwe-memory-system", EVAL_RUN.required_skill_names(scenario))
+        self.assertIn("iwe-memory-system", EVAL_RUN.expected_skill_names(scenario))
+        command = EVAL_RUN.agent_command_for_scenario(
+            EVAL_RUN.DEFAULT_AGENT, scenario, Path("/isolated-codex-home")
+        )
+        self.assertIn("--enable standalone_web_search", command)
+        self.assertIn("sandbox_workspace_write.network_access=true", command)
+        self.assertIn("--add-dir /isolated-codex-home", command)
+
+    def test_verify_and_implement_require_structured_before_after_evidence(self) -> None:
+        verify = (EVAL_RUN.ROOT / "skills/iwe-spec-verify/SKILL.md").read_text()
+        implement = (EVAL_RUN.ROOT / "skills/iwe-spec-implement/SKILL.md").read_text()
+
+        for section in ("Scope", "Claims checked", "Findings", "Test evidence", "Verdict"):
+            self.assertIn(section, verify)
+        self.assertIn("pre-change report", implement)
+        self.assertIn("post-change", implement)
+        self.assertIn("before/after finding transitions", implement)
+        self.assertIn("Pre-change Verify", implement)
+        self.assertIn("Post-change Verify", implement)
+
+    def test_map_uses_schema_valid_observation_and_inspection_shapes(self) -> None:
+        skill = (EVAL_RUN.ROOT / "skills/iwe-spec-map/SKILL.md").read_text()
+
+        self.assertIn("`## Observed`", skill)
+        self.assertIn("`## Inferred`", skill)
+        self.assertIn("mode: deepen", skill)
+        self.assertIn("observed-only Map", skill)
 
     def test_operator_requests_do_not_expose_internal_workflow(self) -> None:
         forbidden = ("$iwe-", "iwe ", ".agents/", "REQ-", "VER-", "OBS-", "INF-")
@@ -173,6 +240,18 @@ class EvalScoringTests(unittest.TestCase):
                 self.assertTrue(scenario.skills)
                 for value in forbidden:
                     self.assertNotIn(value, scenario.request)
+
+    def test_owner_local_collision_exists_before_the_agent_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            shutil.copytree(EVAL_RUN.FIXTURE / "specspine", workspace / "specspine")
+
+            EVAL_RUN.prepare(workspace, "owner-local-id-collision")
+
+            authentication = (workspace / "specspine/authentication.md").read_text()
+            user_management = (workspace / "specspine/user-management.md").read_text()
+            self.assertIn("REQ-login-policy", authentication)
+            self.assertIn("REQ-login-policy", user_management)
 
 
 if __name__ == "__main__":

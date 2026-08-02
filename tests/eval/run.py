@@ -8,6 +8,7 @@ import concurrent.futures
 import datetime
 import difflib
 import hashlib
+import io
 import json
 import os
 import shlex
@@ -18,6 +19,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,18 +28,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 FEATURES = Path(__file__).with_name("features")
 FIXTURE = ROOT / "examples/node-express-boilerplate"
-GLOBAL_SKILLS = Path.home() / ".agents/skills"
 SCHEMA = Path(__file__).with_name("judge.schema.json")
 MEASURE_PROCESS = Path(__file__).with_name("measure_process.py")
 DEFAULT_AGENT = (
-    'codex exec --json --ephemeral --skip-git-repo-check -s workspace-write '
+    'codex exec --json --ephemeral --ignore-user-config --skip-git-repo-check -s workspace-write '
     '-m gpt-5.6-terra -c model_reasoning_effort="medium" -'
 )
 DEFAULT_JUDGE = (
-    f"codex exec --json --ephemeral --skip-git-repo-check -s read-only "
+    f"codex exec --json --ephemeral --ignore-user-config --skip-git-repo-check -s read-only "
     f"-m gpt-5.6-sol -c model_reasoning_effort=\"low\" "
     f"--output-schema {shlex.quote(str(SCHEMA))} -"
 )
+OFFICIAL_IWE_SKILLS_ARCHIVE = "https://github.com/iwe-org/skills/archive/refs/heads/main.zip"
 DIMENSION_WEIGHTS = {
     "task_correctness": 0.25,
     "scenario_compliance": 0.15,
@@ -65,6 +68,7 @@ class Scenario:
     skills: tuple[str, ...]
     request: str
     rubric: str
+    skill_setup: str = "preinstalled"
 
     @property
     def slug(self) -> str:
@@ -173,6 +177,9 @@ def parse_feature(path: Path) -> list[Scenario]:
             raise ValueError(f"{path}: incomplete scenario {current.get('name')}: {sorted(missing)}")
         values = dict(current)
         values["skills"] = tuple(item.strip() for item in values["skills"].split(","))
+        values.setdefault("skill_setup", "preinstalled")
+        if values["skill_setup"] not in {"preinstalled", "install-iwe-memory-system"}:
+            raise ValueError(f"{path}: unknown skill setup {values['skill_setup']!r}")
         scenarios.append(Scenario(feature=feature, **values))
 
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -195,6 +202,8 @@ def parse_feature(path: Path) -> list[Scenario]:
             current["preparation"] = line.split('"', 2)[1]
         elif line.startswith('And skills "') and current is not None:
             current["skills"] = line.split('"', 2)[1]
+        elif line.startswith('And skill setup "') and current is not None:
+            current["skill_setup"] = line.split('"', 2)[1]
     finish_capture()
     finish_scenario()
     return scenarios
@@ -241,6 +250,12 @@ def prepare(workspace: Path, name: str) -> None:
         add_audit_webhook(workspace)
         return
     if name == "owner-local-id-collision":
+        replace(
+            authentication,
+            "- REQ-invalid-credentials — Invalid credentials reveal no account secrets.\n",
+            "- REQ-invalid-credentials — Invalid credentials reveal no account secrets.\n"
+            "- REQ-login-policy — Login follows the accepted account-access policy.\n",
+        )
         user_management = workspace / "specspine/user-management.md"
         user_management.write_text(
             user_management.read_text(encoding="utf-8")
@@ -320,10 +335,20 @@ def diff(before: dict[str, str], after: dict[str, str]) -> str:
     return "\n".join(chunks)
 
 
-def run_command(command: str, prompt: str, cwd: Path, timeout: int) -> CommandResult:
+def run_command(
+    command: str,
+    prompt: str,
+    cwd: Path,
+    timeout: int,
+    environment: dict[str, str] | None = None,
+) -> CommandResult:
     arguments = shlex.split(command)
     recorded_arguments = tuple(arguments)
-    codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")).resolve()
+    effective_environment = environment or os.environ
+    environment_home = Path(effective_environment.get("HOME", str(Path.home())))
+    codex_home = Path(
+        effective_environment.get("CODEX_HOME", str(environment_home / ".codex"))
+    ).resolve()
     started = time.monotonic()
     metrics: dict[str, float | int | None] = {
         "wall_seconds": None,
@@ -349,6 +374,7 @@ def run_command(command: str, prompt: str, cwd: Path, timeout: int) -> CommandRe
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=cwd,
+            env=environment,
             start_new_session=True,
         )
         timed_out = False
@@ -421,19 +447,100 @@ def write_command_telemetry(
     }
 
 
-def install_project_skills(workspace: Path) -> None:
+def installed_skill_evidence(path: Path) -> dict[str, object]:
+    skill_file = path / "SKILL.md"
+    return {
+        "path": str(path),
+        "present": skill_file.is_file(),
+        "skill_sha256": (
+            hashlib.sha256(skill_file.read_bytes()).hexdigest()
+            if skill_file.is_file()
+            else None
+        ),
+    }
+
+
+def fetch_official_iwe_skill(destination: Path) -> Path:
+    request = urllib.request.Request(
+        OFFICIAL_IWE_SKILLS_ARCHIVE,
+        headers={"User-Agent": "specspine-eval"},
+    )
+    with urllib.request.urlopen(request, timeout=60) as response:
+        archive = zipfile.ZipFile(io.BytesIO(response.read()))
+    marker = "/skills/iwe-memory-system/"
+    for member in archive.infolist():
+        if marker not in member.filename or member.is_dir():
+            continue
+        relative = member.filename.split(marker, 1)[1]
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(archive.read(member))
+    if not (destination / "SKILL.md").is_file():
+        raise RuntimeError("official archive did not contain iwe-memory-system/SKILL.md")
+    return destination
+
+
+def required_skill_names(scenario: Scenario) -> tuple[str, ...]:
+    names = list(scenario.skills)
+    if "iwe-spec-implement" in names and "iwe-spec-verify" not in names:
+        names.append("iwe-spec-verify")
+    if scenario.skill_setup != "install-iwe-memory-system":
+        names.append("iwe-memory-system")
+    return tuple(dict.fromkeys(names))
+
+
+def expected_skill_names(scenario: Scenario) -> tuple[str, ...]:
+    return tuple(dict.fromkeys((*scenario.skills, "iwe-memory-system")))
+
+
+def agent_command_for_scenario(
+    command: str,
+    scenario: Scenario,
+    writable_skill_root: Path | None = None,
+) -> str:
+    if scenario.skill_setup != "install-iwe-memory-system":
+        return command
+    arguments = shlex.split(command)
+    insertion = len(arguments) - 1 if arguments and arguments[-1] == "-" else len(arguments)
+    arguments[insertion:insertion] = [
+        "--enable",
+        "standalone_web_search",
+        "-c",
+        "sandbox_workspace_write.network_access=true",
+    ]
+    if writable_skill_root is not None:
+        arguments[insertion:insertion] = ["--add-dir", str(writable_skill_root)]
+    return shlex.join(arguments)
+
+
+def skill_setup_judge_instruction(scenario: Scenario) -> str:
+    if scenario.skill_setup == "install-iwe-memory-system":
+        return """The official `iwe-memory-system` skill was intentionally absent at agent start.
+The agent must discover the official `iwe-org/skills` source on the internet, install
+`iwe-memory-system` into its isolated `CODEX_HOME`, read it, and use it. Do not penalize the necessary
+web search or one focused skill-install command; do penalize unrelated installations or continuing
+without using the installed skill."""
+    return """The official `iwe-memory-system` skill was preinstalled in the isolated workspace.
+Require the agent to read and substantively use it, and keep ordinary package-install penalties."""
+
+
+def install_project_skills(
+    workspace: Path,
+    scenario: Scenario,
+    official_iwe_skill: Path | None,
+) -> tuple[str, ...]:
     destination = workspace / ".agents/skills"
     destination.mkdir(parents=True, exist_ok=True)
-    available: dict[str, Path] = {}
-    for root in (GLOBAL_SKILLS, ROOT / "skills"):
-        if not root.is_dir():
-            continue
-        for source in sorted(root.iterdir()):
-            if source.is_dir() and (source / "SKILL.md").is_file():
-                # Repository skills intentionally take precedence over a global
-                # skill with the same discovery name.
-                available[source.name] = source
-    for name, source in sorted(available.items()):
+    installed: list[str] = []
+    for name in required_skill_names(scenario):
+        if name == "iwe-memory-system":
+            if official_iwe_skill is None:
+                raise ValueError("official iwe-memory-system was not fetched")
+            source = official_iwe_skill
+        else:
+            source = ROOT / "skills" / name
+        if not (source / "SKILL.md").is_file():
+            raise ValueError(f"required eval skill is unavailable: {name}")
         # Renamed working trees may temporarily retain dangling legacy symlinks.
         # They are not part of the skill contract and must not block an eval.
         shutil.copytree(
@@ -442,6 +549,8 @@ def install_project_skills(workspace: Path) -> None:
             symlinks=False,
             ignore_dangling_symlinks=True,
         )
+        installed.append(name)
+    return tuple(installed)
 
 
 def agent_prompt(scenario: Scenario) -> str:
@@ -484,13 +593,16 @@ setup failure, a broad suite when a targeted test was available, and the duplica
 choices consume. All other invalid commands, including incorrect IWE syntax, remain relevant.
 
 Assume the tested AI agent is capable of solving the task at a high quality bar. The agent was not
-told which skill to use: it had all repository and global skills available and had to select the
+told which skill to use. It received an isolated, task-bounded skill set and had to select the
 appropriate workflow from the natural operator request. The expected skill selection below is a
-hidden evaluation oracle. Read those expected repository-local skill instructions from
+hidden evaluation oracle. Read those expected skill instructions from
 `.agents/skills/` and evaluate both whether the agent selected them and whether it substantively
 followed their guardrails and decision rules. Do not require unrelated available skills and do not
 penalize the agent merely for not reading them. Do not reward accidental success that bypasses the
 expected skill selection or its required decisions.
+
+Every scenario requires substantive use of the official `iwe-memory-system` skill for IWE work.
+{skill_setup_judge_instruction(scenario)}
 
 Score every required dimension independently from 0 to 100 and provide dimension-specific
 rationale and evidence:
@@ -514,8 +626,8 @@ acceptance floors because the procedure is part of the skill being evaluated.
 
 Feature: {scenario.feature}
 Scenario: {scenario.name}
-Expected repository-local skill selection (hidden from the agent):
-{', '.join(scenario.skills)}
+Expected skill selection (hidden from the agent):
+{', '.join(expected_skill_names(scenario))}
 Operator request:
 {scenario.request}
 
@@ -649,11 +761,34 @@ def main(argv: list[str] | None = None) -> int:
     run_id = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S.%fZ")
     report_dir = report_root / run_id
     report_dir.mkdir()
+    official_iwe_skill: Path | None = None
+    official_iwe_skill_sha256: str | None = None
+    if any(item.skill_setup == "preinstalled" for item in scenarios):
+        try:
+            official_iwe_skill = fetch_official_iwe_skill(
+                report_dir / ".support" / "iwe-memory-system"
+            )
+        except (OSError, RuntimeError, zipfile.BadZipFile) as error:
+            parser.error(f"could not fetch official iwe-memory-system skill: {error}")
+        official_iwe_skill_sha256 = hashlib.sha256(
+            (official_iwe_skill / "SKILL.md").read_bytes()
+        ).hexdigest()
 
     def run_sample(task: tuple[Scenario, int]) -> dict[str, object]:
         scenario, sample = task
         temporary = Path(tempfile.mkdtemp(prefix=f"iwe-eval-{scenario.slug[:24]}-{sample}-"))
         workspace = temporary / "workspace"
+        isolated_home = temporary / "home"
+        isolated_home.mkdir()
+        isolated_codex_home = temporary / "codex-home"
+        isolated_codex_home.mkdir()
+        host_codex_home = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
+        if (host_codex_home / "auth.json").is_file():
+            shutil.copy2(host_codex_home / "auth.json", isolated_codex_home / "auth.json")
+        process_environment = os.environ.copy()
+        process_environment["HOME"] = str(isolated_home)
+        process_environment["CODEX_HOME"] = str(isolated_codex_home)
+        process_environment["NPM_CONFIG_CACHE"] = str(temporary / "npm-cache")
         artifact_name = f"{scenario.slug}--sample-{sample:03}.telemetry"
         artifact_dir = report_dir / artifact_name
         try:
@@ -661,19 +796,37 @@ def main(argv: list[str] | None = None) -> int:
             (workspace / "node_modules").symlink_to(dependency_root, target_is_directory=True)
             shutil.copy2(workspace / ".env.example", workspace / ".env")
             prepare(workspace, scenario.preparation)
-            install_project_skills(workspace)
+            installed_skills = install_project_skills(
+                workspace, scenario, official_iwe_skill
+            )
             before = files(workspace)
             agent_input = agent_prompt(scenario)
-            agent = run_command(args.agent_command, agent_input, workspace, args.timeout)
+            agent = run_command(
+                agent_command_for_scenario(
+                    args.agent_command, scenario, isolated_codex_home
+                ),
+                agent_input,
+                workspace,
+                args.timeout,
+                process_environment,
+            )
+            installed_iwe_evidence = installed_skill_evidence(
+                isolated_codex_home / "skills" / "iwe-memory-system"
+            )
             after = files(workspace)
             changes = diff(before, after)
-            transcript = f"exit={agent.returncode}\nevents/stdout:\n{agent.event_log}\nstderr:\n{agent.stderr}"
+            transcript = (
+                f"exit={agent.returncode}\n"
+                f"installed_iwe_skill={json.dumps(installed_iwe_evidence)}\n"
+                f"events/stdout:\n{agent.event_log}\nstderr:\n{agent.stderr}"
+            )
             judge_input = judge_prompt(scenario, transcript, changes, agent.metrics)
             judge = run_command(
                 args.judge_command,
                 judge_input,
                 workspace,
                 args.timeout,
+                process_environment,
             )
             agent_telemetry = write_command_telemetry(artifact_dir, "agent", agent, agent_input)
             judge_telemetry = write_command_telemetry(artifact_dir, "judge", judge, judge_input)
@@ -701,6 +854,9 @@ def main(argv: list[str] | None = None) -> int:
                 "scenario": scenario.name,
                 "sample": sample,
                 "preparation": scenario.preparation,
+                "skill_setup": scenario.skill_setup,
+                "initial_skills": installed_skills,
+                "installed_iwe_skill": installed_iwe_evidence,
                 "agent_exit": agent.returncode,
                 "judge_exit": judge.returncode,
                 "agent_metrics": agent.metrics,
@@ -835,6 +991,8 @@ def main(argv: list[str] | None = None) -> int:
             "total_samples": len(results),
             "jobs": min(args.jobs, len(tasks)),
             "min_pass_rate": args.min_pass_rate,
+            "official_iwe_skill_source": OFFICIAL_IWE_SKILLS_ARCHIVE,
+            "official_iwe_skill_sha256": official_iwe_skill_sha256,
         },
         "overall": {
             "passes": all_passes,

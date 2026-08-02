@@ -45,13 +45,25 @@ as the primary criteria. Cached input is already included in input tokens;
 reasoning output is already included in output tokens, so neither is counted
 twice.
 
-Every isolated workspace exposes all skills from this repository and all global
-skills discovered under `~/.agents/skills`. The natural operator request does
-not tell the tested agent which skill to use. Gherkin metadata supplies a hidden
-expected-skill oracle only to the judge. Judges evaluate whether the agent
-selected the expected repository workflow and followed its guardrails and
-decision rules; unrelated available skills are not required. They do not reward
-accidental success that bypasses the expected skill selection or procedure.
+Every tested process receives isolated `HOME` and `CODEX_HOME` directories;
+only authentication material is copied into the latter, while user config,
+plugins, user/global skills, and `~/.agents/skills` are unavailable. Codex CLI
+still materializes its immutable built-in `.system` skills; disabling those
+would also disable the skill mechanism under test. Each workspace exposes only the
+repository skills needed by that scenario and the official
+`iwe-memory-system` dependency fetched from `iwe-org/skills`. The natural
+operator request does not name them. Gherkin metadata supplies a hidden
+expected-skill oracle only to the judge. Judges require both the expected
+repository workflow and substantive use of `iwe-memory-system`.
+
+One dedicated scenario intentionally omits `iwe-memory-system` at startup. It
+enables Codex web search and workspace network access, then verifies that the
+agent independently discovers `iwe-org/skills`, installs the official skill,
+reads it, and uses it. Because Codex protects project `.agents/skills` from
+in-session mutation, the scenario grants write access only to its ephemeral
+`CODEX_HOME` and installs there; the runner records presence and a SHA-256 of
+the resulting `SKILL.md`. Necessary discovery and one focused skill installation
+are exempt from ordinary package-install penalties only in that scenario.
 
 List scenarios:
 

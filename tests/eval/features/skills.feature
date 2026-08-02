@@ -39,10 +39,10 @@ Feature: IWE specification skills on a brownfield service
     And skills "iwe-spec-specify"
     When the operator asks:
       """
-      We have accepted that inactive users must receive the same generic login
-      rejection as invalid credentials. Document this authentication requirement
-      with a focused verification criterion. Do not implement it or disturb
-      requirements belonging to another part of the system.
+      Update our existing authentication login policy to say that inactive users
+      receive the same generic rejection as invalid credentials, and add a focused
+      verification criterion. Do not implement it or disturb requirements belonging
+      to another part of the system.
       """
     Then the AI judge verifies:
       """
@@ -51,6 +51,25 @@ Feature: IWE specification skills on a brownfield service
       statement identifiers were treated as owner-local rather than globally
       unique. No claim was copied between owners, application code is unchanged,
       and IWE schema validation succeeds.
+      """
+
+  Scenario: Specify after installing missing IWE support
+    Given preparation "baseline"
+    And skills "iwe-spec-specify"
+    And skill setup "install-iwe-memory-system"
+    When the operator asks:
+      """
+      We have accepted that refresh tokens issued before a successful password
+      reset must no longer authorize a session afterward. Document this in the
+      right place with a focused verification criterion. Do not implement it.
+      """
+    Then the AI judge verifies:
+      """
+      The agent begins without iwe-memory-system, independently discovers and
+      installs the official skill from iwe-org/skills, reads it, and then uses
+      its IWE workflow. The accepted requirement and focused verification claim
+      are added only to the canonical authentication owner, application code is
+      unchanged, and schema validation succeeds.
       """
 
   Scenario: Map a cross-owner registration flow without duplicate claims

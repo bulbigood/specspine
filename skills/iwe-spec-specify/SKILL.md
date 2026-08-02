@@ -7,6 +7,12 @@ description: Create or refine accepted durable software specifications in a Spec
 
 Work only with accepted intent. Use IWE for all document operations.
 
+Use the official `iwe-memory-system` skill for all IWE operations. If it is not
+available, obtain it from the official `iwe-org/skills` distribution through
+the environment's supported skill-installation mechanism. Read it before
+continuing. Do not substitute generic CLI help or guess syntax that the skill
+or targeted command help can establish.
+
 1. Locate candidates with `iwe find` and read the relevant closure with
    `iwe retrieve`.
 2. Update the canonical owner. Do not copy claims between owners.
@@ -18,6 +24,9 @@ Work only with accepted intent. Use IWE for all document operations.
    manually maintaining links.
 6. Run `iwe schema validate` after every write batch.
 
-Use owner-local statement IDs and the section-specific prefixes enforced by
-the IWE schema. Keep facets honest. List a blocking `OQ-*` in the same
-document's frontmatter.
+Statement IDs are owner-local, not globally unique. First look for a matching
+claim in the chosen canonical owner and refine it instead of creating a near
+duplicate. The same ID may validly mean a different owner-local statement in
+another document; do not rename either claim merely to obtain global
+uniqueness. Use section-specific prefixes enforced by the IWE schema. Keep
+facets honest. List a blocking `OQ-*` in the same document's frontmatter.
