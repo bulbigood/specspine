@@ -147,6 +147,8 @@ class InstallationIntegrityTests(unittest.TestCase):
         self.assertIn("obtain approval before running it", compact)
         self.assertIn("strict descendant of the resolved IWE library root", compact)
         self.assertIn("This skill contains no scripts", skill)
+        self.assertIn("may lag the installed IWE binary", compact)
+        self.assertIn("`iwe <command> --help`", skill)
         self.assertIn("Make the operation idempotent", compact)
         self.assertIn("Never replace the generated configuration", compact)
         self.assertTrue(
@@ -180,6 +182,9 @@ class InstallationIntegrityTests(unittest.TestCase):
             compact = " ".join(skill.split())
             self.assertIn("installed official `iwe-memory-system` skill", compact)
             self.assertIn("read it before continuing", compact)
+            self.assertIn("may lag the installed IWE binary", compact)
+            self.assertIn("`iwe <command> --help`", skill)
+            self.assertIn("do not retry the known-stale form", compact)
             self.assertIn("ask the operator to run `iwe-spec-setup`", compact)
             self.assertIn("README manual fallback", compact)
             self.assertIn("Do not install or repair setup from this workflow", compact)

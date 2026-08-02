@@ -11,6 +11,11 @@ specification work to the workflow skills. Use the installed official
 continuing. If it is unavailable, stop and point the user to the repository
 README instead of installing it.
 
+Treat its CLI examples as guidance that may lag the installed IWE binary. If a
+command rejects an argument or prints a deprecation warning, run
+`iwe <command> --help`, switch to the syntax reported by the installed CLI, and
+do not retry the known-stale form.
+
 The canonical setup assets are bundled at `assets/iwe/` relative to this file:
 
 - `config.toml` contains a complete reference configuration. Use only its

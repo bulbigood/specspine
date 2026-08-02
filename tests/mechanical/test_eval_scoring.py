@@ -125,33 +125,87 @@ class EvalScoringTests(unittest.TestCase):
             self.assertEqual((directory / "agent.stderr.txt").read_text(), "warning")
             self.assertEqual((directory / "agent.prompt.txt").read_text(), "request")
 
-    def test_tool_inefficiency_cannot_be_hidden_by_correctness(self) -> None:
-        verdict = EVAL_RUN.derive_verdict(critique(tool_efficiency=69))
-
-        self.assertGreaterEqual(verdict["score"], EVAL_RUN.PASS_SCORE)
-        self.assertFalse(verdict["pass"])
-        self.assertEqual(
-            verdict["floor_failures"]["tool_efficiency"],
-            {"score": 69, "required": 70},
-        )
-
-    def test_resource_inefficiency_has_an_independent_floor(self) -> None:
-        verdict = EVAL_RUN.derive_verdict(critique(resource_efficiency=59))
-
-        self.assertGreaterEqual(verdict["score"], EVAL_RUN.PASS_SCORE)
-        self.assertFalse(verdict["pass"])
-        self.assertEqual(
-            verdict["floor_failures"]["resource_efficiency"],
-            {"score": 59, "required": 60},
-        )
-
-    def test_efficiency_at_the_floors_can_pass(self) -> None:
+    def test_ai_efficiency_scores_have_no_independent_hard_floor(self) -> None:
         verdict = EVAL_RUN.derive_verdict(
-            critique(tool_efficiency=70, resource_efficiency=60)
+            critique(tool_efficiency=69, resource_efficiency=59)
         )
 
+        self.assertGreaterEqual(verdict["score"], EVAL_RUN.PASS_SCORE)
         self.assertTrue(verdict["pass"])
         self.assertEqual(verdict["floor_failures"], {})
+        self.assertEqual(verdict["efficiency"]["rating"], "inefficient")
+
+    def test_correctness_still_has_an_independent_floor(self) -> None:
+        verdict = EVAL_RUN.derive_verdict(critique(task_correctness=79))
+
+        self.assertGreaterEqual(verdict["score"], EVAL_RUN.PASS_SCORE)
+        self.assertFalse(verdict["pass"])
+        self.assertEqual(
+            verdict["floor_failures"]["task_correctness"],
+            {"score": 79, "required": 80},
+        )
+
+    def test_procedure_signals_measure_recovery_retries_and_output(self) -> None:
+        raw = "\n".join(
+            (
+                json.dumps(
+                    {
+                        "type": "item.completed",
+                        "item": {
+                            "type": "command_execution",
+                            "command": "iwe retrieve old --depth 1",
+                            "exit_code": 2,
+                            "aggregated_output": "deprecated syntax",
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "item.completed",
+                        "item": {
+                            "type": "command_execution",
+                            "command": "iwe retrieve --help",
+                            "exit_code": 0,
+                            "aggregated_output": "current help",
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "item.completed",
+                        "item": {
+                            "type": "command_execution",
+                            "command": "npm test -- auth.test.js",
+                            "exit_code": 1,
+                            "aggregated_output": "MongoMemoryServer EPERM",
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "item.completed",
+                        "item": {
+                            "type": "command_execution",
+                            "command": "npm test -- auth.test.js",
+                            "exit_code": 1,
+                            "aggregated_output": "MongoMemoryServer EPERM",
+                        },
+                    }
+                ),
+            )
+        )
+
+        signals = EVAL_RUN.agent_procedure_signals(raw)
+
+        self.assertEqual(signals["command_count"], 4)
+        self.assertEqual(signals["failed_command_count"], 3)
+        self.assertEqual(signals["deprecated_iwe_warning_count"], 1)
+        self.assertEqual(signals["iwe_compatibility_problem_count"], 1)
+        self.assertEqual(signals["iwe_help_recovery_count"], 1)
+        self.assertEqual(signals["repeated_exact_command_count"], 1)
+        self.assertEqual(signals["environment_blocked_test_count"], 2)
+        self.assertEqual(signals["test_retry_after_environment_blocker_count"], 1)
+        self.assertGreater(signals["command_output_bytes"], 0)
 
     def test_agent_prompt_discloses_non_git_workspace(self) -> None:
         scenario = EVAL_RUN.Scenario(
@@ -161,6 +215,8 @@ class EvalScoringTests(unittest.TestCase):
         prompt = EVAL_RUN.agent_prompt(scenario)
 
         self.assertIn("intentionally has no .git directory", prompt)
+        self.assertIn("tests the repository skills and documentation", prompt)
+        self.assertIn("Do not execute those tests", prompt)
         self.assertNotIn("iwe-spec-verify", prompt)
         for hint in (
             "IWE",
@@ -174,7 +230,7 @@ class EvalScoringTests(unittest.TestCase):
         ):
             self.assertNotIn(hint, prompt)
 
-    def test_judge_prompt_ignores_only_environment_failures(self) -> None:
+    def test_judge_prompt_handles_environment_and_upstream_iwe_failures(self) -> None:
         scenario = EVAL_RUN.Scenario(
             "feature", "scenario", "baseline", ("iwe-spec-verify",), "request", "rubric"
         )
@@ -184,7 +240,10 @@ class EvalScoringTests(unittest.TestCase):
         self.assertIn("Ignore an attempted read-only Git", prompt)
         self.assertIn("Do not ignore destructive", prompt)
         self.assertIn("or remote Git attempts", prompt)
-        self.assertIn("All other invalid commands, including incorrect IWE syntax", prompt)
+        self.assertIn("upstream `iwe-memory-system` skill is not versioned", prompt)
+        self.assertIn("do not lower\nany score", prompt)
+        self.assertIn("test the skills and documentation, not MongoDB", prompt)
+        self.assertIn("independent AI-judged acceptance floors", prompt)
         self.assertIn("Expected skill selection", prompt)
         self.assertIn("iwe-spec-verify", prompt)
         self.assertIn("iwe-memory-system", prompt)
@@ -235,7 +294,7 @@ class EvalScoringTests(unittest.TestCase):
             )
         )
 
-    def test_setup_scenarios_do_not_require_the_application_runtime(self) -> None:
+    def test_setup_scenarios_do_not_require_fixture_dependencies(self) -> None:
         scenarios = EVAL_RUN.load_scenarios()
 
         setup = [item for item in scenarios if item.preparation.startswith("setup-")]
@@ -243,8 +302,23 @@ class EvalScoringTests(unittest.TestCase):
 
         self.assertTrue(setup)
         self.assertTrue(operational)
-        self.assertFalse(any(EVAL_RUN.requires_application_runtime(item) for item in setup))
-        self.assertTrue(all(EVAL_RUN.requires_application_runtime(item) for item in operational))
+        self.assertFalse(any(EVAL_RUN.requires_fixture_dependencies(item) for item in setup))
+        self.assertTrue(all(EVAL_RUN.requires_fixture_dependencies(item) for item in operational))
+
+    def test_setup_agent_prompt_does_not_mention_database_runtime(self) -> None:
+        scenario = next(
+            item
+            for item in EVAL_RUN.load_scenarios()
+            if item.preparation == "setup-existing-workspace"
+        )
+
+        self.assertNotIn("MongoDB-backed", EVAL_RUN.agent_prompt(scenario))
+
+    def test_eval_harness_does_not_probe_mongodb_runtime(self) -> None:
+        runner = (ROOT / "tests/eval/run.py").read_text(encoding="utf-8")
+
+        self.assertNotIn("MongoMemoryServer.create", runner)
+        self.assertNotIn("could not start the fixture's in-memory MongoDB", runner)
 
     @unittest.skipUnless(shutil.which("iwe"), "IWE is required")
     def test_setup_postconditions_accept_confirmed_nested_scope(self) -> None:

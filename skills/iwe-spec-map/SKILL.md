@@ -12,6 +12,11 @@ Use the installed official `iwe-memory-system` skill for every IWE operation
 and read it before continuing. If it is unavailable, stop and direct the
 operator to the Specspine README setup.
 
+Treat its CLI examples as guidance that may lag the installed IWE binary. If a
+command rejects an argument or prints a deprecation warning, run
+`iwe <command> --help`, switch to the syntax reported by the installed CLI, and
+do not retry the known-stale form.
+
 Before interpreting or writing Specspine documents, read
 [Specspine format](references/specspine-format.md) and
 [Specspine semantics](references/specspine-semantics.md) completely. The
