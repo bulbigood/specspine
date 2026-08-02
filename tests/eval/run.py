@@ -28,11 +28,11 @@ FIXTURE = ROOT / "examples/node-express-boilerplate"
 SCHEMA = Path(__file__).with_name("judge.schema.json")
 MEASURE_PROCESS = Path(__file__).with_name("measure_process.py")
 DEFAULT_AGENT = (
-    'codex exec --ephemeral --skip-git-repo-check -s workspace-write '
+    'codex exec --json --ephemeral --skip-git-repo-check -s workspace-write '
     '-m gpt-5.6-terra -c model_reasoning_effort="medium" -'
 )
 DEFAULT_JUDGE = (
-    f"codex exec --ephemeral --skip-git-repo-check -s read-only "
+    f"codex exec --json --ephemeral --skip-git-repo-check -s read-only "
     f"-m gpt-5.6-sol -c model_reasoning_effort=\"low\" "
     f"--output-schema {shlex.quote(str(SCHEMA))} -"
 )
@@ -74,6 +74,62 @@ class CommandResult:
     stdout: str
     stderr: str
     metrics: dict[str, float | int | None]
+    event_log: str
+
+
+def parse_codex_jsonl(stdout: str) -> tuple[str, dict[str, int | None], str]:
+    """Extract the final message and turn usage from `codex exec --json`."""
+    events: list[dict[str, object]] = []
+    for line in stdout.splitlines():
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            return stdout, {}, stdout
+        if not isinstance(event, dict) or "type" not in event:
+            return stdout, {}, stdout
+        events.append(event)
+    if not events:
+        return stdout, {}, stdout
+
+    messages = [
+        item.get("text")
+        for event in events
+        if event.get("type") == "item.completed"
+        and isinstance((item := event.get("item")), dict)
+        and item.get("type") == "agent_message"
+        and isinstance(item.get("text"), str)
+    ]
+    completed = next(
+        (event for event in reversed(events) if event.get("type") == "turn.completed"),
+        {},
+    )
+    usage = completed.get("usage", {})
+    token_metrics: dict[str, int | None] = {}
+    if isinstance(usage, dict):
+        for key in (
+            "input_tokens",
+            "cached_input_tokens",
+            "output_tokens",
+            "reasoning_output_tokens",
+        ):
+            value = usage.get(key)
+            token_metrics[key] = int(value) if isinstance(value, (int, float)) else None
+        input_tokens = token_metrics.get("input_tokens")
+        cached_tokens = token_metrics.get("cached_input_tokens")
+        output_tokens = token_metrics.get("output_tokens")
+        token_metrics["uncached_input_tokens"] = (
+            max(0, input_tokens - cached_tokens)
+            if input_tokens is not None and cached_tokens is not None
+            else None
+        )
+        token_metrics["total_tokens"] = (
+            input_tokens + output_tokens
+            if input_tokens is not None and output_tokens is not None
+            else None
+        )
+    return (messages[-1] if messages else stdout), token_metrics, stdout
 
 
 def parse_feature(path: Path) -> list[Scenario]:
@@ -226,6 +282,12 @@ def run_command(command: str, prompt: str, cwd: Path, timeout: int) -> CommandRe
         "total_cpu_seconds": None,
         "cpu_to_wall_ratio": None,
         "peak_rss_bytes": None,
+        "input_tokens": None,
+        "cached_input_tokens": None,
+        "uncached_input_tokens": None,
+        "output_tokens": None,
+        "reasoning_output_tokens": None,
+        "total_tokens": None,
     }
     with tempfile.TemporaryDirectory(prefix="iwe-command-metrics-") as temporary:
         metrics_path = Path(temporary) / "time.txt"
@@ -254,7 +316,9 @@ def run_command(command: str, prompt: str, cwd: Path, timeout: int) -> CommandRe
             metrics["total_cpu_seconds"] = total_cpu
             wall = float(metrics["wall_seconds"] or 0)
             metrics["cpu_to_wall_ratio"] = total_cpu / wall if wall else None
-    return CommandResult(process.returncode, stdout, stderr, metrics)
+    final_stdout, token_metrics, event_log = parse_codex_jsonl(stdout)
+    metrics.update(token_metrics)
+    return CommandResult(process.returncode, final_stdout, stderr, metrics, event_log)
 
 
 def install_project_skills(workspace: Path) -> None:
@@ -298,9 +362,12 @@ artifacts or credible command output. Return a decomposed critique; the runner, 
 the final score and pass/fail result.
 
 Also evaluate what work the AI agent actually performed and how efficiently it performed it.
-Treat wall time, CPU time, CPU-to-wall ratio, and peak resident memory as additional evaluation
+Treat token usage, wall time, CPU time, CPU-to-wall ratio, and peak resident memory as additional evaluation
 dimensions. Do not penalize long wall time in isolation: distinguish active CPU work, waiting,
-and memory pressure using the supplied measurements and the task's complexity. Penalize clearly
+memory pressure, cached versus uncached input, and output/reasoning volume using the supplied
+measurements and the task's complexity. Do not judge token count in isolation or double-count
+cached input or reasoning tokens: reasoning output is part of output, and cached input is part of
+input. Penalize clearly
 excessive work, repeated unnecessary operations, or disproportionate resource consumption, but
 keep correctness and safety primary.
 
@@ -321,7 +388,7 @@ rationale and evidence:
 - safety: whether changes preserve unrelated behavior, respect scope, and avoid unsafe actions;
 - evidence_quality: whether claims are supported by workspace artifacts and credible executions;
 - tool_efficiency: whether available tools were selected and used without avoidable work;
-- resource_efficiency: whether wall time, CPU, and peak memory are proportionate to task complexity.
+- resource_efficiency: whether token usage, wall time, CPU, and peak memory are proportionate to task complexity.
 
 Do not compensate a weak dimension by inflating another. Use the full numeric range and identify
 specific deficiencies in that dimension's rationale and evidence.
@@ -476,7 +543,7 @@ def main(argv: list[str] | None = None) -> int:
             agent = run_command(args.agent_command, agent_prompt(scenario), workspace, args.timeout)
             after = files(workspace)
             changes = diff(before, after)
-            transcript = f"exit={agent.returncode}\nstdout:\n{agent.stdout}\nstderr:\n{agent.stderr}"
+            transcript = f"exit={agent.returncode}\nevents/stdout:\n{agent.event_log}\nstderr:\n{agent.stderr}"
             judge = run_command(
                 args.judge_command,
                 judge_prompt(scenario, transcript, changes, agent.metrics),
@@ -553,6 +620,12 @@ def main(argv: list[str] | None = None) -> int:
                 "total_cpu_seconds",
                 "cpu_to_wall_ratio",
                 "peak_rss_bytes",
+                "input_tokens",
+                "cached_input_tokens",
+                "uncached_input_tokens",
+                "output_tokens",
+                "reasoning_output_tokens",
+                "total_tokens",
             )
         }
 

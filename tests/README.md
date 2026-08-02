@@ -34,11 +34,16 @@ workspace diff, final workspace, and agent transcript; no golden patch or
 mechanical assertion decides whether a scenario passes.
 
 Every judge must also evaluate what the coding agent actually did and how long
-it worked. The runner supplies wall time, user/system CPU time, CPU-to-wall
-ratio, and peak resident memory for the agent process. Judges treat these as
-additional efficiency dimensions: they account for CPU work and memory
-pressure when interpreting a long duration, penalize disproportionate or
-unnecessary work, and keep correctness and safety as the primary criteria.
+it worked. The runner supplies exact Codex turn token usage (`input_tokens`,
+`cached_input_tokens`, derived `uncached_input_tokens`, `output_tokens`,
+`reasoning_output_tokens`, and derived `total_tokens`) plus wall time,
+user/system CPU time, CPU-to-wall ratio, and peak resident memory. Judges treat
+these as additional efficiency dimensions. They interpret token use relative
+to task complexity, account for caching, CPU work, and memory pressure,
+penalize disproportionate or unnecessary work, and keep correctness and safety
+as the primary criteria. Cached input is already included in input tokens;
+reasoning output is already included in output tokens, so neither is counted
+twice.
 
 Judges assume the tested agents are sufficiently capable to complete the
 scenario at a high quality bar. They evaluate whether an agent used available
@@ -86,9 +91,9 @@ The worker limit applies to all `scenario × sample` tasks together. Every run
 gets a timestamped directory under `tests/eval/reports/`, so later runs do not
 overwrite earlier samples. `summary.json` contains per-scenario and overall
 pass rate plus score mean, median, minimum, maximum, and population standard
-deviation. It also aggregates agent resource measurements and judge efficiency
-ratings. Pass rate determines acceptance; score and efficiency statistics are
-diagnostic.
+deviation. It also aggregates every agent token/resource measurement and judge
+efficiency rating. Pass rate determines acceptance; score and efficiency
+statistics are diagnostic.
 
 Judges return separate scores, rationale, and evidence for seven dimensions:
 task correctness, scenario compliance, repository-local skill compliance,
