@@ -13,8 +13,7 @@ Use the official `iwe-memory-system` skill for all IWE operations. If it is not
 available, obtain it from the official `iwe-org/skills` distribution through
 the environment's supported skill-installation mechanism. Read it before
 continuing. Do not substitute generic CLI help or guess syntax that the skill
-or targeted command help can establish. Also use the `iwe-spec-verify` skill;
-Verify is a report procedure, not an IWE subcommand.
+or targeted command help can establish.
 
 Inspect `.iwe/config.toml` before starting. Read the
 [IWE bootstrap protocol](references/iwe-bootstrap.md) only when IWE is not
@@ -37,13 +36,13 @@ library path conflicts with the configured path.
 2. Run `iwe schema validate`; stop on schema errors.
 3. Retrieve a task-bounded closure with `iwe retrieve`, expanding inclusion,
    references, children, and backlinks only as far as the task requires.
-4. Produce the complete pre-change report required by `iwe-spec-verify`.
+4. Produce a complete pre-change conformance assessment.
    Classify findings as `conforming`, `missing`, `conflicting`,
    `uncovered-boundary`, `ambiguous`, or `runtime-unverified`. Treat `REQ`,
    `GUA`, `INV`, `QLT`, `DEC`, `CON`, and `VER` as normative; treat `OBS` and
    `INF` only as evidence.
-   Capture every required report field before editing and reproduce this report
-   under `Pre-change Verify` in the final response.
+   Capture every required report field before editing and reproduce the
+   assessment under `Pre-change assessment` in the final response.
 5. Trace each relevant normative claim to code, tests, and registered assets.
    Record every applicable Verify finding class, using explicit `none` for
    classes without findings, before editing.
@@ -54,13 +53,14 @@ library path conflicts with the configured path.
    the smallest relevant test. Run a broader suite only after the focused test
    passes and only when the change's risk justifies it. Follow the shared
    environment-blocked stop rule.
-8. Run `iwe schema validate` once after the implementation and produce the
-   complete post-change `iwe-spec-verify` report over the same scope. Report
+8. Run `iwe schema validate` once after the implementation and produce a
+   complete post-change conformance assessment over the same scope. Report
    changed files, before/after finding transitions, satisfied claims, remaining
    divergence, and runtime-unverified claims.
-   The exact final headings are `Pre-change Verify`; `Post-change Verify`;
-   `Finding transitions`. Include all five Verify report sections under each
-   Verify heading, including explicit `none` values.
+   The exact final headings are `Pre-change assessment`;
+   `Post-change assessment`; `Finding transitions`. Under each assessment,
+   include `Scope`, `Claims checked`, `Findings`, `Test evidence`, and `Verdict`,
+   using explicit `none` values where applicable.
 
 ## Removal policy
 

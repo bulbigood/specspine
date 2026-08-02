@@ -1,1 +1,0 @@
-../../../shared/scripts/bootstrap_spine.py

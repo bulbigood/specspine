@@ -172,9 +172,14 @@ class EvalScoringTests(unittest.TestCase):
 
     def test_iwe_skills_require_the_shared_bootstrap_protocol(self) -> None:
         expected = "[IWE bootstrap protocol](references/iwe-bootstrap.md)"
-        canonical = (EVAL_RUN.ROOT / "skills/references/iwe-bootstrap.md").read_text()
+        canonical = (EVAL_RUN.ROOT / "shared/references/iwe-bootstrap.md").read_text()
         self.assertIn("`docs/specs` as the fallback", canonical)
-        self.assertIn("Use it as configured", canonical)
+        self.assertIn("An existing path other than `docs/specs` is valid", canonical)
+        self.assertIn("If it is absent", canonical)
+        self.assertIn("ask where specifications should", canonical)
+        self.assertIn("When `.iwe/` exists without `config.toml`", canonical)
+        self.assertIn('match = "specspine/**"', canonical)
+        self.assertIn("ask the operator which directory is the project root", canonical)
         self.assertNotIn("Continue only when `library.path` resolves to", canonical)
         for name in ("map", "specify", "verify", "implement"):
             skill_dir = EVAL_RUN.ROOT / f"skills/iwe-spec-{name}"
@@ -186,6 +191,29 @@ class EvalScoringTests(unittest.TestCase):
                 canonical,
                 (skill_dir / "references/iwe-bootstrap.md").read_text(),
             )
+            self.assertTrue((skill_dir / "assets/iwe/config.toml").is_file())
+            self.assertTrue(
+                (skill_dir / "assets/iwe/schemas/specification.yaml").is_file()
+            )
+
+    def test_shared_skill_resources_are_live_symlinks(self) -> None:
+        shared = EVAL_RUN.ROOT / "shared"
+        self.assertTrue((shared / "references/iwe-bootstrap.md").is_file())
+        self.assertTrue((shared / "assets/iwe/config.toml").is_file())
+        self.assertTrue((shared / "assets/iwe/schemas/specification.yaml").is_file())
+
+        for name in ("map", "specify", "verify", "implement"):
+            skill_dir = EVAL_RUN.ROOT / f"skills/iwe-spec-{name}"
+            for relative in (
+                "references/iwe-bootstrap.md",
+                "assets/iwe",
+            ):
+                link = skill_dir / relative
+                self.assertTrue(link.is_symlink(), f"expected symlink: {link}")
+                self.assertTrue(link.exists(), f"broken symlink: {link}")
+
+        for name in ("map", "specify"):
+            self.assertFalse((EVAL_RUN.ROOT / f"skills/iwe-spec-{name}/scripts").exists())
 
     def test_iwe_skills_require_the_official_iwe_skill(self) -> None:
         for name in ("map", "specify", "verify", "implement"):
@@ -229,17 +257,27 @@ class EvalScoringTests(unittest.TestCase):
         self.assertIn("sandbox_workspace_write.network_access=true", command)
         self.assertIn("--add-dir /isolated-codex-home", command)
 
-    def test_verify_and_implement_require_structured_before_after_evidence(self) -> None:
+    def test_verify_and_implement_are_independent_and_structured(self) -> None:
         verify = (EVAL_RUN.ROOT / "skills/iwe-spec-verify/SKILL.md").read_text()
         implement = (EVAL_RUN.ROOT / "skills/iwe-spec-implement/SKILL.md").read_text()
 
         for section in ("Scope", "Claims checked", "Findings", "Test evidence", "Verdict"):
             self.assertIn(section, verify)
-        self.assertIn("pre-change report", implement)
+        self.assertIn("pre-change conformance assessment", implement)
         self.assertIn("post-change", implement)
         self.assertIn("before/after finding transitions", implement)
-        self.assertIn("Pre-change Verify", implement)
-        self.assertIn("Post-change Verify", implement)
+        self.assertNotIn("iwe-spec-verify", implement)
+        self.assertIn("Pre-change assessment", implement)
+        self.assertIn("Post-change assessment", implement)
+
+    def test_implement_does_not_install_verify_as_a_dependency(self) -> None:
+        scenario = EVAL_RUN.Scenario(
+            "feature", "scenario", "baseline", ("iwe-spec-implement",), "request", "rubric"
+        )
+        self.assertEqual(
+            EVAL_RUN.required_skill_names(scenario),
+            ("iwe-spec-implement", "iwe-memory-system"),
+        )
 
     def test_map_uses_schema_valid_observation_and_inspection_shapes(self) -> None:
         skill = (EVAL_RUN.ROOT / "skills/iwe-spec-map/SKILL.md").read_text()

@@ -482,8 +482,6 @@ def fetch_official_iwe_skill(destination: Path) -> Path:
 
 def required_skill_names(scenario: Scenario) -> tuple[str, ...]:
     names = list(scenario.skills)
-    if "iwe-spec-implement" in names and "iwe-spec-verify" not in names:
-        names.append("iwe-spec-verify")
     if scenario.skill_setup != "install-iwe-memory-system":
         names.append("iwe-memory-system")
     return tuple(dict.fromkeys(names))
@@ -531,6 +529,8 @@ def install_project_skills(
 ) -> tuple[str, ...]:
     destination = workspace / ".agents/skills"
     destination.mkdir(parents=True, exist_ok=True)
+    shared = ROOT / "shared"
+    shutil.copytree(shared, destination.parent / "shared", symlinks=True)
     installed: list[str] = []
     for name in required_skill_names(scenario):
         if name == "iwe-memory-system":
@@ -546,8 +546,7 @@ def install_project_skills(
         shutil.copytree(
             source,
             destination / name,
-            symlinks=False,
-            ignore_dangling_symlinks=True,
+            symlinks=True,
         )
         installed.append(name)
     return tuple(installed)
