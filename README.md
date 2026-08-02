@@ -61,6 +61,8 @@ valid IWE configuration, but this guide uses `docs`. For an existing IWE
 project, keep its configured `library.path`; every `specs/**` path below is
 relative to that library. See the official
 [`iwe init` reference](https://iwe.md/docs/cli/init/).
+For all available `.iwe/config.toml` options, see the official
+[IWE configuration reference](https://iwe.md/docs/configuration/).
 
 ### 2. Add the Specspine template and schema binding
 
