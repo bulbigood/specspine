@@ -52,6 +52,13 @@ answers in advance or silently select defaults.
    root. For an uninitialized project, propose the current working directory
    and ask the user to confirm it or provide another root. Do not initialize
    until the root is explicit.
+4. For an existing workspace, check whether its current library path,
+   Specspine template and schema binding, canonical schema file, and
+   specification directory already form a complete valid setup. If they do,
+   run `iwe schema validate`, leave every file unchanged, and report the
+   existing setup immediately. Do not ask the user to reconfirm values that do
+   not need to change. Continue with the decisions below only when setup is
+   incomplete, conflicting, or the user explicitly asks to change it.
 
 ### 3. Choose and initialize the IWE library
 

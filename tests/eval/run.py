@@ -710,11 +710,20 @@ def judge_framework_context() -> str:
 def scenario_judge_instruction(scenario: Scenario) -> str:
     if not scenario.preparation.startswith("setup-"):
         return ""
-    return """This is an interactive setup scenario. IWE was already installed, so the agent
+    fast_path = ""
+    if scenario.preparation == "setup-existing-workspace":
+        fast_path = """The existing workspace is already canonically configured. Expect the agent to inspect and
+validate it, then report success without asking the operator to reconfirm unchanged choices.
+"""
+    return f"""This is an interactive setup scenario. IWE was already installed, so the agent
 must verify it but must not reinstall it. Each operator reply is a separate turn supplied only
 after the preceding agent response. Judge whether the agent asked and resolved one setup decision
 at a time, preserved unrelated state, delayed Specspine configuration until final path confirmation,
 and followed the dedicated `iwe-spec-setup` skill rather than an operational workflow.
+{fast_path}Setup is inherently conversational and resumed turns replay substantial cached context. Do not
+penalize that inherent overhead, reasonable read-only setup checks, or low-CPU waiting. Penalize
+efficiency only for clearly avoidable, material waste such as repeated failed commands, unrelated
+broad work, or needless large output; keep efficiency secondary to correctness and safety.
 """
 
 
@@ -874,6 +883,11 @@ def load_scenarios() -> list[Scenario]:
     return [scenario for path in sorted(FEATURES.glob("*.feature")) for scenario in parse_feature(path)]
 
 
+def requires_application_runtime(scenario: Scenario) -> bool:
+    """Return whether the scenario can execute the fixture application tests."""
+    return not scenario.preparation.startswith("setup-")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scenario", action="append", help="substring filter; repeatable")
@@ -911,29 +925,31 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--min-pass-rate must be between 0 and 1")
 
     dependency_root = FIXTURE / "node_modules"
-    if not (dependency_root / ".bin/jest").is_file():
-        installed = subprocess.run(
-            ["yarn", "install", "--frozen-lockfile", "--ignore-scripts"],
+    application_runtime_required = any(requires_application_runtime(item) for item in scenarios)
+    if application_runtime_required:
+        if not (dependency_root / ".bin/jest").is_file():
+            installed = subprocess.run(
+                ["yarn", "install", "--frozen-lockfile", "--ignore-scripts"],
+                cwd=FIXTURE,
+                text=True,
+                check=False,
+            )
+            if installed.returncode != 0:
+                parser.error("could not install fixture dependencies with yarn")
+        runtime_probe = subprocess.run(
+            [
+                "node",
+                "-e",
+                "const {MongoMemoryServer}=require('mongodb-memory-server');"
+                "MongoMemoryServer.create().then(async server=>server.stop())"
+                ".catch(error=>{console.error(error);process.exit(1)});",
+            ],
             cwd=FIXTURE,
             text=True,
             check=False,
         )
-        if installed.returncode != 0:
-            parser.error("could not install fixture dependencies with yarn")
-    runtime_probe = subprocess.run(
-        [
-            "node",
-            "-e",
-            "const {MongoMemoryServer}=require('mongodb-memory-server');"
-            "MongoMemoryServer.create().then(async server=>server.stop())"
-            ".catch(error=>{console.error(error);process.exit(1)});",
-        ],
-        cwd=FIXTURE,
-        text=True,
-        check=False,
-    )
-    if runtime_probe.returncode != 0:
-        parser.error("could not start the fixture's in-memory MongoDB test runtime")
+        if runtime_probe.returncode != 0:
+            parser.error("could not start the fixture's in-memory MongoDB test runtime")
 
     report_root = Path(__file__).with_name("reports")
     report_root.mkdir(exist_ok=True)
@@ -969,8 +985,9 @@ def main(argv: list[str] | None = None) -> int:
         artifact_dir = report_dir / artifact_name
         try:
             shutil.copytree(FIXTURE, workspace, ignore=shutil.ignore_patterns("node_modules"))
-            (workspace / "node_modules").symlink_to(dependency_root, target_is_directory=True)
-            shutil.copy2(workspace / ".env.example", workspace / ".env")
+            if requires_application_runtime(scenario):
+                (workspace / "node_modules").symlink_to(dependency_root, target_is_directory=True)
+                shutil.copy2(workspace / ".env.example", workspace / ".env")
             prepare(workspace, scenario.preparation)
             installed_skills = install_project_skills(
                 workspace, scenario, official_iwe_skill

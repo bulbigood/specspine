@@ -81,24 +81,13 @@ Feature: Interactive Specspine workspace setup
       Check and complete the Specspine setup in this existing project without
       rewriting configuration that is already correct.
       """
-    And the operator replies:
-      """
-      Keep the current docs library.
-      """
-    And the operator replies:
-      """
-      Keep using docs/specs for Specspine documents.
-      """
-    And the operator replies:
-      """
-      Those paths are correct. Finish the setup.
-      """
     Then the AI judge verifies:
       """
       The agent recognizes the existing template, schema binding, and schema as
       identical canonical setup, preserves every workspace file byte-for-byte,
-      performs no installation or normalization, and reports successful IWE
-      validation.
+      performs no installation or normalization, takes the existing-valid
+      fast path without asking the operator to reconfirm unchanged paths, and
+      reports successful IWE validation.
       """
 
   Scenario: Stop before replacing conflicting Specspine configuration

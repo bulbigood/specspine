@@ -50,9 +50,10 @@ separate read-only AI judge. The judge evaluates the request, semantic rubric,
 workspace diff, final workspace, and agent transcript. Workflow scenarios use
 no golden patch. Operational workflow scenarios start from a workspace already
 initialized for IWE and Specspine, matching the prerequisite documented in the
-root README. Dedicated multi-turn setup scenarios start from new, valid, or
-conflicting workspace states and expose only `iwe-spec-setup` plus the official
-`iwe-memory-system` dependency.
+root README. Dedicated setup scenarios start from new, valid, or conflicting
+workspace states and expose only `iwe-spec-setup` plus the official
+`iwe-memory-system` dependency. New and conflicting setups use multiple turns;
+an already valid setup exercises the immediate, unchanged fast path.
 
 Setup evals keep the IWE executable preinstalled. They test interactive
 decisions, path containment, idempotence, collision handling, generated config,

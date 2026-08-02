@@ -208,6 +208,7 @@ class EvalScoringTests(unittest.TestCase):
         self.assertIn("1. first choice", prompt)
         self.assertIn("2. second choice", prompt)
         self.assertIn("iwe-spec-setup", prompt)
+        self.assertIn("Do not\npenalize that inherent overhead", prompt)
 
     def test_setup_scenarios_target_only_the_setup_skill(self) -> None:
         setup_scenarios = [
@@ -219,8 +220,31 @@ class EvalScoringTests(unittest.TestCase):
         self.assertEqual(len(setup_scenarios), 4)
         for scenario in setup_scenarios:
             self.assertEqual(scenario.skills, ("iwe-spec-setup",))
-            self.assertTrue(scenario.replies)
             self.assertNotIn("iwe-spec-specify", scenario.rubric)
+        existing = next(
+            item for item in setup_scenarios
+            if item.preparation == "setup-existing-workspace"
+        )
+        self.assertEqual(existing.replies, ())
+        self.assertIn("fast path", existing.rubric)
+        self.assertTrue(
+            all(
+                item.replies
+                for item in setup_scenarios
+                if item.preparation != "setup-existing-workspace"
+            )
+        )
+
+    def test_setup_scenarios_do_not_require_the_application_runtime(self) -> None:
+        scenarios = EVAL_RUN.load_scenarios()
+
+        setup = [item for item in scenarios if item.preparation.startswith("setup-")]
+        operational = [item for item in scenarios if not item.preparation.startswith("setup-")]
+
+        self.assertTrue(setup)
+        self.assertTrue(operational)
+        self.assertFalse(any(EVAL_RUN.requires_application_runtime(item) for item in setup))
+        self.assertTrue(all(EVAL_RUN.requires_application_runtime(item) for item in operational))
 
     @unittest.skipUnless(shutil.which("iwe"), "IWE is required")
     def test_setup_postconditions_accept_confirmed_nested_scope(self) -> None:
