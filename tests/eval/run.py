@@ -40,6 +40,11 @@ DEFAULT_JUDGE = (
     f"--output-schema {shlex.quote(str(SCHEMA))} -"
 )
 OFFICIAL_IWE_SKILLS_ARCHIVE = "https://github.com/iwe-org/skills/archive/refs/heads/main.zip"
+JUDGE_FRAMEWORK_DOCUMENTS = (
+    ROOT / "README.md",
+    ROOT / "docs/reference/format.md",
+    ROOT / "docs/reference/semantics.md",
+)
 DIMENSION_WEIGHTS = {
     "task_correctness": 0.25,
     "scenario_compliance": 0.15,
@@ -816,6 +821,15 @@ def agent_reply_prompt(scenario: Scenario) -> str:
     return f"Operator reply:\n{scenario.reply}\n"
 
 
+def judge_framework_context() -> str:
+    """Load the canonical Specspine overview and semantics for judge-only context."""
+    sections = []
+    for path in JUDGE_FRAMEWORK_DOCUMENTS:
+        relative = path.relative_to(ROOT)
+        sections.append(f"--- {relative} ---\n{path.read_text(encoding='utf-8').rstrip()}")
+    return "\n\n".join(sections)
+
+
 def judge_prompt(
     scenario: Scenario,
     transcript: str,
@@ -850,14 +864,31 @@ choices consume. All other invalid commands, including incorrect IWE syntax, rem
 Assume the tested AI agent is capable of solving the task at a high quality bar. The agent was not
 told which skill to use. It received an isolated, task-bounded skill set and had to select the
 appropriate workflow from the natural operator request. The expected skill selection below is a
-hidden evaluation oracle. Read those expected skill instructions from
-`.agents/skills/` and evaluate both whether the agent selected them and whether it substantively
-followed their guardrails and decision rules. Do not require unrelated available skills and do not
-penalize the agent merely for not reading them. Do not reward accidental success that bypasses the
-expected skill selection or its required decisions.
+hidden evaluation oracle. Read those expected skill instructions from `.agents/skills/`, including
+task-relevant references linked by their `SKILL.md`, and evaluate both whether the agent selected
+them and whether it substantively followed their guardrails and decision rules. Read the official
+`iwe-memory-system` instructions from `.agents/skills/` when preinstalled; in its installation
+scenario, use the installed-skill evidence and transcript to inspect its copy in the isolated
+`CODEX_HOME`. Do not require unrelated available skills and do not penalize the agent merely for not
+reading them. Do not reward accidental success that bypasses the expected skill selection or its
+required decisions.
 
 Every scenario requires substantive use of the official `iwe-memory-system` skill for IWE work.
 {skill_setup_judge_instruction(scenario)}
+
+The following judge-only documents are the authoritative Specspine philosophy, format, and
+semantics. They have higher authority than repository skill instructions, skill references, and the
+scenario rubric. Apply the lower-level sources only where they are consistent with this framework.
+If they conflict, follow the framework documents, identify the contradiction in the relevant
+rationale, and do not penalize the agent for rejecting the conflicting lower-level instruction.
+Conversely, do not reward literal skill or rubric compliance that violates the framework. In
+particular, preserve the IWE/Specspine ownership boundary, distinguish observed evidence from
+accepted intent, use inclusion links as the only hierarchy, and do not reward generated indexes or
+parallel lifecycle machinery.
+
+<specspine_framework_context>
+{judge_framework_context()}
+</specspine_framework_context>
 
 {efficiency_judge_instruction(scenario)}
 

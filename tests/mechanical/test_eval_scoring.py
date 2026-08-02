@@ -277,6 +277,28 @@ class EvalScoringTests(unittest.TestCase):
         self.assertIn("iwe-memory-system", prompt)
         self.assertNotIn("calibrate tool and resource efficiency to setup work", prompt)
 
+    def test_judge_prompt_loads_authoritative_specspine_and_skill_context(self) -> None:
+        scenario = EVAL_RUN.Scenario(
+            "feature", "scenario", "baseline", ("iwe-spec-map",), "request", "rubric"
+        )
+
+        prompt = EVAL_RUN.judge_prompt(scenario, "transcript", "", {})
+
+        self.assertIn("<specspine_framework_context>", prompt)
+        self.assertIn("--- README.md ---", prompt)
+        self.assertIn("--- docs/reference/format.md ---", prompt)
+        self.assertIn("--- docs/reference/semantics.md ---", prompt)
+        self.assertIn("IWE owns documents, document keys, inclusion hierarchy", prompt)
+        self.assertIn("task-relevant references linked by their `SKILL.md`", prompt)
+        self.assertIn("`CODEX_HOME`", prompt)
+        self.assertIn(
+            "higher authority than repository skill instructions, skill references, and the\n"
+            "scenario rubric",
+            prompt,
+        )
+        self.assertIn("do not reward literal skill or rubric compliance", prompt)
+        self.assertIn("do not penalize the agent for rejecting", prompt)
+
     def test_bootstrap_judge_uses_setup_aware_efficiency_calibration(self) -> None:
         scenario = EVAL_RUN.Scenario(
             "Bootstrap Specspine skills in existing workspaces",
