@@ -3,17 +3,14 @@ Feature: End-to-end IWE specification lifecycle
 
   Scenario: Map, specify, verify, implement, and re-verify a brownfield export
     Given preparation "unsafe-user-export"
+    And skills "iwe-spec-map,iwe-spec-specify,iwe-spec-verify,iwe-spec-implement"
     When the operator asks:
       """
-      Perform the full workflow in this order:
-      1. Use $iwe-spec-map to map the existing user export endpoint as evidence.
-      2. Use $iwe-spec-specify to record this accepted requirement in the right
-         owner: exported users must never contain password hashes.
-      3. Use $iwe-spec-verify to compare that requirement with the code.
-      4. Use $iwe-spec-implement in conform mode to resolve the finding and add
-         focused tests.
-      5. Use $iwe-spec-verify again and report the final status.
-      Keep evidence and accepted intent distinct throughout.
+      First document the existing user export behavior. Then record this accepted
+      requirement in the right place: exported users must never contain password
+      hashes. Check the implementation against it, resolve any mismatch with
+      focused tests, and verify the result again. Keep observed behavior and
+      accepted intent distinct throughout.
       """
     Then the AI judge verifies:
       """
@@ -27,12 +24,12 @@ Feature: End-to-end IWE specification lifecycle
 
   Scenario: Verify before and after an implementation-only repair
     Given preparation "missing-inactive-login"
+    And skills "iwe-spec-verify,iwe-spec-implement"
     When the operator asks:
       """
-      Use $iwe-spec-verify to establish the current inactive-login finding. Then
-      use $iwe-spec-implement in conform mode to repair it without changing the
-      accepted specification. Finally use $iwe-spec-verify again and summarize
-      the before/after evidence.
+      Establish the current inactive-login mismatch, repair the implementation
+      without changing the accepted specification, then verify again and
+      summarize the before-and-after evidence.
       """
     Then the AI judge verifies:
       """
