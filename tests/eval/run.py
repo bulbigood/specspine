@@ -219,7 +219,7 @@ def replace(path: Path, old: str, new: str) -> None:
 def prepare(workspace: Path, name: str) -> None:
     if name == "baseline":
         return
-    authentication = workspace / "specspine/authentication.md"
+    authentication = workspace / "docs/specs/authentication.md"
     if name == "missing-inactive-login":
         replace(
             authentication,
@@ -256,7 +256,7 @@ def prepare(workspace: Path, name: str) -> None:
             "- REQ-invalid-credentials — Invalid credentials reveal no account secrets.\n"
             "- REQ-login-policy — Login follows the accepted account-access policy.\n",
         )
-        user_management = workspace / "specspine/user-management.md"
+        user_management = workspace / "docs/specs/user-management.md"
         user_management.write_text(
             user_management.read_text(encoding="utf-8")
             + "\n## Requirements\n\n"

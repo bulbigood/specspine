@@ -46,6 +46,7 @@ class IweIntegrationTests(unittest.TestCase):
             (PRESET / "schemas/specification.yaml").read_text(encoding="utf-8"),
             (EXAMPLE / ".iwe/schemas/specification.yaml").read_text(encoding="utf-8"),
         )
+        self.assertIn('path = "docs/specs"', (PRESET / "config.toml").read_text())
 
     def test_schema_and_iwe_relationships(self) -> None:
         validation = iwe(self.workspace, "schema", "validate", "-f", "json")
@@ -72,7 +73,7 @@ class IweIntegrationTests(unittest.TestCase):
         self.assertEqual(references.stdout.splitlines(), ["authentication"])
 
     def test_schema_rejects_wrong_statement_prefix(self) -> None:
-        path = self.workspace / "specspine/authentication.md"
+        path = self.workspace / "docs/specs/authentication.md"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
                 "REQ-valid-credentials", "OBS-valid-credentials"
@@ -85,7 +86,7 @@ class IweIntegrationTests(unittest.TestCase):
         self.assertEqual(reports[0]["key"], "authentication")
 
     def test_schema_requires_explicit_external_boundary_coverage(self) -> None:
-        path = self.workspace / "specspine/authentication.md"
+        path = self.workspace / "docs/specs/authentication.md"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
                 "coverage:\n  external-boundary: open\n", ""
@@ -98,7 +99,7 @@ class IweIntegrationTests(unittest.TestCase):
         self.assertEqual(reports[0]["key"], "authentication")
 
     def test_schema_accepts_exhaustive_external_boundary_coverage(self) -> None:
-        path = self.workspace / "specspine/authentication.md"
+        path = self.workspace / "docs/specs/authentication.md"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
                 "external-boundary: open", "external-boundary: exhaustive"
@@ -122,7 +123,7 @@ class IweIntegrationTests(unittest.TestCase):
             "--strict",
         )
         self.assertEqual(created.returncode, 0, created.stderr + created.stdout)
-        self.assertTrue((self.workspace / "specspine/rate-limits.md").is_file())
+        self.assertTrue((self.workspace / "docs/specs/rate-limits.md").is_file())
         validation = iwe(self.workspace, "schema", "validate", "-f", "json")
         self.assertEqual(validation.returncode, 0, validation.stderr + validation.stdout)
         self.assertEqual(json.loads(validation.stdout or "[]"), [])
@@ -137,10 +138,10 @@ class IweIntegrationTests(unittest.TestCase):
             "keys",
         )
         self.assertEqual(renamed.returncode, 0, renamed.stderr)
-        self.assertTrue((self.workspace / "specspine/identity-management.md").is_file())
-        self.assertFalse((self.workspace / "specspine/user-management.md").exists())
-        architecture = (self.workspace / "specspine/architecture.md").read_text()
-        authentication = (self.workspace / "specspine/authentication.md").read_text()
+        self.assertTrue((self.workspace / "docs/specs/identity-management.md").is_file())
+        self.assertFalse((self.workspace / "docs/specs/user-management.md").exists())
+        architecture = (self.workspace / "docs/specs/architecture.md").read_text()
+        authentication = (self.workspace / "docs/specs/authentication.md").read_text()
         self.assertIn("identity-management.md", architecture)
         self.assertIn("identity-management.md", authentication)
 

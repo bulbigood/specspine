@@ -14,6 +14,11 @@ the environment's supported skill-installation mechanism. Read it before
 continuing. Do not substitute generic CLI help or guess syntax that the skill
 or targeted command help can establish.
 
+Inspect `.iwe/config.toml` before starting. Read the
+[IWE bootstrap protocol](references/iwe-bootstrap.md) only when IWE is not
+initialized, its Specspine template or schema is missing, or the requested
+library path conflicts with the configured path.
+
 1. Discover existing owners with `iwe find` and `iwe tree`.
 2. Retrieve the bounded neighborhood with `iwe retrieve`.
 3. Record confirmed boundary evidence as owner-local `OBS-*` statements and

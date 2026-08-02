@@ -2,9 +2,10 @@
 
 ## Workspace
 
-The IWE project marker is `.iwe/`. The recommended library path is
-`specspine/`. Every Markdown file in that library is a v5 specification and is
-bound to `.iwe/schemas/specification.yaml`.
+The IWE project marker is `.iwe/`. An existing configured `library.path` is
+authoritative; `docs/specs/` is the fallback when initializing a new workspace
+without an explicit path. Every Markdown file in that library is a v5
+specification and is bound to `.iwe/schemas/specification.yaml`.
 
 There is no `specspine.json`, `_INDEX.md`, required README, nested Spine root,
 or generated navigation artifact.

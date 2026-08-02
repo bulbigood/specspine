@@ -16,6 +16,11 @@ continuing. Do not substitute generic CLI help or guess syntax that the skill
 or targeted command help can establish. Also use the `iwe-spec-verify` skill;
 Verify is a report procedure, not an IWE subcommand.
 
+Inspect `.iwe/config.toml` before starting. Read the
+[IWE bootstrap protocol](references/iwe-bootstrap.md) only when IWE is not
+initialized, its Specspine template or schema is missing, or the requested
+library path conflicts with the configured path.
+
 ## Modes
 
 - `additive`: implement `missing` claims. Report all other findings without

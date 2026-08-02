@@ -13,7 +13,8 @@ normative statements, observations, open questions, and verification criteria.
 - IWE 0.17 or newer
 - a project-level `.iwe/config.toml`
 - `.iwe/schemas/specification.yaml`
-- specifications below the configured IWE library path (normally `specspine/`)
+- specifications below the configured IWE library path (`docs/specs/` when a
+  new workspace does not specify another path)
 
 For a new project, copy the preset from `presets/iwe`:
 

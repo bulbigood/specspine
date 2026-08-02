@@ -166,6 +166,26 @@ class EvalScoringTests(unittest.TestCase):
                 {path.name for path in installed.iterdir()},
                 {"iwe-spec-map", "iwe-memory-system"},
             )
+            bootstrap = installed / "iwe-spec-map/references/iwe-bootstrap.md"
+            self.assertTrue(bootstrap.is_file())
+            self.assertIn("library.path", bootstrap.read_text())
+
+    def test_iwe_skills_require_the_shared_bootstrap_protocol(self) -> None:
+        expected = "[IWE bootstrap protocol](references/iwe-bootstrap.md)"
+        canonical = (EVAL_RUN.ROOT / "skills/references/iwe-bootstrap.md").read_text()
+        self.assertIn("`docs/specs` as the fallback", canonical)
+        self.assertIn("Use it as configured", canonical)
+        self.assertNotIn("Continue only when `library.path` resolves to", canonical)
+        for name in ("map", "specify", "verify", "implement"):
+            skill_dir = EVAL_RUN.ROOT / f"skills/iwe-spec-{name}"
+            skill = (skill_dir / "SKILL.md").read_text()
+            self.assertIn(expected, skill)
+            self.assertIn("only when IWE is not", skill)
+            self.assertNotIn("Before any IWE operation", skill)
+            self.assertEqual(
+                canonical,
+                (skill_dir / "references/iwe-bootstrap.md").read_text(),
+            )
 
     def test_iwe_skills_require_the_official_iwe_skill(self) -> None:
         for name in ("map", "specify", "verify", "implement"):
@@ -244,12 +264,12 @@ class EvalScoringTests(unittest.TestCase):
     def test_owner_local_collision_exists_before_the_agent_runs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
-            shutil.copytree(EVAL_RUN.FIXTURE / "specspine", workspace / "specspine")
+            shutil.copytree(EVAL_RUN.FIXTURE / "docs/specs", workspace / "docs/specs")
 
             EVAL_RUN.prepare(workspace, "owner-local-id-collision")
 
-            authentication = (workspace / "specspine/authentication.md").read_text()
-            user_management = (workspace / "specspine/user-management.md").read_text()
+            authentication = (workspace / "docs/specs/authentication.md").read_text()
+            user_management = (workspace / "docs/specs/user-management.md").read_text()
             self.assertIn("REQ-login-policy", authentication)
             self.assertIn("REQ-login-policy", user_management)
 

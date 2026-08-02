@@ -2,7 +2,7 @@ version = 3
 format = "markdown"
 
 [library]
-path = "specspine"
+path = "docs/specs"
 default_template = "specification"
 frontmatter_document_title = "title"
 

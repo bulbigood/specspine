@@ -12,6 +12,11 @@ continuing. Do not substitute generic CLI help or guess syntax that the skill
 or targeted command help can establish. Verify is a reasoning and report
 workflow; do not look for or invoke an `iwe verify` command.
 
+Inspect `.iwe/config.toml` before starting. Read the
+[IWE bootstrap protocol](references/iwe-bootstrap.md) only when IWE is not
+initialized, its Specspine template or schema is missing, or the requested
+library path conflicts with the configured path.
+
 1. Run `iwe schema validate`; stop on schema errors.
 2. Retrieve the owner and relevant IWE graph closure with `iwe retrieve`.
 3. Treat `REQ`, `GUA`, `INV`, `QLT`, `DEC`, `CON`, and `VER` as normative.

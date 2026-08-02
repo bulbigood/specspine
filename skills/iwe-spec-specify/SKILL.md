@@ -13,6 +13,11 @@ the environment's supported skill-installation mechanism. Read it before
 continuing. Do not substitute generic CLI help or guess syntax that the skill
 or targeted command help can establish.
 
+Inspect `.iwe/config.toml` before starting. Read the
+[IWE bootstrap protocol](references/iwe-bootstrap.md) only when IWE is not
+initialized, its Specspine template or schema is missing, or the requested
+library path conflicts with the configured path.
+
 1. Locate candidates with `iwe find` and read the relevant closure with
    `iwe retrieve`.
 2. Update the canonical owner. Do not copy claims between owners.
