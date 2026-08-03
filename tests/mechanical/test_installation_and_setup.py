@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_SKILL_NAMES = tuple(
-    f"iwe-spec-{name}" for name in ("map", "specify", "verify", "implement")
+    f"iwe-spec-{name}" for name in ("audit", "map", "specify", "verify", "implement")
 )
 SETUP_SKILL_NAME = "iwe-spec-setup"
 ALL_SKILL_NAMES = (SETUP_SKILL_NAME, *WORKFLOW_SKILL_NAMES)
@@ -48,7 +48,9 @@ class InstallationIntegrityTests(unittest.TestCase):
                 installed = destination / name
                 self.assertTrue((installed / "SKILL.md").is_file())
                 for reference in (
+                    "specspine-audit.md",
                     "specspine-format.md",
+                    "specspine-operations.md",
                     "specspine-semantics.md",
                 ):
                     installed_reference = installed / "references" / reference
@@ -66,7 +68,9 @@ class InstallationIntegrityTests(unittest.TestCase):
                         conformance.read_bytes(),
                     )
                 expected_references = {
+                    "specspine-audit.md",
                     "specspine-format.md",
+                    "specspine-operations.md",
                     "specspine-semantics.md",
                 }
                 if name in {"iwe-spec-verify", "iwe-spec-implement"}:
@@ -82,7 +86,7 @@ class InstallationIntegrityTests(unittest.TestCase):
             *(
                 ROOT / "skills" / name / f"references/specspine-{reference}.md"
                 for name in WORKFLOW_SKILL_NAMES
-                for reference in ("format", "semantics")
+                for reference in ("audit", "format", "operations", "semantics")
             ),
             *(
                 ROOT / "skills" / name / "references/specspine-conformance.md"
@@ -90,7 +94,7 @@ class InstallationIntegrityTests(unittest.TestCase):
             ),
             *(
                 ROOT / "docs/reference" / f"{reference}.md"
-                for reference in ("format", "semantics", "conformance")
+                for reference in ("format", "semantics", "conformance", "operations")
             ),
             ROOT / "skills/iwe-spec-setup/assets/iwe/config.toml",
             ROOT / "skills/iwe-spec-setup/assets/iwe/schemas/specification.yaml",
@@ -129,6 +133,24 @@ class InstallationIntegrityTests(unittest.TestCase):
             shutil.copytree(ROOT / "skills/iwe-spec-implement", installed, symlinks=False)
             text = (installed / "SKILL.md").read_text(encoding="utf-8")
             self.assertNotIn("iwe-spec-verify", text)
+
+    def test_audit_uses_native_iwe_without_a_runtime(self) -> None:
+        skill = (ROOT / "skills/iwe-spec-audit/SKILL.md").read_text(encoding="utf-8")
+        contract = (SHARED / "references/specspine-audit.md").read_text(
+            encoding="utf-8"
+        )
+        compact = " ".join(contract.split())
+
+        self.assertIn("Perform a read-only audit", skill)
+        self.assertIn("iwe schema validate", contract)
+        self.assertIn("iwe find --filter 'specspine: 5'", contract)
+        self.assertIn("frontmatter title equals the first H1", compact)
+        self.assertIn("every ID is unique within the owner", compact)
+        self.assertIn("coverage.basis", contract)
+        self.assertIn("regular existing file inside the workspace", compact)
+        self.assertIn("verification: complete", contract)
+        self.assertFalse((ROOT / "skills/iwe-spec-audit/scripts").exists())
+        self.assertFalse((ROOT / "skills/iwe-spec-audit/assets").exists())
 
     def test_skills_have_no_specspine_runtime_scripts(self) -> None:
         self.assertFalse((SHARED / "scripts").exists())
@@ -188,8 +210,10 @@ class InstallationIntegrityTests(unittest.TestCase):
             self.assertIn("ask the operator to run `iwe-spec-setup`", compact)
             self.assertIn("README manual fallback", compact)
             self.assertIn("Do not install or repair setup from this workflow", compact)
-            self.assertIn("workspace `.iwe/schemas/specification.yaml`", skill)
+            self.assertIn("workspace `.iwe/schemas/specification.yaml`", compact)
             self.assertIn("`iwe schema validate`", skill)
+            self.assertIn("specspine-audit.md", skill)
+            self.assertIn("specspine-operations.md", skill)
             self.assertNotIn("iwe-readiness.sh", skill)
             self.assertFalse((skill_dir / "assets").exists())
 
@@ -233,7 +257,12 @@ class NpxInstallationSmokeTests(unittest.TestCase):
             self.assertTrue((installed / "references/specspine-semantics.md").is_file())
             self.assertEqual(
                 {path.name for path in (installed / "references").iterdir()},
-                {"specspine-format.md", "specspine-semantics.md"},
+                {
+                    "specspine-audit.md",
+                    "specspine-format.md",
+                    "specspine-operations.md",
+                    "specspine-semantics.md",
+                },
             )
             self.assertFalse((installed / "assets").exists())
 

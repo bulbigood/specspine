@@ -46,6 +46,8 @@ JUDGE_FRAMEWORK_DOCUMENTS = (
     ROOT / "docs/reference/format.md",
     ROOT / "docs/reference/semantics.md",
     ROOT / "docs/reference/conformance.md",
+    ROOT / "docs/reference/audit.md",
+    ROOT / "docs/reference/operations.md",
 )
 DIMENSION_WEIGHTS = {
     "task_correctness": 0.25,
@@ -277,7 +279,18 @@ def prepare(workspace: Path, name: str) -> None:
         )
         return
     if name == "uncovered-audit-webhook":
-        replace(authentication, "external-boundary: open", "external-boundary: exhaustive")
+        replace(
+            authentication,
+            "external-boundary: open",
+            "external-boundary: exhaustive\n  basis: CON-complete-boundary",
+        )
+        replace(
+            authentication,
+            "## Verification\n",
+            "## Constraints\n\n"
+            "- CON-complete-boundary — The complete allowed external interactions are user identity lookup, token persistence, and email delivery; no other external interaction is accepted.\n\n"
+            "## Verification\n",
+        )
         add_audit_webhook(workspace)
         return
     if name == "open-audit-webhook":
@@ -298,7 +311,106 @@ def prepare(workspace: Path, name: str) -> None:
             encoding="utf-8",
         )
         return
+    if name == "semantic-audit-defects":
+        replace(authentication, "title: Authentication", "title: Identity access")
+        replace(authentication, "blockers: []", "blockers: [OQ-missing-policy]")
+        replace(
+            authentication,
+            "implementation_freedom: contract-equivalent",
+            "implementation_freedom: contract-equivalent\n"
+            "assets:\n"
+            "  - path: contracts/missing-auth.openapi.yaml\n"
+            "    role: interface-contract\n"
+            "    format: openapi-3.1\n"
+            "    normative: true",
+        )
+        replace(
+            authentication,
+            "- REQ-invalid-credentials — Invalid credentials reveal no account secrets.",
+            "- REQ-valid-credentials — Invalid credentials reveal no account secrets.",
+        )
+        return
     if name == "cross-owner-registration":
+        return
+    if name == "evidence-only-partial-facets":
+        replace(authentication, "  behavior: complete", "  behavior: partial")
+        replace(authentication, "  verification: complete", "  verification: partial")
+        return
+    if name == "stale-password-reset-observation":
+        replace(
+            authentication,
+            "implementation_freedom: contract-equivalent",
+            "implementation_freedom: contract-equivalent\n"
+            "inspection:\n"
+            "  source: src/services/email.service.js\n"
+            "  inspected: 2025-01-01\n"
+            "  mode: deepen",
+        )
+        authentication.write_text(
+            authentication.read_text(encoding="utf-8")
+            + "\n## Observed\n\n"
+            + "- OBS-reset-email-provider — Password-reset email is delivered through the SendGrid SDK.\n",
+            encoding="utf-8",
+        )
+        return
+    if name == "mixed-implementation-freedom":
+        architecture = workspace / "docs/specs/architecture.md"
+        replace(
+            architecture,
+            "implementation_freedom: contract-equivalent",
+            "implementation_freedom: architecture-constrained",
+        )
+        return
+    if name == "ambiguous-authentication-owner":
+        policy = workspace / "docs/specs/authentication-policy.md"
+        policy.write_text(
+            "---\n"
+            "specspine: 5\n"
+            "title: Authentication policy\n"
+            "kind: concept\n"
+            "summary: Defines terminology for organization-wide authentication policy.\n"
+            "facets:\n"
+            "  architecture: partial\n"
+            "  behavior: not-applicable\n"
+            "  interfaces: not-applicable\n"
+            "  data: not-applicable\n"
+            "  failure: not-applicable\n"
+            "  quality: not-applicable\n"
+            "  verification: not-applicable\n"
+            "coverage:\n"
+            "  external-boundary: open\n"
+            "blockers: []\n"
+            "implementation_freedom: contract-equivalent\n"
+            "---\n\n"
+            "# Authentication policy\n\n"
+            "## Responsibility\n\n"
+            "Define shared authentication vocabulary without owning login execution.\n",
+            encoding="utf-8",
+        )
+        architecture = workspace / "docs/specs/architecture.md"
+        architecture.write_text(
+            architecture.read_text(encoding="utf-8")
+            + "\n[Authentication policy](authentication-policy.md)\n",
+            encoding="utf-8",
+        )
+        return
+    if name == "escaping-asset":
+        replace(
+            authentication,
+            "implementation_freedom: contract-equivalent",
+            "implementation_freedom: contract-equivalent\n"
+            "assets:\n"
+            "  - path: ../../outside-auth.yaml\n"
+            "    role: interface-contract\n"
+            "    format: openapi-3.1\n"
+            "    normative: true",
+        )
+        return
+    if name == "rename-external-identity":
+        (workspace / "external-spec-links.txt").write_text(
+            "specs/authentication#REQ-valid-credentials\n",
+            encoding="utf-8",
+        )
         return
     if name == "unsafe-user-export":
         route = workspace / "src/routes/v1/user.route.js"

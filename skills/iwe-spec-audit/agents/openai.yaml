@@ -1,0 +1,4 @@
+interface:
+  display_name: "IWE Spec Audit"
+  short_description: "Audit Specspine format and semantic readiness"
+  default_prompt: "Use $iwe-spec-audit to audit this Specspine workspace without changing any files."

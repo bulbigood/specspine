@@ -18,7 +18,9 @@ There is no `specspine.json`, `_INDEX.md`, required README, nested Spine root, o
 
 ## Identity and metadata
 
-The IWE document key is the canonical document identity. A document starts with YAML frontmatter:
+The IWE document key is the canonical address of an owner. It is stable until an explicit `iwe rename` operation migrates the owner to a new key and rewrites IWE-managed links. A rename does not change the owner's accepted meaning, but external consumers that store a key must treat the rename as an address migration. Specspine does not add a second document identifier beside IWE.
+
+A document starts with YAML frontmatter:
 
 ``` yaml
 ---
@@ -45,6 +47,21 @@ The IWE document schema is normative for allowed fields, values, sections, order
 
 `coverage.external-boundary` is `open` unless the owner describes every allowed external interaction. Set it to `exhaustive` only when an unmentioned external interaction must be treated as outside the accepted boundary.
 
+An exhaustive boundary also requires `coverage.basis`, naming an owner-local `CON-*` statement that explicitly declares the enumerated external boundary complete. `basis` is forbidden for an open boundary. Schema validation checks the shape; semantic audit checks that the statement exists in the same owner and actually supplies the claimed authority.
+
+Facet applicability depends on owner kind:
+
+| Kind                                                         | Facets that cannot be `not-applicable`          |
+| ------------------------------------------------------------ | ----------------------------------------------- |
+| `system`, `subsystem`, `component`, `capability`, `behavior` | architecture, behavior, failure, verification   |
+| `interface`                                                  | architecture, interfaces, failure, verification |
+| `data`                                                       | architecture, data, failure, verification       |
+| `policy`                                                     | architecture, behavior, verification            |
+| `deployment`                                                 | architecture, failure, quality, verification    |
+| `concept`                                                    | architecture                                    |
+
+`verification: complete` requires at least one owner-local `VER-*` statement or a normative asset with role `verification` and a nonempty `verifies` list. Each listed ID must resolve to an owner-local `VER-*` statement. Other complete facets require substantive accepted support in the applicable prose, statements, relationships, or normative assets.
+
 ## Statements
 
 Normative and evidence-bearing sections contain bullet lists. Each item begins with an owner-local semantic ID:
@@ -55,13 +72,13 @@ Normative and evidence-bearing sections contain bullet lists. Each item begins w
 - REQ-valid-credentials — Valid credentials produce an authenticated subject.
 ```
 
-Supported prefixes are `DEC`, `CON`, `REQ`, `GUA`, `INV`, `QLT`, `VER`, `OBS`, `INF`, and `OQ`. IDs must be unique within their owner document; the pair `<IWE key, semantic ID>` is the stable address.
+Supported prefixes are `DEC`, `CON`, `REQ`, `GUA`, `INV`, `QLT`, `VER`, `OBS`, `INF`, and `OQ`. IDs must be unique within their owner document. The pair `<IWE key, semantic ID>` is the canonical statement address and migrates when its owner is renamed.
 
 Every ID in `blockers` must identify an `OQ-*` statement in the same owner.
 
 ## Assets
 
-An asset registered with `normative: true` is part of accepted intent. An asset with `normative: false` is evidence or supporting material and cannot override a normative statement. The `role` field describes how the asset participates in the specification. The asset remains owned by its native repository format; Specspine records only its path, role, format, and authority.
+An asset registered with `normative: true` is part of accepted intent. An asset with `normative: false` is evidence or supporting material and cannot override a normative statement. The `role` field describes how the asset participates in the specification. The asset remains owned by its native repository format; Specspine records only its repository-relative path, role, format, authority, and optional owner-local `VER-*` targets. Asset paths must not be absolute, escape through `..`, or contain backslashes. Semantic audit confirms that each path exists as a regular file inside the workspace.
 
 ## Links
 

@@ -394,7 +394,9 @@ class EvalScoringTests(unittest.TestCase):
         self.assertIn("--- docs/reference/format.md ---", prompt)
         self.assertIn("--- docs/reference/semantics.md ---", prompt)
         self.assertIn("--- docs/reference/conformance.md ---", prompt)
-        self.assertIn("IWE owns documents, stable keys, links", prompt)
+        self.assertIn("--- docs/reference/audit.md ---", prompt)
+        self.assertIn("--- docs/reference/operations.md ---", prompt)
+        self.assertIn("IWE owns documents, canonical keys, links", prompt)
         self.assertIn("task-relevant references linked by their `SKILL.md`", prompt)
         self.assertIn("preinstalled in the isolated workspace", prompt)
         self.assertIn(
@@ -430,12 +432,23 @@ class EvalScoringTests(unittest.TestCase):
             self.assertTrue(
                 (installed / "iwe-spec-map/references/specspine-semantics.md").is_file()
             )
+            self.assertTrue(
+                (installed / "iwe-spec-map/references/specspine-audit.md").is_file()
+            )
+            self.assertTrue(
+                (installed / "iwe-spec-map/references/specspine-operations.md").is_file()
+            )
             self.assertEqual(
                 {
                     path.name
                     for path in (installed / "iwe-spec-map/references").iterdir()
                 },
-                {"specspine-format.md", "specspine-semantics.md"},
+                {
+                    "specspine-audit.md",
+                    "specspine-format.md",
+                    "specspine-operations.md",
+                    "specspine-semantics.md",
+                },
             )
 
     def test_eval_workspace_installs_resolved_setup_assets(self) -> None:
@@ -493,18 +506,18 @@ class EvalScoringTests(unittest.TestCase):
             for value in forbidden:
                 self.assertNotIn(value, skill, f"{skill_file}: {value}")
 
-    def test_verify_and_implement_are_independent_and_structured(self) -> None:
+    def test_verify_and_implement_use_compact_independent_reports(self) -> None:
         verify = (EVAL_RUN.ROOT / "skills/iwe-spec-verify/SKILL.md").read_text()
         implement = (EVAL_RUN.ROOT / "skills/iwe-spec-implement/SKILL.md").read_text()
 
-        for section in ("Scope", "Claims checked", "Findings", "Test evidence", "Verdict"):
+        for section in ("Scope", "Findings", "Checks", "Verdict"):
             self.assertIn(section, verify)
-        self.assertIn("pre-change assessment", implement)
-        self.assertIn("post-change", implement)
+        self.assertNotIn("Claims checked", verify)
+        self.assertIn("Pre-change findings", implement)
+        self.assertIn("Remaining findings and verdict", implement)
         self.assertIn("Finding transitions", implement)
         self.assertNotIn("iwe-spec-verify", implement)
-        self.assertIn("Pre-change assessment", implement)
-        self.assertIn("Post-change assessment", implement)
+        self.assertNotIn("Post-change assessment", implement)
 
     def test_implement_does_not_install_verify_as_a_dependency(self) -> None:
         scenario = EVAL_RUN.Scenario(
@@ -524,6 +537,31 @@ class EvalScoringTests(unittest.TestCase):
             self.assertIn(f"`{mode}`", skill)
         self.assertIn("observed-only state", skill)
         self.assertIn("Observations do not make a normative facet complete", skill)
+        self.assertIn("evidence exception layer", skill)
+        self.assertIn("Never change a facet", skill)
+        self.assertIn("choose `refine`", skill)
+
+    def test_workflows_use_bounded_current_iwe_recipes(self) -> None:
+        operations = (
+            EVAL_RUN.ROOT / "shared/references/specspine-operations.md"
+        ).read_text()
+
+        for required in (
+            "iwe --version",
+            "--fuzzy",
+            "--lexical",
+            "--expand-included-by",
+            "--expand-references",
+            "--limit",
+            "--max-documents",
+            "--max-tokens",
+            "--max-document-tokens",
+        ):
+            self.assertIn(required, operations)
+        self.assertIn(
+            "Never use deprecated positional search", " ".join(operations.split())
+        )
+        self.assertNotIn("iwe find <", operations)
 
     def test_operator_requests_do_not_expose_internal_workflow(self) -> None:
         forbidden = ("$iwe-", "iwe ", ".agents/", "REQ-", "VER-", "OBS-", "INF-")
@@ -548,6 +586,93 @@ class EvalScoringTests(unittest.TestCase):
             user_management = (workspace / "docs/specs/user-management.md").read_text()
             self.assertIn("REQ-login-policy", authentication)
             self.assertIn("REQ-login-policy", user_management)
+
+    def test_semantic_audit_defects_exist_before_the_agent_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            shutil.copytree(EVAL_RUN.FIXTURE / "docs/specs", workspace / "docs/specs")
+
+            EVAL_RUN.prepare(workspace, "semantic-audit-defects")
+
+            authentication = (workspace / "docs/specs/authentication.md").read_text()
+            self.assertIn("title: Identity access", authentication)
+            self.assertIn("# Authentication", authentication)
+            self.assertEqual(authentication.count("REQ-valid-credentials"), 2)
+            self.assertIn("blockers: [OQ-missing-policy]", authentication)
+            self.assertIn("contracts/missing-auth.openapi.yaml", authentication)
+
+    def test_p1_preparations_expose_the_intended_safeguards(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            for preparation in (
+                "evidence-only-partial-facets",
+                "stale-password-reset-observation",
+                "mixed-implementation-freedom",
+                "ambiguous-authentication-owner",
+                "escaping-asset",
+                "rename-external-identity",
+            ):
+                workspace = base / preparation
+                shutil.copytree(
+                    EVAL_RUN.FIXTURE,
+                    workspace,
+                    ignore=shutil.ignore_patterns("node_modules"),
+                )
+                EVAL_RUN.prepare(workspace, preparation)
+
+            partial = (base / "evidence-only-partial-facets/docs/specs/authentication.md").read_text()
+            self.assertIn("behavior: partial", partial)
+            self.assertIn("verification: partial", partial)
+
+            stale = (base / "stale-password-reset-observation/docs/specs/authentication.md").read_text()
+            self.assertIn("SendGrid SDK", stale)
+            self.assertIn("mode: deepen", stale)
+
+            mixed = (base / "mixed-implementation-freedom/docs/specs/architecture.md").read_text()
+            self.assertIn("implementation_freedom: architecture-constrained", mixed)
+
+            self.assertTrue(
+                (base / "ambiguous-authentication-owner/docs/specs/authentication-policy.md").is_file()
+            )
+            escaping = (base / "escaping-asset/docs/specs/authentication.md").read_text()
+            self.assertIn("../../outside-auth.yaml", escaping)
+            external = (base / "rename-external-identity/external-spec-links.txt").read_text()
+            self.assertEqual(external, "specs/authentication#REQ-valid-credentials\n")
+
+    @unittest.skipUnless(shutil.which("iwe"), "IWE is required")
+    def test_p1_preparations_preserve_the_expected_schema_gate(self) -> None:
+        valid = (
+            "evidence-only-partial-facets",
+            "stale-password-reset-observation",
+            "mixed-implementation-freedom",
+            "ambiguous-authentication-owner",
+            "rename-external-identity",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            for preparation in (*valid, "escaping-asset"):
+                workspace = base / preparation
+                shutil.copytree(
+                    EVAL_RUN.FIXTURE,
+                    workspace,
+                    ignore=shutil.ignore_patterns("node_modules"),
+                )
+                EVAL_RUN.prepare(workspace, preparation)
+                result = subprocess.run(
+                    ["iwe", "schema", "validate", "-f", "json"],
+                    cwd=workspace,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                if preparation in valid:
+                    self.assertEqual(
+                        result.returncode,
+                        0,
+                        f"{preparation}: {result.stderr}{result.stdout}",
+                    )
+                else:
+                    self.assertNotEqual(result.returncode, 0)
 
 
 if __name__ == "__main__":

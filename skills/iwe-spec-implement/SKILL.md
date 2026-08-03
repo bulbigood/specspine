@@ -21,7 +21,11 @@ do not retry the known-stale form.
 Before interpreting specifications or changing implementation, read
 [Specspine format](references/specspine-format.md),
 [Specspine semantics](references/specspine-semantics.md), and
-[Specspine conformance](references/specspine-conformance.md) completely. The
+[Specspine conformance](references/specspine-conformance.md) completely. Read
+and apply [IWE operations](references/specspine-operations.md) before discovery
+or retrieval. Also
+read and apply [semantic audit](references/specspine-audit.md) to the selected
+owners before changing implementation. The
 workspace `.iwe/schemas/specification.yaml` is the executable contract for exact
 document structure; the references define authority, boundaries, finding
 classification, and removal authority.
@@ -42,17 +46,23 @@ workflow.
   behavior with a concrete normative basis.
 - `closed-boundary`: apply `conform`, then remove `uncovered-boundary` behavior
   only when every governing owner declares
-  `coverage.external-boundary: exhaustive`.
+  `coverage.external-boundary: exhaustive` with a valid owner-local `CON-*`
+  basis that explicitly closes the enumerated external boundary.
 
 ## Workflow
 
-1. Resolve the operator's terms to owners with `iwe find`. Inspect neighboring
-   titles only when several owners plausibly match.
-2. Run `iwe schema validate`; stop on errors. Check owner-local ID uniqueness
-   and blocker targets, and stop on a materially ambiguous relevant blocker.
-3. Retrieve only the task-bounded closure with `iwe retrieve`.
-4. Produce a complete pre-change assessment. Classify findings and distinguish
-   accepted intent from evidence using the conformance and semantics references.
+1. Run the IWE compatibility gate. Resolve the operator's terms with bounded
+   fuzzy and lexical `iwe find` recipes. Inspect neighboring titles only when
+   several owners plausibly match.
+2. Run `iwe schema validate`, then apply the semantic audit gate to the selected
+   owners. Stop on audit errors or a materially ambiguous relevant blocker.
+3. Retrieve only the task-bounded closure using deliberate expansion directions
+   and hard document/token budgets. Record included governing owners, relevant
+   exclusions, and truncation uncertainty.
+4. Produce a complete pre-change assessment. Aggregate implementation freedom
+   using the strictest applicable governing owner, classify findings, and
+   distinguish accepted intent from evidence using the conformance and semantics
+   references.
 5. Trace each relevant normative claim to code, tests, and registered assets.
 6. Apply only the finding classes authorized by the selected mode. Preserve
    unrelated behavior and use the smallest coherent change.
@@ -60,11 +70,10 @@ workflow.
    broader suite only when risk justifies it.
 8. Produce a post-change assessment over the same scope.
 
-The final response must contain `Pre-change assessment`,
-`Post-change assessment`, and `Finding transitions`. Each assessment contains
-`Scope`, `Claims checked`, `Findings`, `Test evidence`, and `Verdict`, using
-explicit `none` where applicable. Also report changed files and remaining
-runtime-unverified claims.
+The final response contains `Scope`, `Pre-change findings`, `Changes`, `Checks`,
+`Finding transitions`, and `Remaining findings and verdict`. Do not duplicate a
+full pre/post report. Use `none` for an empty finding set and report changed
+files plus runtime-unverified claims.
 
 Before any deletion authorized by the conformance reference and selected mode,
 inspect callers, public interfaces, migrations, configuration, and tests.

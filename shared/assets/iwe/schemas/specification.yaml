@@ -31,6 +31,15 @@ frontmatter:
       required: [external-boundary]
       properties:
         external-boundary: { enum: [open, exhaustive] }
+        basis: { type: string, pattern: '^CON-[a-z0-9]+(?:-[a-z0-9]+)*$' }
+      allOf:
+        - if:
+            properties:
+              external-boundary: { const: exhaustive }
+          then:
+            required: [basis]
+          else:
+            not: { required: [basis] }
     blockers:
       type: array
       uniqueItems: true
@@ -51,10 +60,89 @@ frontmatter:
         additionalProperties: false
         required: [path, role, format, normative]
         properties:
-          path: { type: string, minLength: 1 }
+          path:
+            type: string
+            minLength: 1
+            not: { pattern: '(^/|(^|/)\.\.(/|$)|\\)' }
           role: { enum: [interface-contract, data-schema, scenario, fixture, verification] }
           format: { type: string, minLength: 1 }
           normative: { type: boolean }
+          verifies:
+            type: array
+            uniqueItems: true
+            items: { type: string, pattern: '^VER-[a-z0-9]+(?:-[a-z0-9]+)*$' }
+        allOf:
+          - if:
+              properties:
+                role: { const: verification }
+                normative: { const: true }
+            then:
+              required: [verifies]
+              properties:
+                verifies: { minItems: 1 }
+  allOf:
+    - if:
+        properties:
+          kind: { enum: [system, subsystem, component, capability, behavior] }
+      then:
+        properties:
+          facets:
+            properties:
+              architecture: { not: { const: not-applicable } }
+              behavior: { not: { const: not-applicable } }
+              failure: { not: { const: not-applicable } }
+              verification: { not: { const: not-applicable } }
+    - if:
+        properties:
+          kind: { const: interface }
+      then:
+        properties:
+          facets:
+            properties:
+              architecture: { not: { const: not-applicable } }
+              interfaces: { not: { const: not-applicable } }
+              failure: { not: { const: not-applicable } }
+              verification: { not: { const: not-applicable } }
+    - if:
+        properties:
+          kind: { const: data }
+      then:
+        properties:
+          facets:
+            properties:
+              architecture: { not: { const: not-applicable } }
+              data: { not: { const: not-applicable } }
+              failure: { not: { const: not-applicable } }
+              verification: { not: { const: not-applicable } }
+    - if:
+        properties:
+          kind: { const: policy }
+      then:
+        properties:
+          facets:
+            properties:
+              architecture: { not: { const: not-applicable } }
+              behavior: { not: { const: not-applicable } }
+              verification: { not: { const: not-applicable } }
+    - if:
+        properties:
+          kind: { const: deployment }
+      then:
+        properties:
+          facets:
+            properties:
+              architecture: { not: { const: not-applicable } }
+              failure: { not: { const: not-applicable } }
+              quality: { not: { const: not-applicable } }
+              verification: { not: { const: not-applicable } }
+    - if:
+        properties:
+          kind: { const: concept }
+      then:
+        properties:
+          facets:
+            properties:
+              architecture: { not: { const: not-applicable } }
 sections:
   - header: { minLength: 1 }
     maxContains: 1

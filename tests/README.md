@@ -4,6 +4,8 @@ The mechanical suite exercises Specspine v5 through the installed IWE binary.
 It uses an isolated copy of `examples/node-express-boilerplate` and verifies:
 
 - native IWE document schema validation;
+- kind-dependent facet applicability and exhaustive-boundary basis;
+- safe normative-asset shape and native semantic-audit projections;
 - inclusion links versus inline references;
 - graph queries and retrieval;
 - schema rejection of invalid frontmatter and statement syntax;
@@ -17,6 +19,8 @@ It uses an isolated copy of `examples/node-express-boilerplate` and verifies:
 - explicit project-root resolution before IWE commands from nested directories;
 - absence of Specspine runtime scripts and workflow-skill setup assets;
 - independence of `iwe-spec-implement` from `iwe-spec-verify`;
+- autonomous, script-free `iwe-spec-audit` packaging;
+- bounded non-deprecated IWE recipes and P1 owner/evidence/closure safeguards;
 - declarative, script-free `iwe-spec-setup` packaging and its canonical assets.
 
 Run:
@@ -54,6 +58,11 @@ root README. Dedicated setup scenarios start from new, valid, or conflicting
 workspace states and expose only `iwe-spec-setup` plus the official
 `iwe-memory-system` dependency. New and conflicting setups use multiple turns;
 an already valid setup exercises the immediate, unchanged fast path.
+
+P1 operational scenarios cover owner reuse, evidence-only facet safety,
+refresh of stale observations, mixed implementation freedom, ambiguous closure,
+escaping assets, and rename address migration. Use 3–5 independent samples for
+acceptance; a single sample is only a smoke signal.
 
 Setup evals keep the IWE executable preinstalled. They test interactive
 decisions, path containment, idempotence, collision handling, generated config,

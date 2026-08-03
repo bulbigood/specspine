@@ -17,7 +17,11 @@ do not retry the known-stale form.
 Before interpreting or verifying Specspine documents, read
 [Specspine format](references/specspine-format.md),
 [Specspine semantics](references/specspine-semantics.md), and
-[Specspine conformance](references/specspine-conformance.md) completely. The
+[Specspine conformance](references/specspine-conformance.md) completely. Read
+and apply [IWE operations](references/specspine-operations.md) before discovery
+or retrieval. Also
+read and apply [semantic audit](references/specspine-audit.md) to the selected
+owners before evaluating implementation conformance. The
 workspace `.iwe/schemas/specification.yaml` is the executable contract for exact
 document structure; the references define authority, boundaries, and finding
 classification.
@@ -31,17 +35,23 @@ to the README manual fallback. Do not install or repair setup from this
 workflow. Verify is a read-only reasoning workflow; there is no `iwe verify`
 command.
 
-1. Run `iwe schema validate`; stop on schema errors.
-2. Check owner-local ID uniqueness and blocker targets. Stop when a relevant
-   blocker makes the intended behavior materially ambiguous.
-3. Retrieve the owner and task-relevant graph closure with `iwe retrieve`.
+1. Run the IWE compatibility gate and `iwe schema validate`; stop on schema
+   errors or missing required CLI features.
+2. Apply the semantic audit gate to the selected owners. Stop on audit errors or
+   when a relevant blocker makes the intended behavior materially ambiguous.
+3. Retrieve the owner and task-relevant graph closure with deliberate expansion
+   directions and hard document/token budgets. Report inclusion and exclusion
+   decisions and any truncation uncertainty.
+   Aggregate implementation freedom using the strictest applicable governing
+   owner and record which owner introduced it.
 4. Treat `REQ`, `GUA`, `INV`, `QLT`, `DEC`, `CON`, `VER`, and assets marked
    `normative: true` as authority.
 5. Treat `OBS`, `INF`, and non-normative assets only as evidence.
 6. Compare implementation-independent criteria and other accepted claims with
    code, tests, runtime behavior, and registered assets.
 7. Classify and report findings using the conformance reference. Record whether
-   every governing owner declares `coverage.external-boundary: exhaustive`.
+   every governing owner declares `coverage.external-boundary: exhaustive` with
+   a valid owner-local `CON-*` basis.
 8. Do not modify specifications, implementation, tests, or configuration.
 
 Run a focused test only when it directly establishes a retrieved claim and is
@@ -51,16 +61,19 @@ lint merely to strengthen a classification.
 
 ## Report contract
 
-Return these sections even when one contains `none`:
+Return one compact conformance report:
 
-1. Scope — retrieved owners and governing boundary coverage.
-2. Claims checked — normative IDs, normative assets, and criteria.
-3. Findings — classified entries with expectation and evidence.
-4. Test evidence — exact checks and `passed`, `failed`,
-   `environment-blocked`, or `not-run` status.
-5. Verdict — conformance, remaining divergence, and confirmation that the
-   verification phase intentionally changed no project files.
+1. `Scope` — seed, included governing owners with reasons, relevant exclusions,
+   aggregated implementation freedom and its constraining owners, boundary
+   coverage, and retrieval truncation if any.
+2. `Findings` — each classification, claim or normative prose, expectation,
+   concrete evidence, and confidence; use `none` when empty.
+3. `Checks` — exact tests or inspections and `passed`, `failed`,
+   `environment-blocked`, or `not-run`.
+4. `Verdict` — remaining divergence and confirmation that Verify changed no
+   project files.
 
-When Verify surrounds an implementation, return separate `Pre-change Verify`
-and `Post-change Verify` contracts followed by explicit finding transitions.
+When Verify surrounds implementation, do not repeat two full reports. Return
+the initial findings, final findings, and explicit finding transitions over the
+same declared scope.
 Schema validity does not prove implementation conformance.

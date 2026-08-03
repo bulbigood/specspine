@@ -3,7 +3,7 @@
 Specspine is a strict vocabulary for durable software specifications stored in
 an [IWE](https://iwe.md/) Markdown library.
 
-IWE owns documents, stable keys, links, graph traversal, refactoring, and
+IWE owns documents, canonical keys, links, graph traversal, refactoring, and
 schema validation. Specspine adds the software-specification semantics: owners,
 completeness facets, accepted constraints, implementation evidence, open
 questions, and verification criteria. It does not add a second graph, index, or
@@ -23,15 +23,15 @@ document lifecycle beside IWE.
 
 | Skill | Purpose |
 | --- | --- |
+| **🚀 BOOTSTRAP** | — |
 | `iwe-spec-setup` | Initialize or repair the one-time Specspine workspace configuration. |
-| `iwe-spec-map` | Record boundary-significant implementation evidence without inventing intent. |
+| **🎯 CORE** | — |
 | `iwe-spec-specify` | Create or refine accepted requirements and architecture. |
-| `iwe-spec-verify` | Compare implementation evidence with accepted specifications without editing specifications or code. |
+| `iwe-spec-map` | Record boundary-significant implementation evidence without inventing intent. |
 | `iwe-spec-implement` | Bring implementation into conformance without weakening the specification. |
-
-The setup skill and four operational workflows are independently installable.
-The workflows can also be combined for Map → Specify → Verify → Implement →
-Verify work.
+| **🛠️ SUPPORT** | — |
+| `iwe-spec-audit` | Audit format conformance and semantic readiness without changing files. |
+| `iwe-spec-verify` | Compare implementation evidence with accepted specifications without editing specifications or code. |
 
 ## Setup
 
@@ -219,6 +219,8 @@ iwe schema validate
 - [Format v5](docs/reference/format.md)
 - [Semantics](docs/reference/semantics.md)
 - [Conformance](docs/reference/conformance.md)
+- [Semantic audit](docs/reference/audit.md)
+- [IWE operational recipes](docs/reference/operations.md)
 - [Glossary](docs/reference/glossary.md)
 
 ## License
