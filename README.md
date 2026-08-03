@@ -1,13 +1,19 @@
 # Specspine
 
-Specspine is a strict vocabulary for durable software specifications stored in
-an [IWE](https://iwe.md/) Markdown library.
+**Durable boundary contracts and architectural ownership for AI-assisted
+software development.**
 
-IWE owns documents, canonical keys, links, graph traversal, refactoring, and
-schema validation. Specspine adds the software-specification semantics: owners,
-completeness facets, accepted constraints, implementation evidence, open
-questions, and verification criteria. It does not add a second graph, index, or
-document lifecycle beside IWE.
+Specspine preserves accepted, durable intent as a graph of canonical
+specification owners and their boundary contracts. Source code owns internal
+mechanisms and current implementation reality; Specspine owns what the system is
+expected to mean and do. It neither mirrors the source tree nor assumes that the
+implementation conforms to the specification.
+
+A sufficiently specified area can be understood or independently reimplemented
+from its normative closure, then checked with implementation-independent
+verification criteria. This gives humans and coding agents a stable source of
+architectural intent instead of asking them to reconstruct it from whichever
+code happens to exist today.
 
 ## Principles
 
