@@ -41,7 +41,13 @@ code happens to exist today.
 
 ## Setup
 
-Complete this setup before using any Specspine workflow.
+The current Specspine skills use IWE as their document, graph, and validation
+backend. The specification model could be adapted to another backend, but simply
+removing IWE references would not make these skills backend-independent: an
+equivalent project, key, relationship, document-operation, and schema-validation
+adapter would still be required.
+
+Complete the following bootstrap before using any Specspine workflow.
 
 Install Specspine, including its setup and workflow skills:
 
@@ -55,20 +61,41 @@ To install one workflow explicitly, use `--skill`, for example:
 npx skills add bulbigood/specspine --skill iwe-spec-map
 ```
 
-Specspine does not require a particular external skill. Before a workflow uses
-IWE, the agent discovers an available skill whose declared capability covers
-IWE and delegates all project discovery, retrieval, graph traversal, document
-operations, validation, compatibility handling, and resource budgeting to it.
-The Specspine skill describes only the domain result it needs. If the agent has
-no IWE-capable skill, the workflow reports the missing capability and stops.
+Specspine does not require a particular IWE skill name. Setup uses the official
+[`iwe-org/skills`](https://github.com/iwe-org/skills) repository as its skill
+catalog and installation source, and selects the candidate whose declared IWE
+CLI version is the best match. Specspine requires both an IWE installation and a
+version-compatible agent skill capable of operating it. Start with setup in all
+of these states:
+
+- if both are available, setup uses them without reinstalling either one;
+- if IWE is installed but no suitable IWE skill is available, setup selects the
+  best version-compatible candidate from the official catalog and asks for
+  explicit approval before installing that skill;
+- if an IWE skill is available but IWE itself is missing, that skill supplies
+  current installation guidance and setup asks for approval before installation;
+- if neither is available, setup selects the catalog's current recommended
+  skill first and then lets it install the IWE CLI version it supports.
+
+Setup reads CLI compatibility from the candidate's name or metadata, including
+the repository's `metadata.version` convention. It prefers an exact installed
+CLI match, then an explicitly compatible range. It does not silently change an
+installed IWE version when no compatible skill exists.
+
+If no suitable skill can be found, or the agent has no skill-discovery or
+installation capability, setup reports the missing prerequisite and stops
+without improvising direct IWE operations. If the agent runtime cannot load a
+newly installed skill in the current session, restart or reload the agent and
+invoke setup again; it will reuse the now-installed skill and continue.
 
 Run the guided setup from the workspace root:
 
-> Use `$iwe-spec-setup` to configure Specspine in this IWE workspace.
+> Use `$iwe-spec-setup` to prepare this project for Specspine.
 
-The setup skill finds an applicable IWE-capable skill and gives it the desired
-workspace outcome and bundled Specspine assets. The IWE skill owns installation
-guidance, project initialization, configuration operations, and validation.
+The setup skill finds or, with explicit approval, installs an applicable
+IWE-capable skill and gives it the desired workspace outcome and bundled
+Specspine assets. The IWE skill owns IWE installation guidance, project
+initialization, configuration operations, and validation.
 
 The setup establishes:
 
@@ -82,7 +109,8 @@ or consequential choices, preserves unrelated settings, and does not overwrite
 conflicting Specspine configuration without approval.
 
 The workflow skills assume that setup is complete; they do not install or
-repair IWE or Specspine configuration.
+repair IWE or Specspine configuration. If one reports a missing IWE capability,
+run setup instead of asking that workflow to operate IWE directly.
 
 ## Documentation
 

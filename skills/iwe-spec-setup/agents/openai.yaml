@@ -1,4 +1,4 @@
 interface:
   display_name: "IWE Spec Setup"
-  short_description: "Guide interactive IWE and Specspine setup"
-  default_prompt: "Use $iwe-spec-setup to guide me through installing IWE and choosing the workspace directories before configuring Specspine."
+  short_description: "Bootstrap IWE capability and Specspine setup"
+  default_prompt: "Use $iwe-spec-setup to prepare this project for Specspine, including any missing IWE capability or installation prerequisite."
