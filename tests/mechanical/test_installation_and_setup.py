@@ -150,6 +150,38 @@ class InstallationIntegrityTests(unittest.TestCase):
         self.assertFalse((ROOT / "skills/iwe-spec-audit/scripts").exists())
         self.assertFalse((ROOT / "skills/iwe-spec-audit/assets").exists())
 
+    def test_reference_loading_is_batched_and_domain_terms_have_an_ssot(self) -> None:
+        skills = {
+            name: (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+            for name in ALL_SKILL_NAMES
+        }
+        semantics = (SHARED / "references/specspine-semantics.md").read_text(
+            encoding="utf-8"
+        )
+        format_contract = (SHARED / "references/specspine-format.md").read_text(
+            encoding="utf-8"
+        )
+        glossary = (ROOT / "docs/reference/glossary.md").read_text(encoding="utf-8")
+
+        self.assertIn("only reference required for an ordinary audit", skills["iwe-spec-audit"])
+        for name in ("iwe-spec-map", "iwe-spec-specify"):
+            self.assertIn("together in one\nreference-reading tool call", skills[name])
+            self.assertIn("Defer\n[semantic audit]", skills[name])
+        for name in ("iwe-spec-verify", "iwe-spec-implement"):
+            self.assertIn("together in one\nreference-reading tool call", skills[name])
+            self.assertIn("only when those\ncontracts do not resolve", skills[name])
+        self.assertFalse((ROOT / "skills/iwe-spec-setup/references").exists())
+
+        for prefix in ("DEC", "CON", "REQ", "GUA", "INV", "QLT", "VER", "OBS", "INF", "OQ"):
+            self.assertIn(f"| `{prefix}` |", semantics)
+        for value in ("contract-equivalent", "architecture-constrained"):
+            self.assertIn(f"`{value}`", semantics)
+        for mode in ("survey", "deepen", "refresh", "drift"):
+            self.assertIn(f"`{mode}`", format_contract)
+        self.assertIn("human-oriented index, not an additional skill contract", glossary)
+        for skill in skills.values():
+            self.assertNotIn("glossary.md", skill)
+
     def test_skills_have_no_specspine_runtime_scripts(self) -> None:
         self.assertFalse((SHARED / "scripts").exists())
         for name in ALL_SKILL_NAMES:

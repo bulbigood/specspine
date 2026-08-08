@@ -13,11 +13,12 @@ result needed from IWE; do not prescribe commands, flags, syntax, traversal,
 batch sizes, token budgets, or compatibility handling. If no applicable IWE
 skill is available, report the missing capability and stop.
 
-Read the relevant parts of [Specspine format](references/specspine-format.md)
-and [Specspine semantics](references/specspine-semantics.md) before interpreting
-or changing an owner. Apply [semantic audit](references/specspine-audit.md) to
-every changed owner before claiming readiness. Treat the workspace Specspine
-schema as the executable document contract.
+Load [Specspine format](references/specspine-format.md) and
+[Specspine semantics](references/specspine-semantics.md) together in one
+reference-reading tool call before interpreting or changing an owner. Defer
+[semantic audit](references/specspine-audit.md) until there are changed owners,
+then read it once and apply it to the whole batch before claiming readiness.
+Treat the workspace Specspine schema as the executable document contract.
 
 Ask the selected IWE skill to resolve the applicable project and library, verify
 the Specspine setup, find plausible canonical owners, and retrieve only the

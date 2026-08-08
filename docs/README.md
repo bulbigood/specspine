@@ -8,5 +8,4 @@
 - [Semantics](reference/semantics)
 - [Conformance](reference/conformance)
 - [Semantic audit](reference/audit)
-- [IWE operational recipes](reference/operations)
 - [Glossary](reference/glossary)

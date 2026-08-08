@@ -14,11 +14,12 @@ result needed from IWE; do not prescribe commands, flags, syntax, traversal,
 batch sizes, token budgets, or compatibility handling. If no applicable IWE
 skill is available, report the missing capability and stop.
 
-Read the relevant parts of [Specspine format](references/specspine-format.md)
-and [Specspine semantics](references/specspine-semantics.md) before interpreting
-or changing an owner. Apply [semantic audit](references/specspine-audit.md) to
-every changed owner before claiming readiness. Treat the workspace Specspine
-schema as the executable document contract.
+Load [Specspine format](references/specspine-format.md) and
+[Specspine semantics](references/specspine-semantics.md) together in one
+reference-reading tool call before interpreting or changing an owner. Defer
+[semantic audit](references/specspine-audit.md) until there are changed owners,
+then read it once and apply it to the whole batch before claiming readiness.
+Treat the workspace Specspine schema as the executable document contract.
 
 Ask the selected IWE skill to resolve the applicable project and library, verify
 the Specspine setup, return task-relevant owner candidates and relationships,
@@ -26,8 +27,8 @@ and retrieve only the neighborhood needed for the task. Require it to report
 omissions or truncation. If setup is incomplete, report that condition without
 repairing it in this workflow.
 
-1. Select `survey`, `deepen`, `refresh`, or `drift` according to the requested
-   inspection.
+1. Select `survey`, `deepen`, `refresh`, or `drift` according to the definitions
+   in the format reference and the requested inspection.
 2. Inspect repository evidence and apply the evidence exception layer. Record a
    confirmed boundary-significant fact as owner-local `OBS-*` under
    `## Observed`; record a useful interpretation as `INF-*` under `## Inferred`.

@@ -14,11 +14,13 @@ result needed from IWE; do not prescribe commands, flags, syntax, traversal,
 batch sizes, token budgets, or compatibility handling. If no applicable IWE
 skill is available, report the missing capability and stop.
 
-Use [semantic audit](references/specspine-audit.md) as the audit contract. Read
-the relevant parts of [Specspine format](references/specspine-format.md) and
-[Specspine semantics](references/specspine-semantics.md) when a finding depends
-on document structure, authority, ownership, or readiness. Treat the workspace
-Specspine schema as the executable document contract.
+Read [semantic audit](references/specspine-audit.md) as the audit contract. This
+is the only reference required for an ordinary audit. Read the relevant part of
+[Specspine format](references/specspine-format.md) or
+[Specspine semantics](references/specspine-semantics.md) only when the audit
+contract does not resolve a concrete question about structure or meaning; load
+both in one tool call when both are needed. Treat the workspace Specspine schema
+as the executable document contract.
 
 Ask the selected IWE skill for:
 

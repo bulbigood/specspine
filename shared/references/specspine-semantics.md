@@ -2,13 +2,47 @@
 
 Specifications express durable, boundary-relevant intent. They do not mirror source layout or private algorithms.
 
+## Core terms
+
+An **owner** is the one canonical IWE document responsible for a durable
+software boundary. Its IWE key is its current canonical address. **Accepted
+intent** is normative content that a conforming implementation must satisfy;
+**evidence** describes implementation reality without changing that intent. A
+**facet** records how completely an owner specifies one concern. A
+task-bounded **closure** is the selected owner plus every owner whose accepted
+claims govern the task; a **governing owner** is any owner in that closure that
+contributes applicable authority.
+
+Boundary-significant content affects an externally observable contract, owned
+data, lifecycle, failure behavior, quality property, external interaction, or
+durable architectural responsibility. **Owner-local** means that an identifier
+is resolved only inside its owning document.
+
+## Semantic statements
+
+Each semantic ID names one addressable statement. Use the prefix that matches
+the statement's purpose and schema section:
+
+| Prefix | Section | Purpose | Authority |
+| ------ | ------- | ------- | --------- |
+| `DEC` | Decisions | Accepted product or architectural choice and its consequence. | Normative |
+| `CON` | Constraints | Restriction on allowed behavior, design, or external boundary. | Normative |
+| `REQ` | Requirements | Capability or observable outcome the implementation must provide. | Normative |
+| `GUA` | Guarantees | Promise that must hold under its stated conditions. | Normative |
+| `INV` | Invariants | Condition that must remain true throughout the applicable lifecycle. | Normative |
+| `QLT` | Quality constraints | Measurable or assessable non-functional expectation. | Normative |
+| `VER` | Verification | Implementation-independent criterion for deciding whether accepted intent is satisfied. | Normative |
+| `OBS` | Observed | Confirmed implementation or repository fact. | Evidence |
+| `INF` | Inferred | Useful but unconfirmed interpretation of evidence. | Evidence |
+| `OQ` | Open questions | Unresolved question; blocks readiness only when listed in the same owner's `blockers`. | Unresolved |
+
+The suffix after the prefix is a stable, descriptive owner-local slug, not a
+global identifier or sequence number.
+
 ## Authority
 
-- `REQ`, `GUA`, `INV`, `QLT`, `DEC`, `CON`, and `VER` are normative.
 - An asset is normative only when its registration declares `normative: true`.
-- `OBS` and non-normative assets are confirmed evidence, not accepted intent.
-- `INF` is an explicitly unconfirmed interpretation.
-- `OQ` is unresolved. It blocks readiness only when its ID appears in the same document's `blockers` frontmatter.
+- Non-normative assets are evidence, not accepted intent.
 
 Normative verification criteria describe observable outcomes independently of private implementation choices. A conformance workflow may compare those criteria with code, tests, runtime behavior, and other evidence.
 
@@ -39,4 +73,10 @@ stored keys. Specspine intentionally does not maintain an immutable parallel ID.
 
 Schema validation establishes format conformance. Semantic validation also checks owner-local ID uniqueness, blocker targets, exhaustive-boundary basis, asset targets and existence, verification support, title consistency, and honest completeness.
 
-For a retrieved closure, implementation freedom is `architecture-constrained` when any applicable governing owner declares it; otherwise it is `contract-equivalent`. A workflow reports which owner introduced the stricter constraint and does not weaken it by aggregation.
+`implementation_freedom: contract-equivalent` permits any implementation that
+satisfies the accepted observable contract. `architecture-constrained` also
+makes applicable accepted architectural choices and constraints part of
+conformance. For a retrieved closure, implementation freedom is
+`architecture-constrained` when any applicable governing owner declares it;
+otherwise it is `contract-equivalent`. A workflow reports which owner
+introduced the stricter constraint and does not weaken it by aggregation.

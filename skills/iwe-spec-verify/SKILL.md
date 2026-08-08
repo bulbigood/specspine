@@ -14,11 +14,15 @@ result needed from IWE; do not prescribe commands, flags, syntax, traversal,
 batch sizes, token budgets, or compatibility handling. If no applicable IWE
 skill is available, report the missing capability and stop.
 
-Use [Specspine conformance](references/specspine-conformance.md) as the finding
-contract. Read the relevant parts of [Specspine format](references/specspine-format.md),
-[Specspine semantics](references/specspine-semantics.md), and
-[semantic audit](references/specspine-audit.md) when the selected claims require
-them. Treat the workspace Specspine schema as the executable document contract.
+Load [Specspine conformance](references/specspine-conformance.md) and
+[semantic audit](references/specspine-audit.md) together in one
+reference-reading tool call; they are the ordinary finding and preflight
+contracts. Read the relevant part of
+[Specspine format](references/specspine-format.md) or
+[Specspine semantics](references/specspine-semantics.md) only when those
+contracts do not resolve a concrete question about structure or meaning; load
+both in one tool call when both are needed. Treat the workspace Specspine schema
+as the executable document contract.
 
 Ask the selected IWE skill for the applicable project and library, schema result,
 selected canonical owner, task-relevant governing closure, accepted claims,

@@ -62,6 +62,35 @@ Facet applicability depends on owner kind:
 | `deployment`                                                 | architecture, failure, quality, verification    |
 | `concept`                                                    | architecture                                    |
 
+Kinds identify the owner's primary durable boundary:
+
+| Kind | Use for |
+| ---- | ------- |
+| `system` | The highest-level product or service boundary in scope. |
+| `subsystem` | A major durable boundary within a system. |
+| `component` | An independently owned structural unit. |
+| `capability` | A cohesive user- or business-visible ability that may span structure. |
+| `behavior` | A cohesive behavioral contract without a separate structural boundary. |
+| `interface` | A protocol or interaction boundary between parties. |
+| `data` | An owned information model, schema, or durable dataset boundary. |
+| `policy` | A durable rule set that constrains decisions or behavior. |
+| `deployment` | A runtime topology, packaging, or operational boundary. |
+| `concept` | A shared domain or architectural concept without independent behavior. |
+
+Facets cover architecture, behavior, interfaces, data, failure behavior,
+quality properties, and verification criteria. `complete` means the applicable
+accepted contract is substantively specified, `partial` means some accepted
+contract is present but known coverage is incomplete, `missing` means required
+coverage is absent, and `not-applicable` means the concern does not apply to the
+owner kind or boundary.
+
+Optional `aliases` are alternate human-facing owner names; they are not keys or
+parallel identifiers. Optional `inspection` records the repository-relative
+source scope, inspection date, and evidence-inspection mode: `survey` is a broad
+first pass, `deepen` is focused inspection of a known boundary, `refresh`
+replaces stale recorded evidence after reinspection, and `drift` compares
+current implementation evidence with the recorded specification state.
+
 `verification: complete` requires at least one owner-local `VER-*` statement. A
 normative asset with role `verification` may implement or support those
 criteria, but it does not replace them; every listed `verifies` ID must resolve
@@ -79,13 +108,21 @@ Normative and evidence-bearing sections contain bullet lists. Each item begins w
 - REQ-valid-credentials — Valid credentials produce an authenticated subject.
 ```
 
-Supported prefixes are `DEC`, `CON`, `REQ`, `GUA`, `INV`, `QLT`, `VER`, `OBS`, `INF`, and `OQ`. IDs must be unique within their owner document. The pair `<IWE key, semantic ID>` is the canonical statement address and migrates when its owner is renamed.
+Prefix meanings, section placement, and authority are defined in
+[Specspine semantics](specspine-semantics.md#semantic-statements). IDs must be
+unique within their owner document. The pair `<IWE key, semantic ID>` is the
+canonical statement address and migrates when its owner is renamed.
 
 Every ID in `blockers` must identify an `OQ-*` statement in the same owner.
 
 ## Assets
 
 An asset registered with `normative: true` is part of accepted intent. An asset with `normative: false` is evidence or supporting material and cannot override a normative statement. The `role` field describes how the asset participates in the specification. The asset remains owned by its native repository format; Specspine records only its repository-relative path, role, format, authority, and optional owner-local `VER-*` targets. Asset paths must not be absolute, escape through `..`, or contain backslashes. Semantic audit confirms that each path exists as a regular file inside the workspace.
+
+Asset roles are `interface-contract` for protocol or API definitions,
+`data-schema` for machine-readable data structure, `scenario` for behavioral
+examples, `fixture` for reusable verification inputs, and `verification` for an
+artifact that implements or supplies verification evidence.
 
 ## Links
 
