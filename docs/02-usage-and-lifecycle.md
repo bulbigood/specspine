@@ -1,18 +1,15 @@
 # Usage and lifecycle
 
-Initialize IWE with `docs` as the library, then use IWE for every document and graph operation:
+Use an IWE-capable skill for every project, document, and graph operation. Give
+it the desired outcome and let it choose the current supported interface,
+retrieval strategy, traversal, batching, and resource budgets. Specspine
+workflows retain only domain decisions such as canonical ownership, authority,
+readiness, and conformance.
 
-``` bash
-iwe init --auto --library docs
-iwe create --template specification --var title="Authentication" --strict
-iwe find --filter 'kind: component'
-iwe retrieve -k specs/authentication --children --backlinks
-iwe tree
-iwe rename specs/authentication specs/identity
-iwe delete specs/identity
-iwe schema validate
-```
+Ask the IWE skill to use graph-aware operations when creating, renaming,
+removing, splitting, consolidating, or validating documents. Do not edit links
+in bulk with Specspine-specific scripts.
 
-Use `iwe extract`, `iwe inline`, and editor code actions to split or consolidate content. Do not edit links in bulk with Specspine-specific scripts.
-
-An inclusion link is the only content of its paragraph. Inline links create references and backlinks. Inspect the graph with `iwe tree`, `iwe find`, and `iwe retrieve`; select only the neighborhood required by the task.
+An inclusion link is the only content of its paragraph. Inline links create
+references and backlinks. Request only the graph neighborhood needed by the
+task and require explicit omissions or truncation.

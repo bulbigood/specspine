@@ -8,7 +8,6 @@ import concurrent.futures
 import datetime
 import difflib
 import hashlib
-import io
 import json
 import os
 import re
@@ -20,8 +19,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib.request
-import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,8 +26,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 FEATURES = Path(__file__).with_name("features")
 FIXTURE = ROOT / "examples/node-express-boilerplate"
+FIXTURES = {
+    "node-express-boilerplate": FIXTURE,
+    "python-file-indexer": Path(__file__).with_name("fixtures") / "python-file-indexer",
+}
 SCHEMA = Path(__file__).with_name("judge.schema.json")
 MEASURE_PROCESS = Path(__file__).with_name("measure_process.py")
+IWE_CAPABILITY_SKILL_NAME = "iwe-test-operator"
+IWE_CAPABILITY_SKILL = Path(__file__).with_name("fixtures") / IWE_CAPABILITY_SKILL_NAME
 DEFAULT_AGENT = (
     'codex exec --json --ephemeral --ignore-user-config --skip-git-repo-check -s workspace-write '
     '-m gpt-5.6-terra -c model_reasoning_effort="medium" -'
@@ -39,15 +42,6 @@ DEFAULT_JUDGE = (
     f"codex exec --json --ephemeral --ignore-user-config --skip-git-repo-check -s read-only "
     f"-m gpt-5.6-sol -c model_reasoning_effort=\"low\" "
     f"--output-schema {shlex.quote(str(SCHEMA))} -"
-)
-OFFICIAL_IWE_SKILLS_ARCHIVE = "https://github.com/iwe-org/skills/archive/refs/heads/main.zip"
-JUDGE_FRAMEWORK_DOCUMENTS = (
-    ROOT / "README.md",
-    ROOT / "docs/reference/format.md",
-    ROOT / "docs/reference/semantics.md",
-    ROOT / "docs/reference/conformance.md",
-    ROOT / "docs/reference/audit.md",
-    ROOT / "docs/reference/operations.md",
 )
 DIMENSION_WEIGHTS = {
     "task_correctness": 0.25,
@@ -76,6 +70,7 @@ class Scenario:
     request: str
     rubric: str
     replies: tuple[str, ...] = ()
+    fixture: str = "node-express-boilerplate"
 
     @property
     def slug(self) -> str:
@@ -219,6 +214,8 @@ def parse_feature(path: Path) -> list[Scenario]:
             current = {"name": line.removeprefix("Scenario:").strip()}
         elif line.startswith('Given preparation "') and current is not None:
             current["preparation"] = line.split('"', 2)[1]
+        elif line.startswith('Given fixture "') and current is not None:
+            current["fixture"] = line.split('"', 2)[1]
         elif line.startswith('And skills "') and current is not None:
             current["skills"] = line.split('"', 2)[1]
         elif line.startswith("When the operator asks:") and current is not None:
@@ -593,38 +590,17 @@ def write_command_telemetry(
     }
 
 
-def fetch_official_iwe_skill(destination: Path) -> Path:
-    request = urllib.request.Request(
-        OFFICIAL_IWE_SKILLS_ARCHIVE,
-        headers={"User-Agent": "specspine-eval"},
-    )
-    with urllib.request.urlopen(request, timeout=60) as response:
-        archive = zipfile.ZipFile(io.BytesIO(response.read()))
-    marker = "/skills/iwe-memory-system/"
-    for member in archive.infolist():
-        if marker not in member.filename or member.is_dir():
-            continue
-        relative = member.filename.split(marker, 1)[1]
-        target = destination / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(archive.read(member))
-    if not (destination / "SKILL.md").is_file():
-        raise RuntimeError("official archive did not contain iwe-memory-system/SKILL.md")
-    return destination
-
-
 def required_skill_names(scenario: Scenario) -> tuple[str, ...]:
-    return tuple(dict.fromkeys((*scenario.skills, "iwe-memory-system")))
+    return tuple(dict.fromkeys((*scenario.skills, IWE_CAPABILITY_SKILL_NAME)))
 
 
 def expected_skill_names(scenario: Scenario) -> tuple[str, ...]:
-    return required_skill_names(scenario)
+    return scenario.skills
 
 
 def install_project_skills(
     workspace: Path,
     scenario: Scenario,
-    official_iwe_skill: Path | None,
 ) -> tuple[str, ...]:
     destination = workspace / ".agents/skills"
     destination.mkdir(parents=True, exist_ok=True)
@@ -632,10 +608,8 @@ def install_project_skills(
     shutil.copytree(shared, destination.parent / "shared", symlinks=True)
     installed: list[str] = []
     for name in required_skill_names(scenario):
-        if name == "iwe-memory-system":
-            if official_iwe_skill is None:
-                raise ValueError("official iwe-memory-system was not fetched")
-            source = official_iwe_skill
+        if name == IWE_CAPABILITY_SKILL_NAME:
+            source = IWE_CAPABILITY_SKILL
         else:
             source = ROOT / "skills" / name
         if not (source / "SKILL.md").is_file():
@@ -894,15 +868,6 @@ def agent_procedure_signals(event_log: str) -> dict[str, int]:
     }
 
 
-def judge_framework_context() -> str:
-    """Load canonical Specspine framework documents for judge-only context."""
-    sections = []
-    for path in JUDGE_FRAMEWORK_DOCUMENTS:
-        relative = path.relative_to(ROOT)
-        sections.append(f"--- {relative} ---\n{path.read_text(encoding='utf-8').rstrip()}")
-    return "\n\n".join(sections)
-
-
 def scenario_judge_instruction(scenario: Scenario) -> str:
     if not scenario.preparation.startswith("setup-"):
         return ""
@@ -911,12 +876,12 @@ def scenario_judge_instruction(scenario: Scenario) -> str:
         fast_path = """The existing workspace is already canonically configured. Expect the agent to inspect and
 validate it, then report success without asking the operator to reconfirm unchanged choices.
 """
-    return f"""This is an interactive setup scenario. IWE was already installed, so the agent
+    return f"""This is a setup scenario. IWE was already installed, so the agent
 must verify it but must not reinstall it. Each operator reply is a separate turn supplied only
-after the preceding agent response. Judge whether the agent asked and resolved one setup decision
-at a time, preserved unrelated state, delayed Specspine configuration until final path confirmation,
-and followed the dedicated `iwe-spec-setup` skill rather than an operational workflow.
-{fast_path}Setup is inherently conversational and resumed turns replay substantial cached context. Do not
+after the preceding agent response. Judge whether the agent reused values already supplied, asked
+only for unresolved or consequential choices, preserved unrelated state, delayed Specspine
+configuration until final path confirmation, and followed the dedicated setup workflow.
+{fast_path}A resumed setup may replay substantial cached context. Do not
 penalize that inherent overhead, reasonable read-only setup checks, or low-CPU waiting. Penalize
 efficiency only for clearly avoidable, material waste such as repeated failed commands, unrelated
 broad work, or needless large output; keep efficiency secondary to correctness and safety.
@@ -956,43 +921,19 @@ efficiency merely because the agent adds and inspects a focused test artifact wh
 runtime status as not-run. You may note an unnecessary database-backed test attempt, but treat any
 environment-only `EPERM`/`EACCES` output as harness noise rather than product evidence.
 
-The upstream `iwe-memory-system` skill is not versioned with the installed IWE CLI and its command
-examples may be stale. If an IWE form taken from that skill is rejected or deprecated, do not lower
-any score when the agent consults `iwe <command> --help`, adopts the installed CLI syntax, and does
-not repeat the known-stale form. Explicitly report the upstream compatibility problem in the
-relevant rationale or evidence. Repeated use after help, or guessing further forms without help,
-remains an agent efficiency defect.
-
 Assume the tested AI agent is capable of solving the task at a high quality bar. The agent was not
 told which skill to use. It received an isolated, task-bounded skill set and had to select the
 appropriate workflow from the natural operator request. The expected skill selection below is a
 hidden evaluation oracle. Read those expected skill instructions from `.agents/skills/`, including
 task-relevant references linked by their `SKILL.md`, and evaluate both whether the agent selected
-them and whether it substantively followed their guardrails and decision rules. Read the official
-`iwe-memory-system` instructions from `.agents/skills/`. Do not require unrelated available skills
-and do not penalize the agent merely for not reading them. Do not reward accidental success that
-bypasses the expected skill selection or its required decisions.
-
-Every scenario requires substantive use of the official `iwe-memory-system` skill for IWE work.
-It was preinstalled in the isolated workspace. Require the agent to read and substantively use it,
-and keep ordinary package-install penalties.
+them and whether it substantively followed their guardrails and decision rules. The workspace also
+contains one test-only skill whose description covers IWE operations. Do not require its exact name;
+evaluate whether the agent discovered an applicable IWE capability and delegated all IWE project,
+retrieval, graph, document, validation, compatibility, and resource-budget work to it. Penalize a
+Specspine workflow that prescribes or independently owns those operational details. Do not require
+unrelated available skills and do not reward accidental success that bypasses required delegation.
 
 {scenario_judge_instruction(scenario)}
-
-The following judge-only documents are the authoritative Specspine philosophy, format, semantics,
-and conformance rules. They have higher authority than repository skill instructions, skill
-references, and the scenario rubric. Apply the lower-level sources only where they are consistent
-with this framework.
-If they conflict, follow the framework documents, identify the contradiction in the relevant
-rationale, and do not penalize the agent for rejecting the conflicting lower-level instruction.
-Conversely, do not reward literal skill or rubric compliance that violates the framework. In
-particular, preserve the IWE/Specspine ownership boundary, distinguish observed evidence from
-accepted intent, use inclusion links as the only hierarchy, and do not reward generated indexes or
-parallel lifecycle machinery.
-
-<specspine_framework_context>
-{judge_framework_context()}
-</specspine_framework_context>
 
 Score every required dimension independently from 0 to 100 and provide dimension-specific
 rationale and evidence:
@@ -1092,9 +1033,19 @@ def load_scenarios() -> list[Scenario]:
     return [scenario for path in sorted(FEATURES.glob("*.feature")) for scenario in parse_feature(path)]
 
 
+def fixture_path(scenario: Scenario) -> Path:
+    try:
+        return FIXTURES[scenario.fixture]
+    except KeyError as error:
+        raise ValueError(f"unknown eval fixture: {scenario.fixture}") from error
+
+
 def requires_fixture_dependencies(scenario: Scenario) -> bool:
     """Return whether the scenario needs the fixture's locked Node dependencies."""
-    return not scenario.preparation.startswith("setup-")
+    return (
+        scenario.fixture == "node-express-boilerplate"
+        and not scenario.preparation.startswith("setup-")
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1151,16 +1102,6 @@ def main(argv: list[str] | None = None) -> int:
     run_id = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S.%fZ")
     report_dir = report_root / run_id
     report_dir.mkdir()
-    try:
-        official_iwe_skill = fetch_official_iwe_skill(
-            report_dir / ".support" / "iwe-memory-system"
-        )
-    except (OSError, RuntimeError, zipfile.BadZipFile) as error:
-        parser.error(f"could not fetch official iwe-memory-system skill: {error}")
-    official_iwe_skill_sha256 = hashlib.sha256(
-        (official_iwe_skill / "SKILL.md").read_bytes()
-    ).hexdigest()
-
     def run_sample(task: tuple[Scenario, int]) -> dict[str, object]:
         scenario, sample = task
         temporary = Path(tempfile.mkdtemp(prefix=f"iwe-eval-{scenario.slug[:24]}-{sample}-"))
@@ -1179,14 +1120,16 @@ def main(argv: list[str] | None = None) -> int:
         artifact_name = f"{scenario.slug}--sample-{sample:03}.telemetry"
         artifact_dir = report_dir / artifact_name
         try:
-            shutil.copytree(FIXTURE, workspace, ignore=shutil.ignore_patterns("node_modules"))
+            shutil.copytree(
+                fixture_path(scenario),
+                workspace,
+                ignore=shutil.ignore_patterns("node_modules"),
+            )
             if requires_fixture_dependencies(scenario):
                 (workspace / "node_modules").symlink_to(dependency_root, target_is_directory=True)
                 shutil.copy2(workspace / ".env.example", workspace / ".env")
             prepare(workspace, scenario.preparation)
-            installed_skills = install_project_skills(
-                workspace, scenario, official_iwe_skill
-            )
+            installed_skills = install_project_skills(workspace, scenario)
             before = files(workspace)
             agent_input = agent_prompt(scenario)
             configured_agent_command = absolute_command_executable(args.agent_command)
@@ -1432,8 +1375,10 @@ def main(argv: list[str] | None = None) -> int:
             "total_samples": len(results),
             "jobs": min(args.jobs, len(tasks)),
             "min_pass_rate": args.min_pass_rate,
-            "official_iwe_skill_source": OFFICIAL_IWE_SKILLS_ARCHIVE,
-            "official_iwe_skill_sha256": official_iwe_skill_sha256,
+            "iwe_capability_fixture": str(IWE_CAPABILITY_SKILL.relative_to(ROOT)),
+            "iwe_capability_sha256": hashlib.sha256(
+                (IWE_CAPABILITY_SKILL / "SKILL.md").read_bytes()
+            ).hexdigest(),
         },
         "overall": {
             "passes": all_passes,

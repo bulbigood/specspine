@@ -20,7 +20,7 @@ It uses an isolated copy of `examples/node-express-boilerplate` and verifies:
 - absence of Specspine runtime scripts and workflow-skill setup assets;
 - independence of `iwe-spec-implement` from `iwe-spec-verify`;
 - autonomous, script-free `iwe-spec-audit` packaging;
-- bounded non-deprecated IWE recipes and P1 owner/evidence/closure safeguards;
+- capability-based IWE delegation and P1 owner/evidence/closure safeguards;
 - declarative, script-free `iwe-spec-setup` packaging and its canonical assets.
 
 Run:
@@ -48,28 +48,31 @@ SPECSPINE_TEST_NPX=1 python3 tests/run_mechanical.py \
 > require this approval.
 
 Executable Gherkin scenarios in `eval/features/` exercise every `iwe-spec-*`
-skill and two end-to-end workflows against isolated copies of
-`examples/node-express-boilerplate`. The runner invokes one coding agent and a
+skill and end-to-end workflows against isolated Node/Express and Python
+filesystem projects. The runner invokes one coding agent and a
 separate read-only AI judge. The judge evaluates the request, semantic rubric,
 workspace diff, final workspace, and agent transcript. Workflow scenarios use
 no golden patch. Operational workflow scenarios start from a workspace already
 initialized for IWE and Specspine, matching the prerequisite documented in the
 root README. Dedicated setup scenarios start from new, valid, or conflicting
-workspace states and expose only `iwe-spec-setup` plus the official
-`iwe-memory-system` dependency. New and conflicting setups use multiple turns;
-an already valid setup exercises the immediate, unchanged fast path.
+workspace states and expose only `iwe-spec-setup` plus a repository-pinned,
+test-only IWE capability. Product skills do not know that capability's name.
+New and conflicting setups may use multiple turns; an already valid setup
+exercises the immediate, unchanged fast path.
 
 P1 operational scenarios cover owner reuse, evidence-only facet safety,
 refresh of stale observations, mixed implementation freedom, ambiguous closure,
 escaping assets, and rename address migration. Use 3–5 independent samples for
 acceptance; a single sample is only a smoke signal.
 
-Setup evals keep the IWE executable preinstalled. They test interactive
-decisions, path containment, idempotence, collision handling, generated config,
-and deterministic filesystem postconditions. They do not install system
-software: presenting current official installation choices and waiting for
-approval is covered mechanically because executing package managers would make
-the eval platform-dependent and mutate its host environment.
+A portability scenario maps a Python filesystem boundary so acceptance is not
+based only on HTTP, authentication, or database behavior.
+
+Setup evals keep the IWE executable preinstalled. They test reuse of supplied
+answers, necessary decisions, path containment, idempotence, collision handling,
+generated config, and deterministic filesystem postconditions. They do not
+install system software because executing package managers would make the eval
+platform-dependent and mutate its host environment.
 
 Every judge must also evaluate what the coding agent actually did and how long
 it worked. The runner supplies exact Codex turn token usage (`input_tokens`,
@@ -84,25 +87,23 @@ reasoning output is already included in output tokens, so neither is counted
 twice.
 
 The runner also derives objective procedure signals directly from command
-events: command and failure counts, deprecated-IWE warnings, recovery through
-`iwe <command> --help`, exact command repetitions, command-output bytes, and
-database-runtime retries. These measurements are recorded per sample and
+events: command and failure counts, compatibility problems and recoveries, exact
+command repetitions, command-output bytes, and database-runtime retries. These
+measurements are recorded per sample and
 aggregated in `summary.json`; they do not depend on judge interpretation.
 
 Every tested process receives isolated `HOME` and `CODEX_HOME` directories;
 only authentication material is copied into the latter, while user config,
 plugins, user/global skills, and `~/.agents/skills` are unavailable. Codex CLI
 still materializes its immutable built-in `.system` skills; disabling those
-would also disable the skill mechanism under test. Each workspace exposes only the
-repository skills needed by that scenario and the official
-`iwe-memory-system` dependency fetched from `iwe-org/skills`. The natural
-operator request does not name them. Gherkin metadata supplies a hidden
-expected-skill oracle only to the judge. Judges require both the expected
-repository workflow and substantive use of `iwe-memory-system`.
-The upstream skill is not versioned with IWE and may contain examples that lag
-the installed CLI. Repository skills therefore require the agent to recover
-from rejected or deprecated syntax with `iwe <command> --help`. Judges report
-that upstream incompatibility but do not penalize a recovered first attempt.
+would also disable the skill mechanism under test. Each workspace exposes only
+the repository workflow needed by that scenario and a pinned test-only skill
+whose description advertises IWE operations. The natural operator request names
+neither. Gherkin metadata supplies a hidden workflow oracle only to the judge;
+the judge evaluates whether the agent independently discovers an applicable IWE
+capability and delegates every IWE operation to it without depending on its
+name. The judge reads the installed workflow and its task-relevant references;
+it does not receive a second injected copy of repository framework documents.
 
 List scenarios:
 

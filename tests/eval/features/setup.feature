@@ -28,8 +28,8 @@ Feature: Interactive Specspine workspace setup
       """
     Then the AI judge verifies:
       """
-      The agent follows the setup skill as a linear conversation, initializes
-      IWE only after the workspace and library decisions, and does not install
+      The agent reuses each supplied answer, asks only for unresolved choices,
+      initializes IWE only after the workspace and library decisions, and does not install
       software because IWE is already available. The resulting library.path is
       knowledge, the specification template uses
       architecture/specs/{{slug}}, the schema match is

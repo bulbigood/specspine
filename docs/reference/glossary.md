@@ -3,7 +3,7 @@
 | Term                | Meaning                                                                                               |
 | ------------------- | ----------------------------------------------------------------------------------------------------- |
 | Owner               | One canonical specification represented by an IWE document.                                           |
-| Document key        | Current canonical owner address assigned by IWE; migrated by `iwe rename`.                            |
+| Document key        | Current canonical owner address assigned by IWE; migrated by an IWE-managed rename.                    |
 | Inclusion           | Link-only paragraph; structural parent/child edge.                                                    |
 | Reference           | Link inside prose; non-structural graph edge.                                                         |
 | Facet               | Declared completeness of architecture, behavior, interfaces, data, failure, quality, or verification. |

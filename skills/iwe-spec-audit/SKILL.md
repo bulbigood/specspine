@@ -1,6 +1,6 @@
 ---
 name: iwe-spec-audit
-description: Audit Specspine v5 format conformance and semantic readiness through native IWE projections without changing files. Use for workspace health checks, readiness review, blocker and semantic-ID integrity, exhaustive-boundary authority, asset validation, completeness honesty, or preflight before verification and implementation.
+description: Audit Specspine v5 format conformance and semantic readiness through IWE without changing files. Use for workspace health checks, readiness review, blocker and semantic-ID integrity, exhaustive-boundary authority, asset validation, completeness honesty, or preflight before verification and implementation.
 ---
 
 # IWE Spec Audit
@@ -8,32 +8,31 @@ description: Audit Specspine v5 format conformance and semantic readiness throug
 Perform a read-only audit. Do not repair specifications, implementation, tests,
 or configuration.
 
-Use the installed official `iwe-memory-system` skill for every IWE operation and
-read it before continuing. If it is unavailable, stop and direct the operator to
-the Specspine README setup. Treat its CLI examples as guidance that may lag the
-installed IWE binary. If a command rejects an argument or prints a deprecation
-warning, run `iwe <command> --help`, switch to the installed syntax, and do not
-retry the known-stale form.
+Find an available skill whose description covers IWE projects and document
+operations, read it, and delegate every interaction with IWE to it. State the
+result needed from IWE; do not prescribe commands, flags, syntax, traversal,
+batch sizes, token budgets, or compatibility handling. If no applicable IWE
+skill is available, report the missing capability and stop.
 
-Before auditing, read [Specspine format](references/specspine-format.md),
-[Specspine semantics](references/specspine-semantics.md), and
-[semantic audit](references/specspine-audit.md) completely. Read and apply
-[IWE operations](references/specspine-operations.md) before discovery or
-projection. The workspace
-`.iwe/schemas/specification.yaml` remains the executable document contract.
+Use [semantic audit](references/specspine-audit.md) as the audit contract. Read
+the relevant parts of [Specspine format](references/specspine-format.md) and
+[Specspine semantics](references/specspine-semantics.md) when a finding depends
+on document structure, authority, ownership, or readiness. Treat the workspace
+Specspine schema as the executable document contract.
 
-1. Resolve the applicable IWE project root and `library.path`; treat incomplete
-   Specspine configuration as setup failure and ask the operator to run
-   `iwe-spec-setup`. If it is unavailable, point to the README manual fallback.
-   Do not install or repair setup from this workflow.
-2. Select whole-workspace or explicitly task-bounded scope. Do not silently claim
-   whole-workspace coverage for a sample.
-3. Run the IWE compatibility gate and `iwe schema validate`, then project all selected owners exactly as defined
-   by the audit reference. Use bounded batches for a large workspace.
-4. Apply every required semantic and filesystem check. Do not infer accepted
-   intent to make a document pass.
-5. Return the audit report contract from the reference, including `none` where a
-   finding class is empty and confirming that no files changed.
+Ask the selected IWE skill for:
 
-Schema errors do not authorize repair. Continue with safely evaluable semantic
-checks when useful, but mark readiness invalid until the schema gate passes.
+1. the applicable project and Markdown library;
+2. the Specspine schema-validation result;
+3. every selected Specspine v5 owner, including its key, required frontmatter,
+   assets, and complete document content;
+4. task-relevant relationships when closure-level rules apply;
+5. explicit omissions or truncation from the requested scope.
+
+Choose whole-workspace or explicitly task-bounded scope. Apply every required
+semantic and filesystem check without treating accepted intent as evidence that
+a document passes. Continue safely evaluable checks after schema errors when
+useful, but keep readiness invalid until the schema gate passes.
+
+Return the audit report contract from the reference, including `none` for empty
+finding classes and confirmation that no files changed.

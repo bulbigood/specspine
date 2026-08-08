@@ -24,7 +24,10 @@ Refine an existing owner when a candidate responsibility is already governed by 
 
 Relationship prose explains the architectural consequence. Specspine does not assign a second machine relationship token or maintain a parallel graph. It adopts richer relationship semantics through IWE when IWE provides them.
 
-The IWE key is the owner's current canonical address. `iwe rename` is an explicit address migration: accepted meaning and owner-local statement IDs stay unchanged, IWE-managed links are rewritten, and external consumers must update stored keys. Specspine intentionally does not maintain an immutable parallel ID.
+The IWE key is the owner's current canonical address. An IWE-managed rename is
+an explicit address migration: accepted meaning and owner-local statement IDs
+stay unchanged, managed links are rewritten, and external consumers must update
+stored keys. Specspine intentionally does not maintain an immutable parallel ID.
 
 ## Readiness
 

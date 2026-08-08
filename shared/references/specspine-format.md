@@ -2,13 +2,11 @@
 
 ## Workspace
 
-The IWE project marker is `.iwe/`. The recommended library is `docs`, initialized with:
-
-``` bash
-iwe init --auto --library docs
-```
-
-Before any IWE command, resolve the applicable project root by checking the task working directory and its ancestors for `.iwe/config.toml`. For a task that explicitly spans packages, also inspect only the task-relevant descendants. Run IWE from the directory containing the selected `.iwe/`. If several roots plausibly own the task, ask the operator which one to use before changing anything. Do not assume that IWE invoked below a project root will discover its ancestor configuration.
+The IWE project marker is `.iwe/`, and the recommended library for a new project
+is `docs`. Ask an applicable IWE skill to resolve the project root and Markdown
+library. If several roots plausibly own the task, ask the operator which one to
+use before changing anything. Do not prescribe how the IWE skill discovers or
+operates on the project.
 
 Specspine documents live in a configured directory strictly below `library.path`. The default library-relative prefix is `specs`, so `library.path = "docs"` produces `docs/specs/`; a project may choose another contained prefix such as `architecture/specs`. The `specification` template key and schema match must use the same library-relative prefix. Other Markdown files in the IWE library remain ordinary IWE documents.
 
@@ -18,7 +16,11 @@ There is no `specspine.json`, `_INDEX.md`, required README, nested Spine root, o
 
 ## Identity and metadata
 
-The IWE document key is the canonical address of an owner. It is stable until an explicit `iwe rename` operation migrates the owner to a new key and rewrites IWE-managed links. A rename does not change the owner's accepted meaning, but external consumers that store a key must treat the rename as an address migration. Specspine does not add a second document identifier beside IWE.
+The IWE document key is the canonical address of an owner. It is stable until
+an explicit IWE-managed rename migrates the owner to a new key and rewrites
+managed links. A rename does not change the owner's accepted meaning, but
+external consumers that store a key must treat it as an address migration.
+Specspine does not add a second document identifier beside IWE.
 
 A document starts with YAML frontmatter:
 
@@ -60,7 +62,12 @@ Facet applicability depends on owner kind:
 | `deployment`                                                 | architecture, failure, quality, verification    |
 | `concept`                                                    | architecture                                    |
 
-`verification: complete` requires at least one owner-local `VER-*` statement or a normative asset with role `verification` and a nonempty `verifies` list. Each listed ID must resolve to an owner-local `VER-*` statement. Other complete facets require substantive accepted support in the applicable prose, statements, relationships, or normative assets.
+`verification: complete` requires at least one owner-local `VER-*` statement. A
+normative asset with role `verification` may implement or support those
+criteria, but it does not replace them; every listed `verifies` ID must resolve
+to an owner-local `VER-*` statement. Other complete facets require substantive
+accepted support in the applicable prose, statements, relationships, or
+normative assets.
 
 ## Statements
 

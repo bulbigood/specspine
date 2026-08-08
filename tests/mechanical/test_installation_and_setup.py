@@ -50,7 +50,6 @@ class InstallationIntegrityTests(unittest.TestCase):
                 for reference in (
                     "specspine-audit.md",
                     "specspine-format.md",
-                    "specspine-operations.md",
                     "specspine-semantics.md",
                 ):
                     installed_reference = installed / "references" / reference
@@ -70,7 +69,6 @@ class InstallationIntegrityTests(unittest.TestCase):
                 expected_references = {
                     "specspine-audit.md",
                     "specspine-format.md",
-                    "specspine-operations.md",
                     "specspine-semantics.md",
                 }
                 if name in {"iwe-spec-verify", "iwe-spec-implement"}:
@@ -86,7 +84,7 @@ class InstallationIntegrityTests(unittest.TestCase):
             *(
                 ROOT / "skills" / name / f"references/specspine-{reference}.md"
                 for name in WORKFLOW_SKILL_NAMES
-                for reference in ("audit", "format", "operations", "semantics")
+                for reference in ("audit", "format", "semantics")
             ),
             *(
                 ROOT / "skills" / name / "references/specspine-conformance.md"
@@ -94,7 +92,7 @@ class InstallationIntegrityTests(unittest.TestCase):
             ),
             *(
                 ROOT / "docs/reference" / f"{reference}.md"
-                for reference in ("format", "semantics", "conformance", "operations")
+                for reference in ("format", "semantics", "conformance")
             ),
             ROOT / "skills/iwe-spec-setup/assets/iwe/config.toml",
             ROOT / "skills/iwe-spec-setup/assets/iwe/schemas/specification.yaml",
@@ -142,8 +140,8 @@ class InstallationIntegrityTests(unittest.TestCase):
         compact = " ".join(contract.split())
 
         self.assertIn("Perform a read-only audit", skill)
-        self.assertIn("iwe schema validate", contract)
-        self.assertIn("iwe find --filter 'specspine: 5'", contract)
+        self.assertIn("Ask an available IWE-capable skill", contract)
+        self.assertIn("Do not prescribe how the skill discovers", contract)
         self.assertIn("frontmatter title equals the first H1", compact)
         self.assertIn("every ID is unique within the owner", compact)
         self.assertIn("coverage.basis", contract)
@@ -162,17 +160,12 @@ class InstallationIntegrityTests(unittest.TestCase):
     def test_setup_skill_is_declarative_and_idempotent_by_contract(self) -> None:
         skill = (ROOT / "skills/iwe-spec-setup/SKILL.md").read_text(encoding="utf-8")
         compact = " ".join(skill.split())
-        self.assertIn("iwe init --auto --library <chosen-relative-path>", skill)
-        self.assertIn("iwe schema validate", skill)
-        self.assertIn("official IWE GitHub README", compact)
-        self.assertIn("ask the user which one to use", compact)
-        self.assertIn("obtain approval before running it", compact)
-        self.assertIn("strict descendant of the resolved IWE library root", compact)
-        self.assertIn("This skill contains no scripts", skill)
-        self.assertIn("may lag the installed IWE binary", compact)
-        self.assertIn("`iwe <command> --help`", skill)
-        self.assertIn("Make the operation idempotent", compact)
-        self.assertIn("Never replace the generated configuration", compact)
+        self.assertIn("delegate every interaction with IWE", compact)
+        self.assertIn("do not prescribe commands", compact)
+        self.assertIn("Reuse answers already supplied", compact)
+        self.assertIn("strict descendant", compact)
+        self.assertIn("obtain approval before replacing a conflict", compact)
+        self.assertIn("Keep the operation idempotent", compact)
         self.assertTrue(
             (ROOT / "skills/iwe-spec-setup/assets/iwe/config.toml").is_symlink()
         )
@@ -183,37 +176,26 @@ class InstallationIntegrityTests(unittest.TestCase):
             ).is_symlink()
         )
 
-    def test_readme_documents_guided_setup_and_manual_fallback(self) -> None:
+    def test_readme_documents_capability_delegation_and_guided_setup(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn("iwe-org/skills --skill iwe-memory-system", readme)
+        self.assertIn("does not require a particular external skill", readme)
+        self.assertIn("discovers an available skill", readme)
         self.assertIn("$iwe-spec-setup", readme)
-        self.assertIn("Which directory inside the workspace", readme)
-        self.assertIn("rejects paths outside the IWE library", readme)
-        self.assertIn("<details>", readme)
-        self.assertIn("Manual workspace setup", readme)
-        self.assertIn("iwe init --auto --library docs", readme)
-        self.assertIn("[templates.specification]", readme)
-        self.assertIn("[schemas.specification]", readme)
-        self.assertIn('match = "specs/**"', readme)
-        self.assertIn(".iwe/schemas/specification.yaml", readme)
+        self.assertIn("asks only for unresolved", readme)
+        self.assertNotIn("iwe-memory-system", readme)
 
-    def test_workflow_skills_delegate_incomplete_setup(self) -> None:
+    def test_workflow_skills_delegate_iwe_without_named_dependency(self) -> None:
         for name in WORKFLOW_SKILL_NAMES:
             skill_dir = ROOT / "skills" / name
             skill = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
             compact = " ".join(skill.split())
-            self.assertIn("installed official `iwe-memory-system` skill", compact)
-            self.assertIn("read it before continuing", compact)
-            self.assertIn("may lag the installed IWE binary", compact)
-            self.assertIn("`iwe <command> --help`", skill)
-            self.assertIn("do not retry the known-stale form", compact)
-            self.assertIn("ask the operator to run `iwe-spec-setup`", compact)
-            self.assertIn("README manual fallback", compact)
-            self.assertIn("Do not install or repair setup from this workflow", compact)
-            self.assertIn("workspace `.iwe/schemas/specification.yaml`", compact)
-            self.assertIn("`iwe schema validate`", skill)
+            self.assertIn("Find an available skill whose description covers IWE", compact)
+            self.assertIn("delegate every interaction with IWE", compact)
+            self.assertIn("do not prescribe commands, flags, syntax", compact)
+            self.assertNotIn("iwe-memory-system", skill)
+            self.assertNotIn("iwe-spec-setup", skill)
             self.assertIn("specspine-audit.md", skill)
-            self.assertIn("specspine-operations.md", skill)
+            self.assertNotIn("specspine-operations.md", skill)
             self.assertNotIn("iwe-readiness.sh", skill)
             self.assertFalse((skill_dir / "assets").exists())
 
@@ -260,7 +242,6 @@ class NpxInstallationSmokeTests(unittest.TestCase):
                 {
                     "specspine-audit.md",
                     "specspine-format.md",
-                    "specspine-operations.md",
                     "specspine-semantics.md",
                 },
             )

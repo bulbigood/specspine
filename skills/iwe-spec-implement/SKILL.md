@@ -6,77 +6,56 @@ description: Bring an implementation into conformance with accepted Specspine v5
 # IWE Spec Implement
 
 Change implementation, tests, and implementation-owned configuration. Never
-change accepted specifications merely to make the implementation pass. Use
+change accepted specifications merely to make implementation pass. Use
 `conform` unless the operator selects another mode.
 
-Use the installed official `iwe-memory-system` skill for every IWE operation
-and read it before continuing. If it is unavailable, stop and direct the
-operator to the Specspine README setup.
+Find an available skill whose description covers IWE projects and document
+operations, read it, and delegate every interaction with IWE to it. State the
+result needed from IWE; do not prescribe commands, flags, syntax, traversal,
+batch sizes, token budgets, or compatibility handling. If no applicable IWE
+skill is available, report the missing capability and stop.
 
-Treat its CLI examples as guidance that may lag the installed IWE binary. If a
-command rejects an argument or prints a deprecation warning, run
-`iwe <command> --help`, switch to the syntax reported by the installed CLI, and
-do not retry the known-stale form.
-
-Before interpreting specifications or changing implementation, read
+Use [Specspine conformance](references/specspine-conformance.md) as the change
+authority contract. Read the relevant parts of
 [Specspine format](references/specspine-format.md),
 [Specspine semantics](references/specspine-semantics.md), and
-[Specspine conformance](references/specspine-conformance.md) completely. Read
-and apply [IWE operations](references/specspine-operations.md) before discovery
-or retrieval. Also
-read and apply [semantic audit](references/specspine-audit.md) to the selected
-owners before changing implementation. The
-workspace `.iwe/schemas/specification.yaml` is the executable contract for exact
-document structure; the references define authority, boundaries, finding
-classification, and removal authority.
+[semantic audit](references/specspine-audit.md) when the selected claims require
+them. Treat the workspace Specspine schema as the executable document contract.
 
-Resolve the applicable IWE project root as defined by the format reference
-before running any IWE command. Use that root as the working directory and read
-its `.iwe/config.toml` once to determine `library.path`. Treat unavailable IWE
-or missing required Specspine configuration as an incomplete setup: stop and
-ask the operator to run `iwe-spec-setup`. If that skill is unavailable, point
-to the README manual fallback. Do not install or repair setup from this
-workflow.
+Ask the selected IWE skill for the applicable project and library, schema result,
+selected canonical owner, task-relevant governing closure, accepted claims,
+registered assets, implementation-freedom declarations, boundary coverage, and
+explicit omissions or truncation. If setup is incomplete, report that condition
+without repairing it.
 
 ## Modes
 
-- `additive`: implement `missing` claims; report other findings without
-  removing behavior.
+- `additive`: implement `missing` claims; report other findings without removal.
 - `conform` (default): implement `missing` claims and resolve `conflicting`
-  behavior with a concrete normative basis.
+  behavior only with concrete normative authority.
 - `closed-boundary`: apply `conform`, then remove `uncovered-boundary` behavior
-  only when every governing owner declares
-  `coverage.external-boundary: exhaustive` with a valid owner-local `CON-*`
-  basis that explicitly closes the enumerated external boundary.
+  only when every governing owner declares an exhaustive external boundary with
+  a valid owner-local `CON-*` basis that explicitly closes it.
 
 ## Workflow
 
-1. Run the IWE compatibility gate. Resolve the operator's terms with bounded
-   fuzzy and lexical `iwe find` recipes. Inspect neighboring titles only when
-   several owners plausibly match.
-2. Run `iwe schema validate`, then apply the semantic audit gate to the selected
-   owners. Stop on audit errors or a materially ambiguous relevant blocker.
-3. Retrieve only the task-bounded closure using deliberate expansion directions
-   and hard document/token budgets. Record included governing owners, relevant
-   exclusions, and truncation uncertainty.
-4. Produce a complete pre-change assessment. Aggregate implementation freedom
-   using the strictest applicable governing owner, classify findings, and
-   distinguish accepted intent from evidence using the conformance and semantics
-   references.
-5. Trace each relevant normative claim to code, tests, and registered assets.
-6. Apply only the finding classes authorized by the selected mode. Preserve
+1. Apply the semantic audit gate to selected owners. Stop on errors or a
+   materially ambiguous relevant blocker.
+2. Produce a pre-change assessment. Aggregate implementation freedom using the
+   strictest governing owner and distinguish accepted intent from evidence.
+3. Trace each relevant normative claim to code, tests, and registered assets.
+4. Apply only finding classes authorized by the selected mode. Preserve
    unrelated behavior and use the smallest coherent change.
-7. Add or update focused tests. Run the smallest relevant check, followed by a
-   broader suite only when risk justifies it.
-8. Produce a post-change assessment over the same scope.
+5. Add or update focused tests and run checks proportional to risk.
+6. Ask the selected IWE skill to return the same accepted-intent scope again
+   when a fresh post-change comparison is needed; do not modify specifications.
+7. Produce a post-change assessment over the same scope.
 
-The final response contains `Scope`, `Pre-change findings`, `Changes`, `Checks`,
-`Finding transitions`, and `Remaining findings and verdict`. Do not duplicate a
-full pre/post report. Use `none` for an empty finding set and report changed
-files plus runtime-unverified claims.
+Before removing behavior, inspect callers, public interfaces, migrations,
+configuration, and tests. Remove a full dead path only when safe and in scope.
+Do not weaken claims, promote observations to intent, create relationship
+metadata, or add a graph or lifecycle mechanism beside IWE.
 
-Before any deletion authorized by the conformance reference and selected mode,
-inspect callers, public interfaces, migrations, configuration, and tests.
-Remove a full dead path only when safe and in scope. Do not weaken claims,
-promote observations to intent, create relationship metadata, or add a graph or
-lifecycle mechanism beside IWE.
+Return `Scope`, `Pre-change findings`, `Changes`, `Checks`, `Finding transitions`,
+and `Remaining findings and verdict`. Use `none` for empty findings and report
+changed files plus runtime-unverified claims.

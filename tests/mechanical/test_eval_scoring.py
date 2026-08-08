@@ -230,7 +230,7 @@ class EvalScoringTests(unittest.TestCase):
         ):
             self.assertNotIn(hint, prompt)
 
-    def test_judge_prompt_handles_environment_and_upstream_iwe_failures(self) -> None:
+    def test_judge_prompt_handles_environment_and_iwe_delegation(self) -> None:
         scenario = EVAL_RUN.Scenario(
             "feature", "scenario", "baseline", ("iwe-spec-verify",), "request", "rubric"
         )
@@ -240,13 +240,13 @@ class EvalScoringTests(unittest.TestCase):
         self.assertIn("Ignore an attempted read-only Git", prompt)
         self.assertIn("Do not ignore destructive", prompt)
         self.assertIn("or remote Git attempts", prompt)
-        self.assertIn("upstream `iwe-memory-system` skill is not versioned", prompt)
-        self.assertIn("do not lower\nany score", prompt)
+        self.assertIn("discovered an applicable IWE capability", prompt)
+        self.assertIn("delegated all IWE project", prompt)
         self.assertIn("test the skills and documentation, not MongoDB", prompt)
         self.assertIn("independent AI-judged acceptance floors", prompt)
         self.assertIn("Expected skill selection", prompt)
         self.assertIn("iwe-spec-verify", prompt)
-        self.assertIn("iwe-memory-system", prompt)
+        self.assertNotIn("iwe-memory-system", prompt)
         self.assertNotIn("calibrate tool and resource efficiency to setup work", prompt)
 
     def test_setup_judge_prompt_includes_ordered_interaction_context(self) -> None:
@@ -262,7 +262,7 @@ class EvalScoringTests(unittest.TestCase):
 
         prompt = EVAL_RUN.judge_prompt(scenario, "transcript", "", {})
 
-        self.assertIn("interactive setup scenario", prompt)
+        self.assertIn("setup scenario", prompt)
         self.assertIn("IWE was already installed", prompt)
         self.assertIn("1. first choice", prompt)
         self.assertIn("2. second choice", prompt)
@@ -294,7 +294,7 @@ class EvalScoringTests(unittest.TestCase):
             )
         )
 
-    def test_setup_scenarios_do_not_require_fixture_dependencies(self) -> None:
+    def test_only_operational_node_scenarios_require_fixture_dependencies(self) -> None:
         scenarios = EVAL_RUN.load_scenarios()
 
         setup = [item for item in scenarios if item.preparation.startswith("setup-")]
@@ -303,7 +303,20 @@ class EvalScoringTests(unittest.TestCase):
         self.assertTrue(setup)
         self.assertTrue(operational)
         self.assertFalse(any(EVAL_RUN.requires_fixture_dependencies(item) for item in setup))
-        self.assertTrue(all(EVAL_RUN.requires_fixture_dependencies(item) for item in operational))
+        self.assertTrue(
+            all(
+                EVAL_RUN.requires_fixture_dependencies(item)
+                for item in operational
+                if item.fixture == "node-express-boilerplate"
+            )
+        )
+        self.assertFalse(
+            any(
+                EVAL_RUN.requires_fixture_dependencies(item)
+                for item in operational
+                if item.fixture == "python-file-indexer"
+            )
+        )
 
     def test_setup_agent_prompt_does_not_mention_database_runtime(self) -> None:
         scenario = next(
@@ -382,48 +395,35 @@ class EvalScoringTests(unittest.TestCase):
 
             self.assertEqual(errors, [])
 
-    def test_judge_prompt_loads_authoritative_specspine_and_skill_context(self) -> None:
+    def test_judge_prompt_uses_skill_context_without_circular_framework_injection(self) -> None:
         scenario = EVAL_RUN.Scenario(
             "feature", "scenario", "baseline", ("iwe-spec-map",), "request", "rubric"
         )
 
         prompt = EVAL_RUN.judge_prompt(scenario, "transcript", "", {})
 
-        self.assertIn("<specspine_framework_context>", prompt)
-        self.assertIn("--- README.md ---", prompt)
-        self.assertIn("--- docs/reference/format.md ---", prompt)
-        self.assertIn("--- docs/reference/semantics.md ---", prompt)
-        self.assertIn("--- docs/reference/conformance.md ---", prompt)
-        self.assertIn("--- docs/reference/audit.md ---", prompt)
-        self.assertIn("--- docs/reference/operations.md ---", prompt)
-        self.assertIn("IWE owns documents, canonical keys, links", prompt)
         self.assertIn("task-relevant references linked by their `SKILL.md`", prompt)
-        self.assertIn("preinstalled in the isolated workspace", prompt)
-        self.assertIn(
-            "higher authority than repository skill instructions, skill\n"
-            "references, and the scenario rubric",
-            prompt,
-        )
-        self.assertIn("do not reward literal skill or rubric compliance", prompt)
-        self.assertIn("do not penalize the agent for rejecting", prompt)
+        self.assertIn("test-only skill whose description covers IWE operations", prompt)
+        self.assertIn("Do not require its exact name", prompt)
+        self.assertNotIn("<specspine_framework_context>", prompt)
 
     def test_workspace_exposes_only_task_bounded_skills(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
-            official = workspace / "official/iwe-memory-system"
-            official.mkdir(parents=True)
-            (official / "SKILL.md").write_text("---\nname: iwe-memory-system\n---\n")
             scenario = EVAL_RUN.Scenario(
                 "feature", "scenario", "baseline", ("iwe-spec-map",), "request", "rubric"
             )
 
-            installed_names = EVAL_RUN.install_project_skills(workspace, scenario, official)
+            installed_names = EVAL_RUN.install_project_skills(workspace, scenario)
 
             installed = workspace / ".agents/skills"
-            self.assertEqual(installed_names, ("iwe-spec-map", "iwe-memory-system"))
+            self.assertEqual(
+                installed_names,
+                ("iwe-spec-map", EVAL_RUN.IWE_CAPABILITY_SKILL_NAME),
+            )
             self.assertEqual(
                 {path.name for path in installed.iterdir()},
-                {"iwe-spec-map", "iwe-memory-system"},
+                {"iwe-spec-map", EVAL_RUN.IWE_CAPABILITY_SKILL_NAME},
             )
             self.assertFalse((installed / "iwe-spec-map/assets").exists())
             self.assertTrue(
@@ -435,9 +435,6 @@ class EvalScoringTests(unittest.TestCase):
             self.assertTrue(
                 (installed / "iwe-spec-map/references/specspine-audit.md").is_file()
             )
-            self.assertTrue(
-                (installed / "iwe-spec-map/references/specspine-operations.md").is_file()
-            )
             self.assertEqual(
                 {
                     path.name
@@ -446,7 +443,6 @@ class EvalScoringTests(unittest.TestCase):
                 {
                     "specspine-audit.md",
                     "specspine-format.md",
-                    "specspine-operations.md",
                     "specspine-semantics.md",
                 },
             )
@@ -454,9 +450,6 @@ class EvalScoringTests(unittest.TestCase):
     def test_eval_workspace_installs_resolved_setup_assets(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
-            official = workspace / "official/iwe-memory-system"
-            official.mkdir(parents=True)
-            (official / "SKILL.md").write_text("---\nname: iwe-memory-system\n---\n")
             scenario = EVAL_RUN.Scenario(
                 "feature",
                 "scenario",
@@ -466,14 +459,12 @@ class EvalScoringTests(unittest.TestCase):
                 "rubric",
             )
 
-            installed_names = EVAL_RUN.install_project_skills(
-                workspace, scenario, official
-            )
+            installed_names = EVAL_RUN.install_project_skills(workspace, scenario)
 
             installed = workspace / ".agents/skills/iwe-spec-setup"
             self.assertEqual(
                 installed_names,
-                ("iwe-spec-setup", "iwe-memory-system"),
+                ("iwe-spec-setup", EVAL_RUN.IWE_CAPABILITY_SKILL_NAME),
             )
             self.assertEqual(
                 (installed / "assets/iwe/config.toml").read_bytes(),
@@ -519,13 +510,13 @@ class EvalScoringTests(unittest.TestCase):
         self.assertNotIn("iwe-spec-verify", implement)
         self.assertNotIn("Post-change assessment", implement)
 
-    def test_implement_does_not_install_verify_as_a_dependency(self) -> None:
+    def test_implement_receives_an_unnamed_iwe_capability_fixture(self) -> None:
         scenario = EVAL_RUN.Scenario(
             "feature", "scenario", "baseline", ("iwe-spec-implement",), "request", "rubric"
         )
         self.assertEqual(
             EVAL_RUN.required_skill_names(scenario),
-            ("iwe-spec-implement", "iwe-memory-system"),
+            ("iwe-spec-implement", EVAL_RUN.IWE_CAPABILITY_SKILL_NAME),
         )
 
     def test_map_uses_schema_valid_observation_and_inspection_shapes(self) -> None:
@@ -536,32 +527,28 @@ class EvalScoringTests(unittest.TestCase):
         for mode in ("survey", "deepen", "refresh", "drift"):
             self.assertIn(f"`{mode}`", skill)
         self.assertIn("observed-only state", skill)
-        self.assertIn("Observations do not make a normative facet complete", skill)
+        self.assertIn("Evidence does not advance\na facet", skill)
         self.assertIn("evidence exception layer", skill)
-        self.assertIn("Never change a facet", skill)
-        self.assertIn("choose `refine`", skill)
+        self.assertIn("Preserve existing accepted content", skill)
+        self.assertIn("prefer `refine`", skill)
 
-    def test_workflows_use_bounded_current_iwe_recipes(self) -> None:
-        operations = (
-            EVAL_RUN.ROOT / "shared/references/specspine-operations.md"
-        ).read_text()
-
-        for required in (
+    def test_workflows_delegate_iwe_operational_choices(self) -> None:
+        forbidden = (
             "iwe --version",
+            "iwe find",
+            "iwe retrieve",
+            "iwe create",
             "--fuzzy",
             "--lexical",
-            "--expand-included-by",
-            "--expand-references",
-            "--limit",
-            "--max-documents",
+            "--expand-",
             "--max-tokens",
-            "--max-document-tokens",
-        ):
-            self.assertIn(required, operations)
-        self.assertIn(
-            "Never use deprecated positional search", " ".join(operations.split())
         )
-        self.assertNotIn("iwe find <", operations)
+        for skill_file in (EVAL_RUN.ROOT / "skills").glob("*/SKILL.md"):
+            skill = skill_file.read_text()
+            for value in forbidden:
+                self.assertNotIn(value, skill, f"{skill_file}: {value}")
+        capability = (EVAL_RUN.IWE_CAPABILITY_SKILL / "SKILL.md").read_text()
+        self.assertIn("Choose commands, syntax, traversal, batching", capability)
 
     def test_operator_requests_do_not_expose_internal_workflow(self) -> None:
         forbidden = ("$iwe-", "iwe ", ".agents/", "REQ-", "VER-", "OBS-", "INF-")
