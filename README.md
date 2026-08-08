@@ -102,11 +102,17 @@ The setup establishes:
 1. the intended IWE workspace and Markdown library;
 2. a Specspine directory strictly inside that library;
 3. matching library-relative template and schema prefixes;
-4. the canonical Specspine schema and a valid final workspace.
+4. a field-level merge of the Specspine tables into the workspace's existing
+   `.iwe/config.toml`, or an initialized configuration for a new IWE project;
+5. the canonical schema at `.iwe/schemas/specification.yaml` and a valid final
+   workspace.
 
 It reuses explicit values already supplied by the user, asks only for unresolved
-or consequential choices, preserves unrelated settings, and does not overwrite
-conflicting Specspine configuration without approval.
+or consequential choices, and never replaces `.iwe/config.toml` wholesale. It
+preserves unrelated settings, comments, actions, commands, formatting, and the
+existing library path. Identical Specspine configuration is a no-op; differing
+Specspine tables or destination schema require approval before any integration
+write.
 
 The workflow skills assume that setup is complete; they do not install or
 repair IWE or Specspine configuration. If one reports a missing IWE capability,

@@ -205,6 +205,14 @@ class InstallationIntegrityTests(unittest.TestCase):
         self.assertIn("If IWE is already installed, do not reinstall", compact)
         self.assertIn("Reuse answers already supplied", compact)
         self.assertIn("strict descendant", compact)
+        self.assertIn("not a replacement for the workspace configuration", compact)
+        self.assertIn("<workspace>/.iwe/config.toml", compact)
+        self.assertIn("field-level merge", compact)
+        self.assertIn("Never copy the bundled file wholesale", compact)
+        self.assertIn("only as defaults for a new IWE project", compact)
+        self.assertIn("<workspace>/.iwe/schemas/specification.yaml", compact)
+        self.assertIn("install the bundled schema byte-for-byte", compact)
+        self.assertIn("Preflight all conflicts before writing", compact)
         self.assertIn("obtain approval before replacing a conflict", compact)
         self.assertIn("Keep the operation idempotent", compact)
         self.assertTrue(
@@ -231,6 +239,8 @@ class InstallationIntegrityTests(unittest.TestCase):
         self.assertIn("equivalent project, key, relationship", compact)
         self.assertIn("$iwe-spec-setup", compact)
         self.assertIn("asks only for unresolved", compact)
+        self.assertIn("never replaces `.iwe/config.toml` wholesale", compact)
+        self.assertIn("canonical schema at `.iwe/schemas/specification.yaml`", compact)
         self.assertNotIn("iwe-memory-system", readme)
 
     def test_workflow_skills_delegate_iwe_without_named_dependency(self) -> None:

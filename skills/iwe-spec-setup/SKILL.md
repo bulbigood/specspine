@@ -43,8 +43,10 @@ compatibility handling.
 
 The canonical setup assets are bundled at `assets/iwe/`:
 
-- `config.toml` supplies the Specspine template and schema-binding tables;
-- `schemas/specification.yaml` is the executable Specspine document schema.
+- `config.toml` is a merge source for the Specspine template and schema-binding
+  tables, not a replacement for the workspace configuration;
+- `schemas/specification.yaml` is the executable Specspine document schema and
+  must be installed at `<workspace>/.iwe/schemas/specification.yaml`.
 
 Reuse answers already supplied by the user. Ask only for unresolved choices or
 for confirmation required before a consequential change; do not force a
@@ -75,12 +77,26 @@ multi-turn sequence when all safe values are already explicit.
 7. Present the resolved workspace, library, Specspine directory, key template,
    and schema match. Obtain confirmation before writes unless the user already
    made all of those exact values explicit.
-8. Give the selected IWE skill the bundled assets and desired end state. Require
-   it to preserve unrelated configuration, add only missing Specspine state,
-   detect differing Specspine tables or schema as conflicts, and obtain approval
-   before replacing a conflict. Do not partially apply an unresolved conflict.
-9. Require the selected IWE skill to validate the final workspace without
-   rewriting existing documents to hide validation failures.
+8. For a new project, require the selected IWE skill to initialize the IWE
+   project with the resolved library before integrating Specspine. For an
+   existing project, retain its `<workspace>/.iwe/config.toml` as the base.
+9. Give the selected IWE skill the bundled assets and require a field-level
+   merge into `<workspace>/.iwe/config.toml`: add or reconcile only
+   `[templates.specification]` and `[schemas.specification]`, using the resolved
+   prefix for `key_template` and `match`. Never copy the bundled file wholesale.
+   Treat its top-level `version` and `[library]` values only as defaults for a
+   new IWE project; never overwrite those or any unrelated existing tables,
+   fields, comments, actions, commands, formatting, or library settings.
+10. Require the selected IWE skill to create the confirmed Specspine directory
+   and install the bundled schema byte-for-byte at
+   `<workspace>/.iwe/schemas/specification.yaml`. An identical existing table or
+   schema is a no-op. Any differing Specspine table or destination schema is a
+   conflict: show the difference and obtain approval before replacing a conflict.
+   Preflight all conflicts before writing and do not partially apply an
+   unresolved integration.
+11. Require the selected IWE skill to validate the complete final workspace,
+   including configuration, schema binding, schema file, and existing
+   Specspine documents, without rewriting documents to hide validation failures.
 
 Report the IWE version, resolved workspace and library, Specspine directory and
 key prefix, changed and unchanged files, conflicts, and validation result.
